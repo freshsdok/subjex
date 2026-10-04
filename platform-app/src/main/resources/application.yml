@@ -1,0 +1,16 @@
+# Platform app — 平台应用
+spring:
+  application:
+    name: platform-app
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

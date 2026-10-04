@@ -1,0 +1,4 @@
+# Sample consumer — 示例消费者
+spring:
+  application:
+    name: sample-consumer
