@@ -14,9 +14,10 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Naming guard — 命名护栏：禁止业务敏感词出现在类名或包名中。
+ * Naming guard — 命名护栏：类名和包名不得带竞赛词，也不得用 data、info、tmp 当名字。
  * <p>
- * Fails the build when any class or package name contains a forbidden fragment.
+ * {@code package-info} is the Java package descriptor, not a business name, so it is exempt.
+ * {@code package-info} 是 Java 的包说明文件名，不是业务名字，因此排除。
  */
 @AnalyzeClasses(packages = "com.subjex", importOptions = ImportOption.DoNotIncludeTests.class)
 class NamingGuardArchTest {
@@ -27,7 +28,10 @@ class NamingGuardArchTest {
             "exam",
             "mall",
             "commerce",
-            "activity");
+            "activity",
+            "data",
+            "info",
+            "tmp");
 
     @ArchTest
     static final ArchRule no_forbidden_fragments_in_class_or_package_names =
@@ -36,6 +40,9 @@ class NamingGuardArchTest {
                         @Override
                         public void check(JavaClass javaClass, ConditionEvents events) {
                             String className = javaClass.getSimpleName().toLowerCase(Locale.ROOT);
+                            if ("package-info".equals(className)) {
+                                return;
+                            }
                             String packageName = javaClass.getPackageName().toLowerCase(Locale.ROOT);
                             for (String fragment : FORBIDDEN) {
                                 if (className.contains(fragment) || packageName.contains(fragment)) {
@@ -46,6 +53,6 @@ class NamingGuardArchTest {
                             }
                         }
                     })
-                    .because("business domain words must not leak into platform skeleton names "
-                            + "/ 业务敏感词不得进入平台骨架命名");
+                    .because("business words and placeholder words must not become platform names "
+                            + "/ 业务词和占位词不得变成平台名字");
 }
