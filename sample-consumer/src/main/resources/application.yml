@@ -1,4 +1,33 @@
 # Sample consumer — 示例消费者
+# Second application. It subscribes to the one cross-process event over the HTTP stand-in.
+# 第二个应用。它通过 HTTP 替身订阅那一条跨进程事件。
 spring:
   application:
     name: sample-consumer
+  security:
+    user:
+      name: ${PLATFORM_OPERATOR_NAME:platform-operator}
+      password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
+
+server:
+  port: 8081
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true

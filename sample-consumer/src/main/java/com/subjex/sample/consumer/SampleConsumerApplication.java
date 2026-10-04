@@ -4,12 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Sample consumer application — 示例消费者应用。
+ * SampleConsumerApplication — 示例消费者应用：只订阅一条跨进程事件的第二个进程。
  * <p>
- * Does not call platform-app yet. A dedicated subscriber type documents the
- * planned cross-process event subscription.
- * <br>
- * 尚不调用 platform-app。专用订阅类型用于说明后续跨进程事件订阅意图。
+ * It does not host the platform tables. platform-app delivers {@code TaskRecorded} here.
+ * 它不托管平台表。platform-app 把 {@code TaskRecorded} 送到这里。
  */
 @SpringBootApplication
 public class SampleConsumerApplication {

@@ -4,9 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Platform application entry — 平台应用入口。
+ * PlatformApplication — 平台应用：空宿主进程。
  * <p>
- * Starts without a datasource; health is exposed via Actuator.
+ * Starts on either MySQL or PostgreSQL. Security is on. Health probes are the liveness and readiness endpoints.
+ * 在 MySQL 或 PostgreSQL 上启动。安全默认开启。健康探针是存活与就绪端点。
  */
 @SpringBootApplication
 public class PlatformApplication {
