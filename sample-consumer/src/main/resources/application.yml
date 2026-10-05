@@ -27,8 +27,12 @@ platform:
         port: ${PLATFORM_APP_PORT:8080}
   delivery:
     listen-port: ${SAMPLE_DELIVERY_PORT:19081}
-    operator-name: ${PLATFORM_OPERATOR_NAME:platform-operator}
-    operator-password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
+    hmac-secret: ${OUTBOX_HMAC_SECRET:}
+    tls:
+      enabled: ${OUTBOX_TLS_ENABLED:false}
+      keystore-path: ${OUTBOX_TLS_KEYSTORE_PATH:}
+      keystore-password: ${OUTBOX_TLS_KEYSTORE_PASSWORD:}
+    allow-insecure: ${OUTBOX_ALLOW_INSECURE:false}
 
 management:
   endpoints:

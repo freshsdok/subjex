@@ -2,6 +2,7 @@ package com.subjex.sample.consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.subjex.platform.contract.delivery.OutboxHmac;
 import com.subjex.platform.contract.delivery.OutboxSocketFrame;
 import com.subjex.platform.contract.task.TaskRecordedNotice;
 import io.opentelemetry.api.OpenTelemetry;
@@ -13,18 +14,20 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.time.Clock;
 import java.util.Map;
+import java.util.Objects;
+import javax.net.ssl.SSLContext;
 import org.springframework.context.SmartLifecycle;
 
 /**
  * OutboxSocketListener — 出箱套接字监听者：sample-consumer 接收 TaskRecorded 的产品路径。
  * <p>
- * This application opens the listen socket. platform-app opens the client socket and pushes one outbox row.
+ * This application opens the listen socket (optionally TLS). platform-app opens the client socket and pushes
+ * one outbox row. Auth is HMAC-SHA256 with the shared secret — the operator password is not read from the frame.
  * A requested failure is recorded, then rejected, so the publisher breaker can open. traceparent is read from the frame.
- * 本应用打开监听套接字。platform-app 打开客户端套接字并推送一条出箱行。
- * 被要求失败时先记下，再拒绝，以便发布方熔断器打开。traceparent 从帧里读取。
+ * 本应用打开监听套接字（可选 TLS）。platform-app 打开客户端套接字并推送一条出箱行。
+ * 认证是共享密钥 HMAC-SHA256，不再从帧里读操作员口令。被要求失败时先记下再拒绝。traceparent 从帧里读取。
  */
 public final class OutboxSocketListener implements SmartLifecycle {
 
@@ -41,34 +44,35 @@ public final class OutboxSocketListener implements SmartLifecycle {
     };
 
     private final int listenPort;
-    private final String operatorName;
-    private final String operatorPassword;
+    private final String hmacSecret;
+    private final SSLContext sslContext;
     private final OpenTelemetry openTelemetry;
     private final ObjectMapper objectMapper;
     private final TaskRecordedReceipts receipts;
+    private final Clock clock;
     private ServerSocket server;
     private Thread acceptThread;
     private volatile boolean running;
 
     public OutboxSocketListener(
             int listenPort,
-            String operatorName,
-            String operatorPassword,
+            String hmacSecret,
+            SSLContext sslContext,
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
-            TaskRecordedReceipts receipts) {
+            TaskRecordedReceipts receipts,
+            Clock clock) {
         if (listenPort < 0 || listenPort > 65535) {
             throw new IllegalArgumentException("listen port is missing");
         }
-        if (operatorName == null || operatorName.isBlank() || operatorPassword == null || operatorPassword.isBlank()) {
-            throw new IllegalArgumentException("operator is missing");
-        }
+        OutboxHmac.requireSecret(hmacSecret);
         this.listenPort = listenPort;
-        this.operatorName = operatorName;
-        this.operatorPassword = operatorPassword;
+        this.hmacSecret = hmacSecret;
+        this.sslContext = sslContext;
         this.openTelemetry = openTelemetry;
         this.objectMapper = objectMapper;
         this.receipts = receipts;
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
@@ -89,7 +93,7 @@ public final class OutboxSocketListener implements SmartLifecycle {
             return;
         }
         try {
-            ServerSocket opened = new ServerSocket();
+            ServerSocket opened = openServer();
             opened.setReuseAddress(true);
             opened.bind(new InetSocketAddress("127.0.0.1", listenPort));
             this.server = opened;
@@ -124,6 +128,13 @@ public final class OutboxSocketListener implements SmartLifecycle {
     @Override
     public boolean isRunning() {
         return running;
+    }
+
+    private ServerSocket openServer() throws IOException {
+        if (sslContext == null) {
+            return new ServerSocket();
+        }
+        return sslContext.getServerSocketFactory().createServerSocket();
     }
 
     private void acceptLoop() {
@@ -170,15 +181,14 @@ public final class OutboxSocketListener implements SmartLifecycle {
     }
 
     private boolean authorized(OutboxSocketFrame.Notice frame) {
-        return same(operatorName, frame.operatorName()) && same(operatorPassword, frame.operatorPassword());
-    }
-
-    private static boolean same(String expected, String actual) {
-        if (actual == null) {
-            return false;
-        }
-        return MessageDigest.isEqual(
-                expected.getBytes(StandardCharsets.UTF_8),
-                actual.getBytes(StandardCharsets.UTF_8));
+        return OutboxHmac.verify(
+                hmacSecret,
+                frame.eventName(),
+                frame.traceparent(),
+                frame.failureRequested(),
+                frame.authTimestampMillis(),
+                frame.eventBody(),
+                frame.authSignature(),
+                clock);
     }
 }

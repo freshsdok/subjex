@@ -2,6 +2,8 @@ package com.subjex.sample.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.contract.config.ConfigSource;
+import com.subjex.platform.contract.delivery.OutboxTls;
+import com.subjex.platform.contract.delivery.OutboxTransportPolicy;
 import com.subjex.platform.contract.config.HttpConfigSource;
 import com.subjex.platform.contract.config.LocalApplicationConfig;
 import com.subjex.platform.contract.config.OverridingConfigSource;
@@ -16,8 +18,11 @@ import com.subjex.sample.consumer.discovery.ConsumerSelfRegistrar;
 import com.subjex.sample.consumer.discovery.PlatformAppResolver;
 import io.opentelemetry.api.OpenTelemetry;
 import java.net.URI;
+import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
+import javax.net.ssl.SSLContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.context.WebServerApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -101,14 +106,34 @@ public class ConsumerWiring {
     }
 
     @Bean
+    Clock clock() {
+        return Clock.systemUTC();
+    }
+
+    @Bean
     OutboxSocketListener outboxSocketListener(
             @Value("${platform.delivery.listen-port:0}") int listenPort,
-            @Value("${platform.delivery.operator-name}") String operatorName,
-            @Value("${platform.delivery.operator-password}") String operatorPassword,
+            @Value("${platform.delivery.hmac-secret}") String hmacSecret,
+            @Value("${platform.delivery.tls.enabled:false}") boolean tlsEnabled,
+            @Value("${platform.delivery.tls.keystore-path:}") String keystorePath,
+            @Value("${platform.delivery.tls.keystore-password:}") String keystorePassword,
+            @Value("${platform.delivery.allow-insecure:false}") boolean allowInsecure,
+            Environment environment,
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
-            TaskRecordedReceipts receipts) {
+            TaskRecordedReceipts receipts,
+            Clock clock) {
+        OutboxTransportPolicy.requireReady(hmacSecret, tlsEnabled, allowInsecure, environment.getActiveProfiles());
+        SSLContext ssl = null;
+        if (tlsEnabled) {
+            if (keystorePath == null || keystorePath.isBlank()) {
+                throw new IllegalStateException("platform.delivery.tls.keystore-path is required when TLS is enabled");
+            }
+            ssl = OutboxTls.serverContext(
+                    Path.of(keystorePath),
+                    keystorePassword == null ? new char[0] : keystorePassword.toCharArray());
+        }
         return new OutboxSocketListener(
-                listenPort, operatorName, operatorPassword, openTelemetry, objectMapper, receipts);
+                listenPort, hmacSecret, ssl, openTelemetry, objectMapper, receipts, clock);
     }
 }

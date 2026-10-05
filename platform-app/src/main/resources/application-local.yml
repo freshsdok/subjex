@@ -1,0 +1,7 @@
+# LOCAL ONLY — default outbox HMAC for laptop compose/quickstart. Override in any shared environment.
+# 仅限本地 — 本机编排/快速开始的出箱 HMAC 默认值。任何共享环境请覆盖。
+platform:
+  delivery:
+    hmac-secret: ${OUTBOX_HMAC_SECRET:change-me-outbox-hmac-secret-local!!}
+    tls:
+      enabled: false

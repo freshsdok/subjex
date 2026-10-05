@@ -36,6 +36,20 @@ spec:
           env:
             - name: SAMPLE_DELIVERY_PORT
               value: "19081"
+            - name: OUTBOX_HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: outbox-delivery
+                  key: hmac-secret
+            - name: OUTBOX_TLS_ENABLED
+              value: "true"
+            - name: OUTBOX_TLS_KEYSTORE_PATH
+              value: /var/run/outbox-tls/server.p12
+            - name: OUTBOX_TLS_KEYSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: outbox-delivery
+                  key: keystore-password
             - name: PLATFORM_APP_HOST
               value: platform-app
             - name: PLATFORM_APP_PORT
@@ -56,6 +70,10 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
+          volumeMounts:
+            - name: outbox-tls
+              mountPath: /var/run/outbox-tls
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -63,6 +81,11 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+      volumes:
+        - name: outbox-tls
+          secret:
+            secretName: outbox-delivery-tls
+
 ---
 apiVersion: v1
 kind: Service

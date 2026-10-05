@@ -53,12 +53,19 @@ platform:
   delivery:
     consumer-host: ${SAMPLE_CONSUMER_HOST:127.0.0.1}
     consumer-port: ${SAMPLE_CONSUMER_PORT:19081}
-    consumer-username: ${PLATFORM_OPERATOR_NAME:platform-operator}
-    consumer-password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
+    # Shared HMAC secret (≥32). Not an operator password. / 共享 HMAC 密钥（≥32），不是操作员口令。
+    hmac-secret: ${OUTBOX_HMAC_SECRET:}
     breaker-failure-threshold: 3
     # Background relay for PENDING outbox rows / PENDING 出箱行的后台重投
     relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:2000}
     relay-batch-size: ${OUTBOX_RELAY_BATCH_SIZE:20}
+    # TLS required outside local (see SECURITY.md). / 非 local 必须开 TLS（见 SECURITY.md）。
+    tls:
+      enabled: ${OUTBOX_TLS_ENABLED:false}
+      truststore-path: ${OUTBOX_TLS_TRUSTSTORE_PATH:}
+      truststore-password: ${OUTBOX_TLS_TRUSTSTORE_PASSWORD:}
+    # Laptop/tests only — never in k8s. / 仅本机/测试，勿用于 k8s。
+    allow-insecure: ${OUTBOX_ALLOW_INSECURE:false}
   tracing:
     # Empty keeps the discarding exporter / 空则继续用丢弃导出器
     otlp-endpoint: ${PLATFORM_OTLP_ENDPOINT:${OTEL_EXPORTER_OTLP_ENDPOINT:}}

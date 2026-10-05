@@ -3,6 +3,8 @@ package com.subjex.platform.app;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.connection.ConfiguredConnection;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
+import com.subjex.platform.contract.delivery.OutboxTls;
+import com.subjex.platform.contract.delivery.OutboxTransportPolicy;
 import com.subjex.platform.app.discovery.AddressProbe;
 import com.subjex.platform.app.discovery.PlatformSelfRegistrar;
 import com.subjex.platform.app.discovery.ServiceCatalog;
@@ -50,6 +52,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import javax.net.ssl.SSLContext;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -206,12 +209,27 @@ public class PlatformWiring {
     OutboxSocketPublisher outboxSocketPublisher(
             @Value("${platform.delivery.consumer-host}") String consumerHost,
             @Value("${platform.delivery.consumer-port}") int consumerPort,
-            @Value("${platform.delivery.consumer-username}") String username,
-            @Value("${platform.delivery.consumer-password}") String password,
+            @Value("${platform.delivery.hmac-secret}") String hmacSecret,
+            @Value("${platform.delivery.tls.enabled:false}") boolean tlsEnabled,
+            @Value("${platform.delivery.tls.truststore-path:}") String truststorePath,
+            @Value("${platform.delivery.tls.truststore-password:}") String truststorePassword,
+            @Value("${platform.delivery.allow-insecure:false}") boolean allowInsecure,
+            Environment environment,
             SamplePathCircuitBreaker breaker,
-            OpenTelemetry openTelemetry) {
+            OpenTelemetry openTelemetry,
+            Clock clock) {
+        OutboxTransportPolicy.requireReady(hmacSecret, tlsEnabled, allowInsecure, environment.getActiveProfiles());
+        SSLContext ssl = null;
+        if (tlsEnabled) {
+            if (truststorePath == null || truststorePath.isBlank()) {
+                throw new IllegalStateException("platform.delivery.tls.truststore-path is required when TLS is enabled");
+            }
+            ssl = OutboxTls.clientContext(
+                    Path.of(truststorePath),
+                    truststorePassword == null ? new char[0] : truststorePassword.toCharArray());
+        }
         return new OutboxSocketPublisher(
-                consumerHost, consumerPort, username, password, breaker, openTelemetry);
+                consumerHost, consumerPort, hmacSecret, ssl, breaker, openTelemetry, clock);
     }
 
     @Bean

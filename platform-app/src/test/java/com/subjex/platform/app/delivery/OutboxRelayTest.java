@@ -100,7 +100,7 @@ class OutboxRelayTest {
         TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(source));
         OpenTelemetry telemetry = telemetry();
         OutboxSocketPublisher publisher = new OutboxSocketPublisher(
-                "127.0.0.1", port, "platform-operator", "change-me", breaker, telemetry);
+                "127.0.0.1", port, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", null, breaker, telemetry, clock);
         return new JdbcTaskMessagePort(
                 jdbc,
                 tx,

@@ -54,6 +54,8 @@ services:
       # 出箱目标与 deploy/k8s/platform-app.yaml 相同
       SAMPLE_CONSUMER_HOST: sample-consumer
       SAMPLE_CONSUMER_PORT: "19081"
+      # LOCAL ONLY default also in application-local.yml / 本地默认亦见 application-local.yml
+      OUTBOX_HMAC_SECRET: change-me-outbox-hmac-secret-local!!
       # Optional OTLP collector, e.g. http://otel-collector:4318
       # 可选 OTLP 采集器，例如 http://otel-collector:4318
       PLATFORM_OTLP_ENDPOINT: ${PLATFORM_OTLP_ENDPOINT:-}
@@ -78,6 +80,8 @@ services:
         condition: service_healthy
     environment:
       SAMPLE_DELIVERY_PORT: "19081"
+      SPRING_PROFILES_ACTIVE: local
+      OUTBOX_HMAC_SECRET: change-me-outbox-hmac-secret-local!!
       PLATFORM_APP_HOST: platform-app
       PLATFORM_APP_PORT: "8080"
       PLATFORM_DISCOVERY_HOST: sample-consumer

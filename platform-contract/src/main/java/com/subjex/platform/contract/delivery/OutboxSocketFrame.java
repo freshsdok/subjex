@@ -9,14 +9,14 @@ import java.nio.charset.StandardCharsets;
 /**
  * OutboxSocketFrame — 出箱套接字帧：一条出箱事件在两个进程之间的线路格式。
  * <p>
+ * Protocol 2 authenticates with HMAC-SHA256 over a shared secret. The operator password is not on the wire.
  * platform-app writes one frame. sample-consumer reads it and answers accepted or rejected.
- * The event body is the text stored in the outbox, not a second copy built beside the row.
+ * 协议 2 用共享密钥的 HMAC-SHA256 认证，帧上不再带操作员口令。
  * platform-app 写入一帧。sample-consumer 读入后回答 accepted 或 rejected。
- * 事件正文是出箱里存的文本，不是行旁边另做的一份。
  */
 public final class OutboxSocketFrame {
 
-    public static final String PROTOCOL_LINE = "SUBJEX-OUTBOX 1";
+    public static final String PROTOCOL_LINE = "SUBJEX-OUTBOX 2";
     public static final String ACCEPTED = "accepted";
     public static final String REJECTED = "rejected";
     public static final int MAX_BODY_BYTES = 4000;
@@ -25,18 +25,13 @@ public final class OutboxSocketFrame {
     }
 
     /**
-     * Notice — 套接字上的一条出箱通知：事件名、追踪、操作员、正文。
-     * <p>
-     * {@code eventBody} is the outbox column. {@code traceparent} continues the publisher span.
-     * {@code failureRequested} asks the sample path to reject after it has taken the notice, so the breaker can open.
-     * {@code eventBody} 是出箱列。{@code traceparent} 续上发布方的跨度。
-     * {@code failureRequested} 要求示例路径在收下通知后拒绝，以便熔断器打开。
+     * Notice — 套接字上的一条出箱通知：事件名、追踪、HMAC、正文。
      */
     public record Notice(
             String eventName,
             String traceparent,
-            String operatorName,
-            String operatorPassword,
+            long authTimestampMillis,
+            String authSignature,
             boolean failureRequested,
             String eventBody) {
     }
@@ -44,8 +39,10 @@ public final class OutboxSocketFrame {
     public static void writeNotice(OutputStream out, Notice notice) throws IOException {
         requireLine("event-name", notice.eventName());
         requireLine("traceparent", notice.traceparent());
-        requireLine("operator", notice.operatorName());
-        requireLine("operator-password", notice.operatorPassword());
+        requireLine("auth-signature", notice.authSignature());
+        if (notice.authTimestampMillis() < 0) {
+            throw new IOException("auth-timestamp is missing");
+        }
         if (notice.eventBody() == null) {
             throw new IOException("event body is missing");
         }
@@ -57,8 +54,9 @@ public final class OutboxSocketFrame {
         header.append(PROTOCOL_LINE).append('\n');
         header.append("event-name: ").append(notice.eventName()).append('\n');
         header.append("traceparent: ").append(notice.traceparent()).append('\n');
-        header.append("operator: ").append(notice.operatorName()).append('\n');
-        header.append("operator-password: ").append(notice.operatorPassword()).append('\n');
+        header.append("auth-scheme: ").append(OutboxHmac.SCHEME).append('\n');
+        header.append("auth-timestamp: ").append(notice.authTimestampMillis()).append('\n');
+        header.append("auth-signature: ").append(notice.authSignature()).append('\n');
         header.append("failure-requested: ").append(notice.failureRequested() ? "true" : "false").append('\n');
         header.append("body-bytes: ").append(body.length).append('\n');
         out.write(header.toString().getBytes(StandardCharsets.UTF_8));
@@ -72,8 +70,12 @@ public final class OutboxSocketFrame {
         }
         String eventName = value(readLine(in), "event-name");
         String traceparent = value(readLine(in), "traceparent");
-        String operatorName = value(readLine(in), "operator");
-        String operatorPassword = value(readLine(in), "operator-password");
+        String scheme = value(readLine(in), "auth-scheme");
+        if (!OutboxHmac.SCHEME.equals(scheme)) {
+            throw new IOException("unexpected outbox auth scheme");
+        }
+        long timestamp = parseTimestamp(value(readLine(in), "auth-timestamp"));
+        String signature = value(readLine(in), "auth-signature");
         String failure = value(readLine(in), "failure-requested");
         if (!"true".equals(failure) && !"false".equals(failure)) {
             throw new IOException("failure-requested must be true or false");
@@ -86,8 +88,8 @@ public final class OutboxSocketFrame {
         return new Notice(
                 eventName,
                 traceparent,
-                operatorName,
-                operatorPassword,
+                timestamp,
+                signature,
                 "true".equals(failure),
                 new String(body, StandardCharsets.UTF_8));
     }
@@ -124,6 +126,18 @@ public final class OutboxSocketFrame {
             throw new IOException("missing " + key);
         }
         return line.substring(prefix.length());
+    }
+
+    private static long parseTimestamp(String text) throws IOException {
+        try {
+            long value = Long.parseLong(text);
+            if (value < 0) {
+                throw new IOException("auth-timestamp is negative");
+            }
+            return value;
+        } catch (NumberFormatException ex) {
+            throw new IOException("auth-timestamp is not a number", ex);
+        }
     }
 
     private static int parseBodyLength(String text) throws IOException {

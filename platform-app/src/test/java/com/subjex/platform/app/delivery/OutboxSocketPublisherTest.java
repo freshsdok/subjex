@@ -76,10 +76,11 @@ class OutboxSocketPublisherTest {
         return new OutboxSocketPublisher(
                 "127.0.0.1",
                 port,
-                "platform-operator",
-                "change-me",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                null,
                 new SamplePathCircuitBreaker(3),
-                telemetry);
+                telemetry,
+                java.time.Clock.systemUTC());
     }
 
     private static OutboxEvent event(String body) {

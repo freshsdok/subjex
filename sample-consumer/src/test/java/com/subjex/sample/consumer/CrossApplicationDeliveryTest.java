@@ -41,8 +41,8 @@ import org.springframework.boot.test.context.SpringBootTest;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "platform.delivery.listen-port=0",
-            "platform.delivery.operator-name=platform-operator",
-            "platform.delivery.operator-password=change-me",
+            "platform.delivery.hmac-secret=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "platform.delivery.allow-insecure=true",
             // platform-app is a test dependency, so its JDBC starter is visible here.
             // The consumer process does not own the platform tables.
             // platform-app 是测试依赖，因此这里能看见它的 JDBC 启动器。
@@ -116,9 +116,10 @@ class CrossApplicationDeliveryTest {
         return new OutboxSocketPublisher(
                 "127.0.0.1",
                 listener.port(),
-                "platform-operator",
-                "change-me",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                null,
                 breaker,
-                telemetry);
+                telemetry,
+                java.time.Clock.systemUTC());
     }
 }

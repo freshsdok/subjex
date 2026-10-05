@@ -88,7 +88,9 @@ class VendorStartupTest {
                 "--spring.datasource.password=" + password,
                 "--spring.datasource.driver-class-name=" + driver,
                 "--server.port=0",
-                "--platform.storage.directory=target/object-store"};
+                "--platform.storage.directory=target/object-store",
+                "--platform.delivery.hmac-secret=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--platform.delivery.allow-insecure=true"};
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(PlatformApplication.class)
                 .run(containerArguments)) {
             // Prove the context is on the container before trusting anything else / 先证明连的是容器，再看别的
