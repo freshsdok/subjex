@@ -1,0 +1,9 @@
+subjex
+Copyright 2026 The subjex authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+本产品按 Apache License 2.0 授权（见 LICENSE）。
+
+Third-party libraries are resolved by Maven at build time and are not copied into this repository.
+Their own licenses and notices apply to them.
+第三方库在构建时由 Maven 解析，没有复制进本仓库，它们各自的许可证与声明适用于它们自己。

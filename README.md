@@ -4,6 +4,10 @@ Semantic modular platform: subject identity, tenant isolation, and a single task
 
 第一版按 `ARCHITECTURE.md` 实现平台契约，不包含竞赛领域。业务读写走 JDBC，不经过 ORM 模型层。MySQL 与 PostgreSQL 共用同一套迁移脚本，靠配置切换连接。
 
+Start here / 从这里开始: [`docs/quickstart.md`](docs/quickstart.md) builds the project, starts `platform-app` and `sample-consumer` locally, and lists the pages to open. The default operator login is for local use only.
+
+[`docs/quickstart.md`](docs/quickstart.md) 讲怎么构建、在本机启动 `platform-app` 和 `sample-consumer`，以及打开哪些页面。默认操作员口令只用于本地。
+
 ## Run / 运行
 
 Both drivers are on the classpath. Pick one vendor per process; the migration guard refuses to serve when the live product name disagrees with `platform.connection.vendor`.
@@ -81,3 +85,9 @@ MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Dock
 `model-gateway` is not a dependency of `platform-app`. It registers a model provider and records one invocation: provider id, model id, and input digest. There is no vendor SDK and no database.
 
 `model-gateway` 不是 `platform-app` 的依赖。它登记模型提供者，并记录一次调用：提供者标识、模型标识、输入摘要。没有厂商 SDK，也没有数据库。
+
+## License / 许可证
+
+Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+按 Apache License 2.0 授权，见 [`LICENSE`](LICENSE) 和 [`NOTICE`](NOTICE)。
