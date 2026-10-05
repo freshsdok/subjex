@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AppearanceSwitcher } from "@/components/appearance-switcher";
 import { SignOutButton } from "@/components/sign-out-button";
 import { currentSkin } from "@/server/skin";
@@ -8,7 +9,8 @@ import { consoleSections } from "./console-sections";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 // Console shell — 控制台外框：顶栏显示当前操作员和退出，左侧导航；未登录会被跳到 /login。
-export default async function ConsoleLayout({ children }: LayoutProps<"/">) {
+// ReactNode keeps typecheck independent of Next-generated LayoutProps / `.next/types`.
+export default async function ConsoleLayout({ children }: { children: ReactNode }) {
   const { language, phrases } = await currentLanguage();
   const { skinNames, chosenSkinName, skinStyle } = await currentSkin();
   const { body: operator } = await readPlatform<OperatorSelfDocument>("me");
