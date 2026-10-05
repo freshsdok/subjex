@@ -16,6 +16,12 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+# JSON API description — JSON 接口说明：只描述 /api/v1，规格本身也要已登录的操作员才能取。
+springdoc:
+  api-docs:
+    path: /api/v1/openapi.json
+  paths-to-match: /api/v1/**
+
 server:
   port: 8080
   error:

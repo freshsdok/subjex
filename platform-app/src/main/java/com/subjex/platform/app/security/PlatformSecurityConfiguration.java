@@ -33,6 +33,21 @@ public class PlatformSecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        // JSON twins under /api/v1: same named permissions as their pages.
+                        // /api/v1 下的 JSON 孪生接口：与对应页面相同的具名权限。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/me").authenticated()
+                        .requestMatchers("/api/v1/openapi.json", "/api/v1/openapi.json/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/services")
+                                .hasAuthority(OperatorPermission.REGISTRY_READ.permissionName())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/config")
+                                .hasAuthority(OperatorPermission.CONFIG_READ.permissionName())
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/config/**")
+                                .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/audit")
+                                .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/deploy", "/api/v1/forms", "/api/v1/codegen", "/api/v1/language", "/api/v1/skins")
+                                .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         .requestMatchers("/admin", "/admin/**", "/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.POST, "/config/entries")

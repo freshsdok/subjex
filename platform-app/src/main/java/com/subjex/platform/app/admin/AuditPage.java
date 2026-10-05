@@ -34,17 +34,18 @@ public class AuditPage {
     /** Rows shown and returned — 展示和返回的行数上限。 */
     public static final int ROW_LIMIT = 200;
 
-    private static final DateTimeFormatter TIME =
+    /** UTC time format shared with the JSON twin — 与 JSON 孪生接口共用的 UTC 时间格式。 */
+    static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'").withZone(ZoneOffset.UTC);
 
     /** Plain words for known actions — 已知动作的白话。 */
-    private static final Map<String, String[]> ACTION_WORDS = Map.of(
+    static final Map<String, String[]> ACTION_WORDS = Map.of(
             "config.override", new String[] {"覆盖配置", "override config"},
             "registry.register", new String[] {"登记服务", "register service"},
             "submit-task", new String[] {"提交任务", "submit task"});
 
     /** Plain words for outcomes — 结果的白话。 */
-    private static final Map<String, String[]> OUTCOME_WORDS = Map.of(
+    static final Map<String, String[]> OUTCOME_WORDS = Map.of(
             "ALLOWED", new String[] {"放行", "allowed"},
             "REFUSED", new String[] {"拒绝", "refused"},
             "FAILED", new String[] {"失败", "failed"});
@@ -97,7 +98,7 @@ public class AuditPage {
                     <tbody>
                     """);
             for (AuditRow row : rows) {
-                String actor = row.actorLogin() != null ? row.actorLogin() : row.actorIdentityId();
+                String actor = actor(row);
                 body.append("<tr><td>")
                         .append(row.occurredAt() == null ? "" : TIME.format(row.occurredAt()))
                         .append("</td><td>")
@@ -117,6 +118,24 @@ public class AuditPage {
         }
         OperatorPage.close(body);
         return body.toString();
+    }
+
+    /**
+     * Actor shown for a row: login name, else identity id — 一行显示的操作者：登录名，没有就用身份标识。
+     */
+    static String actor(AuditRow row) {
+        return row.actorLogin() != null ? row.actorLogin() : row.actorIdentityId();
+    }
+
+    /**
+     * Plain zh/en pair for a known name; an unknown name stands for itself in both — 已知名字的中英白话；未知名字两边都是它自己。
+     */
+    static String[] plainPair(Map<String, String[]> known, String name) {
+        if (name == null) {
+            return new String[] {"", ""};
+        }
+        String[] pair = known.get(name);
+        return pair == null ? new String[] {name, name} : pair.clone();
     }
 
     private static String words(Map<String, String[]> known, String name) {

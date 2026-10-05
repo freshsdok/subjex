@@ -80,6 +80,13 @@ All of these are on platform-app (`http://127.0.0.1:8080`) and ask for the opera
 | `/audit` | audit entries, newest first / 审计记录，最新在前 |
 | `/admin/health`, `/admin/tenants`, `/admin/tasks`, `/admin/dead-letters`, `/admin/audit` | read-only JSON for the operator / 只读 JSON |
 
+JSON API and its OpenAPI description (local profile) / JSON 接口及其 OpenAPI 说明（local profile）：
+
+```shell
+curl -u platform-operator:change-me http://127.0.0.1:8080/api/v1/me
+curl -u platform-operator:change-me http://127.0.0.1:8080/api/v1/openapi.json
+```
+
 ## 6. Operator credentials are local only / 操作员口令只用于本地
 
 The default operator is `platform-operator` / `change-me`. It is written into the tables only under `SPRING_PROFILES_ACTIVE=local`, so a laptop works on the first start. Do not use that profile or that password anywhere else. Set `PLATFORM_OPERATOR_NAME` and `PLATFORM_OPERATOR_PASSWORD` on both processes before the process is reachable by anyone else. Outside a laptop, provision operators as rows; see [`operator-permissions.md`](operator-permissions.md).

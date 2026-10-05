@@ -108,3 +108,22 @@
 - `mvn test` 不构建镜像，也不需要 Docker。`ContainerImageTest` 只读文字：两阶段、非 root、清单镜像名与 Dockerfile 标签一致。
 - CI：工作流在 push 和 pull request 上跑 `mvn -B test`。推送令牌缺少 `workflow` 权限，GitHub 拒绝写入 `.github/workflows/`，所以同一份文件暂放 `docs/ci/build.yml`，等有权限的人移到位。移到位之前 CI 不运行。
 
+
+## 12. JSON 接口与 OpenAPI
+
+每个操作页在 `/api/v1` 下都有一个 JSON 接口，给后续的 `web/` 前端（Next.js）使用。HTML 页面保留不变。权限沿用节点一的具名权限：
+
+| 接口 | 权限 |
+|---|---|
+| `GET /api/v1/me` | 已登录即可，返回登录名和权限列表 |
+| `GET /api/v1/services` | `registry.read` |
+| `GET /api/v1/config` | `config.read` |
+| `PUT /api/v1/config/{key}` | `config.write`，写一条 `config.override` 审计 |
+| `GET /api/v1/audit` | `admin.read` |
+| `GET /api/v1/deploy`、`/forms`、`/codegen`、`/language`、`/skins` | `page.read` |
+
+- 说明文档由 springdoc 生成，地址 `/api/v1/openapi.json`，取它也要登录；不带 Swagger UI。
+- 认证是每次请求带 HTTP Basic，没有会话。`web/` 将通过自己的服务端代理调用：会话放在 httpOnly cookie 里，代理在服务端到服务端的调用上加 Basic，口令不进浏览器脚本。
+- 这些是操作员接口，不属某个租户，所以租户拦截放行 `/api/v1`。
+
+Each operator page has a JSON twin under `/api/v1` for the upcoming `web/` Next.js app; the HTML pages stay. OpenAPI is served at `/api/v1/openapi.json` (signed-in only). Auth is HTTP Basic per request; the future Next.js server-side proxy keeps the session in an httpOnly cookie, so credentials never reach browser JavaScript. `/api/v1` is operator-scoped, not tenant-scoped.
