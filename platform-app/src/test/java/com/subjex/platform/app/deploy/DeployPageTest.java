@@ -65,7 +65,7 @@ class DeployPageTest {
         assertTrue(html.contains("就绪"));
         assertTrue(html.contains("liveness"));
         assertTrue(html.contains("readiness"));
-        assertTrue(html.contains("占位，未构建镜像"));
+        assertTrue(html.contains("由 Dockerfile 构建，未推送"));
         assertFalse(html.contains("<button"));
         assertFalse(html.contains("<form"));
         assertFalse(html.contains("kubectl"));

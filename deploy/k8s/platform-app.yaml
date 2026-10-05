@@ -1,5 +1,6 @@
-# Not applied by the build or the tests. No cluster and no image build.
-# 构建和测试不会应用这份清单。没有集群，也不构建镜像。
+# Not applied by the build or the tests. No cluster.
+# The image is built from platform-app/Dockerfile; mvn test does not build it.
+# 构建和测试不会应用这份清单。没有集群。镜像由 platform-app/Dockerfile 构建，mvn test 不构建它。
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,6 +21,13 @@ spec:
         - name: platform-app
           image: subjex/platform-app:0.1.0-SNAPSHOT
           imagePullPolicy: IfNotPresent
+          # The Dockerfile runs as uid 10001; Kubernetes refuses root.
+          # Dockerfile 以 uid 10001 运行；Kubernetes 拒绝 root。
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
           ports:
             - name: http
               containerPort: 8080

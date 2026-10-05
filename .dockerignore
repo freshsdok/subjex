@@ -1,0 +1,8 @@
+# Keep build output, editor state, and git history out of the image build context.
+# 构建产物、编辑器状态和 git 历史不进镜像构建上下文。
+**/target/
+.git/
+.idea/
+.vscode/
+*.iml
+object-store/

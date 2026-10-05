@@ -90,7 +90,20 @@ The default operator is `platform-operator` / `change-me`. It is written into th
 curl -u platform-operator:change-me http://127.0.0.1:8080/admin/health
 ```
 
-## 7. Stop / 停止
+## 7. Containers (optional) / 容器（可选）
+
+With a Docker daemon, from the repository root / 有 Docker 时，在仓库根目录：
+
+```shell
+docker build -f platform-app/Dockerfile -t subjex/platform-app:0.1.0-SNAPSHOT .
+docker build -f sample-consumer/Dockerfile -t subjex/sample-consumer:0.1.0-SNAPSHOT .
+```
+
+Pass the same `PLATFORM_*` variables with `-e`. The images run as uid 10001.
+
+用 `-e` 传入同样的 `PLATFORM_*` 变量。镜像以 uid 10001 运行。
+
+## 8. Stop / 停止
 
 `Ctrl+C` in each terminal. Tables stay in the database; the next start applies only new migrations.
 

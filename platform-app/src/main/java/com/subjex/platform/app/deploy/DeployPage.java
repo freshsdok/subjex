@@ -77,7 +77,7 @@ public class DeployPage {
                     .append(escape(workload.name()))
                     .append("</td><td><code>")
                     .append(escape(workload.image()))
-                    .append("</code>占位，未构建镜像<span class=\"en\">placeholder, image is not built</span></td><td>存活 ")
+                    .append("</code>由 Dockerfile 构建，未推送<span class=\"en\">built from the Dockerfile, not pushed</span></td><td>存活 ")
                     .append(escape(workload.livenessPath()))
                     .append("<span class=\"en\">liveness ")
                     .append(escape(workload.livenessPath()))

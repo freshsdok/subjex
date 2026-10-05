@@ -92,6 +92,12 @@ MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Dock
 
 `model-gateway` 不是 `platform-app` 的依赖。它登记模型提供者，并记录一次调用：提供者标识、模型标识、输入摘要。没有厂商 SDK，也没有数据库。
 
+## Images and CI / 镜像与持续集成
+
+`platform-app/Dockerfile` and `sample-consumer/Dockerfile` are multi-stage builds run from the repository root (`docker build -f platform-app/Dockerfile -t subjex/platform-app:0.1.0-SNAPSHOT .`). The runtime stage runs as uid 10001. The image names match `deploy/k8s/`. `mvn test` does not build images. CI runs `mvn -B test` on push and pull request (`.github/workflows/build.yml`; see `docs/ci/` if it is not in place yet).
+
+`platform-app/Dockerfile` 与 `sample-consumer/Dockerfile` 是在仓库根目录执行的多阶段构建，运行阶段以 uid 10001 运行，镜像名与 `deploy/k8s/` 一致。`mvn test` 不构建镜像。CI 在 push 和 pull request 上跑 `mvn -B test`。
+
 ## License / 许可证
 
 Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
