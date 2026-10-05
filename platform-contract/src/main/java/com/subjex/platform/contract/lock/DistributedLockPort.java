@@ -5,8 +5,8 @@ import java.time.Duration;
 /**
  * DistributedLockPort — 分布式锁端口：按锁名互斥的唯一入口。
  * <p>
- * A single-process implementation may back this port in v1. It must not pretend to coordinate other processes.
- * 第一版可以用单进程实现托底，但不得伪装成已经协调了其他进程。
+ * platform-app stores the hold as one database row (owner and expiry). Tests may still use a single-process map.
+ * platform-app 把持有写成数据库的一行（持有者与到期时间）。测试仍可用单进程表。
  */
 public interface DistributedLockPort {
 

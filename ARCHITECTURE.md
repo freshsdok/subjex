@@ -49,8 +49,8 @@
 
 目标形状：这五项留在模块化单体里，各自是一个端口，或一个不依赖宿主进程的模块。以后可以拆成独立进程，调用方仍然依赖原来的契约。它们互相不依赖。`platform-app` 与 `sample-consumer` 仍然是仅有的两个进程。不新增架构门禁：模块之间的禁止依赖靠依赖声明本身守住，`form-render` 不依赖 `platform-app` 或 `sample-consumer`，两个进程也不互相依赖。
 
-- 服务发现：契约 `ServiceRegistry`，操作仍是 `register` 与 `resolve`。`platform-app` 把端点留在本进程的表里，并用 `POST /registry/services` 与 `GET /registry/services` 给另一个进程。`sample-consumer` 经这个 HTTP 登记自己、解析 `platform-app`。HTTP 连不上时，`StaticServiceFallback` 仍用 `PLATFORM_APP_HOST` 与 `PLATFORM_APP_PORT`。人看的页面是 `GET /services`：一句话、服务名、地址、状态词 `up` 或 `unknown`。没有 Nacos，也没有单独的注册中心进程。
-- 配置中心：契约 `ConfigSource`。默认实现 `LocalApplicationConfig` 读本进程的应用配置。`MemoryConfigOverride` 是第二个内存来源，可压过一个具名键。`OverridingConfigSource` 先查覆盖层，再查本地配置。`platform-app` 把覆盖留在内存里，用 `GET/POST /config/entries` 给另一个进程读生效值或压过一个键。`sample-consumer` 经 `HttpConfigSource` 读生效值，连不上时仍用本地应用配置。人看的页面是 `GET /config`：一句话、键、生效值、来源词“本地文件”或“内存覆盖”。没有单独的配置服务器，也没有 Nacos/Apollo 客户端。
+- 服务发现：契约 `ServiceRegistry`，操作仍是 `register` 与 `resolve`。`platform-app` 把端点留在共享库的 `service_endpoint` 表里，并用 `POST /registry/services` 与 `GET /registry/services` 给另一个进程。`sample-consumer` 经这个 HTTP 登记自己、解析 `platform-app`。HTTP 连不上时，`StaticServiceFallback` 仍用 `PLATFORM_APP_HOST` 与 `PLATFORM_APP_PORT`。人看的页面是 `GET /services`：一句话、服务名、地址、状态词 `up` 或 `unknown`。没有 Nacos，也没有单独的注册中心进程。
+- 配置中心：契约 `ConfigSource`。默认实现 `LocalApplicationConfig` 读本进程的应用配置。`ConfigOverrideStore` 是可写的覆盖层（platform-app 用表 `config_override`，测试仍可用 `MemoryConfigOverride`）。`OverridingConfigSource` 先查覆盖层，再查本地配置。`platform-app` 用 `GET/POST /config/entries` 给另一个进程读生效值或压过一个键。`sample-consumer` 经 `HttpConfigSource` 读生效值，连不上时仍用本地应用配置。人看的页面是 `GET /config`：一句话、键、生效值、来源词“本地文件”或“已存覆盖”。没有单独的配置服务器，也没有 Nacos/Apollo 客户端。详见第 10 节。
 - Kubernetes：`deploy/k8s/` 里是 `platform-app` 与 `sample-consumer` 的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。人看的页面是 `GET /deploy`：一句话说明这些清单没有应用到任何集群，然后每个工作负载一行（名字、占位镜像、存活路径、就绪路径、用兆比字节写明的内存上限）。页面读构建时复制到 classpath 的同一份 YAML。没有集群状态，也没有应用按钮。
 - 低代码：一份声明式表单 `form-render/src/main/resources/forms/endpoint-publication.form.yaml`。`FormRenderer` 把它变成校验过的字段列表。人看的页面是 `GET /forms`：一句话说明这是字段列表，不是设计器，然后每个字段一行（名字、类型、是否必填，中文在前、英文在后）。页面读的是同一份 YAML。没有界面设计器，也没有在线表单库。
 - 代码生成：`FormRecordGenerator` 读同一份表单，写出一个 Java 记录。生成结果检入 `EndpointPublication`。测试核对记录组件与表单字段一致。构建不运行注解处理器。人看的页面是 `GET /codegen`：一句话说明这一页展示从表单生成的类型，不是在浏览器里运行的生成器，然后是记录名和每个组件的类型（中文在前、英文在后）。名字和类型来自已检入的记录，并与同一份 YAML 经现有生成器核对。没有运行时写文件的按钮。
@@ -92,3 +92,12 @@
 - 本地操作员只在 profile `local` 下由 `LocalOperatorSeeder` 写入，并打印 `LOCAL ONLY` 警告。别处以表行开通。
 - 配置覆盖（`config.override`）和服务登记（`registry.register`）各写一条审计，租户是 `platform`，操作者是操作员身份，对象是键或服务名。`audit_entry` 多一列 `action_target`。`GET /admin/audit` 给 JSON，`GET /audit` 给人看的页面。仍只有一个 `AuditPort`。
 - 测试用 H2 的 PostgreSQL / MySQL 兼容模式执行真实迁移，只在测试范围。这不是真实厂商的证明。
+
+## 10. 节点二：发现、配置覆盖与锁的共享存放
+
+- 服务端点、配置覆盖和具名锁都进共享库（Flyway `V3__shared_registry_config_lock.sql`）：`service_endpoint`、`config_override`、`platform_lock`。指向同一个库的进程看到同样的行，重启之后也一样。没有 Nacos，也没有 Redis。
+- `JdbcServiceRegistry` 实现 `ServiceRoster`（在 `ServiceRegistry` 上多一个全表读取）。`FallbackServiceRegistry` 仍包一层：主名册没有名字时用静态 host/port。`InProcessServiceRegistry` 只留给测试。
+- `JdbcConfigOverride` 实现 `ConfigOverrideStore`。本地应用配置仍是底层；覆盖层是表行。`MemoryConfigOverride` 只留给测试。人看的来源词是“本地文件”或“已存覆盖”。
+- `JdbcRowLock` 实现 `DistributedLockPort`：一行写持有者和到期时间；释放只删自己的行，过期可被接手。`SingleProcessLock` 移到测试源码。
+- 证明：同一份 H2 库上两个仓库实例（或先后新建）能读到彼此写下的登记和覆盖；锁在两个实例之间互斥，过期后可接手。
+

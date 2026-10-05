@@ -6,8 +6,8 @@ import java.util.Optional;
 /**
  * OverridingConfigSource — 分层配置来源：覆盖层有这个键就用覆盖层，否则用底层。
  * <p>
- * The base is local application configuration. The override is in-memory. Neither layer is a configuration server.
- * 底层是本地应用配置。覆盖层在内存里。两层都不是配置服务器。
+ * The base is local application configuration. The override is a stored layer (database in platform-app). Neither layer is a configuration server.
+ * 底层是本地应用配置。覆盖层是已存的一层（platform-app 里是数据库）。两层都不是配置服务器。
  */
 public final class OverridingConfigSource implements ConfigSource {
 

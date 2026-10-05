@@ -2,7 +2,7 @@ package com.subjex.platform.app.config;
 
 import com.subjex.platform.contract.config.ConfigEntry;
 import com.subjex.platform.contract.config.ConfigListing;
-import com.subjex.platform.contract.config.MemoryConfigOverride;
+import com.subjex.platform.contract.config.ConfigOverrideStore;
 import com.subjex.platform.contract.discovery.PlatformServiceNames;
 import com.subjex.platform.contract.discovery.StaticServiceFallback;
 import java.util.List;
@@ -12,9 +12,9 @@ import java.util.Optional;
 /**
  * ConfigCatalog — 配置目录：只列出给人看的键，并说清生效值从哪一层来。
  * <p>
- * The watched keys are local discovery host and port, plus any memory override.
+ * The watched keys are local discovery host and port, plus any stored override.
  * This is not every property in the Spring Environment.
- * 关注的键是本地发现主机和端口，再加上内存覆盖。
+ * 关注的键是本地发现主机和端口，再加上已存的覆盖。
  * 不是 Spring Environment 里的每一个属性。
  */
 public final class ConfigCatalog {
@@ -24,11 +24,11 @@ public final class ConfigCatalog {
             StaticServiceFallback.portKey(PlatformServiceNames.PLATFORM_APP));
 
     private final ConfigListing listing;
-    private final MemoryConfigOverride memory;
+    private final ConfigOverrideStore overrides;
 
-    public ConfigCatalog(ConfigListing listing, MemoryConfigOverride memory) {
+    public ConfigCatalog(ConfigListing listing, ConfigOverrideStore overrides) {
         this.listing = Objects.requireNonNull(listing, "listing");
-        this.memory = Objects.requireNonNull(memory, "memory");
+        this.overrides = Objects.requireNonNull(overrides, "overrides");
     }
 
     public List<ConfigEntry> list() {
@@ -40,6 +40,6 @@ public final class ConfigCatalog {
     }
 
     public void override(String key, String value) {
-        memory.override(key, value);
+        overrides.override(key, value);
     }
 }

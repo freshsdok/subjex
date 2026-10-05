@@ -11,9 +11,11 @@ import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
+import com.subjex.platform.app.jdbc.JdbcConfigOverride;
+import com.subjex.platform.app.jdbc.JdbcRowLock;
+import com.subjex.platform.app.jdbc.JdbcServiceRegistry;
 import com.subjex.platform.app.jdbc.JdbcIdempotencyPort;
 import com.subjex.platform.app.jdbc.JdbcTaskMessagePort;
-import com.subjex.platform.app.lock.SingleProcessLock;
 import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
 import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.OperatorActionAudit;
@@ -23,14 +25,14 @@ import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.contract.config.ConfigListing;
 import com.subjex.platform.contract.config.ConfigSource;
 import com.subjex.platform.contract.config.LocalApplicationConfig;
-import com.subjex.platform.contract.config.MemoryConfigOverride;
+import com.subjex.platform.contract.config.ConfigOverrideStore;
 import com.subjex.platform.contract.config.OverridingConfigSource;
 import com.subjex.platform.contract.connection.ConnectionVendor;
 import com.subjex.platform.contract.connection.RelationalConnectionPort;
 import com.subjex.platform.contract.discovery.FallbackServiceRegistry;
-import com.subjex.platform.contract.discovery.InProcessServiceRegistry;
 import com.subjex.platform.contract.discovery.PlatformServiceNames;
 import com.subjex.platform.contract.discovery.ServiceRegistry;
+import com.subjex.platform.contract.discovery.ServiceRoster;
 import com.subjex.platform.contract.discovery.StaticServiceFallback;
 import com.subjex.platform.contract.extension.PlatformExtension;
 import com.subjex.platform.contract.idempotency.IdempotencyPort;
@@ -57,43 +59,50 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * PlatformWiring — 平台装配：每个端口只注册一个实现，扩展在编译期就在 classpath 上。
  * <p>
- * Idempotency, rate limit, and task message each have one bean. The lock bean is the single-process implementation.
- * 幂等、限流、任务消息各有一个 bean。锁的 bean 是单进程实现。
+ * Idempotency, rate limit, and task message each have one bean. The service roster, config overrides, and the lock
+ * live in the shared database, so two processes on one database see the same rows. Static discovery config stays the fallback.
+ * 幂等、限流、任务消息各有一个 bean。服务名册、配置覆盖和锁都在共享库里，连同一个库的两个进程看到同样的行。静态发现配置仍是兜底。
  */
 @Configuration
 public class PlatformWiring {
 
+    /**
+     * Overrides in table config_override — 覆盖值在 config_override 表里。
+     */
     @Bean
-    MemoryConfigOverride memoryConfigOverride() {
-        return new MemoryConfigOverride();
+    ConfigOverrideStore configOverrideStore(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcConfigOverride(jdbc, clock);
     }
 
     @Bean
-    ConfigListing configListing(MemoryConfigOverride memoryConfigOverride, Environment environment) {
+    ConfigListing configListing(ConfigOverrideStore configOverrideStore, Environment environment) {
         return new ConfigListing(
-                memoryConfigOverride, new LocalApplicationConfig(key -> environment.getProperty(key)));
+                configOverrideStore, new LocalApplicationConfig(key -> environment.getProperty(key)));
     }
 
     @Bean
-    ConfigSource configSource(MemoryConfigOverride memoryConfigOverride, Environment environment) {
+    ConfigSource configSource(ConfigOverrideStore configOverrideStore, Environment environment) {
         return new OverridingConfigSource(
-                memoryConfigOverride, new LocalApplicationConfig(key -> environment.getProperty(key)));
+                configOverrideStore, new LocalApplicationConfig(key -> environment.getProperty(key)));
     }
 
     @Bean
-    ConfigCatalog configCatalog(ConfigListing configListing, MemoryConfigOverride memoryConfigOverride) {
-        return new ConfigCatalog(configListing, memoryConfigOverride);
+    ConfigCatalog configCatalog(ConfigListing configListing, ConfigOverrideStore configOverrideStore) {
+        return new ConfigCatalog(configListing, configOverrideStore);
+    }
+
+    /**
+     * Endpoints in table service_endpoint — 端点在 service_endpoint 表里。
+     */
+    @Bean
+    ServiceRoster serviceRoster(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcServiceRegistry(jdbc, clock);
     }
 
     @Bean
-    InProcessServiceRegistry localServiceRegistry() {
-        return new InProcessServiceRegistry();
-    }
-
-    @Bean
-    ServiceRegistry serviceRegistry(InProcessServiceRegistry localServiceRegistry, ConfigSource configSource) {
+    ServiceRegistry serviceRegistry(ServiceRoster serviceRoster, ConfigSource configSource) {
         return new FallbackServiceRegistry(
-                localServiceRegistry,
+                serviceRoster,
                 StaticServiceFallback.fromConfig(configSource, PlatformServiceNames.PLATFORM_APP));
     }
 
@@ -106,8 +115,8 @@ public class PlatformWiring {
     }
 
     @Bean
-    ServiceCatalog serviceCatalog(InProcessServiceRegistry localServiceRegistry, AddressProbe addressProbe) {
-        return new ServiceCatalog(localServiceRegistry, addressProbe);
+    ServiceCatalog serviceCatalog(ServiceRoster serviceRoster, AddressProbe addressProbe) {
+        return new ServiceCatalog(serviceRoster, addressProbe);
     }
 
     @Bean
@@ -141,8 +150,8 @@ public class PlatformWiring {
     }
 
     @Bean
-    DistributedLockPort distributedLockPort(Clock clock) {
-        return new SingleProcessLock(clock);
+    DistributedLockPort distributedLockPort(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcRowLock(jdbc, clock);
     }
 
     @Bean

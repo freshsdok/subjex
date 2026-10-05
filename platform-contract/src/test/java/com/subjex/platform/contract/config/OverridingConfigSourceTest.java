@@ -40,8 +40,8 @@ class OverridingConfigSourceTest {
         assertEquals("本地文件", host.origin().chinese());
         assertEquals("local file", host.origin().english());
         assertEquals(ConfigOrigin.OVERRIDE, port.origin());
-        assertEquals("内存覆盖", port.origin().chinese());
-        assertEquals("memory override", port.origin().english());
+        assertEquals("已存覆盖", port.origin().chinese());
+        assertEquals("stored override", port.origin().english());
 
         List<ConfigEntry> rows = listing.rows(List.of(hostKey, portKey));
         assertEquals(2, rows.size());

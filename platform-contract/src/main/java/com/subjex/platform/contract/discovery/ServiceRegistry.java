@@ -5,10 +5,10 @@ import java.util.Optional;
 /**
  * ServiceRegistry — 服务登记簿：登记一个端点，或按服务名解析它。
  * <p>
- * The port stays these two operations. One implementation keeps endpoints in this JVM.
- * Another calls the HTTP registry hosted by platform-app. Neither is a Nacos, Eureka, or Consul server.
- * 这个端口仍然只有这两个操作。一个实现把端点留在本 JVM。
- * 另一个调用 platform-app 提供的 HTTP 登记。两者都不是 Nacos、Eureka 或 Consul 服务器。
+ * The port stays these two operations. platform-app stores endpoints in the shared database and serves them over HTTP.
+ * Another process calls that HTTP registry. Tests may use an in-process table. Neither is a Nacos, Eureka, or Consul server.
+ * 这个端口仍然只有这两个操作。platform-app 把端点存进共享库并用 HTTP 提供。
+ * 另一个进程调用那个 HTTP 登记。测试可用进程内表。两者都不是 Nacos、Eureka 或 Consul 服务器。
  */
 public interface ServiceRegistry {
 

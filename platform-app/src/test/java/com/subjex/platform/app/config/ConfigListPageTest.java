@@ -52,9 +52,9 @@ class ConfigListPageTest {
                 new ConfigEntry(portKey, "9090", ConfigOrigin.OVERRIDE),
                 new ConfigEntry("<b>", "x", ConfigOrigin.LOCAL)));
 
-        assertTrue(html.contains("这是一份只读的配置名单，只列出键、生效值，以及它来自本地文件还是内存覆盖。"));
+        assertTrue(html.contains("这是一份只读的配置名单，只列出键、生效值，以及它来自本地文件还是已存覆盖。"));
         assertTrue(html.contains(
-                "This is a read-only config list: a key, the effective value, and whether it came from a local file or a memory override."));
+                "This is a read-only config list: a key, the effective value, and whether it came from a local file or a stored override."));
         assertTrue(html.contains("键"));
         assertTrue(html.contains("key"));
         assertTrue(html.contains("生效值"));
@@ -63,8 +63,8 @@ class ConfigListPageTest {
         assertTrue(html.contains("source"));
         assertTrue(html.contains("本地文件"));
         assertTrue(html.contains("local file"));
-        assertTrue(html.contains("内存覆盖"));
-        assertTrue(html.contains("memory override"));
+        assertTrue(html.contains("已存覆盖"));
+        assertTrue(html.contains("stored override"));
         assertTrue(html.contains("9090"));
         assertTrue(html.contains("&lt;b&gt;"));
         assertFalse(html.contains("<form"));
@@ -105,8 +105,8 @@ class ConfigListPageTest {
 
         mockMvc.perform(get("/config").with(httpBasic("platform-operator", "change-me")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("内存覆盖")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("memory override")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("已存覆盖")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("stored override")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("本地文件")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("这是一份只读的配置名单")));
     }

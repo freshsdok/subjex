@@ -16,9 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * ConfigListPage — 配置名单页：一页只读 HTML，人能看懂键、生效值，以及它从哪一层来。
  * <p>
- * One sentence says what the page is. Each row is a key, the winning value, and local file or memory override.
+ * One sentence says what the page is. Each row is a key, the winning value, and local file or stored override.
  * There is no editor, namespace tree, or historical version list.
- * 开头一句话说明这页是什么。每一行是键、生效值，以及本地文件或内存覆盖。
+ * 开头一句话说明这页是什么。每一行是键、生效值，以及本地文件或已存覆盖。
  * 没有编辑器、命名空间树，也没有历史版本列表。
  */
 @RestController
@@ -53,8 +53,8 @@ public class ConfigListPage {
         StringBuilder body = new StringBuilder();
         OperatorPage.open(body, title, locale, skin);
         body.append("""
-                <p class="intro">这是一份只读的配置名单，只列出键、生效值，以及它来自本地文件还是内存覆盖。
-                <span class="en">This is a read-only config list: a key, the effective value, and whether it came from a local file or a memory override.</span></p>
+                <p class="intro">这是一份只读的配置名单，只列出键、生效值，以及它来自本地文件还是已存覆盖。
+                <span class="en">This is a read-only config list: a key, the effective value, and whether it came from a local file or a stored override.</span></p>
                 """);
         if (entries.isEmpty()) {
             body.append("""

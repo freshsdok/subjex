@@ -9,7 +9,7 @@ package com.subjex.platform.contract.config;
 public enum ConfigOrigin {
 
     LOCAL("local", "本地文件", "local file"),
-    OVERRIDE("override", "内存覆盖", "memory override");
+    OVERRIDE("override", "已存覆盖", "stored override");
 
     private final String apiWord;
     private final String chinese;

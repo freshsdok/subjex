@@ -7,10 +7,10 @@ import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * SingleProcessLock — 单进程锁：{@link DistributedLockPort} 的第一版实现。
+ * SingleProcessLock — 单进程锁：{@link DistributedLockPort} 的测试用实现。
  * <p>
- * The map lives in this JVM only. It does not coordinate another process. The class name says so.
- * 这张表只活在本 JVM 里，不协调另一个进程。类名写明了这一点。
+ * Tests only. The map lives in this JVM and does not coordinate another process. platform-app wires {@code JdbcRowLock}.
+ * 只用于测试。这张表只活在本 JVM 里，不协调另一个进程。platform-app 装配的是 {@code JdbcRowLock}。
  */
 public final class SingleProcessLock implements DistributedLockPort {
 

@@ -45,8 +45,8 @@ public final class ConfigListing {
         for (String key : knownKeys) {
             entry(key).ifPresent(rows::add);
         }
-        if (override instanceof MemoryConfigOverride memory) {
-            for (String key : memory.keys()) {
+        if (override instanceof ConfigOverrideStore store) {
+            for (String key : store.keys()) {
                 if (rows.stream().noneMatch(row -> row.key().equals(key))) {
                     entry(key).ifPresent(rows::add);
                 }
