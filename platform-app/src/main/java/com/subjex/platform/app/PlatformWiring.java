@@ -122,9 +122,9 @@ public class PlatformWiring {
     @Bean
     PlatformSelfRegistrar platformSelfRegistrar(
             ServiceRegistry serviceRegistry,
-            @Value("${platform.discovery.self-host:127.0.0.1}") String host,
-            @Value("${server.port:8080}") int port) {
-        return new PlatformSelfRegistrar(serviceRegistry, host, port);
+            @Value("${platform.discovery.self-host:127.0.0.1}") String advertisedHost) {
+        // The port comes from the started web server, not from server.port — 端口取自已启动的 Web 服务器，不读 server.port。
+        return new PlatformSelfRegistrar(serviceRegistry, advertisedHost);
     }
 
     @Bean

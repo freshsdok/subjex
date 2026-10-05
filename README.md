@@ -67,11 +67,11 @@ Operator HTTP Basic (security is on by default / 安全默认开启): operators 
 
 `mvn test` always runs the contract, operator-permission and audit, shared registry/config/lock (Flyway scripts on H2 in PostgreSQL and MySQL mode, test scope only), lock, rate-limit, breaker, outbox-socket, model-gateway, service-discovery, config-override, http-config, form-render, record-generation, deploy-page, forms-page, codegen-page, language-page, skin-page, and architecture tests.
 
-Live MySQL and PostgreSQL startup tests use Testcontainers and run only when Docker is available. Without Docker they are skipped, not faked. The outbox socket test does not start a database.
+Live MySQL and PostgreSQL startup tests use Testcontainers and run only when Docker is available. Without Docker they are skipped, not faked. The outbox socket test does not start a database. See `docs/local-docker.md`.
 
 `mvn test` 总会跑契约、操作员权限与审计（H2 的 PostgreSQL 与 MySQL 兼容模式执行 Flyway 脚本，只在测试范围）、锁、限流、熔断、出箱套接字、模型网关、服务发现、配置覆盖、表单渲染、记录生成、部署清单页、字段列表页、生成类型页、语言页、外观页和架构测试。
 
-MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Docker 时才执行。没有 Docker 时跳过，不用别的库冒充。出箱套接字测试不启动数据库。
+MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Docker 时才执行。没有 Docker 时跳过，不用别的库冒充。出箱套接字测试不启动数据库。见 `docs/local-docker.md`。
 
 
 ## Discovery, config, manifests, and one form / 发现、配置、清单与一份表单
