@@ -2,7 +2,7 @@
 
 - 日期：2026-10-05（UTC+8）
 - 对照评估：[`pre-release-assessment.md`](pre-release-assessment.md)
-- 远程 `github/main` tip（已 push）：`77ce565`（low-code stages 0–6 squash；与本机 tip 同树至 B2 前）
+- 远程 `github/main` tip：`6bc9fdc`（CI 修后与本机 d70e23b 同树）；其后本机出箱切片未 push。
 - 本机提交（未 push）：见下方「本机提交」与各切片 SHA
 
 ## 已完成 / Done
@@ -57,6 +57,14 @@
 - 同步 CHANGELOG Unreleased、ARCHITECTURE §11 / §16。
 - **远端**：经 Git Data API / push 创建 `.github/workflows/*` 通常需要 `workflow` 权限；本机 pack 已备（见 `/workspace/subjex-ci-push/`），未从 box push。落地前 GitHub Actions 仍不跑。
 
+
+### 安全加固（小切片）— 出箱后台重投 + HMAC/TLS
+- **A. Relay**：`TaskMessagePort.relayPending` + `@Scheduled OutboxRelay`；锁名 `outbox-relay`；熔断半开冷却；拒呼不烧 attempt。
+- **B. Transport**：协议 `SUBJEX-OUTBOX 2`，帧内 HMAC-SHA256（`OUTBOX_HMAC_SECRET` ≥32），去掉操作员口令；TLS（PKCS12）在非 `local` 失败关闭；`application-local.yml` / compose 本机逃生舱；k8s 清单要求 Secret + `outbox-delivery-tls` 卷。
+- **C. Docs**：`SECURITY.md` #3、`CHANGELOG`、`ARCHITECTURE` §6。
+- 仍余：mTLS 客户端证书、短时投递令牌、熔断状态跨副本共享。
+- 提交：见下方「本机提交」。
+
 ## 刻意跳过 / Skipped this slice
 
 - **完整 compose 镜像构建 / 全栈实测**：可选；compose 已含 `sample-consumer`，仍不含 `web/`。本切片未强制 `--build` 冒烟。
@@ -65,7 +73,7 @@
 
 1. **B2（本机已做，远端未落地）**：工作流已在 `.github/workflows/build.yml`（含 web）；需带 `workflow` scope 的令牌 push 后 Actions 才会跑；跑绿前仍阻塞正式 tag。
 2. **未实测 compose 全栈**（可选但评估列为前 5 项动作第 4 项）：compose 已含 `sample-consumer`；仍建议跑一次 `docker compose … up --build --scale platform-app=2` + `smoke-load.sh` 验证健康检查与投递。
-3. **安全加固仍是非阻塞已知限制**（可带着发 alpha，但要写进 release notes）：~~XFF 信任条件化~~（已修）、~~Redis 会话 Basic 头静态加密（`OPERATOR_SESSION_SECRET`）~~（已修；仍非平台签发操作员 API 令牌）、~~操作员开通（one-shot bootstrap，无手写 SQL）~~（已修；仍无改密/禁用/用户 UI）、出箱 TLS/不带明文口令。
+3. **安全加固仍是非阻塞已知限制**（可带着发 alpha，但要写进 release notes）：~~XFF 信任条件化~~（已修）、~~Redis 会话 Basic 头静态加密（`OPERATOR_SESSION_SECRET`）~~（已修；仍非平台签发操作员 API 令牌）、~~操作员开通（one-shot bootstrap，无手写 SQL）~~（已修；仍无改密/禁用/用户 UI）、~~出箱 HMAC + 非 local TLS / 后台重投~~（已修；仍无 mTLS 客户端证书与短时投递令牌）。
 
 ## 建议的下一个标签
 
@@ -81,3 +89,6 @@
 | `eb49df5` | `feat: bootstrap operator without hand-written SQL` |
 | `266b862` | low-code stages 0–6 tip（与远端 `77ce565` 同树） |
 | （本文件所在提交） | `ci: activate GitHub Actions workflow with Maven and web jobs` |
+| `33f2de1` | `feat(outbox): background relay for PENDING rows` |
+| `67c17bb` | `feat(outbox): HMAC auth and TLS; drop password from frame` |
+| （本文件所在提交） | `docs: outbox relay and transport security` |

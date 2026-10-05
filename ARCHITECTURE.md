@@ -37,7 +37,7 @@
 
 落地：
 
-- 出箱投递是产品路径。platform-app 在事务提交后读出 JDBC 出箱行，把 `event_body` 经本地 TCP 套接字推给 sample-consumer。两个应用各自打开套接字，不是进程内方法调用，也不再使用第一版的 HTTP 替身。失败仍打开示例路径熔断器。traceparent 仍穿过两个应用。这项测试在同一个 JVM 里完成，不依赖 Docker。
+- 出箱投递是产品路径。platform-app 在事务提交后读出 JDBC 出箱行，把 `event_body` 经套接字推给 sample-consumer（协议 `SUBJEX-OUTBOX 2`：HMAC-SHA256 共享密钥认证，非 local 须 TLS；帧上不带操作员口令）。提交后仍同步试一次；`OutboxRelay` 在分布式锁 `outbox-relay` 下按调度重投仍为 `PENDING` 的行，直到 `PUBLISHED` 或死信。两个应用各自打开套接字，不是进程内方法调用。失败仍打开示例路径熔断器（半开冷却后可再探测）。traceparent 仍穿过两个应用。套接字与 TLS 单测在同一个 JVM 里完成，不依赖 Docker。
 - 可选模块 `model-gateway`：登记一个模型提供者，并记录一次调用（提供者标识、模型标识、输入摘要）。无厂商 SDK，无 AI 数据库层，无智能体或工作流引擎。platform-app 不依赖该模块，模块不在 classpath 上时平台仍可启动。
 
 仍推迟：

@@ -21,6 +21,9 @@ platform-app in these manifests does not run the `local` profile, so no operator
 
 清单里的 platform-app 不启用 `local` profile，因此不会写入操作员。请先开通操作员表行（见 `docs/operator-permissions.md`）；sample-consumer 用 `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD` 登录。
 
+Outbox delivery (fail-closed): create Secret `outbox-delivery` (`hmac-secret`, `truststore-password` / `keystore-password`) and Secret `outbox-delivery-tls` (PKCS12 files mounted at `/var/run/outbox-tls`). `OUTBOX_TLS_ENABLED=true` is set in the manifests.
+出箱投递（失败关闭）：创建 Secret `outbox-delivery` 与挂载 PKCS12 的 `outbox-delivery-tls`。清单已设 `OUTBOX_TLS_ENABLED=true`。
+
 The human page is `GET /deploy` on platform-app. It reads these files. It does not apply them.
 
 给人看的页面是 platform-app 上的 `GET /deploy`。它读这些文件，不应用它们。

@@ -31,7 +31,7 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 - **Operators**: table-backed HTTP Basic, seven named permissions, read-only admin pages, audit for config overrides, registrations and task submission.
 - **Operator bootstrap (one-shot)**: `platform-app` can create/update one operator without hand-written SQL when `--platform.operator.bootstrap=true` (off by default); env `PLATFORM_OPERATOR_LOGIN` / `PLATFORM_OPERATOR_PASSWORD` / optional `PLATFORM_OPERATOR_ROLE`; idempotent by login; password min length 8; process exits after upsert. See `docs/operator-permissions.md`.
 - **Shared registry / config / lock** in the platform database (`service_endpoint`, `config_override`, `platform_lock`), with static fallback.
-- **Outbox delivery** from `platform-app` to `sample-consumer` over a TCP socket, with circuit breaker and `traceparent` propagation.
+- **Outbox delivery** from `platform-app` to `sample-consumer` over a socket (`SUBJEX-OUTBOX 2`, HMAC, optional TLS), with circuit breaker, background relay, and `traceparent` propagation.
 - **Entry gateway** (`entry-gateway`): HTTP forwarder with coarse in-process rate limiting (429).
 - **Observability**: `/actuator/prometheus` on all three processes; optional OTLP/HTTP trace export (`PLATFORM_OTLP_ENDPOINT`).
 - **Multi-replica slice**: two `platform-app` replicas in `deploy/k8s` and `deploy/compose`; `deploy/load/smoke-load.sh`.
@@ -46,6 +46,10 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
   CI 已落到 `.github/workflows/build.yml`：每次 push / PR 跑后端 `mvn -B test` 与控制台 typecheck/test/build；`docs/ci/` 仅作指引。
 
 ### Fixed / 修复
+- **Security / reliability — outbox background relay.** `TaskMessagePort.relayPending` + scheduled `OutboxRelay` retry `PENDING` rows under distributed lock `outbox-relay` until `PUBLISHED` or dead-letter; circuit breaker gains half-open cooldown so a transient consumer outage does not leave rows stuck. Attempt count is not burned while the breaker refuses calls.
+  出箱后台重投：调度工人在分布式锁下重试 PENDING，直到送出或死信；熔断半开冷却；拒呼时不消耗尝试次数。
+- **Security — outbox frame no longer carries the operator password; TLS fail-closed outside local.** Protocol `SUBJEX-OUTBOX 2` uses HMAC-SHA256 (`OUTBOX_HMAC_SECRET` ≥ 32). TLS (PKCS12) required unless `local` / `platform.delivery.allow-insecure=true`. Local default secret only in `application-local.yml`.
+  出箱帧不再带操作员口令；非 local 未配 TLS 则启动失败关闭。协议 2 + HMAC；本机默认密钥仅在 `application-local.yml`。
 - **Security — console Redis sessions encrypt the Basic header at rest.** When `SESSION_REDIS_URL` (or `REDIS_URL`) is set, `web/` requires `OPERATOR_SESSION_SECRET` (≥ 32 characters) and stores `credentialHeaderEnc` (AES-256-GCM) instead of the plaintext `Authorization: Basic …` value. Process-memory sessions (no Redis) are unchanged for local/dev/tests. Multi-replica consoles must share the same secret.
   控制台 Redis 会话对 Basic 头做静态加密：启用 Redis 时必填 `OPERATOR_SESSION_SECRET`（≥32 字符），只存 AES-256-GCM 密文；无 Redis 的进程内存路径不变。多副本须共用同一密钥。
 - **Security — `entry-gateway` no longer trusts `X-Forwarded-For` unconditionally.** The rate-limit client id is now the remote address unless the direct peer matches the new `gateway.trusted-proxies` setting (env `GATEWAY_TRUSTED_PROXIES`, IPs/CIDRs, default empty); then the header is read right to left, skipping trusted hops. `server.forward-headers-strategy` is pinned to `none` so Tomcat does not rewrite the remote address under Kubernetes. **Behaviour change:** deployments behind a load balancer must list it in `GATEWAY_TRUSTED_PROXIES`, or all clients share the proxy's bucket.
@@ -55,7 +59,8 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 
 ### Known limitations / 已知限制
 See `SECURITY.md` for the security-relevant ones. Also:
-- Outbox delivery is attempted once, synchronously after commit; there is no background relay, so failed rows stay `PENDING`.
+- Outbox mutual TLS (client certificate) and short-lived delivery tokens are not implemented yet (HMAC + server TLS is the current bar).
+- Circuit breaker open-cooldown is per process (not shared across `platform-app` replicas).
 - Dead letters are read-only (no replay).
 - Object storage has only a local-directory implementation and no HTTP endpoint uses it.
 - Rate limit, circuit breaker and object storage are per-process state.

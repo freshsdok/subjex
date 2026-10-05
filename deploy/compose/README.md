@@ -18,6 +18,9 @@ docker compose -f deploy/compose/docker-compose.yml up --build --scale platform-
 Local operator (profile `local`): `platform-operator` / `change-me`.
 本地操作员（`local` profile）：`platform-operator` / `change-me`。
 
+Outbox: both processes share `OUTBOX_HMAC_SECRET` (compose sets the local default). Profile `local` allows plaintext TCP; non-local requires TLS — see `SECURITY.md`.
+出箱：两进程共用 `OUTBOX_HMAC_SECRET`（compose 写入本地默认）。`local` 允许明文 TCP；非 local 须 TLS，见 `SECURITY.md`。
+
 Optional OTLP: `PLATFORM_OTLP_ENDPOINT=http://host.docker.internal:4318 docker compose ...`
 可选 OTLP：如上设置环境变量。
 

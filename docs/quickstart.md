@@ -67,6 +67,8 @@ export PLATFORM_JDBC_USERNAME=subjex
 export PLATFORM_JDBC_PASSWORD=subjex
 export PLATFORM_JDBC_DRIVER=org.postgresql.Driver
 export SPRING_PROFILES_ACTIVE=local   # LOCAL ONLY: seeds the local operator / 仅限本地：写入本地操作员
+# local profile also defaults OUTBOX_HMAC_SECRET (see application-local.yml); override before shared use.
+# local 亦默认出箱 HMAC（见 application-local.yml）；上共享网络前请覆盖。
 java -jar platform-app/target/platform-app-0.1.0-SNAPSHOT-exec.jar
 ```
 
@@ -83,10 +85,11 @@ HTTP 监听 `8080`。存活与就绪探针见上面两个地址。
 In a second terminal / 第二个终端：
 
 ```shell
+export SPRING_PROFILES_ACTIVE=local   # same local outbox HMAC default / 与 platform-app 共用本地出箱 HMAC 默认
 java -jar sample-consumer/target/sample-consumer-0.1.0-SNAPSHOT-exec.jar
 ```
 
-It listens for outbox frames on TCP `19081`, serves probes on HTTP `8081`, registers itself on platform-app, and reads its config from platform-app. When platform-app is unreachable it falls back to `PLATFORM_APP_HOST` / `PLATFORM_APP_PORT` and its own `application.yml`.
+It listens for outbox frames on TCP `19081` (HMAC-authenticated; plaintext allowed only under `local`), serves probes on HTTP `8081`, registers itself on platform-app, and reads its config from platform-app. When platform-app is unreachable it falls back to `PLATFORM_APP_HOST` / `PLATFORM_APP_PORT` and its own `application.yml`.
 
 它在 TCP `19081` 接收出箱帧，在 HTTP `8081` 提供探针，到 platform-app 登记自己，并从 platform-app 读配置。platform-app 连不上时，回退到 `PLATFORM_APP_HOST` / `PLATFORM_APP_PORT` 和自己的 `application.yml`。
 

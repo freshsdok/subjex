@@ -39,6 +39,7 @@ export PLATFORM_JDBC_PASSWORD=subjex
 export PLATFORM_JDBC_DRIVER=org.postgresql.Driver
 export SAMPLE_CONSUMER_HOST=127.0.0.1
 export SAMPLE_CONSUMER_PORT=19081
+export SPRING_PROFILES_ACTIVE=local
 mvn -pl platform-app spring-boot:run
 ```
 
@@ -52,6 +53,7 @@ export PLATFORM_JDBC_PASSWORD=subjex
 export PLATFORM_JDBC_DRIVER=com.mysql.cj.jdbc.Driver
 export SAMPLE_CONSUMER_HOST=127.0.0.1
 export SAMPLE_CONSUMER_PORT=19081
+export SPRING_PROFILES_ACTIVE=local
 mvn -pl platform-app spring-boot:run
 ```
 
@@ -63,12 +65,13 @@ Sample consumer (second process / 第二个进程):
 
 ```shell
 export SAMPLE_DELIVERY_PORT=19081
+export SPRING_PROFILES_ACTIVE=local
 mvn -pl sample-consumer spring-boot:run
 ```
 
-`platform-app` writes `TaskRecorded` into the JDBC outbox, then pushes that row to `sample-consumer` on a local TCP socket (`127.0.0.1:19081` unless the variables above are set). That socket is the delivery path. The event leaves one application and enters the other. It is not an in-process method call. `traceparent` travels on the socket frame. The consumer's HTTP port is only for probes.
+`platform-app` writes `TaskRecorded` into the JDBC outbox, then pushes that row to `sample-consumer` on a socket (`127.0.0.1:19081` unless the variables above are set). Frames are `SUBJEX-OUTBOX 2` with HMAC (`OUTBOX_HMAC_SECRET`); under `local` plaintext TCP is allowed, otherwise TLS is required (see `SECURITY.md`). A background relay retries `PENDING` rows. The event leaves one application and enters the other. It is not an in-process method call. `traceparent` travels on the socket frame. The consumer's HTTP port is only for probes.
 
-`platform-app` 把 `TaskRecorded` 写入 JDBC 出箱，再把这一行通过本地 TCP 套接字推到 `sample-consumer`（未改环境变量时是 `127.0.0.1:19081`）。这个套接字就是投递路径。事件离开一个应用、进入另一个应用，不是进程内方法调用。`traceparent` 在套接字帧上。消费者的 HTTP 端口只用于探针。
+`platform-app` 把 `TaskRecorded` 写入 JDBC 出箱，再经套接字推到 `sample-consumer`（默认 `127.0.0.1:19081`）。帧为 `SUBJEX-OUTBOX 2` + HMAC；`local` 下允许明文，否则须 TLS（见 `SECURITY.md`）。后台会重投 `PENDING`。事件跨进程，不是进程内调用。`traceparent` 在帧上。消费者的 HTTP 端口只用于探针。
 
 Shared discovery, config overrides, and the lock live in the same database as the rest of the platform (`service_endpoint`, `config_override`, `platform_lock`). Two processes on that database see the same rows after a restart. Static host/port keys remain the fallback when the registry has no name. There is no Nacos. The Java processes do not use Redis; Redis is used only by the `web/` console to share operator sessions across console replicas (optional, `SESSION_REDIS_URL`).
 
