@@ -14,7 +14,7 @@ subjex 是一个**契约优先、刻意做薄**的 Java 21 / Spring Boot 3.5 模
 
 **现在的 main 是红的**：完整 `mvn test` 共 164 个测试，有 4 个 ArchUnit 失败（`sample-consumer` 1 个、`entry-gateway` 3 个），且 CI 工作流还放在 `docs/ci/`，从未在 GitHub 上运行。**这两项修好之前不建议打第一个公开 tag**；修好后适合打 `v0.1.0-alpha.1`（预览版），不适合标成稳定版 `0.1.0`。
 
-> **进度（2026-10-05 15:23 UTC+8，本机未 push）**：B1 已在本地修好，完整 `mvn -o -B -fae test` **160/0/0/0** 全绿（提交 `eccd458`）。B3 文档对齐与 `CHANGELOG.md` / `SECURITY.md` 已落地（`7cff7ed`、`233d800`）。B2（CI 移到 `.github/workflows/`）仍阻塞，需要 workflow 权限。详见 [`release-prep-progress.md`](release-prep-progress.md)。
+> **进度（2026-10-05 16:41 UTC+8，本机未 push）**：B1 已绿；B3 文档已落地；低代码阶段 0–6 已在远端 `77ce565`。**B2 本机已做**：`.github/workflows/build.yml`（Maven + web typecheck/test/build），`docs/ci/` 仅指引；远端写入仍需 `workflow` scope。详见 [`release-prep-progress.md`](release-prep-progress.md)。
 
 ---
 

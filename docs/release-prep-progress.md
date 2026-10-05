@@ -2,7 +2,7 @@
 
 - 日期：2026-10-05（UTC+8）
 - 对照评估：[`pre-release-assessment.md`](pre-release-assessment.md)
-- 远程 `origin/main` tip（已 push）：`2476ed4`
+- 远程 `github/main` tip（已 push）：`77ce565`（low-code stages 0–6 squash；与本机 tip 同树至 B2 前）
 - 本机提交（未 push）：见下方「本机提交」与各切片 SHA
 
 ## 已完成 / Done
@@ -51,14 +51,19 @@
 - 范围：无用户管理 UI / 改密 / 禁用 API。
 - 提交：见下方「本机提交」。
 
+### B2 — CI 落到 `.github/workflows/`（本机完成，远端待 workflow 权限 push）
+- 新增 `.github/workflows/build.yml`：`test` job（`mvn -B test`，Java 21）+ `web` job（`web/` 下 `npm ci` / typecheck / test / build，Node 22）。
+- `docs/ci/build.yml` 已删；`docs/ci/README.md` 改为指向正式路径，并注明写入工作流需要令牌 **`workflow`** scope。
+- 同步 CHANGELOG Unreleased、ARCHITECTURE §11 / §16。
+- **远端**：经 Git Data API / push 创建 `.github/workflows/*` 通常需要 `workflow` 权限；本机 pack 已备（见 `/workspace/subjex-ci-push/`），未从 box push。落地前 GitHub Actions 仍不跑。
+
 ## 刻意跳过 / Skipped this slice
 
-- **B2 — 把 CI 移到 `.github/workflows/`**：需要有 `workflow` 权限的令牌；当前环境没有，只记笔记。工作流仍在 `docs/ci/build.yml`。
 - **完整 compose 镜像构建 / 全栈实测**：可选；compose 已含 `sample-consumer`，仍不含 `web/`。本切片未强制 `--build` 冒烟。
 
 ## 仍阻塞正式 tag / Still blocking a public tag
 
-1. **B2**：CI 未运行（需 workflow 权限把文件移到 `.github/workflows/`，并建议补上 `web/` 的 typecheck/test/build）。
+1. **B2（本机已做，远端未落地）**：工作流已在 `.github/workflows/build.yml`（含 web）；需带 `workflow` scope 的令牌 push 后 Actions 才会跑；跑绿前仍阻塞正式 tag。
 2. **未实测 compose 全栈**（可选但评估列为前 5 项动作第 4 项）：compose 已含 `sample-consumer`；仍建议跑一次 `docker compose … up --build --scale platform-app=2` + `smoke-load.sh` 验证健康检查与投递。
 3. **安全加固仍是非阻塞已知限制**（可带着发 alpha，但要写进 release notes）：~~XFF 信任条件化~~（已修）、~~Redis 会话 Basic 头静态加密（`OPERATOR_SESSION_SECRET`）~~（已修；仍非平台签发操作员 API 令牌）、~~操作员开通（one-shot bootstrap，无手写 SQL）~~（已修；仍无改密/禁用/用户 UI）、出箱 TLS/不带明文口令。
 
@@ -68,7 +73,11 @@
 
 ## 本机提交 / Local commits (not pushed)
 
+本机 `main` 与远端 `77ce565` 历史分叉（API squash），树在 B2 前相同。B2 提交见下表最后一行（本文件随提交写入）。
+
 | SHA | 说明 |
 | --- | --- |
 | `0e40aba` | `fix(web): encrypt operator credentials at rest in Redis sessions` |
 | `eb49df5` | `feat: bootstrap operator without hand-written SQL` |
+| `266b862` | low-code stages 0–6 tip（与远端 `77ce565` 同树） |
+| （本文件所在提交） | `ci: activate GitHub Actions workflow with Maven and web jobs` |

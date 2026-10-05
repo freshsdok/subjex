@@ -1,4 +1,4 @@
-# Build — 构建：每次 push 和 pull request 都跑 mvn test。
+# Build — 构建：每次 push 和 pull request 跑后端 mvn test 与 web typecheck/test/build。
 # mvn test needs no Docker. GitHub's ubuntu runner has Docker, so the live MySQL/PostgreSQL startup tests
 # (Testcontainers) run there too; on a machine without Docker they skip themselves.
 # mvn test 不需要 Docker。GitHub 的 ubuntu 运行器自带 Docker，所以真实 MySQL/PostgreSQL 启动测试在那里也会执行；
@@ -24,3 +24,24 @@ jobs:
           cache: maven
       - name: mvn test
         run: mvn -B test
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: npm ci
+        run: npm ci
+      - name: typecheck
+        run: npm run typecheck
+      - name: test
+        run: npm test
+      - name: build
+        run: npm run build

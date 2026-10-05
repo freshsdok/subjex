@@ -127,9 +127,9 @@ Local stack: `deploy/compose/docker-compose.yml` starts PostgreSQL 16, Redis 7, 
 
 ## Images and CI / 镜像与持续集成
 
-`platform-app/Dockerfile`, `sample-consumer/Dockerfile` and `entry-gateway/Dockerfile` are multi-stage builds run from the repository root (`docker build -f platform-app/Dockerfile -t subjex/platform-app:0.1.0-SNAPSHOT .`). The runtime stage runs as uid 10001. The image names match `deploy/k8s/`. Images are not published to any registry; `web/` has no Dockerfile yet. `mvn test` does not build images. The CI workflow that runs `mvn -B test` on push and pull request is at `docs/ci/build.yml` for now; it needs to be moved to `.github/workflows/` by someone whose token has the `workflow` scope (see `docs/ci/README.md`).
+`platform-app/Dockerfile`, `sample-consumer/Dockerfile` and `entry-gateway/Dockerfile` are multi-stage builds run from the repository root (`docker build -f platform-app/Dockerfile -t subjex/platform-app:0.1.0-SNAPSHOT .`). The runtime stage runs as uid 10001. The image names match `deploy/k8s/`. Images are not published to any registry; `web/` has no Dockerfile yet. `mvn test` does not build images. CI lives at [`.github/workflows/build.yml`](.github/workflows/build.yml): `mvn -B test` plus `web/` `npm ci` / typecheck / test / build. Pushing that path needs a token with the `workflow` scope (see `docs/ci/README.md`).
 
-`platform-app/Dockerfile`、`sample-consumer/Dockerfile` 与 `entry-gateway/Dockerfile` 是在仓库根目录执行的多阶段构建，运行阶段以 uid 10001 运行，镜像名与 `deploy/k8s/` 一致。镜像未推送到任何仓库；`web/` 还没有 Dockerfile。`mvn test` 不构建镜像。在 push 和 pull request 上跑 `mvn -B test` 的 CI 工作流暂放在 `docs/ci/build.yml`，需要由令牌有 `workflow` 权限的人移到 `.github/workflows/`（见 `docs/ci/README.md`）。
+`platform-app/Dockerfile`、`sample-consumer/Dockerfile` 与 `entry-gateway/Dockerfile` 是在仓库根目录执行的多阶段构建，运行阶段以 uid 10001 运行，镜像名与 `deploy/k8s/` 一致。镜像未推送到任何仓库；`web/` 还没有 Dockerfile。`mvn test` 不构建镜像。CI 在 [`.github/workflows/build.yml`](.github/workflows/build.yml)：`mvn -B test`，并覆盖 `web/` 的 typecheck/test/build。写入该路径需要令牌带 `workflow` 权限（见 `docs/ci/README.md`）。
 
 ## License / 许可证
 

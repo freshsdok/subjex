@@ -108,7 +108,7 @@
 - `platform-app/Dockerfile` 与 `sample-consumer/Dockerfile`：多阶段构建。第一阶段用 Maven 在仓库根目录执行 `-pl <进程> -am package`；第二阶段只有 JRE 和可运行 jar，以 uid 10001 的 `subjex` 用户运行。构建上下文是仓库根目录，`.dockerignore` 排除 `target/` 和 `.git/`。
 - `deploy/k8s/` 的镜像名就是这两份 Dockerfile 打的标签（`subjex/platform-app:0.1.0-SNAPSHOT`、`subjex/sample-consumer:0.1.0-SNAPSHOT`），并设置 `runAsNonRoot`、`runAsUser: 10001`。镜像不推送到任何仓库，清单仍不被应用。清单里不启用 `local`，操作员要以表行开通。
 - `mvn test` 不构建镜像，也不需要 Docker。`ContainerImageTest` 只读文字：两阶段、非 root、清单镜像名与 Dockerfile 标签一致。
-- CI：工作流在 push 和 pull request 上跑 `mvn -B test`。推送令牌缺少 `workflow` 权限，GitHub 拒绝写入 `.github/workflows/`，所以同一份文件暂放 `docs/ci/build.yml`，等有权限的人移到位。移到位之前 CI 不运行。
+- CI：工作流在 `.github/workflows/build.yml`。每次 push 和 pull request 跑 `mvn -B test`（Java 21），并在 `web/` 跑 `npm ci` / typecheck / test / build（Node 22）。`docs/ci/README.md` 仅作指引。经 Git Data API 或 push 写入工作流文件需要令牌带 `workflow` 权限；远端尚未写入前 Actions 仍不跑。
 
 
 ## 12. JSON 接口与 OpenAPI
@@ -186,10 +186,10 @@ Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; t
 ## 16. 发布前状态 / Release status
 
 - 仍是 `0.1.0-SNAPSHOT`，没有 tag。全部模块 `mvn test` 应当通过（节点四复制规则造成的 4 个 ArchUnit 空规则失败已修，见 `docs/release-prep-progress.md`）。
-- CI 工作流仍在 `docs/ci/build.yml`，需要有 `workflow` 权限的人移到 `.github/workflows/`；移到位之前 CI 不运行。
+- CI 工作流已在本机落到 `.github/workflows/build.yml`（含 `web/` typecheck/test/build）；`docs/ci/` 仅指引。推送到远端写入该路径需要令牌带 `workflow` 权限；远端落地并跑绿之前仍视为 B2 未完成。
 - 已知安全与运行限制汇总在 `SECURITY.md`，版本内容在 `CHANGELOG.md`，完整评估在 `docs/pre-release-assessment.md`。
 
-Still `0.1.0-SNAPSHOT`, untagged. The full `mvn test` reactor is expected to pass. CI is not active until `docs/ci/build.yml` is moved to `.github/workflows/`. Known limits: `SECURITY.md`; contents: `CHANGELOG.md`.
+Still `0.1.0-SNAPSHOT`, untagged. The full `mvn test` reactor is expected to pass. CI workflow is local at `.github/workflows/build.yml` (includes `web/`); pushing it needs the `workflow` scope. Known limits: `SECURITY.md`; contents: `CHANGELOG.md`.
 
 ## 17. 低代码加深路线（有序） / Ordered low-code deepening
 

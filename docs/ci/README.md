@@ -1,16 +1,18 @@
-# CI workflow waiting to be moved / 等待移到位的 CI 工作流
+# CI / 持续集成
 
-`build.yml` here is the GitHub Actions workflow that runs `mvn -B test` on every push and pull request.
-It belongs at `.github/workflows/build.yml`. GitHub refused that path for the token used to push it, because writing workflow files needs the `workflow` scope. Someone with that scope moves it:
+Canonical workflow: [`.github/workflows/build.yml`](../../.github/workflows/build.yml).
 
-这里的 `build.yml` 是 GitHub Actions 工作流，每次 push 和 pull request 都跑 `mvn -B test`。
-它应当放在 `.github/workflows/build.yml`。推送所用的令牌没有 `workflow` 权限，GitHub 拒绝了那个路径。有该权限的人把它移过去：
+正式工作流在 `.github/workflows/build.yml`。每次 push 和 pull request 会：
 
-```shell
-mkdir -p .github/workflows
-git mv docs/ci/build.yml .github/workflows/build.yml
-git rm docs/ci/README.md
-git commit -m "Move the CI workflow into place"
-```
+1. **test** — `mvn -B test`（Java 21 / Temurin；GitHub ubuntu runner 有 Docker，Testcontainers 真库启动测试会跑）
+2. **web** — 在 `web/` 下 `npm ci`、`npm run typecheck`、`npm test`、`npm run build`（Node 22）
 
-Until then, CI does not run. / 在此之前 CI 不会运行。
+Do not keep a second copy of the workflow YAML under `docs/ci/`. This directory is only a pointer.
+
+不要在 `docs/ci/` 再放一份工作流 YAML；本目录只作指引。
+
+## Push note / 推送说明
+
+Creating or updating `.github/workflows/*` via `git push` or the Git Data API requires a token with the **`workflow`** scope (in addition to `repo`). Without it, GitHub rejects the path even when the rest of the tree is fine.
+
+经 `git push` 或 Git Data API 创建/更新 `.github/workflows/*` 时，令牌除 `repo` 外还需要 **`workflow`** 权限；否则 GitHub 会拒绝该路径。

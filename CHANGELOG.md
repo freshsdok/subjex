@@ -42,6 +42,8 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 - **Operator console** (`web/`, Next.js): server-side proxy, httpOnly session cookie, optional Redis session store (`SESSION_REDIS_URL`).
 - **Images**: multi-stage, non-root Dockerfiles for `platform-app`, `sample-consumer`, `entry-gateway` (not published).
 - `SECURITY.md`, this changelog.
+- **CI active at `.github/workflows/build.yml`**: on every push and pull request runs `mvn -B test` (Java 21) and, for `web/`, `npm ci` + typecheck + vitest + `next build` (Node 22). Docs pointer only at `docs/ci/README.md`.
+  CI 已落到 `.github/workflows/build.yml`：每次 push / PR 跑后端 `mvn -B test` 与控制台 typecheck/test/build；`docs/ci/` 仅作指引。
 
 ### Fixed / 修复
 - **Security — console Redis sessions encrypt the Basic header at rest.** When `SESSION_REDIS_URL` (or `REDIS_URL`) is set, `web/` requires `OPERATOR_SESSION_SECRET` (≥ 32 characters) and stores `credentialHeaderEnc` (AES-256-GCM) instead of the plaintext `Authorization: Basic …` value. Process-memory sessions (no Redis) are unchanged for local/dev/tests. Multi-replica consoles must share the same secret.
@@ -58,6 +60,6 @@ See `SECURITY.md` for the security-relevant ones. Also:
 - Object storage has only a local-directory implementation and no HTTP endpoint uses it.
 - Rate limit, circuit breaker and object storage are per-process state.
 - `deploy/compose` includes `sample-consumer` (wired like k8s) but not `web/`; full compose image build / end-to-end smoke still optional and not always run in this release cycle.
-- `web/` has no Dockerfile or manifests and is not covered by CI.
-- CI workflow is parked in `docs/ci/build.yml` and is not active until moved to `.github/workflows/`.
+- `web/` has no Dockerfile or manifests (CI now covers typecheck/test/build; no image yet).
+- Activating `.github/workflows/*` on the remote requires a token with the `workflow` scope; until that push lands, GitHub Actions still will not run.
 - No operator admin UI / password-change / disable API yet; one-shot bootstrap covers create/update by login (`docs/operator-permissions.md`).
