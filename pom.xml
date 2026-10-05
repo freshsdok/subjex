@@ -24,6 +24,7 @@
         <module>platform-app</module>
         <module>sample-consumer</module>
         <module>model-gateway</module>
+        <module>form-render</module>
     </modules>
 
     <properties>

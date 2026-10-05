@@ -17,6 +17,11 @@ server:
     include-binding-errors: never
 
 platform:
+  discovery:
+    static:
+      platform-app:
+        host: ${PLATFORM_APP_HOST:127.0.0.1}
+        port: ${PLATFORM_APP_PORT:8080}
   delivery:
     listen-port: ${SAMPLE_DELIVERY_PORT:19081}
     operator-name: ${PLATFORM_OPERATOR_NAME:platform-operator}

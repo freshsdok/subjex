@@ -3,6 +3,7 @@ package com.subjex.platform.app;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.connection.ConfiguredConnection;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
+import com.subjex.platform.app.discovery.PlatformSelfRegistrar;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
@@ -13,8 +14,15 @@ import com.subjex.platform.app.lock.SingleProcessLock;
 import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
+import com.subjex.platform.contract.config.ConfigSource;
+import com.subjex.platform.contract.config.LocalApplicationConfig;
 import com.subjex.platform.contract.connection.ConnectionVendor;
 import com.subjex.platform.contract.connection.RelationalConnectionPort;
+import com.subjex.platform.contract.discovery.FallbackServiceRegistry;
+import com.subjex.platform.contract.discovery.InProcessServiceRegistry;
+import com.subjex.platform.contract.discovery.PlatformServiceNames;
+import com.subjex.platform.contract.discovery.ServiceRegistry;
+import com.subjex.platform.contract.discovery.StaticServiceFallback;
 import com.subjex.platform.contract.extension.PlatformExtension;
 import com.subjex.platform.contract.idempotency.IdempotencyPort;
 import com.subjex.platform.contract.lock.DistributedLockPort;
@@ -32,6 +40,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -44,6 +53,26 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Configuration
 public class PlatformWiring {
+
+    @Bean
+    ConfigSource configSource(Environment environment) {
+        return new LocalApplicationConfig(key -> environment.getProperty(key));
+    }
+
+    @Bean
+    ServiceRegistry serviceRegistry(ConfigSource configSource) {
+        return new FallbackServiceRegistry(
+                new InProcessServiceRegistry(),
+                StaticServiceFallback.fromConfig(configSource, PlatformServiceNames.PLATFORM_APP));
+    }
+
+    @Bean
+    PlatformSelfRegistrar platformSelfRegistrar(
+            ServiceRegistry serviceRegistry,
+            @Value("${platform.discovery.self-host:127.0.0.1}") String host,
+            @Value("${server.port:8080}") int port) {
+        return new PlatformSelfRegistrar(serviceRegistry, host, port);
+    }
 
     @Bean
     Clock clock() {

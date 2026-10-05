@@ -25,7 +25,9 @@
 
 ## 4. 不做
 
-服务发现、动态路由、配置中心、Kubernetes、自动扩容、低代码、在线表单、代码生成、数据库或 Redis 运维台、AI 数据库中间层、模型/智能体/工作流引擎。AI Gateway 仍是可选模块，不进平台启动路径。第二版只登记模型提供者并记录一次调用，见第 6 节。
+动态路由、自动扩容、数据库或 Redis 运维台、AI 数据库中间层、模型/智能体/工作流引擎。AI Gateway 仍是可选模块，不进平台启动路径。第二版只登记模型提供者并记录一次调用，见第 6 节。
+
+服务发现、配置中心、Kubernetes、低代码、代码生成不再整项拒绝。目标形状和这一版落地的薄切片见第 7 节。真实注册中心、真实配置服务器、把清单应用到集群、表单设计器、在线表单库、全量 CRUD 生成仍然不做。
 
 ## 5. 验收
 
@@ -41,5 +43,24 @@
 仍推迟：
 
 - 对着真实 MySQL / PostgreSQL 的启动证明。没有 Docker 时 `VendorStartupTest` 继续跳过，不用别的库冒充。
-- Kubernetes、服务发现、配置中心，以及第 4 节里其余明确不做的能力。
+- 第 7 节列出的仍推迟项。第 4 节里其余明确不做的能力仍然不做。
 
+## 7. 发现、配置、清单、表单与生成
+
+目标形状：这五项留在模块化单体里，各自是一个端口，或一个不依赖宿主进程的模块。以后可以拆成独立进程，调用方仍然依赖原来的契约。它们互相不依赖。`platform-app` 与 `sample-consumer` 仍然是仅有的两个进程。不新增架构门禁：模块之间的禁止依赖靠依赖声明本身守住，`form-render` 不依赖 `platform-app` 或 `sample-consumer`，两个进程也不互相依赖。
+
+- 服务发现：契约 `ServiceRegistry`，操作是 `register` 与 `resolve`。`InProcessServiceRegistry` 只在本 JVM 里记住端点，不假装看见别的进程。`platform-app` 启动时登记自己。`sample-consumer` 解析 `platform-app`。登记簿没有这个名字时，`StaticServiceFallback` 使用本地配置里的主机和端口。没有 Nacos，也没有注册中心进程。
+- 配置中心：契约 `ConfigSource`。默认实现 `LocalApplicationConfig` 读本进程的应用配置。`MemoryConfigOverride` 是第二个内存来源，测试里可以压过一个具名键。`OverridingConfigSource` 先查覆盖层，再查本地配置。没有网络配置服务器。
+- Kubernetes：`deploy/k8s/` 里是 `platform-app` 与 `sample-consumer` 的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。
+- 低代码：一份声明式表单 `form-render/src/main/resources/forms/endpoint-publication.form.yaml`。`FormRenderer` 把它变成校验过的字段列表。没有界面设计器，也没有在线表单库。
+- 代码生成：`FormRecordGenerator` 读同一份表单，写出一个 Java 记录。生成结果检入 `EndpointPublication`。测试核对记录组件与表单字段一致。构建不运行注解处理器。
+
+这一版落地的就是上面这一薄层。
+
+仍推迟：
+
+- 真实的注册中心服务器，以及跨进程的动态发现。
+- 真实的配置服务器。
+- 把 Kubernetes 清单应用到集群，以及自动扩容。镜像名只是占位符。
+- 表单设计器，和在线表单运行时数据库。
+- 全量 CRUD 生成（控制器、表、迁移）。现在只生成与字段对应的记录，不生成校验注解。

@@ -1,0 +1,77 @@
+# Not applied by the build or the tests. No cluster and no image build.
+# 构建和测试不会应用这份清单。没有集群，也不构建镜像。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-app
+  labels:
+    app: platform-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-app
+  template:
+    metadata:
+      labels:
+        app: platform-app
+    spec:
+      containers:
+        - name: platform-app
+          image: subjex/platform-app:0.1.0-SNAPSHOT
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PLATFORM_CONNECTION_VENDOR
+              value: postgresql
+            - name: PLATFORM_JDBC_URL
+              value: jdbc:postgresql://postgresql:5432/subjex
+            - name: PLATFORM_JDBC_USERNAME
+              value: subjex
+            - name: PLATFORM_JDBC_PASSWORD
+              value: subjex
+            - name: PLATFORM_DISCOVERY_HOST
+              value: platform-app
+            - name: SAMPLE_CONSUMER_HOST
+              value: sample-consumer
+            - name: SAMPLE_CONSUMER_PORT
+              value: "19081"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-app
+  labels:
+    app: platform-app
+spec:
+  selector:
+    app: platform-app
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

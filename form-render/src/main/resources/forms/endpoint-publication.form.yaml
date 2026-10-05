@@ -1,0 +1,20 @@
+# Endpoint publication form — 端点发布表单
+# One declarative form. Not a designer and not a stored submission.
+# 一份声明式表单。不是设计器，也不保存提交。
+formKey: endpoint-publication
+titleEn: Endpoint publication
+titleZh: 端点发布
+fields:
+  - name: serviceName
+    kind: text
+    required: true
+    maxLength: 64
+  - name: host
+    kind: text
+    required: true
+    maxLength: 253
+  - name: port
+    kind: integer
+    required: true
+    minimum: 1
+    maximum: 65535

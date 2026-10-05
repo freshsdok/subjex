@@ -55,13 +55,20 @@ Operator HTTP Basic (security is on by default / 安全默认开启): `platform-
 
 ## Tests / 测试
 
-`mvn test` always runs the contract, lock, rate-limit, breaker, outbox-socket, model-gateway, and architecture tests.
+`mvn test` always runs the contract, lock, rate-limit, breaker, outbox-socket, model-gateway, service-discovery, config-override, form-render, record-generation, and architecture tests.
 
 Live MySQL and PostgreSQL startup tests use Testcontainers and run only when Docker is available. Without Docker they are skipped, not faked. The outbox socket test does not start a database.
 
-`mvn test` 总会跑契约、锁、限流、熔断、出箱套接字、模型网关和架构测试。
+`mvn test` 总会跑契约、锁、限流、熔断、出箱套接字、模型网关、服务发现、配置覆盖、表单渲染、记录生成和架构测试。
 
 MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Docker 时才执行。没有 Docker 时跳过，不用别的库冒充。出箱套接字测试不启动数据库。
+
+
+## Discovery, config, manifests, and one form / 发现、配置、清单与一份表单
+
+`platform-app` registers itself in an in-process `ServiceRegistry`. `sample-consumer` resolves `platform-app`. When that registry has no entry, static keys `platform.discovery.static.platform-app.host` and `.port` are the fallback (`PLATFORM_APP_HOST`, `PLATFORM_APP_PORT`). Configuration is read through `ConfigSource` from the local application config. Kubernetes manifests under `deploy/k8s/` are files only; nothing applies them. `form-render` turns `endpoint-publication.form.yaml` into a validated field list and a checked-in record `EndpointPublication`.
+
+`platform-app` 在进程内 `ServiceRegistry` 登记自己。`sample-consumer` 解析 `platform-app`。登记簿没有该项时，静态键 `platform.discovery.static.platform-app.host` 和 `.port` 是兜底（`PLATFORM_APP_HOST`、`PLATFORM_APP_PORT`）。配置经 `ConfigSource` 读取本地应用配置。`deploy/k8s/` 下的 Kubernetes 清单只是文件，不会被应用。`form-render` 把 `endpoint-publication.form.yaml` 变成校验过的字段列表，以及检入仓库的记录 `EndpointPublication`。
 
 ## Optional model gateway / 可选模型网关
 

@@ -30,6 +30,12 @@ server:
 platform:
   connection:
     vendor: ${PLATFORM_CONNECTION_VENDOR:postgresql}
+  discovery:
+    self-host: ${PLATFORM_DISCOVERY_HOST:127.0.0.1}
+    static:
+      platform-app:
+        host: ${PLATFORM_APP_HOST:127.0.0.1}
+        port: ${PLATFORM_APP_PORT:8080}
   delivery:
     consumer-host: ${SAMPLE_CONSUMER_HOST:127.0.0.1}
     consumer-port: ${SAMPLE_CONSUMER_PORT:19081}

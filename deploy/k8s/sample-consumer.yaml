@@ -1,0 +1,74 @@
+# Not applied by the build or the tests. No cluster and no image build.
+# 构建和测试不会应用这份清单。没有集群，也不构建镜像。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-consumer
+  labels:
+    app: sample-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-consumer
+  template:
+    metadata:
+      labels:
+        app: sample-consumer
+    spec:
+      containers:
+        - name: sample-consumer
+          image: subjex/sample-consumer:0.1.0-SNAPSHOT
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+            - name: delivery
+              containerPort: 19081
+          env:
+            - name: SAMPLE_DELIVERY_PORT
+              value: "19081"
+            - name: PLATFORM_APP_HOST
+              value: platform-app
+            - name: PLATFORM_APP_PORT
+              value: "8080"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-consumer
+  labels:
+    app: sample-consumer
+spec:
+  selector:
+    app: sample-consumer
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+    - name: delivery
+      port: 19081
+      targetPort: delivery
