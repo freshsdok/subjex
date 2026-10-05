@@ -2,7 +2,7 @@
 
 Semantic modular platform: subject identity, tenant isolation, and a single task contract.
 
-第一版按 `ARCHITECTURE.md` 实现平台契约，不包含竞赛领域。业务读写走 JDBC，不经过 ORM 模型层。MySQL 与 PostgreSQL 共用同一套迁移脚本，靠配置切换连接。
+第一版按 `ARCHITECTURE.md` 实现平台契约，不包含具体业务领域。业务读写走 JDBC，不经过 ORM 模型层。MySQL 与 PostgreSQL 共用同一套迁移脚本，靠配置切换连接。
 
 **Status / 状态：** pre-release (`0.1.0-SNAPSHOT`, no tag yet). Contracts are complete and tested; most runtime pieces are deliberately thin slices. Intended for evaluation on a trusted network only — read [`SECURITY.md`](SECURITY.md) for known limits and [`CHANGELOG.md`](CHANGELOG.md) for what is in the tree.
 
