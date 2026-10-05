@@ -160,3 +160,19 @@ Each operator page has a JSON twin under `/api/v1` for the upcoming `web/` Next.
 - Two `platform-app` replicas in k8s and compose; gateway uses DNS round-robin.
 - Short smoke load script through the gateway.
 - Console sessions move to Redis (TD-1). Gateway rate limits stay in-process.
+
+## 15. 节点六：低代码加深
+
+- 多表单目录：`form-render` 下可有多份 `*.form.yaml`；`FormCatalog` 按 `formKey` 列出并加载，不再写死仅 `endpoint-publication`。
+- 提交落库：合法提交写入共享表 `form_submission`（Flyway），含 formKey、操作员、取值 JSON、结果摘要；`GET /api/v1/forms/{formKey}/submissions` 列历史。仍不做在线表单库或设计器。
+- 第二张业务表单：`config-override.form.yaml`（键 + 值）；提交需 `config.write`，写入配置覆盖并记 `config.override` 审计；控制台表单页可选表单。
+- 生成器 CLI：`form-render` 提供可执行入口 `FormRecordWriteMain`，从 YAML 重写已检入的 Java record（调用方检入；构建仍不跑注解处理器）。
+- 不做：拖拽设计器、全量 CRUD 生成、按租户的表单市场、浏览器内写文件。
+
+## 15. Node 6 — deeper low-code
+
+- Multi-form catalog from classpath `*.form.yaml`.
+- Persist accepted submissions in shared `form_submission`; list via API.
+- Second form `config-override` → config override + audit.
+- CLI (`FormRecordWriteMain`) regenerates checked-in records from YAML.
+- No designer, no online form library, no browser file write.

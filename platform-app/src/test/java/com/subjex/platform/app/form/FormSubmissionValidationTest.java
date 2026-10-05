@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
  */
 class FormSubmissionValidationTest {
 
-    private final RenderedForm form = FormCatalog.load();
+    private final RenderedForm form = new FormCatalog().require("endpoint-publication");
 
     @Test
     void acceptsAValidEndpointPublication() {

@@ -43,8 +43,14 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.CONFIG_READ.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/config/**")
                                 .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
+                        // Form submit: signed-in only; each form checks its own write permission in the endpoint.
+                        // 表单提交：只要求已登录；各表单在接口里核对自己的写权限。
                         .requestMatchers(HttpMethod.POST, "/api/v1/forms/*/submissions")
-                                .hasAuthority(OperatorPermission.REGISTRY_WRITE.permissionName())
+                                .authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/forms/*/submissions")
+                                .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/forms/*")
+                                .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.GET,

@@ -27,7 +27,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["formSubmissionHistory"];
         put?: never;
         post: operations["submit"];
         delete?: never;
@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/forms/{formKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["formDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -198,11 +214,9 @@ export interface components {
             };
         };
         FormSubmissionResultDocument: {
+            submissionId?: string;
             formKey?: string;
-            serviceName?: string;
-            host?: string;
-            /** Format: int32 */
-            port?: number;
+            resultSummary?: string;
         };
         SkinDocument: {
             name?: string;
@@ -291,6 +305,27 @@ export interface components {
             outcomeWordZh?: string;
             outcomeWordEn?: string;
         };
+        FormsIndexDocument: {
+            forms?: components["schemas"]["FormIndexDocument"][];
+        };
+        FormIndexDocument: {
+            formKey?: string;
+            titleZh?: string;
+            titleEn?: string;
+        };
+        FormSubmissionListDocument: {
+            submissions?: components["schemas"]["FormSubmissionHistoryDocument"][];
+        };
+        FormSubmissionHistoryDocument: {
+            submissionId?: string;
+            formKey?: string;
+            actorIdentityId?: string;
+            loginName?: string;
+            valuesJson?: string;
+            resultSummary?: string;
+            /** Format: date-time */
+            submittedAt?: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -322,6 +357,42 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ConfigEntryDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    formSubmissionHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FormSubmissionListDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */
@@ -531,7 +602,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["FormsDocument"];
+                    "*/*": components["schemas"]["FormsIndexDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */
@@ -668,6 +739,42 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AuditDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    formDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FormsDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */

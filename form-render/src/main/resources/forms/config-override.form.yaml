@@ -1,0 +1,15 @@
+# Config override form — 配置覆盖表单
+# One declarative form. Not a designer.
+# 一份声明式表单。不是设计器。
+formKey: config-override
+titleEn: Config override
+titleZh: 配置覆盖
+fields:
+  - name: configKey
+    kind: text
+    required: true
+    maxLength: 256
+  - name: configValue
+    kind: text
+    required: true
+    maxLength: 4000

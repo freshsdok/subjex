@@ -9,6 +9,8 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.TcpAddressProbe;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
+import com.subjex.platform.app.form.FormSubmissionStore;
+import com.subjex.platform.app.form.JdbcFormSubmissionStore;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.jdbc.JdbcConfigOverride;
@@ -228,5 +230,13 @@ public class PlatformWiring {
     @Bean
     JdbcAdminReader jdbcAdminReader(JdbcTemplate jdbc) {
         return new JdbcAdminReader(jdbc);
+    }
+
+    /**
+     * Accepted form submissions in table form_submission — 已接受的表单提交在 form_submission 表里。
+     */
+    @Bean
+    FormSubmissionStore formSubmissionStore(JdbcTemplate jdbc, Clock clock, ObjectMapper objectMapper) {
+        return new JdbcFormSubmissionStore(jdbc, clock, objectMapper);
     }
 }

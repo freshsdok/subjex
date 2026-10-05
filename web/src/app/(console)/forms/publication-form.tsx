@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 
 type FormField = { name: string; kind: string; required: boolean };
 
-// Submit steps — 提交步骤：填写 → 核对 → 确认。与配置覆盖同一套节奏，避免误登记。
+// Submit steps — 提交步骤：填写 → 核对 → 确认。与配置覆盖同一套节奏，避免误提交。
 type SubmitStep = "editing" | "reviewing" | "submitting";
 
 export function PublicationForm({
@@ -14,12 +14,14 @@ export function PublicationForm({
   formTitle,
   fields,
   canWrite,
+  writePermission,
   phrases,
 }: {
   formKey: string;
   formTitle: string;
   fields: FormField[];
   canWrite: boolean;
+  writePermission: string;
   phrases: PhraseBook;
 }) {
   const router = useRouter();
@@ -31,6 +33,14 @@ export function PublicationForm({
   const [step, setStep] = useState<SubmitStep>("editing");
   const [problem, setProblem] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+
+  // Reset edit state when the operator picks another form — 换表单时清空填写状态。
+  useEffect(() => {
+    setValues(emptyValues);
+    setStep("editing");
+    setProblem(null);
+    setSavedMessage(null);
+  }, [formKey, emptyValues]);
 
   function updateField(name: string, next: string) {
     setValues((current) => ({ ...current, [name]: next }));
@@ -68,13 +78,9 @@ export function PublicationForm({
       setStep("editing");
       return;
     }
-    const body = (await reply.json()) as { serviceName: string; host: string; port: number };
+    const body = (await reply.json()) as { resultSummary?: string };
     setSavedMessage(
-      fillPhrase(phrases.formSubmittedNotice, {
-        serviceName: body.serviceName,
-        host: body.host,
-        port: body.port,
-      }),
+      fillPhrase(phrases.formSubmittedNotice, { summary: body.resultSummary ?? "" }),
     );
     setValues(emptyValues);
     setStep("editing");
@@ -92,7 +98,7 @@ export function PublicationForm({
       </p>
       {!canWrite ? (
         <p role="status" className="mb-3 text-sm text-muted">
-          {fillPhrase(phrases.formWriteForbidden, { permission: "registry.write" })}
+          {fillPhrase(phrases.formWriteForbidden, { permission: writePermission })}
         </p>
       ) : null}
 

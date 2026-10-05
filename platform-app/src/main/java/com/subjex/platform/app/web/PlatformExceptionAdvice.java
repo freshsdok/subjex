@@ -6,6 +6,7 @@ import com.subjex.platform.app.task.SubmitLockHeld;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -34,5 +35,10 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<Map<String, String>> rejected(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<Void> accessDenied() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 }

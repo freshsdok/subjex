@@ -17,6 +17,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
+import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.FormsApiEndpoint;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.language.LanguageApiEndpoint;
@@ -96,6 +97,9 @@ class OpenApiDocumentTest {
 
     @MockitoBean
     private ConfigCatalog configCatalog;
+
+    @MockitoBean
+    private FormSubmissionStore formSubmissionStore;
 
     @Test
     void anonymousIsRefused() throws Exception {

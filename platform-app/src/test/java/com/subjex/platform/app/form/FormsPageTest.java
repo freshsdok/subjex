@@ -43,7 +43,7 @@ class FormsPageTest {
     @Test
     void yamlFieldNamesAndNotADesignerSentence() throws Exception {
         assertClasspathMatchesFormFile();
-        RenderedForm form = FormCatalog.load();
+        RenderedForm form = new FormCatalog().publication();
         assertEquals("endpoint-publication", form.formKey());
         assertEquals(
                 java.util.List.of("serviceName", "host", "port"),
@@ -83,8 +83,8 @@ class FormsPageTest {
 
     private static void assertClasspathMatchesFormFile() throws Exception {
         byte[] fromDisk = Files.readAllBytes(formFile());
-        try (var in = FormsPageTest.class.getResourceAsStream(FormCatalog.RESOURCE)) {
-            assertTrue(in != null, FormCatalog.RESOURCE);
+        try (var in = FormsPageTest.class.getResourceAsStream(FormCatalog.PUBLICATION_RESOURCE)) {
+            assertTrue(in != null, FormCatalog.PUBLICATION_RESOURCE);
             assertArrayEquals(fromDisk, in.readAllBytes());
         }
         String yaml = new String(fromDisk, StandardCharsets.UTF_8);

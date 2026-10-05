@@ -24,6 +24,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
+import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.FormsApiEndpoint;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.language.LanguageApiEndpoint;
@@ -112,6 +113,9 @@ class JsonApiSecurityTest {
 
     @MockitoBean
     private OperatorActionAudit operatorActionAudit;
+
+    @MockitoBean
+    private FormSubmissionStore formSubmissionStore;
 
     @BeforeEach
     void bareOperatorAndCatalogs() {
@@ -207,7 +211,7 @@ class JsonApiSecurityTest {
     @Test
     void pageTwinsNeedPageRead() throws Exception {
         assertPageRead("/deploy", "$.applied");
-        assertPageRead("/forms", "$.formKey");
+        assertPageRead("/forms", "$.forms");
         assertPageRead("/codegen", "$.recordName");
         assertPageRead("/language", "$.languages");
         assertPageRead("/skins", "$.skins");
@@ -239,15 +243,79 @@ class JsonApiSecurityTest {
         verify(serviceCatalog, never()).register(any());
         verify(operatorActionAudit, never()).record(any(), eq(OperatorActionAudit.REGISTRY_REGISTER), anyString(), any());
 
+        when(formSubmissionStore.save(eq("endpoint-publication"), anyString(), anyString(), any(), anyString()))
+                .thenAnswer(invocation -> new FormSubmissionStore.FormSubmissionRow(
+                        "sub-1",
+                        invocation.getArgument(0),
+                        invocation.getArgument(1),
+                        invocation.getArgument(2),
+                        "{\"serviceName\":\"billing\"}",
+                        invocation.getArgument(4),
+                        java.time.Instant.parse("2026-10-05T07:00:00Z")));
+
         mockMvc.perform(submit(path, body).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.formKey").value("endpoint-publication"))
-                .andExpect(jsonPath("$.serviceName").value("billing"))
-                .andExpect(jsonPath("$.host").value("10.0.0.8"))
-                .andExpect(jsonPath("$.port").value(8080));
+                .andExpect(jsonPath("$.submissionId").value("sub-1"))
+                .andExpect(jsonPath("$.resultSummary").value("billing@10.0.0.8:8080"));
         verify(serviceCatalog).register(new ServiceEndpoint("billing", "10.0.0.8", 8080));
         verify(operatorActionAudit).record(
                 any(), eq(OperatorActionAudit.REGISTRY_REGISTER), eq("billing"), eq(AuditOutcome.ALLOWED));
+        verify(formSubmissionStore).save(
+                eq("endpoint-publication"), anyString(), eq(OPERATOR), any(), eq("billing@10.0.0.8:8080"));
+    }
+
+    @Test
+    void formDetailNeedsPageRead() throws Exception {
+        String path = JsonApi.BASE + "/forms/endpoint-publication";
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(path).with(httpBasic(BARE, BARE_PASSWORD))).andExpect(status().isForbidden());
+        mockMvc.perform(get(path).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.formKey").value("endpoint-publication"))
+                .andExpect(jsonPath("$.fields").isArray());
+    }
+
+    @Test
+    void formSubmissionHistoryNeedsPageRead() throws Exception {
+        String path = JsonApi.BASE + "/forms/endpoint-publication/submissions";
+        when(formSubmissionStore.listByFormKey(eq("endpoint-publication"), any(Integer.class)))
+                .thenReturn(List.of());
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(path).with(httpBasic(BARE, BARE_PASSWORD))).andExpect(status().isForbidden());
+        mockMvc.perform(get(path).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submissions").isArray());
+    }
+
+    @Test
+    void configOverrideFormNeedsConfigWriteAndIsAudited() throws Exception {
+        String path = JsonApi.BASE + "/forms/config-override/submissions";
+        String body = "{\"values\":{\"configKey\":\"subjex.greeting\",\"configValue\":\"hi\"}}";
+        mockMvc.perform(submit(path, body)).andExpect(status().isUnauthorized());
+        mockMvc.perform(submit(path, body).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(submit(path, body).with(httpBasic(BARE, BARE_PASSWORD)))
+                .andExpect(status().isForbidden());
+
+        when(formSubmissionStore.save(eq("config-override"), anyString(), anyString(), any(), anyString()))
+                .thenAnswer(invocation -> new FormSubmissionStore.FormSubmissionRow(
+                        "sub-cfg-1",
+                        invocation.getArgument(0),
+                        invocation.getArgument(1),
+                        invocation.getArgument(2),
+                        "{\"configKey\":\"subjex.greeting\"}",
+                        invocation.getArgument(4),
+                        java.time.Instant.parse("2026-10-05T07:00:00Z")));
+
+        mockMvc.perform(submit(path, body).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.formKey").value("config-override"))
+                .andExpect(jsonPath("$.submissionId").value("sub-cfg-1"))
+                .andExpect(jsonPath("$.resultSummary").value("subjex.greeting=hi"));
+        verify(configCatalog).override("subjex.greeting", "hi");
+        verify(operatorActionAudit).record(
+                any(), eq(OperatorActionAudit.CONFIG_OVERRIDE), eq("subjex.greeting"), eq(AuditOutcome.ALLOWED));
     }
 
     private static MockHttpServletRequestBuilder submit(String path, String body) {
