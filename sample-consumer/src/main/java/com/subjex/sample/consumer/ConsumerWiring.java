@@ -2,7 +2,9 @@ package com.subjex.sample.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.contract.config.ConfigSource;
+import com.subjex.platform.contract.config.HttpConfigSource;
 import com.subjex.platform.contract.config.LocalApplicationConfig;
+import com.subjex.platform.contract.config.OverridingConfigSource;
 import com.subjex.platform.contract.discovery.FallbackServiceRegistry;
 import com.subjex.platform.contract.discovery.HttpServiceRegistry;
 import com.subjex.platform.contract.discovery.InProcessServiceRegistry;
@@ -28,9 +30,28 @@ import org.springframework.core.env.Environment;
 @Configuration
 public class ConsumerWiring {
 
+    /**
+     * Prefer the effective value on platform-app over HTTP. When that call cannot connect, use local application config.
+     * 优先用 HTTP 读 platform-app 上的生效值。连不上时用本地应用配置。
+     */
     @Bean
-    ConfigSource configSource(Environment environment) {
-        return new LocalApplicationConfig(key -> environment.getProperty(key));
+    ConfigSource configSource(
+            Environment environment,
+            @Value("${spring.security.user.name}") String username,
+            @Value("${spring.security.user.password}") String password) {
+        LocalApplicationConfig local = new LocalApplicationConfig(key -> environment.getProperty(key));
+        StaticServiceFallback fallback =
+                StaticServiceFallback.fromConfig(local, PlatformServiceNames.PLATFORM_APP);
+        Optional<ServiceEndpoint> platform = fallback.resolve(PlatformServiceNames.PLATFORM_APP);
+        if (platform.isEmpty()) {
+            return local;
+        }
+        HttpConfigSource remote = new HttpConfigSource(
+                URI.create("http://" + platform.get().host() + ":" + platform.get().port()),
+                username,
+                password,
+                Duration.ofMillis(800));
+        return new OverridingConfigSource(remote, local);
     }
 
     /**

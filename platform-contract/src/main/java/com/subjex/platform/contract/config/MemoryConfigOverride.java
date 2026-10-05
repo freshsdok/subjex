@@ -1,13 +1,14 @@
 package com.subjex.platform.contract.config;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * MemoryConfigOverride — 内存配置覆盖：第二个配置来源，只在本进程的内存里压过具名键。
  * <p>
- * Tests use it to replace one key. It does not listen on the network.
- * 测试用它替换一个键。它不在网络上监听。
+ * platform-app keeps these overrides and serves them over HTTP. It does not listen by itself.
+ * platform-app 把这些覆盖留在内存里，再用 HTTP 提供出去。它自己不监听网络。
  */
 public final class MemoryConfigOverride implements ConfigSource {
 
@@ -32,5 +33,12 @@ public final class MemoryConfigOverride implements ConfigSource {
             return Optional.empty();
         }
         return Optional.ofNullable(entries.get(key));
+    }
+
+    /**
+     * Keys currently held in memory — 当前内存里的键。
+     */
+    public Set<String> keys() {
+        return Set.copyOf(entries.keySet());
     }
 }

@@ -17,8 +17,12 @@ import com.subjex.platform.app.lock.SingleProcessLock;
 import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
+import com.subjex.platform.app.config.ConfigCatalog;
+import com.subjex.platform.contract.config.ConfigListing;
 import com.subjex.platform.contract.config.ConfigSource;
 import com.subjex.platform.contract.config.LocalApplicationConfig;
+import com.subjex.platform.contract.config.MemoryConfigOverride;
+import com.subjex.platform.contract.config.OverridingConfigSource;
 import com.subjex.platform.contract.connection.ConnectionVendor;
 import com.subjex.platform.contract.connection.RelationalConnectionPort;
 import com.subjex.platform.contract.discovery.FallbackServiceRegistry;
@@ -58,8 +62,25 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class PlatformWiring {
 
     @Bean
-    ConfigSource configSource(Environment environment) {
-        return new LocalApplicationConfig(key -> environment.getProperty(key));
+    MemoryConfigOverride memoryConfigOverride() {
+        return new MemoryConfigOverride();
+    }
+
+    @Bean
+    ConfigListing configListing(MemoryConfigOverride memoryConfigOverride, Environment environment) {
+        return new ConfigListing(
+                memoryConfigOverride, new LocalApplicationConfig(key -> environment.getProperty(key)));
+    }
+
+    @Bean
+    ConfigSource configSource(MemoryConfigOverride memoryConfigOverride, Environment environment) {
+        return new OverridingConfigSource(
+                memoryConfigOverride, new LocalApplicationConfig(key -> environment.getProperty(key)));
+    }
+
+    @Bean
+    ConfigCatalog configCatalog(ConfigListing configListing, MemoryConfigOverride memoryConfigOverride) {
+        return new ConfigCatalog(configListing, memoryConfigOverride);
     }
 
     @Bean
