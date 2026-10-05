@@ -62,7 +62,7 @@ subjex 是一个**契约优先、刻意做薄**的 Java 21 / Spring Boot 3.5 模
 | 可观测 | 部分（基础就绪） | 三个进程 `/actuator/prometheus`（匿名）；`TracingConfiguration` 配了 `PLATFORM_OTLP_ENDPOINT` 时 OTLP/HTTP，否则 `DiscardingSpanExporter`；存活/就绪探针分开 | 无看板/告警规则；未见结构化日志或日志-trace 关联；指标端点匿名，靠网络隔离 |
 | 多副本 | 部分 | 登记/配置/锁在共享库；`deploy/k8s/platform-app.yaml` `replicas: 2`；compose `--scale platform-app=2` + 网关 DNS 轮询；`deploy/load/smoke-load.sh` | 限流、熔断器、对象存储仍是单进程状态；compose 中两个副本都启用 `local` profile 各自写种子操作员（并发行为未验证）；**本机没有 `subjex/*` 镜像，compose 栈在本次评估中未验证** |
 | 部署产物 | 部分 | 三个多阶段 Dockerfile（非 root uid 10001）；`ContainerImageTest` 只做文本核对；`deploy/k8s/*.yaml` 三个工作负载；`deploy/compose/docker-compose.yml` | 镜像未推送任何仓库；compose **不含 `sample-consumer` 和 `web`**（任务提交在 compose 里必然投递失败并触发熔断）；`web/` 无 Dockerfile、无 K8s 清单；compose 健康检查依赖运行镜像里有 `curl`（未验证） |
-| 操作员控制台（web） | 部分（可用于演示/内网） | `web/`：登录、概览、services/config/audit/deploy/forms/codegen 页；服务端代理 `app/api/platform/[...segments]`；httpOnly + `sameSite=strict` 会话；Redis 会话（`SESSION_REDIS_URL`）；OpenAPI 生成类型；本次 `vitest` **8/8 通过**、`tsc` 无错误 | 不在 CI；无 e2e 测试入库（截图用的 Playwright 在仓库外）；**Redis 中保存的是 Basic 认证头（等价明文口令）**；无部署产物 |
+| 操作员控制台（web） | 部分（可用于演示/内网） | `web/`：登录、概览、services/config/audit/deploy/forms/codegen 页；服务端代理 `app/api/platform/[...segments]`；httpOnly + `sameSite=strict` 会话；Redis 会话（`SESSION_REDIS_URL`）；OpenAPI 生成类型；本次 `vitest` **8/8 通过**、`tsc` 无错误 | 不在 CI；无 e2e 测试入库（截图用的 Playwright 在仓库外）；**Redis 中 Basic 头已 AES-GCM 加密（需 `OPERATOR_SESSION_SECRET`；进程内存仍明文）**；无部署产物 |
 | JSON 接口 / OpenAPI | 就绪 | `/api/v1/*`；`/api/v1/openapi.json`（需登录）；`web/openapi.json` | 无版本兼容策略说明 |
 | 低代码表单 | 部分（按设计） | `form-render`：`FormCatalog` 加载 `classpath*:forms/*.form.yaml`（现有 `endpoint-publication`、`config-override` 两份）；`V4__form_submission.sql` + `JdbcFormSubmissionStore`；`POST/GET /api/v1/forms/{formKey}/submissions`；按表单核对写权限 | 无设计器、无在线表单库（刻意推迟）；新表单需改代码并在端点里登记写权限 |
 | 代码生成 | 部分（按设计） | `FormRecordGenerator` + CLI `FormRecordWriteMain`；`GeneratedRecordMatchesFormTest` 核对已检入 record 与 YAML 一致 | 只生成 record，无校验注解、控制器、表、迁移（刻意推迟）；CLI 需手工拼 classpath |
@@ -134,7 +134,7 @@ subjex 是一个**契约优先、刻意做薄**的 Java 21 / Spring Boot 3.5 模
 6. **“多副本只是‘能起两个’。”** 限流、熔断、对象存储都是进程内状态；网关限流可被伪造 `X-Forwarded-For` 绕过。
 7. **“安全只适合内网演示。”**
    - HTTP Basic 每请求带口令；无锁定、无 MFA、无 SSO。
-   - 控制台 Redis 会话里存的是 Basic 头（base64，等于明文口令），Redis 泄露 = 口令泄露。
+   - 控制台 Redis 会话里 Basic 头已 AES-256-GCM 加密（`OPERATOR_SESSION_SECRET`）；无密钥的 Redis 泄露不再直接等于口令泄露。进程内存会话仍持明文 Basic；后续可改为平台签发操作员 API 令牌。
    - `platform-app → sample-consumer` 的出箱帧里带操作员明文口令，套接字无 TLS。
    - `/actuator/prometheus` 匿名。
    - compose 默认 `local` profile + `platform-operator/change-me`；K8s 清单不启用 `local`，但非 local 环境开通操作员只能手写 SQL。

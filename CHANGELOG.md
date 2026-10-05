@@ -26,6 +26,8 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 - `SECURITY.md`, this changelog.
 
 ### Fixed / 修复
+- **Security — console Redis sessions encrypt the Basic header at rest.** When `SESSION_REDIS_URL` (or `REDIS_URL`) is set, `web/` requires `OPERATOR_SESSION_SECRET` (≥ 32 characters) and stores `credentialHeaderEnc` (AES-256-GCM) instead of the plaintext `Authorization: Basic …` value. Process-memory sessions (no Redis) are unchanged for local/dev/tests. Multi-replica consoles must share the same secret.
+  控制台 Redis 会话对 Basic 头做静态加密：启用 Redis 时必填 `OPERATOR_SESSION_SECRET`（≥32 字符），只存 AES-256-GCM 密文；无 Redis 的进程内存路径不变。多副本须共用同一密钥。
 - **Security — `entry-gateway` no longer trusts `X-Forwarded-For` unconditionally.** The rate-limit client id is now the remote address unless the direct peer matches the new `gateway.trusted-proxies` setting (env `GATEWAY_TRUSTED_PROXIES`, IPs/CIDRs, default empty); then the header is read right to left, skipping trusted hops. `server.forward-headers-strategy` is pinned to `none` so Tomcat does not rewrite the remote address under Kubernetes. **Behaviour change:** deployments behind a load balancer must list it in `GATEWAY_TRUSTED_PROXIES`, or all clients share the proxy's bucket.
   入口网关不再无条件信任 `X-Forwarded-For`：默认按远端地址限流；仅当直连方命中新配置 `gateway.trusted-proxies`（默认空）时才从右往左读该头。在负载均衡后面部署时需配置 `GATEWAY_TRUSTED_PROXIES`。
 - Full `mvn test` reactor was red: the `ModuleBoundaryArchTest` copies in `sample-consumer` and `entry-gateway` carried rules with no matching classes on that module's classpath (ArchUnit `failOnEmptyShould`). Each copy now keeps only the rules its module can check; all 160 tests pass.

@@ -2,7 +2,8 @@
 
 - 日期：2026-10-05（UTC+8）
 - 对照评估：[`pre-release-assessment.md`](pre-release-assessment.md)
-- 本机提交（未 push）：见下方 SHA
+- 远程 `origin/main` tip（已 push）：`2476ed4`
+- 本机提交（未 push）：见下方「本机提交」与各切片 SHA
 
 ## 已完成 / Done
 
@@ -35,6 +36,13 @@
 - 本切片未强制全栈镜像构建/冒烟（可选且须很快）。
 - 提交：`deploy: add sample-consumer to local compose stack`
 
+### 安全加固（小切片）— Redis 会话凭据静态加密
+- `web/src/server/operator-session.ts`：启用 `SESSION_REDIS_URL` / `REDIS_URL` 时，Redis 存 `{ loginName, credentialHeaderEnc, expiresAtMillis }`；`credentialHeaderEnc` 为 AES-256-GCM（密钥由 `OPERATOR_SESSION_SECRET` SHA-256 派生，密钥至少 32 字符，缺失则明确报错）。进程内存路径仍存明文（本地/单测）。
+- 单测：加解密往返、密钥过短/缺失、Redis 已配无密钥时 open/find 失败；原有内存会话用例保留。
+- 文档：`SECURITY.md` #2、根 README、`web/README.md`、`CHANGELOG` Fixed。
+- 远程 `main` tip：`2476ed4`（本切片之前已 push 的 tip；本提交仅本地）。
+- 提交：`0e40aba` — `fix(web): encrypt operator credentials at rest in Redis sessions`
+
 ## 刻意跳过 / Skipped this slice
 
 - **B2 — 把 CI 移到 `.github/workflows/`**：需要有 `workflow` 权限的令牌；当前环境没有，只记笔记。工作流仍在 `docs/ci/build.yml`。
@@ -44,8 +52,14 @@
 
 1. **B2**：CI 未运行（需 workflow 权限把文件移到 `.github/workflows/`，并建议补上 `web/` 的 typecheck/test/build）。
 2. **未实测 compose 全栈**（可选但评估列为前 5 项动作第 4 项）：compose 已含 `sample-consumer`；仍建议跑一次 `docker compose … up --build --scale platform-app=2` + `smoke-load.sh` 验证健康检查与投递。
-3. **安全加固仍是非阻塞已知限制**（可带着发 alpha，但要写进 release notes）：~~XFF 信任条件化~~（已修）、Redis 会话改存短期令牌而非 Basic 头、出箱 TLS/不带明文口令、操作员开通方式。
+3. **安全加固仍是非阻塞已知限制**（可带着发 alpha，但要写进 release notes）：~~XFF 信任条件化~~（已修）、~~Redis 会话 Basic 头静态加密（`OPERATOR_SESSION_SECRET`）~~（已修；仍非平台签发操作员 API 令牌）、出箱 TLS/不带明文口令、操作员开通方式。
 
 ## 建议的下一个标签
 
 修完 B2、CI 绿之后打 **`v0.1.0-alpha.1`**（pre-release），不要标稳定 `0.1.0`。当前仍是 `0.1.0-SNAPSHOT`，不要打 tag。
+
+## 本机提交 / Local commits (not pushed)
+
+| SHA | 说明 |
+| --- | --- |
+| `0e40aba` | `fix(web): encrypt operator credentials at rest in Redis sessions` |

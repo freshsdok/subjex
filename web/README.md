@@ -31,6 +31,6 @@ npm run dev
 
 ## Sessions (node 5)
 
-Set `SESSION_REDIS_URL=redis://127.0.0.1:16379` (or `REDIS_URL`) so operator sessions are shared across console replicas. Without it, sessions stay in process memory (fine for local single-node and unit tests).
+Set `SESSION_REDIS_URL=redis://127.0.0.1:16379` (or `REDIS_URL`) so operator sessions are shared across console replicas. When Redis is enabled you **must** also set `OPERATOR_SESSION_SECRET` to a random string of at least 32 characters (same value on every console replica); the upstream Basic header is AES-256-GCM encrypted before it is written to Redis. Without Redis, sessions stay in process memory (fine for local single-node and unit tests) and the secret is not required.
 
-节点五：配置 `SESSION_REDIS_URL`（或 `REDIS_URL`）后，操作员会话进 Redis，多副本控制台共享登录态；未配置时仍用进程内存。
+节点五：配置 `SESSION_REDIS_URL`（或 `REDIS_URL`）后，操作员会话进 Redis，多副本控制台共享登录态；此时**必须**配置 `OPERATOR_SESSION_SECRET`（至少 32 字符的随机串，各副本相同），Basic 认证头经 AES-256-GCM 加密后再写入 Redis。未配置 Redis 时仍用进程内存，不要求该密钥。
