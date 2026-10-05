@@ -3,8 +3,10 @@
 ## Tables / 表
 
 Flyway `V2__operator_permission.sql` adds the catalog. It writes no person and no password.
+Flyway `V6__operator_management.sql` adds `operator.manage` and `operator_tenant_grant`.
 
 Flyway `V2__operator_permission.sql` 加入目录，不写入任何人，也不写入任何口令。
+`V6__operator_management.sql` 增加 `operator.manage` 与 `operator_tenant_grant`。
 
 | Table / 表 | One row is / 一行是 |
 | --- | --- |
@@ -13,6 +15,7 @@ Flyway `V2__operator_permission.sql` 加入目录，不写入任何人，也不�
 | `role_permission` | this role grants this permission / 这个角色授予这项权限 |
 | `subject_role` | this subject holds this role / 这个主体持有这个角色 |
 | `operator_credential` | the password hash an account signs in with / 账号登录用的口令摘要 |
+| `operator_tenant_grant` | this subject may act for this tenant id (`*` = all) / 该主体可代表该租户（`*` 为全部） |
 
 An operator is an `account` → `subject_identity` in the reserved tenant `platform` → `subject`. The account must be `ACTIVE` and the identity `ACTIVE`. Audit entries name that identity.
 
@@ -28,11 +31,12 @@ An operator is an `account` → `subject_identity` in the reserved tenant `platf
 | `config.write` | `POST /config/entries` (audited as `config.override`) |
 | `registry.read` | `GET /registry/services`, `/services` |
 | `registry.write` | `POST /registry/services` (audited as `registry.register`) |
-| `task.write` | `/tasks/**` (still needs `X-Tenant-Id`; a missing tenant is 403) |
+| `task.write` | `/tasks/**` (needs `X-Tenant-Id` **and** an `operator_tenant_grant` for that tenant or `*`; missing either is 403) |
+| `operator.manage` | `/api/v1/operators/**` except `POST .../me/password` (list/create/disable/enable/change other password/tenant grants) |
 
-Roles: `platform-operator` holds all seven. `platform-reader` holds `admin.read`, `page.read`, `config.read`, `registry.read`. A signed-in operator without the permission gets 403; no login or a wrong password gets 401.
+Roles: `platform-operator` holds all eight (including `operator.manage`). `platform-reader` holds `admin.read`, `page.read`, `config.read`, `registry.read`. A signed-in operator without the permission gets 403; no login or a wrong password gets 401.
 
-角色：`platform-operator` 拥有全部七项。`platform-reader` 只有四项读权限。已登录但缺权限得 403；未登录或口令错误得 401。
+角色：`platform-operator` 拥有全部八项（含 `operator.manage`）。`platform-reader` 只有四项读权限。已登录但缺权限得 403；未登录或口令错误得 401。
 
 ## Local operator (local only) / 本地操作员（只用于本地）
 
@@ -77,6 +81,29 @@ INSERT INTO subject_role (subject_id, role_name) VALUES ('subject-ops-1', 'platf
 sample-consumer signs in to platform-app with `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD`; give that account `registry.write` and `config.read` (the `platform-operator` role has both).
 
 sample-consumer 用 `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD` 登录 platform-app；给这个账号 `registry.write` 和 `config.read`（`platform-operator` 角色两者都有）。
+
+
+## Operator management API / 操作员管理接口
+
+| Method + path | Who | Notes |
+| --- | --- | --- |
+| `GET /api/v1/operators` | `operator.manage` | List login, state, role |
+| `POST /api/v1/operators` | `operator.manage` | Create (login, password ≥ 8, role); no tenant grants until assigned |
+| `POST /api/v1/operators/me/password` | any signed-in | Body: `currentPassword`, `newPassword` |
+| `POST /api/v1/operators/{login}/password` | `operator.manage` | Body: `newPassword` |
+| `POST /api/v1/operators/{login}/disable` | `operator.manage` | Sets `account_state=DISABLED`; cannot disable self |
+| `POST /api/v1/operators/{login}/enable` | `operator.manage` | Sets account + platform identity ACTIVE |
+| `GET/PUT /api/v1/operators/{login}/tenants` | `operator.manage` | Replace body `{ "tenantIds": ["t1", "*"] }` |
+
+Bootstrap and `local` seed still grant tenant `*` to the provisioned operator so existing task flows work on a laptop.
+
+开通与 `local` 种子仍给开通的操作员写租户通配 `*`，本机任务流可继续用。
+
+## Operator–tenant grants / 操作员—租户授权
+
+Table `operator_tenant_grant (subject_id, tenant_id)`. Wildcard `*` means every tenant. Tenant-scoped filters and declaration `tenantScoped` checks call `OperatorTenantAccess` after `TenantGuard` — fail-closed when the grant is missing.
+
+表 `operator_tenant_grant`。通配 `*` 表示全部租户。租户拦截与声明 `tenantScoped` 在 `TenantGuard` 之后核对授权，无授权失败关闭。
 
 ## Reading the audit / 阅读审计
 

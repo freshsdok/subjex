@@ -9,6 +9,13 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
+- **Operator management (thin slice)**: permission `operator.manage`; APIs under `/api/v1/operators` for list/create, disable/enable, change other password, replace tenant grants; `POST /api/v1/operators/me/password` (current password required) for any signed-in operator. One-shot bootstrap remains optional. Console Operators page for self password change + admin list/disable/enable. Flyway `V6__operator_management.sql`.
+  操作员管理薄切片：`operator.manage`；列表/创建/禁用/启用/改他人口令/租户授权；自己改密需当前口令。一次性开通仍可选。控制台操作员页。迁移 V6。
+- **Operator–tenant authorization**: table `operator_tenant_grant` (subject + tenant id, `*` = all tenants). Tenant-scoped paths (`/tasks/**`, declaration `tenantScoped`) reject missing grant as well as missing `X-Tenant-Id` (fail-closed). Local seed and bootstrap grant `*`.
+  操作员—租户授权：`operator_tenant_grant`（`*` 表示全部）。租户作用域路径缺授权与缺头均 403。本地种子与开通写 `*`。
+- **Console session store never keeps plaintext Basic**: process-memory sessions use the same AES-256-GCM `credentialHeaderEnc` shape as Redis (ephemeral process key when `OPERATOR_SESSION_SECRET` is unset and Redis is off).
+  控制台会话存储不再保留明文 Basic：进程内存与 Redis 同为 AES-256-GCM 密文形状。
+
 - **Console debug UX (stage 6)**: form submit API returns structured success (`submissionId`, `declarationVersion`, `submittedAt`, `effects[]`) and problems (`validation` + fieldErrors, or `permission_denied` + permission name); console `FormDebugPanel` on `/forms` and `/pages/.../new` shows them in one place (zh/en). No designer / online schema edit. See `docs/lowcode-roadmap.md`.
   控制台调试 UX（阶段 6）：提交成功/失败结构化；控制台同处展示校验、权限、落库与副作用摘要；无设计器。
 
@@ -50,8 +57,8 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
   出箱后台重投：调度工人在分布式锁下重试 PENDING，直到送出或死信；熔断半开冷却；拒呼时不消耗尝试次数。
 - **Security — outbox frame no longer carries the operator password; TLS fail-closed outside local.** Protocol `SUBJEX-OUTBOX 2` uses HMAC-SHA256 (`OUTBOX_HMAC_SECRET` ≥ 32). TLS (PKCS12) required unless `local` / `platform.delivery.allow-insecure=true`. Local default secret only in `application-local.yml`.
   出箱帧不再带操作员口令；非 local 未配 TLS 则启动失败关闭。协议 2 + HMAC；本机默认密钥仅在 `application-local.yml`。
-- **Security — console Redis sessions encrypt the Basic header at rest.** When `SESSION_REDIS_URL` (or `REDIS_URL`) is set, `web/` requires `OPERATOR_SESSION_SECRET` (≥ 32 characters) and stores `credentialHeaderEnc` (AES-256-GCM) instead of the plaintext `Authorization: Basic …` value. Process-memory sessions (no Redis) are unchanged for local/dev/tests. Multi-replica consoles must share the same secret.
-  控制台 Redis 会话对 Basic 头做静态加密：启用 Redis 时必填 `OPERATOR_SESSION_SECRET`（≥32 字符），只存 AES-256-GCM 密文；无 Redis 的进程内存路径不变。多副本须共用同一密钥。
+- **Security — console sessions encrypt the Basic header at rest (Redis and process memory).** When `SESSION_REDIS_URL` (or `REDIS_URL`) is set, `web/` requires `OPERATOR_SESSION_SECRET` (≥ 32 characters) and stores `credentialHeaderEnc` (AES-256-GCM). Process-memory sessions use the same ciphertext shape (secret if set, else a process-ephemeral key). Multi-replica consoles must share the same secret.
+  控制台会话（Redis 与进程内存）对 Basic 头做静态加密：启用 Redis 时必填 `OPERATOR_SESSION_SECRET`；内存路径同为密文（有密钥用密钥，否则进程临时密钥）。多副本须共用同一密钥。
 - **Security — `entry-gateway` no longer trusts `X-Forwarded-For` unconditionally.** The rate-limit client id is now the remote address unless the direct peer matches the new `gateway.trusted-proxies` setting (env `GATEWAY_TRUSTED_PROXIES`, IPs/CIDRs, default empty); then the header is read right to left, skipping trusted hops. `server.forward-headers-strategy` is pinned to `none` so Tomcat does not rewrite the remote address under Kubernetes. **Behaviour change:** deployments behind a load balancer must list it in `GATEWAY_TRUSTED_PROXIES`, or all clients share the proxy's bucket.
   入口网关不再无条件信任 `X-Forwarded-For`：默认按远端地址限流；仅当直连方命中新配置 `gateway.trusted-proxies`（默认空）时才从右往左读该头。在负载均衡后面部署时需配置 `GATEWAY_TRUSTED_PROXIES`。
 - Full `mvn test` reactor was red: the `ModuleBoundaryArchTest` copies in `sample-consumer` and `entry-gateway` carried rules with no matching classes on that module's classpath (ArchUnit `failOnEmptyShould`). Each copy now keeps only the rules its module can check; all 160 tests pass.
@@ -67,4 +74,6 @@ See `SECURITY.md` for the security-relevant ones. Also:
 - `deploy/compose` includes `sample-consumer` (wired like k8s) but not `web/`; full compose image build / end-to-end smoke still optional and not always run in this release cycle.
 - `web/` has no Dockerfile or manifests (CI now covers typecheck/test/build; no image yet).
 - Activating `.github/workflows/*` on the remote requires a token with the `workflow` scope; until that push lands, GitHub Actions still will not run.
-- No operator admin UI / password-change / disable API yet; one-shot bootstrap covers create/update by login (`docs/operator-permissions.md`).
+- Operator create UI in the console is still list/disable/enable + self password only; create and tenant-grant editing remain API/SQL (`docs/operator-permissions.md`).
+- Auto-creating tenants on first granted task submission remains; there is no tenant admin UI yet.
+- Platform-issued operator API tokens (drop retained Basic after login) are still future work.

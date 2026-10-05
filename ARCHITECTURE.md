@@ -118,6 +118,8 @@
 | 接口 | 权限 |
 |---|---|
 | `GET /api/v1/me` | 已登录即可，返回登录名和权限列表 |
+| `POST /api/v1/operators/me/password` | 已登录；核对当前口令后改自己的口令 |
+| `/api/v1/operators/**`（其余） | `operator.manage`；列表/创建/禁用/启用/改他人口令/租户授权 |
 | `GET /api/v1/services` | `registry.read` |
 | `GET /api/v1/config` | `config.read` |
 | `PUT /api/v1/config/{key}` | `config.write`，写一条 `config.override` 审计 |
@@ -125,10 +127,10 @@
 | `GET /api/v1/deploy`、`/forms`、`/codegen`、`/language`、`/skins` | `page.read` |
 
 - 说明文档由 springdoc 生成，地址 `/api/v1/openapi.json`，取它也要登录；不带 Swagger UI。
-- 认证是每次请求带 HTTP Basic，没有会话。`web/` 通过自己的服务端代理调用：浏览器只持有 httpOnly 会话 cookie（随机会话号），代理在服务端到服务端的调用上加 Basic，口令不进浏览器脚本。服务端会话里保存的就是这个 Basic 头（节点五起可放 Redis），所以 Redis 必须按存放凭据对待，见 `SECURITY.md`。
+- 认证是每次请求带 HTTP Basic，没有会话。`web/` 通过自己的服务端代理调用：浏览器只持有 httpOnly 会话 cookie（随机会话号），代理在服务端到服务端的调用上加 Basic，口令不进浏览器脚本。服务端会话存的是 AES-256-GCM 加密后的 Basic 头（内存与 Redis 同形状；Redis 必填 `OPERATOR_SESSION_SECRET`），见 `SECURITY.md`。
 - 这些是操作员接口，不属某个租户，所以租户拦截放行 `/api/v1`。
 
-Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; the HTML pages stay. OpenAPI is served at `/api/v1/openapi.json` (signed-in only). Auth is HTTP Basic per request; the Next.js server-side proxy keeps a random session id in an httpOnly cookie, so credentials never reach browser JavaScript. The server-side session (memory, or Redis since node 5) holds the Basic header itself — treat that store as a credential store. `/api/v1` is operator-scoped, not tenant-scoped.
+Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; the HTML pages stay. OpenAPI is served at `/api/v1/openapi.json` (signed-in only). Auth is HTTP Basic per request; the Next.js server-side proxy keeps a random session id in an httpOnly cookie, so credentials never reach browser JavaScript. The server-side session (memory or Redis) stores `credentialHeaderEnc` (AES-256-GCM), not plaintext Basic. `/api/v1` routes are operator-scoped; tenant-scoped declaration APIs still require `X-Tenant-Id` + operator–tenant grant when `tenantScoped`.
 
 ## 13. 节点四：真库与入口网关 / Node 4
 
@@ -156,7 +158,7 @@ Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; t
 - 追踪：默认仍是丢弃导出器（生成 trace id，跨进程靠 `traceparent`）。配置了 `PLATFORM_OTLP_ENDPOINT`（或 `OTEL_EXPORTER_OTLP_ENDPOINT`）时改为 OTLP/HTTP 导出；没有采集器时行为与节点一至四相同。
 - 多副本：`deploy/k8s/platform-app.yaml` 副本数为 2；`deploy/compose` 起两个 `platform-app` 实例，入口网关通过 Compose DNS 轮询上游。登记/配置/锁已在共享库，副本之间不靠进程内存。
 - 压测：`deploy/load/smoke-load.sh` 经网关打一串只读请求，打印状态码分布；不是基准测试，只证明多副本+网关可承受短突发。
-- 控制台会话（TD-1）：操作员会话从 Next.js 进程内存迁到 Redis，多副本控制台才共享登录态。网关限流仍是进程内粗限流（多网关副本各算各的），节点五不引入 Redis 限流。会话值包含上游 Basic 认证头（等价口令），Redis 要按凭据存储对待（`SECURITY.md`）。
+- 控制台会话（TD-1）：操作员会话从 Next.js 进程内存迁到 Redis，多副本控制台才共享登录态。网关限流仍是进程内粗限流（多网关副本各算各的），节点五不引入 Redis 限流。会话值含加密后的上游 Basic 头（`credentialHeaderEnc`）；Redis/内存均按凭据密文对待（`SECURITY.md`）。另有操作员管理与 `operator_tenant_grant`（见 `docs/operator-permissions.md`）。
 - 不做：HPA、完整 Grafana 看板、采样策略调优、跨区域。
 
 ### English summary — Node 5: observability and two replicas
@@ -165,7 +167,7 @@ Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; t
 - Optional OTLP/HTTP when an endpoint env is set; otherwise keep the discarding exporter.
 - Two `platform-app` replicas in k8s and compose; gateway uses DNS round-robin.
 - Short smoke load script through the gateway.
-- Console sessions move to Redis (TD-1). Gateway rate limits stay in-process. The session value contains the upstream Basic header.
+- Console sessions move to Redis (TD-1) with encrypted Basic at rest (memory path matches). Operator management + operator–tenant grants added later; see `docs/operator-permissions.md`. Gateway rate limits stay in-process.
 
 ## 15. 节点六：低代码加深 / Node 6
 
