@@ -53,7 +53,7 @@
 - 配置中心：契约 `ConfigSource`。默认实现 `LocalApplicationConfig` 读本进程的应用配置。`MemoryConfigOverride` 是第二个内存来源，可压过一个具名键。`OverridingConfigSource` 先查覆盖层，再查本地配置。`platform-app` 把覆盖留在内存里，用 `GET/POST /config/entries` 给另一个进程读生效值或压过一个键。`sample-consumer` 经 `HttpConfigSource` 读生效值，连不上时仍用本地应用配置。人看的页面是 `GET /config`：一句话、键、生效值、来源词“本地文件”或“内存覆盖”。没有单独的配置服务器，也没有 Nacos/Apollo 客户端。
 - Kubernetes：`deploy/k8s/` 里是 `platform-app` 与 `sample-consumer` 的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。人看的页面是 `GET /deploy`：一句话说明这些清单没有应用到任何集群，然后每个工作负载一行（名字、占位镜像、存活路径、就绪路径、用兆比字节写明的内存上限）。页面读构建时复制到 classpath 的同一份 YAML。没有集群状态，也没有应用按钮。
 - 低代码：一份声明式表单 `form-render/src/main/resources/forms/endpoint-publication.form.yaml`。`FormRenderer` 把它变成校验过的字段列表。人看的页面是 `GET /forms`：一句话说明这是字段列表，不是设计器，然后每个字段一行（名字、类型、是否必填，中文在前、英文在后）。页面读的是同一份 YAML。没有界面设计器，也没有在线表单库。
-- 代码生成：`FormRecordGenerator` 读同一份表单，写出一个 Java 记录。生成结果检入 `EndpointPublication`。测试核对记录组件与表单字段一致。构建不运行注解处理器。
+- 代码生成：`FormRecordGenerator` 读同一份表单，写出一个 Java 记录。生成结果检入 `EndpointPublication`。测试核对记录组件与表单字段一致。构建不运行注解处理器。人看的页面是 `GET /codegen`：一句话说明这一页展示从表单生成的类型，不是在浏览器里运行的生成器，然后是记录名和每个组件的类型（中文在前、英文在后）。名字和类型来自已检入的记录，并与同一份 YAML 经现有生成器核对。没有运行时写文件的按钮。
 
 这一版落地的就是上面这一薄层。
 
@@ -72,3 +72,5 @@
 清单这一刀：人打开 `/deploy` 看探针路径和内存上限，不看集群。存活路径与就绪路径分开写，避免进程还在跑却被当成已就绪。内存上限写成兆比字节，避免把 `m` 读成兆。
 
 表单这一刀：人打开 `/forms` 看字段名、类型和是否必填，不看设计器。字段来自同一份表单 YAML，避免设计器把字段列表藏起来之后页面和定义对不上。
+
+生成这一刀：人打开 `/codegen` 看已生成的记录名和每个组件的类型，不在浏览器里跑生成器。组件来自已检入的 `EndpointPublication`，并与表单 YAML 核对，避免生成物和来源定义对不上。
