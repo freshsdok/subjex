@@ -43,6 +43,14 @@
 - 远程 `main` tip：`2476ed4`（本切片之前已 push 的 tip；本提交仅本地）。
 - 提交：`0e40aba` — `fix(web): encrypt operator credentials at rest in Redis sessions`
 
+### 操作员开通（小切片）— bootstrap 无需手写 SQL
+- `OperatorBootstrap`：按 `account.login_name` 幂等 upsert（account / subject / platform identity / credential / 单一 role）；口令最短 8；未知角色拒绝。
+- `OperatorBootstrapConfiguration`：仅当 `--platform.operator.bootstrap=true`（默认 `false`）时装配；读 `PLATFORM_OPERATOR_LOGIN` / `PLATFORM_OPERATOR_PASSWORD` / 可选 `PLATFORM_OPERATOR_ROLE`；打印 `BOOTSTRAP` 警告；写入后 `SpringApplication.exit` 退出进程。
+- 测试：`OperatorBootstrapTest`（H2 PostgreSQL 模式）覆盖创建、reader 角色、幂等改密改角色、短口令/空登录/未知角色拒绝。
+- 文档：`docs/operator-permissions.md`、`SECURITY.md` #7、`CHANGELOG`、根 README。
+- 范围：无用户管理 UI / 改密 / 禁用 API。
+- 提交：见下方「本机提交」。
+
 ## 刻意跳过 / Skipped this slice
 
 - **B2 — 把 CI 移到 `.github/workflows/`**：需要有 `workflow` 权限的令牌；当前环境没有，只记笔记。工作流仍在 `docs/ci/build.yml`。
@@ -52,7 +60,7 @@
 
 1. **B2**：CI 未运行（需 workflow 权限把文件移到 `.github/workflows/`，并建议补上 `web/` 的 typecheck/test/build）。
 2. **未实测 compose 全栈**（可选但评估列为前 5 项动作第 4 项）：compose 已含 `sample-consumer`；仍建议跑一次 `docker compose … up --build --scale platform-app=2` + `smoke-load.sh` 验证健康检查与投递。
-3. **安全加固仍是非阻塞已知限制**（可带着发 alpha，但要写进 release notes）：~~XFF 信任条件化~~（已修）、~~Redis 会话 Basic 头静态加密（`OPERATOR_SESSION_SECRET`）~~（已修；仍非平台签发操作员 API 令牌）、出箱 TLS/不带明文口令、操作员开通方式。
+3. **安全加固仍是非阻塞已知限制**（可带着发 alpha，但要写进 release notes）：~~XFF 信任条件化~~（已修）、~~Redis 会话 Basic 头静态加密（`OPERATOR_SESSION_SECRET`）~~（已修；仍非平台签发操作员 API 令牌）、~~操作员开通（one-shot bootstrap，无手写 SQL）~~（已修；仍无改密/禁用/用户 UI）、出箱 TLS/不带明文口令。
 
 ## 建议的下一个标签
 
@@ -63,3 +71,4 @@
 | SHA | 说明 |
 | --- | --- |
 | `0e40aba` | `fix(web): encrypt operator credentials at rest in Redis sessions` |
+| `eb49df5` | `feat: bootstrap operator without hand-written SQL` |

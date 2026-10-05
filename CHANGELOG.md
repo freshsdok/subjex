@@ -12,6 +12,7 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 - **Contracts** (`platform-contract`): Account / Subject / Identity split, fail-closed tenant guard, single `AuditPort`, deterministic and non-deterministic tasks on one table, outbox, single idempotency / rate-limit / message ports, `DistributedLockPort`, object-storage SPI, compile-time extensions.
 - **Database**: JDBC + Flyway `V1`–`V4` shared by MySQL 8.4 and PostgreSQL 16; migration guard refuses a vendor mismatch; no ORM (enforced by ArchUnit). Live startup proof via Testcontainers when Docker is present.
 - **Operators**: table-backed HTTP Basic, seven named permissions, read-only admin pages, audit for config overrides, registrations and task submission.
+- **Operator bootstrap (one-shot)**: `platform-app` can create/update one operator without hand-written SQL when `--platform.operator.bootstrap=true` (off by default); env `PLATFORM_OPERATOR_LOGIN` / `PLATFORM_OPERATOR_PASSWORD` / optional `PLATFORM_OPERATOR_ROLE`; idempotent by login; password min length 8; process exits after upsert. See `docs/operator-permissions.md`.
 - **Shared registry / config / lock** in the platform database (`service_endpoint`, `config_override`, `platform_lock`), with static fallback.
 - **Outbox delivery** from `platform-app` to `sample-consumer` over a TCP socket, with circuit breaker and `traceparent` propagation.
 - **Entry gateway** (`entry-gateway`): HTTP forwarder with coarse in-process rate limiting (429).
@@ -42,4 +43,4 @@ See `SECURITY.md` for the security-relevant ones. Also:
 - `deploy/compose` includes `sample-consumer` (wired like k8s) but not `web/`; full compose image build / end-to-end smoke still optional and not always run in this release cycle.
 - `web/` has no Dockerfile or manifests and is not covered by CI.
 - CI workflow is parked in `docs/ci/build.yml` and is not active until moved to `.github/workflows/`.
-- No operator provisioning API/CLI: outside the `local` profile, operators are inserted as rows (`docs/operator-permissions.md`).
+- No operator admin UI / password-change / disable API yet; one-shot bootstrap covers create/update by login (`docs/operator-permissions.md`).

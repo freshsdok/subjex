@@ -40,11 +40,30 @@ Start platform-app with `SPRING_PROFILES_ACTIVE=local`. `LocalOperatorSeeder` th
 
 用 `SPRING_PROFILES_ACTIVE=local` 启动 platform-app 时，`LocalOperatorSeeder` 写入一位持有 `platform-operator` 的操作员，并打印 `LOCAL ONLY` 警告。没有这个 profile 时不写入任何人。
 
-## Provisioning an operator elsewhere / 在别处开通操作员
+## Provisioning an operator (bootstrap) / 开通操作员（bootstrap）
 
-Insert rows yourself. The hash must carry its encoder id; `{bcrypt}` with a `$2a$`/`$2b$`/`$2y$` hash works (for example `htpasswd -bnBC 12 "" 'the-password' | tr -d ':\n'`).
+Prefer the one-shot bootstrap on `platform-app`. It is **off by default** and must be enabled explicitly. It writes the same tables as `LocalOperatorSeeder` (account, subject, platform identity, credential, role), upserts by login name, refuses passwords shorter than 8 characters, prints loud `BOOTSTRAP` warnings, then **exits** so a normal start never keeps the flag on.
 
-自己插入表行。摘要必须带编码器标识，例如 `{bcrypt}` 加上 bcrypt 摘要。
+优先用 `platform-app` 的一次性开通。**默认关闭**，必须显式打开。写入表与 `LocalOperatorSeeder` 相同，按登录名幂等更新，口令短于 8 字符拒绝，打印醒目的 `BOOTSTRAP` 警告，然后**退出进程**，避免日常启动常开此开关。
+
+```bash
+export PLATFORM_OPERATOR_LOGIN=ops-1
+export PLATFORM_OPERATOR_PASSWORD='a-long-enough-secret'
+# optional: PLATFORM_OPERATOR_ROLE=platform-reader  (default platform-operator)
+java -jar platform-app.jar \
+  --platform.operator.bootstrap=true \
+  --spring.main.web-application-type=none
+```
+
+Properties (when the flag is on): `platform.operator.login` / `platform.operator.password` / `platform.operator.role` (env names above). Do **not** set `platform.operator.bootstrap=true` in compose or k8s Deployment defaults — use a one-shot Job or a manual run, then start the app without the flag.
+
+属性（仅在打开开关时）：登录名 / 口令 / 角色。**不要**在 compose 或 k8s Deployment 默认里打开该开关——用一次性 Job 或手工跑一次，再正常启动。
+
+### Hand-written SQL (still works) / 手写 SQL（仍可用）
+
+Insert rows yourself if you cannot run the jar. The hash must carry its encoder id; `{bcrypt}` with a `$2a$`/`$2b$`/`$2y$` hash works (for example `htpasswd -bnBC 12 "" 'the-password' | tr -d ':\n'`).
+
+不能跑 jar 时仍可自己插入表行。摘要必须带编码器标识，例如 `{bcrypt}` 加上 bcrypt 摘要。
 
 ```sql
 INSERT INTO account (account_id, login_name, account_state) VALUES ('account-ops-1', 'ops-1', 'ACTIVE');

@@ -35,6 +35,13 @@ platform:
   local-operator:
     name: ${PLATFORM_OPERATOR_NAME:platform-operator}
     password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
+  # One-shot operator bootstrap (OFF by default). Enable only with --platform.operator.bootstrap=true.
+  # 一次性操作员开通（默认关闭）。仅用 --platform.operator.bootstrap=true 显式打开。
+  operator:
+    bootstrap: false
+    login: ${PLATFORM_OPERATOR_LOGIN:}
+    password: ${PLATFORM_OPERATOR_PASSWORD:}
+    role: ${PLATFORM_OPERATOR_ROLE:platform-operator}
   connection:
     vendor: ${PLATFORM_CONNECTION_VENDOR:postgresql}
   discovery:

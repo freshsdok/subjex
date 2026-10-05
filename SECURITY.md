@@ -29,8 +29,8 @@ subjex 是发布前的框架骨架。**只应运行在受信的私有网络中�
    首次提交任务会自动建租户。租户拦截只检查 `/tasks` 是否带 `X-Tenant-Id`，不检查操作员是否有权代表该租户；未知租户会被直接写成 `ACTIVE`。尚无操作员—租户授权关系。
 6. **Metrics and probes are anonymous.** `/actuator/prometheus`, `/actuator/health/liveness` and `/actuator/health/readiness` need no auth on all three processes. Rely on network isolation.
    指标与探针端点匿名，靠网络隔离。
-7. **Local seed operator.** Profile `local` seeds `platform-operator` / `change-me`; `deploy/compose` enables `local`. Never enable `local` outside a laptop. Elsewhere operators are inserted as table rows (`docs/operator-permissions.md`); there is no provisioning, password-change or disable API yet.
-   `local` profile 会写入 `platform-operator` / `change-me`，compose 默认启用 `local`。开发机以外不要启用。其它环境以表行开通操作员，暂无开通、改密、禁用接口。
+7. **Local seed and one-shot bootstrap.** Profile `local` seeds `platform-operator` / `change-me`; `deploy/compose` enables `local`. Never enable `local` outside a laptop. Outside `local`, provision with the gated bootstrap: `java -jar platform-app.jar --platform.operator.bootstrap=true` plus `PLATFORM_OPERATOR_LOGIN` / `PLATFORM_OPERATOR_PASSWORD` (optional `PLATFORM_OPERATOR_ROLE`); it upserts one operator, prints `BOOTSTRAP` warnings, and exits. The flag defaults to **false** — do not leave it on in compose/k8s. Hand-written SQL still works (`docs/operator-permissions.md`). There is still no password-change, disable, or admin UI for users.
+   `local` profile 会写入 `platform-operator` / `change-me`，compose 默认启用 `local`。开发机以外不要启用。非 local 环境用显式开通：`--platform.operator.bootstrap=true` + 登录名/口令环境变量（可选角色）；写入一位操作员后退出，默认关闭，勿在 compose/k8s 常开。手写 SQL 仍可用。仍无改密、禁用、用户管理界面。
 8. **Images are not published or scanned.** Build them yourself from the Dockerfiles (non-root uid 10001).
    镜像未发布、未做漏洞扫描，需自行构建（非 root uid 10001）。
 
