@@ -43,18 +43,20 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.CONFIG_READ.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/config/**")
                                 .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
-                        // Form submit: signed-in only; each form checks its own write permission in the endpoint.
-                        // 表单提交：只要求已登录；各表单在接口里核对自己的写权限。
+                        // Form/page detail + submissions: signed-in only; declared permission checked in the endpoint.
+                        // 表单/页面详情与提交：只要求已登录；声明上的权限在接口里核对（免改安全配置）。
                         .requestMatchers(HttpMethod.POST, "/api/v1/forms/*/submissions")
                                 .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/forms/*/submissions")
-                                .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                                .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/forms/*")
-                                .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                                .authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/pages/*")
+                                .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.GET,
-                                "/api/v1/deploy", "/api/v1/forms", "/api/v1/codegen", "/api/v1/language", "/api/v1/skins")
+                                "/api/v1/deploy", "/api/v1/forms", "/api/v1/pages", "/api/v1/codegen", "/api/v1/language", "/api/v1/skins")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         .requestMatchers("/admin", "/admin/**", "/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())

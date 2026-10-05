@@ -196,6 +196,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pages/{flowKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pageDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -216,7 +248,27 @@ export interface components {
         FormSubmissionResultDocument: {
             submissionId?: string;
             formKey?: string;
+            /** Format: int32 */
+            declarationVersion?: number;
             resultSummary?: string;
+            /** Format: date-time */
+            submittedAt?: string;
+            effects?: components["schemas"]["EffectOutcomeDocument"][];
+        };
+        EffectOutcomeDocument: {
+            key?: string;
+            outcome?: string;
+        };
+        FormFieldErrorDocument: {
+            field?: string;
+            code?: string;
+            message?: string;
+        };
+        FormProblemDocument: {
+            kind?: string;
+            fieldErrors?: components["schemas"]["FormFieldErrorDocument"][];
+            permission?: string;
+            message?: string;
         };
         SkinDocument: {
             name?: string;
@@ -261,6 +313,10 @@ export interface components {
             formKey?: string;
             titleZh?: string;
             titleEn?: string;
+            /** Format: int32 */
+            version?: number;
+            permission?: string;
+            tenantScoped?: boolean;
             fields?: components["schemas"]["FieldDocument"][];
         };
         DeployDocument: {
@@ -312,6 +368,10 @@ export interface components {
             formKey?: string;
             titleZh?: string;
             titleEn?: string;
+            /** Format: int32 */
+            version?: number;
+            permission?: string;
+            tenantScoped?: boolean;
         };
         FormSubmissionListDocument: {
             submissions?: components["schemas"]["FormSubmissionHistoryDocument"][];
@@ -319,12 +379,55 @@ export interface components {
         FormSubmissionHistoryDocument: {
             submissionId?: string;
             formKey?: string;
+            /** Format: int32 */
+            declarationVersion?: number;
             actorIdentityId?: string;
             loginName?: string;
             valuesJson?: string;
             resultSummary?: string;
             /** Format: date-time */
             submittedAt?: string;
+        };
+        PageIndexDocument: {
+            flowKey?: string;
+            titleZh?: string;
+            titleEn?: string;
+            /** Format: int32 */
+            version?: number;
+            permission?: string;
+            tenantScoped?: boolean;
+        };
+        PagesIndexDocument: {
+            pages?: components["schemas"]["PageIndexDocument"][];
+        };
+        ListSpecDocument: {
+            path?: string;
+            apiPath?: string;
+            itemsKey?: string;
+        };
+        DetailSpecDocument: {
+            path?: string;
+            apiPath?: string;
+            itemsKey?: string;
+            idField?: string;
+        };
+        SubmitSpecDocument: {
+            path?: string;
+            apiPath?: string;
+            redirectTo?: string;
+        };
+        PageFlowDocument: {
+            flowKey?: string;
+            titleZh?: string;
+            titleEn?: string;
+            formKey?: string;
+            /** Format: int32 */
+            version?: number;
+            permission?: string;
+            tenantScoped?: boolean;
+            list?: components["schemas"]["ListSpecDocument"];
+            detail?: components["schemas"]["DetailSpecDocument"];
+            submit?: components["schemas"]["SubmitSpecDocument"];
         };
     };
     responses: never;
@@ -435,6 +538,15 @@ export interface operations {
                     "*/*": components["schemas"]["FormSubmissionResultDocument"];
                 };
             };
+            /** @description Field validation failed — 字段校验失败 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FormProblemDocument"];
+                };
+            };
             /** @description No operator signed in — 没有已登录的操作员 */
             401: {
                 headers: {
@@ -442,12 +554,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            /** @description Operator lacks the declared permission — 操作员缺少声明权限 */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["FormProblemDocument"];
+                };
             };
         };
     };
@@ -775,6 +889,76 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["FormsDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PagesIndexDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pageDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flowKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageFlowDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */

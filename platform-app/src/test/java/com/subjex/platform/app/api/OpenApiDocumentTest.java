@@ -15,10 +15,17 @@ import com.subjex.platform.app.deploy.DeployApiEndpoint;
 import com.subjex.platform.app.deploy.ManifestCatalog;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
+import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.form.FormCatalog;
+import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
 import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.FormsApiEndpoint;
+import com.subjex.platform.app.security.OperatorActionAudit;
+import com.subjex.platform.contract.extension.PlatformExtension;
+import com.subjex.platform.contract.task.TaskMessagePort;
+import com.subjex.platform.app.page.PageCatalog;
+import com.subjex.platform.app.page.PagesApiEndpoint;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.language.LanguageApiEndpoint;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
@@ -28,6 +35,7 @@ import com.subjex.platform.app.skin.SkinApiEndpoint;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
@@ -61,6 +69,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
     AuditApiEndpoint.class,
     DeployApiEndpoint.class,
     FormsApiEndpoint.class,
+    PagesApiEndpoint.class,
     FormSubmissionEndpoint.class,
     CodegenApiEndpoint.class,
     LanguageApiEndpoint.class,
@@ -71,6 +80,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
     OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     FormCatalog.class,
+    PageCatalog.class,
     ManifestCatalog.class,
     JsonApi.class,
     SpringDocConfiguration.class,
@@ -100,6 +110,9 @@ class OpenApiDocumentTest {
 
     @MockitoBean
     private FormSubmissionStore formSubmissionStore;
+
+    @MockitoBean
+    private TaskMessagePort taskMessagePort;
 
     @Test
     void anonymousIsRefused() throws Exception {
@@ -148,6 +161,18 @@ class OpenApiDocumentTest {
         @Bean
         JdbcAdminReader jdbcAdminReader(JdbcTemplate jdbc) {
             return new JdbcAdminReader(jdbc);
+        }
+
+        @Bean
+        FormSideEffectRunner formSideEffectRunner(
+                OperatorActionAudit operatorActionAudit, TaskMessagePort taskMessagePort) {
+            return new FormSideEffectRunner(
+                    operatorActionAudit, taskMessagePort, List.of(new TaskDeliveryExtension()));
+        }
+
+        @Bean
+        PlatformExtension taskDeliveryExtension() {
+            return new TaskDeliveryExtension();
         }
     }
 }

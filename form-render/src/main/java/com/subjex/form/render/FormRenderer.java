@@ -1,6 +1,7 @@
 package com.subjex.form.render;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,17 +12,33 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
- * FormRenderer — 表单渲染器：读取一份声明式表单，产出校验过的字段列表。
+ * FormRenderer — 表单渲染器：读取一份声明式表单，产出校验过的字段列表与可选副作用。
  * <p>
  * Invalid definitions are rejected. The renderer does not store answers.
+ * Effect keys must appear in the checked-in {@link SideEffectCatalog} (fail-closed).
  * 不合法的定义会被拒绝。渲染器不保存填写结果。
+ * 副作用键必须出现在检入的 {@link SideEffectCatalog} 中（失败关闭）。
  */
 public final class FormRenderer {
 
     private static final Pattern FORM_KEY = Pattern.compile("[a-z][a-z0-9]*(-[a-z0-9]+)*");
     private static final Pattern FIELD_NAME = Pattern.compile("[a-z][A-Za-z0-9]*");
-    private static final Set<String> FORM_KEYS = Set.of("formKey", "titleEn", "titleZh", "fields");
+    private static final Pattern PERMISSION = Pattern.compile("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+");
+    private static final Pattern PARAM_NAME = Pattern.compile("[a-z][A-Za-z0-9]*");
+    private static final Set<String> FORM_KEYS =
+            Set.of("formKey", "titleEn", "titleZh", "version", "permission", "tenantScoped", "fields", "effects");
     private static final Set<String> FIELD_KEYS = Set.of("name", "kind", "required", "maxLength", "minimum", "maximum");
+    private static final Set<String> EFFECT_KEYS = Set.of("key", "params");
+
+    private final SideEffectCatalog sideEffects;
+
+    public FormRenderer() {
+        this(new SideEffectCatalog());
+    }
+
+    public FormRenderer(SideEffectCatalog sideEffects) {
+        this.sideEffects = sideEffects;
+    }
 
     /**
      * Render one form document — 渲染一份表单文档。
@@ -41,6 +58,9 @@ public final class FormRenderer {
         }
         String titleEn = text(required(document, "titleEn"), "titleEn");
         String titleZh = text(required(document, "titleZh"), "titleZh");
+        int version = requiredVersion(document);
+        String permission = parsePermission(required(document, "permission"));
+        boolean tenantScoped = optionalBoolean(document, "tenantScoped");
         Object rawFields = required(document, "fields");
         if (!(rawFields instanceof List<?> fieldList) || fieldList.isEmpty()) {
             throw new FormDefinitionRejected("fields must be a non-empty list");
@@ -53,7 +73,66 @@ public final class FormRenderer {
             }
             fields.add(field(field, names));
         }
-        return new RenderedForm(formKey, titleEn, titleZh, recordName(formKey), List.copyOf(fields));
+        List<DeclaredEffect> effects = effects(document.get("effects"), names);
+        return new RenderedForm(
+                formKey,
+                titleEn,
+                titleZh,
+                version,
+                permission,
+                tenantScoped,
+                recordName(formKey),
+                List.copyOf(fields),
+                effects);
+    }
+
+    private List<DeclaredEffect> effects(Object rawEffects, Set<String> fieldNames) {
+        if (rawEffects == null) {
+            return List.of();
+        }
+        if (!(rawEffects instanceof List<?> effectList)) {
+            throw new FormDefinitionRejected("effects must be a list");
+        }
+        List<DeclaredEffect> declared = new ArrayList<>();
+        for (Object raw : effectList) {
+            if (!(raw instanceof Map<?, ?> effect)) {
+                throw new FormDefinitionRejected("each effect must be a mapping");
+            }
+            declared.add(effect(effect, fieldNames));
+        }
+        return List.copyOf(declared);
+    }
+
+    private DeclaredEffect effect(Map<?, ?> effect, Set<String> fieldNames) {
+        rejectUnknown(effect, EFFECT_KEYS, "effect");
+        String keyName = text(required(effect, "key"), "key");
+        SideEffectSpec spec = sideEffects.require(keyName);
+        Object rawParams = effect.get("params");
+        Map<String, String> params = new LinkedHashMap<>();
+        if (rawParams != null) {
+            if (!(rawParams instanceof Map<?, ?> paramMap)) {
+                throw new FormDefinitionRejected("effect params must be a mapping");
+            }
+            for (Map.Entry<?, ?> entry : paramMap.entrySet()) {
+                if (!(entry.getKey() instanceof String name) || !PARAM_NAME.matcher(name).matches()) {
+                    throw new FormDefinitionRejected("effect param name must be a lower camel identifier");
+                }
+                if (!spec.allowedParams().contains(name)) {
+                    throw new FormDefinitionRejected("effect " + keyName + " has unknown param " + name);
+                }
+                params.put(name, text(entry.getValue(), name));
+            }
+        }
+        for (String requiredName : spec.requiredParams()) {
+            if (!params.containsKey(requiredName)) {
+                throw new FormDefinitionRejected("effect " + keyName + " is missing param " + requiredName);
+            }
+        }
+        String targetField = params.get("actionTargetField");
+        if (targetField != null && !fieldNames.contains(targetField)) {
+            throw new FormDefinitionRejected("actionTargetField must name a form field");
+        }
+        return new DeclaredEffect(spec.key(), Map.copyOf(params));
     }
 
     private static FormField field(Map<?, ?> field, Set<String> names) {
@@ -134,5 +213,40 @@ public final class FormRenderer {
             return Math.toIntExact(number);
         }
         throw new FormDefinitionRejected(key + " must be an integer");
+    }
+
+    private static int requiredVersion(Map<?, ?> map) {
+        Object value = required(map, "version");
+        int version;
+        if (value instanceof Integer number) {
+            version = number;
+        } else if (value instanceof Long number) {
+            version = Math.toIntExact(number);
+        } else {
+            throw new FormDefinitionRejected("version must be an integer");
+        }
+        if (version < 1) {
+            throw new FormDefinitionRejected("version must be at least 1");
+        }
+        return version;
+    }
+
+    private static String parsePermission(Object value) {
+        String permission = text(value, "permission");
+        if (!PERMISSION.matcher(permission).matches()) {
+            throw new FormDefinitionRejected("permission must be dotted lowercase segments");
+        }
+        return permission;
+    }
+
+    private static boolean optionalBoolean(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        throw new FormDefinitionRejected(key + " must be true or false");
     }
 }

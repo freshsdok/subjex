@@ -190,3 +190,19 @@ Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; t
 - 已知安全与运行限制汇总在 `SECURITY.md`，版本内容在 `CHANGELOG.md`，完整评估在 `docs/pre-release-assessment.md`。
 
 Still `0.1.0-SNAPSHOT`, untagged. The full `mvn test` reactor is expected to pass. CI is not active until `docs/ci/build.yml` is moved to `.github/workflows/`. Known limits: `SECURITY.md`; contents: `CHANGELOG.md`.
+
+## 17. 低代码加深路线（有序） / Ordered low-code deepening
+
+节点六已交付多表单目录、提交落库、第二张业务表单与 FormRecord CLI（见 §15）。后续加深**严格按下列顺序**推进；前一阶段未落地前不开始后一阶段。详细阶段说明、非目标与切片进度见 [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md)。
+
+Node 6 delivered the multi-form catalog, submission store, second business form, and FormRecord CLI (§15). Further deepening follows **this exact order**; do not start a later stage before the prior one lands. Stages, non-goals, and slice notes: [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md).
+
+1. **可跳过的 CLI 初始化** / Skippable CLI init — 生成本地 stub（`.env.example` / `application-local.yml`）、Redis 与 `OPERATOR_SESSION_SECRET` 提示、compose 提示、可选开通命令说明；默认值与 `--yes`；显式 skip，不强制 bootstrap。
+2. **实体 YAML → 迁移 / CRUD 草稿** / Entity YAML → migration / CRUD drafts — 检入声明生成 Flyway 与薄 CRUD 草稿；构建不跑在线设计器。
+3. **页面 / 流程声明** / Page / flow declarations — 声明式页面与流程，接在实体之后。
+4. **声明上的权限 / 租户** / Permission / tenant on declarations — 具名权限与租户边界写进同一套声明，不另开在线权限编辑器。
+5. **副作用目录** / Side-effect catalog — 可枚举的副作用登记，供流程与审计引用。
+6. **版本化** / Versioning — 声明与生成物的版本约定。
+7. **控制台调试 UX** / Console debug UX — 操作员控制台侧的只读/调试体验，放在声明链路之后；提交结果与校验/权限失败在同一调试面板可见（见 `docs/lowcode-roadmap.md` 第 6 阶段）。
+
+**本路线明确不做 / Explicit non-goals：** 拖拽设计器、浏览器内在线改 schema、强制跑初始化向导（init 可完全跳过）、把 bootstrap 绑进日常启动。

@@ -25,9 +25,12 @@
         <module>sample-consumer</module>
         <module>model-gateway</module>
         <module>form-render</module>
+        <module>entity-declare</module>
+        <module>page-declare</module>
         <module>page-language</module>
         <module>page-skin</module>
         <module>entry-gateway</module>
+        <module>tools/subjex-init</module>
     </modules>
 
     <properties>
@@ -51,6 +54,16 @@
             <dependency>
                 <groupId>com.subjex</groupId>
                 <artifactId>form-render</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.subjex</groupId>
+                <artifactId>entity-declare</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.subjex</groupId>
+                <artifactId>page-declare</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

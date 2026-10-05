@@ -8,5 +8,6 @@ Slice log — 切片记录:
 4c. [done] Dockerfile, k8s stub, deploy/compose/docker-compose.yml; ContainerImageTest covers entry-gateway; README section.
 
 4d. [done] VendorStartupTest 2/2 on live MySQL+PostgreSQL; gateway jar smoke: forward 200 then 429 at permits=3.
-4e. [next] Push to GitHub.
+4e. [done] Pushed as remote `06597be` (user ran Mac push script).
+
 

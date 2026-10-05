@@ -1,6 +1,7 @@
 package com.subjex.platform.app.api;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -22,10 +23,16 @@ import com.subjex.platform.app.deploy.ManifestCatalog;
 import com.subjex.platform.app.discovery.ListedService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
+import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.form.FormCatalog;
+import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
 import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.FormsApiEndpoint;
+import com.subjex.platform.contract.extension.PlatformExtension;
+import com.subjex.platform.contract.task.TaskMessagePort;
+import com.subjex.platform.app.page.PageCatalog;
+import com.subjex.platform.app.page.PagesApiEndpoint;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.language.LanguageApiEndpoint;
 import com.subjex.platform.app.security.OperatorActionAudit;
@@ -73,6 +80,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     AuditApiEndpoint.class,
     DeployApiEndpoint.class,
     FormsApiEndpoint.class,
+    PagesApiEndpoint.class,
     FormSubmissionEndpoint.class,
     CodegenApiEndpoint.class,
     LanguageApiEndpoint.class,
@@ -83,6 +91,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     FormCatalog.class,
+    PageCatalog.class,
     ManifestCatalog.class,
     JsonApiSecurityTest.SliceConfiguration.class
 })
@@ -116,6 +125,9 @@ class JsonApiSecurityTest {
 
     @MockitoBean
     private FormSubmissionStore formSubmissionStore;
+
+    @MockitoBean
+    private TaskMessagePort taskMessagePort;
 
     @BeforeEach
     void bareOperatorAndCatalogs() {
@@ -212,6 +224,7 @@ class JsonApiSecurityTest {
     void pageTwinsNeedPageRead() throws Exception {
         assertPageRead("/deploy", "$.applied");
         assertPageRead("/forms", "$.forms");
+        assertPageRead("/pages", "$.pages");
         assertPageRead("/codegen", "$.recordName");
         assertPageRead("/language", "$.languages");
         assertPageRead("/skins", "$.skins");
@@ -226,6 +239,25 @@ class JsonApiSecurityTest {
                 .andExpect(jsonPath(keyField).exists());
     }
 
+    @Test
+    void formsAndPagesIndexExposePermissionFlags() throws Exception {
+        // Sorted by formKey: config-override then endpoint-publication — 按 formKey 排序。
+        mockMvc.perform(get(JsonApi.BASE + "/forms").with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.forms[0].formKey").value("config-override"))
+                .andExpect(jsonPath("$.forms[0].version").value(1))
+                .andExpect(jsonPath("$.forms[0].permission").value("config.write"))
+                .andExpect(jsonPath("$.forms[0].tenantScoped").value(false))
+                .andExpect(jsonPath("$.forms[1].formKey").value("endpoint-publication"))
+                .andExpect(jsonPath("$.forms[1].version").value(1))
+                .andExpect(jsonPath("$.forms[1].permission").value("registry.write"))
+                .andExpect(jsonPath("$.forms[1].tenantScoped").value(false));
+        mockMvc.perform(get(JsonApi.BASE + "/pages").with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pages[0].version").value(1))
+                .andExpect(jsonPath("$.pages[0].permission").value("page.read"))
+                .andExpect(jsonPath("$.pages[0].tenantScoped").value(false));
+    }
 
     @Test
     void formSubmissionNeedsRegistryWriteRefusesBadFieldsAndIsAudited() throws Exception {
@@ -233,57 +265,98 @@ class JsonApiSecurityTest {
         String body = "{\"values\":{\"serviceName\":\"billing\",\"host\":\"10.0.0.8\",\"port\":8080}}";
         mockMvc.perform(submit(path, body)).andExpect(status().isUnauthorized());
         mockMvc.perform(submit(path, body).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.kind").value("permission_denied"))
+                .andExpect(jsonPath("$.permission").value("registry.write"));
         mockMvc.perform(submit(path, body).with(httpBasic(BARE, BARE_PASSWORD)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.kind").value("permission_denied"))
+                .andExpect(jsonPath("$.permission").value("registry.write"));
 
         mockMvc.perform(submit(path, "{\"values\":{\"serviceName\":\"\",\"host\":\"10.0.0.8\",\"port\":8080}}")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.kind").value("validation"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("serviceName"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("required"));
         verify(serviceCatalog, never()).register(any());
         verify(operatorActionAudit, never()).record(any(), eq(OperatorActionAudit.REGISTRY_REGISTER), anyString(), any());
 
-        when(formSubmissionStore.save(eq("endpoint-publication"), anyString(), anyString(), any(), anyString()))
+        when(formSubmissionStore.save(
+                        eq("endpoint-publication"), anyInt(), anyString(), anyString(), any(), anyString()))
                 .thenAnswer(invocation -> new FormSubmissionStore.FormSubmissionRow(
                         "sub-1",
                         invocation.getArgument(0),
                         invocation.getArgument(1),
                         invocation.getArgument(2),
+                        invocation.getArgument(3),
                         "{\"serviceName\":\"billing\"}",
-                        invocation.getArgument(4),
+                        invocation.getArgument(5),
                         java.time.Instant.parse("2026-10-05T07:00:00Z")));
 
         mockMvc.perform(submit(path, body).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.formKey").value("endpoint-publication"))
                 .andExpect(jsonPath("$.submissionId").value("sub-1"))
-                .andExpect(jsonPath("$.resultSummary").value("billing@10.0.0.8:8080"));
+                .andExpect(jsonPath("$.declarationVersion").value(1))
+                .andExpect(jsonPath("$.resultSummary").value("billing@10.0.0.8:8080"))
+                .andExpect(jsonPath("$.submittedAt").value("2026-10-05T07:00:00Z"))
+                .andExpect(jsonPath("$.effects[0].key").value("audit.write"))
+                .andExpect(jsonPath("$.effects[0].outcome").value("ok"))
+                .andExpect(jsonPath("$.effects[1].key").value("task.enqueue"));
         verify(serviceCatalog).register(new ServiceEndpoint("billing", "10.0.0.8", 8080));
         verify(operatorActionAudit).record(
                 any(), eq(OperatorActionAudit.REGISTRY_REGISTER), eq("billing"), eq(AuditOutcome.ALLOWED));
+        verify(taskMessagePort).submit(any());
         verify(formSubmissionStore).save(
-                eq("endpoint-publication"), anyString(), eq(OPERATOR), any(), eq("billing@10.0.0.8:8080"));
+                eq("endpoint-publication"),
+                eq(1),
+                anyString(),
+                eq(OPERATOR),
+                any(),
+                eq("billing@10.0.0.8:8080"));
     }
 
     @Test
-    void formDetailNeedsPageRead() throws Exception {
-        String path = JsonApi.BASE + "/forms/endpoint-publication";
+    void pageDetailNeedsDeclaredPermission() throws Exception {
+        String path = JsonApi.BASE + "/pages/endpoint-publication";
         mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
         mockMvc.perform(get(path).with(httpBasic(BARE, BARE_PASSWORD))).andExpect(status().isForbidden());
         mockMvc.perform(get(path).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.flowKey").value("endpoint-publication"))
+                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.permission").value("page.read"))
+                .andExpect(jsonPath("$.tenantScoped").value(false))
+                .andExpect(jsonPath("$.list.apiPath").value("/api/v1/forms/endpoint-publication/submissions"))
+                .andExpect(jsonPath("$.submit.redirectTo").value("/pages/endpoint-publication"));
+    }
+
+    @Test
+    void formDetailNeedsDeclaredPermission() throws Exception {
+        String path = JsonApi.BASE + "/forms/endpoint-publication";
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(path).with(httpBasic(BARE, BARE_PASSWORD))).andExpect(status().isForbidden());
+        // Viewer has page.read but not registry.write declared on the form — 只读员有 page.read，无表单声明的 registry.write。
+        mockMvc.perform(get(path).with(httpBasic(VIEWER, VIEWER_PASSWORD))).andExpect(status().isForbidden());
+        mockMvc.perform(get(path).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.formKey").value("endpoint-publication"))
+                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.permission").value("registry.write"))
+                .andExpect(jsonPath("$.tenantScoped").value(false))
                 .andExpect(jsonPath("$.fields").isArray());
     }
 
     @Test
-    void formSubmissionHistoryNeedsPageRead() throws Exception {
+    void formSubmissionHistoryNeedsDeclaredPermission() throws Exception {
         String path = JsonApi.BASE + "/forms/endpoint-publication/submissions";
         when(formSubmissionStore.listByFormKey(eq("endpoint-publication"), any(Integer.class)))
                 .thenReturn(List.of());
         mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
         mockMvc.perform(get(path).with(httpBasic(BARE, BARE_PASSWORD))).andExpect(status().isForbidden());
-        mockMvc.perform(get(path).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+        mockMvc.perform(get(path).with(httpBasic(VIEWER, VIEWER_PASSWORD))).andExpect(status().isForbidden());
+        mockMvc.perform(get(path).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.submissions").isArray());
     }
@@ -294,25 +367,34 @@ class JsonApiSecurityTest {
         String body = "{\"values\":{\"configKey\":\"subjex.greeting\",\"configValue\":\"hi\"}}";
         mockMvc.perform(submit(path, body)).andExpect(status().isUnauthorized());
         mockMvc.perform(submit(path, body).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.kind").value("permission_denied"))
+                .andExpect(jsonPath("$.permission").value("config.write"));
         mockMvc.perform(submit(path, body).with(httpBasic(BARE, BARE_PASSWORD)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.kind").value("permission_denied"))
+                .andExpect(jsonPath("$.permission").value("config.write"));
 
-        when(formSubmissionStore.save(eq("config-override"), anyString(), anyString(), any(), anyString()))
+        when(formSubmissionStore.save(
+                        eq("config-override"), anyInt(), anyString(), anyString(), any(), anyString()))
                 .thenAnswer(invocation -> new FormSubmissionStore.FormSubmissionRow(
                         "sub-cfg-1",
                         invocation.getArgument(0),
                         invocation.getArgument(1),
                         invocation.getArgument(2),
+                        invocation.getArgument(3),
                         "{\"configKey\":\"subjex.greeting\"}",
-                        invocation.getArgument(4),
+                        invocation.getArgument(5),
                         java.time.Instant.parse("2026-10-05T07:00:00Z")));
 
         mockMvc.perform(submit(path, body).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.formKey").value("config-override"))
                 .andExpect(jsonPath("$.submissionId").value("sub-cfg-1"))
-                .andExpect(jsonPath("$.resultSummary").value("subjex.greeting=hi"));
+                .andExpect(jsonPath("$.declarationVersion").value(1))
+                .andExpect(jsonPath("$.resultSummary").value("subjex.greeting=hi"))
+                .andExpect(jsonPath("$.effects[0].key").value("audit.write"))
+                .andExpect(jsonPath("$.effects[1].key").value("extension.invoke"));
         verify(configCatalog).override("subjex.greeting", "hi");
         verify(operatorActionAudit).record(
                 any(), eq(OperatorActionAudit.CONFIG_OVERRIDE), eq("subjex.greeting"), eq(AuditOutcome.ALLOWED));
@@ -336,6 +418,18 @@ class JsonApiSecurityTest {
         @Bean
         JdbcAdminReader jdbcAdminReader(JdbcTemplate jdbc) {
             return new JdbcAdminReader(jdbc);
+        }
+
+        @Bean
+        FormSideEffectRunner formSideEffectRunner(
+                OperatorActionAudit operatorActionAudit, TaskMessagePort taskMessagePort) {
+            return new FormSideEffectRunner(
+                    operatorActionAudit, taskMessagePort, List.of(new TaskDeliveryExtension()));
+        }
+
+        @Bean
+        PlatformExtension taskDeliveryExtension() {
+            return new TaskDeliveryExtension();
         }
     }
 }

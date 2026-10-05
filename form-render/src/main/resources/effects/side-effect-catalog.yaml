@@ -1,0 +1,27 @@
+# Side-effect catalog — 副作用目录
+# Checked-in allowlist of effect keys forms may declare on submit.
+# Unknown keys are rejected at render time (fail-closed). Not a designer.
+# 表单提交可声明的副作用键白名单。未知键在渲染时拒绝（失败关闭）。不是设计器。
+effects:
+  - key: audit.write
+    titleEn: Write audit entry
+    titleZh: 写入审计
+    params:
+      - name: actionName
+        required: true
+      - name: actionTargetField
+        required: false
+  - key: task.enqueue
+    titleEn: Enqueue task
+    titleZh: 入队任务
+    params:
+      - name: stepName
+        required: true
+      - name: taskKind
+        required: true
+  - key: extension.invoke
+    titleEn: Invoke extension
+    titleZh: 调用扩展
+    params:
+      - name: extensionName
+        required: true

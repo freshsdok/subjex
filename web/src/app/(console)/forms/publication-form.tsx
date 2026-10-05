@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { FormDebugPanel } from "@/components/form-debug-panel";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
+import { parseSubmitReply, type FormDebugState } from "@/lib/form-debug";
 
 type FormField = { name: string; kind: string; required: boolean };
 
@@ -31,15 +33,13 @@ export function PublicationForm({
   );
   const [values, setValues] = useState<Record<string, string>>(emptyValues);
   const [step, setStep] = useState<SubmitStep>("editing");
-  const [problem, setProblem] = useState<string | null>(null);
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [debug, setDebug] = useState<FormDebugState>({ kind: "idle" });
 
   // Reset edit state when the operator picks another form — 换表单时清空填写状态。
   useEffect(() => {
     setValues(emptyValues);
     setStep("editing");
-    setProblem(null);
-    setSavedMessage(null);
+    setDebug({ kind: "idle" });
   }, [formKey, emptyValues]);
 
   function updateField(name: string, next: string) {
@@ -49,11 +49,21 @@ export function PublicationForm({
   function reviewSubmission() {
     for (const field of fields) {
       if (field.required && (values[field.name] ?? "").trim() === "") {
-        setProblem(fillPhrase(phrases.formMissingRequired, { name: field.name }));
+        setDebug({
+          kind: "validation",
+          fieldErrors: [
+            {
+              field: field.name,
+              code: "required",
+              message: fillPhrase(phrases.formMissingRequired, { name: field.name }),
+            },
+          ],
+          message: fillPhrase(phrases.formMissingRequired, { name: field.name }),
+        });
         return;
       }
     }
-    setProblem(null);
+    setDebug({ kind: "idle" });
     setStep("reviewing");
   }
 
@@ -73,24 +83,22 @@ export function PublicationForm({
       router.replace("/login");
       return;
     }
-    if (!reply?.ok) {
-      setProblem(fillPhrase(phrases.formSubmitFailed, { status: reply?.status ?? 0 }));
+    const body = reply ? await reply.json().catch(() => null) : null;
+    const next = parseSubmitReply(reply?.status ?? 0, body);
+    setDebug(next);
+    if (next.kind === "persist_ok") {
+      setValues(emptyValues);
       setStep("editing");
+      router.refresh();
       return;
     }
-    const body = (await reply.json()) as { resultSummary?: string };
-    setSavedMessage(
-      fillPhrase(phrases.formSubmittedNotice, { summary: body.resultSummary ?? "" }),
-    );
-    setValues(emptyValues);
     setStep("editing");
-    router.refresh();
   }
 
   return (
     <fieldset
       disabled={!canWrite || step === "submitting"}
-      className="max-w-md rounded-lg border border-border bg-surface p-5 disabled:opacity-80"
+      className="max-w-lg rounded-lg border border-border bg-surface p-5 disabled:opacity-80"
     >
       <legend className="px-1 font-semibold">{formTitle}</legend>
       <p className="mb-4 text-xs text-muted">
@@ -136,12 +144,7 @@ export function PublicationForm({
         </div>
       )}
 
-      {problem ? <p role="alert" className="mt-3 text-sm text-danger">{problem}</p> : null}
-      {savedMessage ? (
-        <p role="status" className="mt-3 text-sm text-green-700">
-          {savedMessage}
-        </p>
-      ) : null}
+      <FormDebugPanel state={debug} phrases={phrases} />
 
       {canWrite ? (
         <div className="mt-4 flex gap-2">

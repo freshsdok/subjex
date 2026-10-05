@@ -1,0 +1,23 @@
+# Endpoint publication flow — 端点发布流程
+# Checked-in page/flow declaration: list, detail, submit + redirect. Not a designer.
+# 检入的页面/流程声明：列表、详情、提交与跳转。不是设计器。
+flowKey: endpoint-publication
+titleEn: Endpoint publication
+titleZh: 端点发布
+formKey: endpoint-publication
+version: 1
+permission: page.read
+tenantScoped: false
+list:
+  path: /pages/endpoint-publication
+  apiPath: /api/v1/forms/endpoint-publication/submissions
+  itemsKey: submissions
+detail:
+  path: /pages/endpoint-publication/{id}
+  apiPath: /api/v1/forms/endpoint-publication/submissions
+  itemsKey: submissions
+  idField: submissionId
+submit:
+  path: /pages/endpoint-publication/new
+  apiPath: /api/v1/forms/endpoint-publication/submissions
+  redirectTo: /pages/endpoint-publication

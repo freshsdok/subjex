@@ -25,6 +25,8 @@ class FormRecordWriteMainTest {
                 formKey: sample-form
                 titleEn: Sample
                 titleZh: 样例
+                version: 1
+                permission: page.read
                 fields:
                   - name: label
                     kind: text

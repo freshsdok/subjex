@@ -18,6 +18,11 @@ Start here / 从这里开始: [`docs/quickstart.md`](docs/quickstart.md) builds 
 
 [`docs/quickstart.md`](docs/quickstart.md) 讲怎么构建、在本机启动 `platform-app` 和 `sample-consumer`，以及打开哪些页面。默认操作员口令只用于本地。
 
+Optional local stubs / 可选本地 stub: build and run `tools/subjex-init` (`java -jar tools/subjex-init/target/subjex-init-0.1.0-SNAPSHOT.jar --yes`, or `--skip` to do nothing). Details in [`docs/quickstart.md`](docs/quickstart.md) §0. Low-code deepening order: [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17.
+
+可选本地 stub：构建并运行 `tools/subjex-init`（`--yes` 写默认，`--skip` 什么都不做）。见 [`docs/quickstart.md`](docs/quickstart.md) §0。低代码加深顺序：[`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17.
+
+
 ## Run / 运行
 
 Both drivers are on the classpath. Pick one vendor per process; the migration guard refuses to serve when the live product name disagrees with `platform.connection.vendor`.

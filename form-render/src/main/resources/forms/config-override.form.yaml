@@ -4,6 +4,9 @@
 formKey: config-override
 titleEn: Config override
 titleZh: 配置覆盖
+version: 1
+permission: config.write
+tenantScoped: false
 fields:
   - name: configKey
     kind: text
@@ -13,3 +16,11 @@ fields:
     kind: text
     required: true
     maxLength: 4000
+effects:
+  - key: audit.write
+    params:
+      actionName: config.override
+      actionTargetField: configKey
+  - key: extension.invoke
+    params:
+      extensionName: task-delivery

@@ -25,6 +25,10 @@
         </dependency>
         <dependency>
             <groupId>com.subjex</groupId>
+            <artifactId>page-declare</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.subjex</groupId>
             <artifactId>page-language</artifactId>
         </dependency>
         <dependency>

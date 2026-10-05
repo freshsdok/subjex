@@ -8,13 +8,7 @@ import { FormPicker } from "./form-picker";
 type FormsIndexDocument = components["schemas"]["FormsIndexDocument"];
 type FormsDocument = components["schemas"]["FormsDocument"];
 
-/** Write permission each form needs — 每张表单提交所需的写权限。 */
-function writePermissionFor(formKey: string): string {
-  if (formKey === "config-override") return "config.write";
-  return "registry.write";
-}
-
-// Forms page — 表单页：先选表单，再编辑提交；写权限随表单键变化。
+// Forms page — 表单页：目录暴露声明权限；无权限的表单置灰；详情按声明权限打开。
 export default async function FormsPage({
   searchParams,
 }: {
@@ -30,27 +24,50 @@ export default async function FormsPage({
   if (!indexRead.body?.forms?.length) {
     return <LoadFailedNotice phrases={phrases} status={indexRead.status || 500} />;
   }
-  const index = indexRead.body.forms.filter(
-    (entry): entry is { formKey: string; titleZh: string; titleEn: string } =>
-      Boolean(entry.formKey && entry.titleZh && entry.titleEn),
-  );
+  const myPermissions = new Set(meRead.body?.permissions ?? []);
+  const index = indexRead.body.forms
+    .filter(
+      (entry): entry is { formKey: string; titleZh: string; titleEn: string; permission?: string; tenantScoped?: boolean } =>
+        Boolean(entry.formKey && entry.titleZh && entry.titleEn),
+    )
+    .map((entry) => ({
+      ...entry,
+      allowed: Boolean(entry.permission && myPermissions.has(entry.permission)),
+    }));
   const requested = params.form;
-  const formKey =
-    (requested && index.some((entry) => entry.formKey === requested) ? requested : null) ??
-    index[0].formKey;
-  const detailRead = await readPlatform<FormsDocument>(`forms/${encodeURIComponent(formKey)}`);
-  if (detailRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
+  const preferred =
+    (requested && index.find((entry) => entry.formKey === requested && entry.allowed)?.formKey) ||
+    index.find((entry) => entry.allowed)?.formKey ||
+    null;
+  if (!preferred) {
+    return (
+      <section>
+        <PageHeading title={phrases.formsTitle} hint={phrases.formsHint} />
+        <FormPicker forms={index} selectedFormKey="" language={language} phrases={phrases} />
+        <p className="text-sm text-muted">{phrases.emptyList}</p>
+      </section>
+    );
+  }
+  const detailRead = await readPlatform<FormsDocument>(`forms/${encodeURIComponent(preferred)}`);
+  if (detailRead.status === 403) {
+    return (
+      <ForbiddenNotice
+        phrases={phrases}
+        permission={index.find((entry) => entry.formKey === preferred)?.permission ?? "permission"}
+      />
+    );
+  }
   if (!detailRead.body) return <LoadFailedNotice phrases={phrases} status={detailRead.status} />;
   const body = detailRead.body;
   const formTitle = language === "zh" ? body.titleZh : body.titleEn;
-  const writePermission = writePermissionFor(formKey);
-  const canWrite = (meRead.body?.permissions ?? []).includes(writePermission);
+  const writePermission = body.permission ?? index.find((entry) => entry.formKey === preferred)?.permission ?? "";
+  const canWrite = writePermission !== "" && myPermissions.has(writePermission);
   return (
     <section>
       <PageHeading title={phrases.formsTitle} hint={phrases.formsHint} />
-      <FormPicker forms={index} selectedFormKey={formKey} language={language} phrases={phrases} />
+      <FormPicker forms={index} selectedFormKey={preferred} language={language} phrases={phrases} />
       <PublicationForm
-        formKey={body.formKey ?? formKey}
+        formKey={body.formKey ?? preferred}
         formTitle={formTitle ?? ""}
         fields={(body.fields ?? [])
           .filter((field): field is { name: string; kind: string; required: boolean } =>

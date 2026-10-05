@@ -8,7 +8,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * FormSubmissionValidationTest — 表单提交校验测试：必填、长度和整数范围按 YAML 定义拒绝。
+ * FormSubmissionValidationTest — 表单提交校验测试：必填、长度和整数范围按 YAML 定义拒绝，并返回逐字段错误。
  */
 class FormSubmissionValidationTest {
 
@@ -24,14 +24,34 @@ class FormSubmissionValidationTest {
     }
 
     @Test
-    void refusesMissingRequiredField() {
-        assertThrows(IllegalArgumentException.class, () -> FormSubmissionEndpoint.validate(
-                form, Map.of("serviceName", "billing", "host", "10.0.0.8")));
+    void refusesMissingRequiredFieldWithStructuredError() {
+        FormValidationException ex = assertThrows(
+                FormValidationException.class,
+                () -> FormSubmissionEndpoint.validate(
+                        form, Map.of("serviceName", "billing", "host", "10.0.0.8")));
+        assertEquals(1, ex.fieldErrors().size());
+        assertEquals("port", ex.fieldErrors().get(0).field());
+        assertEquals("required", ex.fieldErrors().get(0).code());
     }
 
     @Test
-    void refusesPortOutOfRange() {
-        assertThrows(IllegalArgumentException.class, () -> FormSubmissionEndpoint.validate(
-                form, Map.of("serviceName", "billing", "host", "10.0.0.8", "port", 70000)));
+    void refusesPortOutOfRangeWithStructuredError() {
+        FormValidationException ex = assertThrows(
+                FormValidationException.class,
+                () -> FormSubmissionEndpoint.validate(
+                        form, Map.of("serviceName", "billing", "host", "10.0.0.8", "port", 70000)));
+        assertEquals(1, ex.fieldErrors().size());
+        assertEquals("port", ex.fieldErrors().get(0).field());
+        assertEquals("above_maximum", ex.fieldErrors().get(0).code());
+    }
+
+    @Test
+    void collectsMultipleFieldErrors() {
+        FormValidationException ex = assertThrows(
+                FormValidationException.class, () -> FormSubmissionEndpoint.validate(form, Map.of()));
+        assertEquals(3, ex.fieldErrors().size());
+        assertEquals("serviceName", ex.fieldErrors().get(0).field());
+        assertEquals("host", ex.fieldErrors().get(1).field());
+        assertEquals("port", ex.fieldErrors().get(2).field());
     }
 }

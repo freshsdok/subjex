@@ -23,6 +23,12 @@ class FormCatalogTest {
         assertEquals("endpoint-publication", catalog.publication().formKey());
         assertEquals("endpoint-publication", catalog.require("endpoint-publication").formKey());
         assertEquals("config-override", catalog.require("config-override").formKey());
+        assertEquals(1, catalog.require("endpoint-publication").version());
+        assertEquals("registry.write", catalog.require("endpoint-publication").permission());
+        assertEquals("config.write", catalog.require("config-override").permission());
+        assertEquals(false, catalog.require("endpoint-publication").tenantScoped());
+        assertEquals(2, catalog.require("endpoint-publication").effects().size());
+        assertEquals(2, catalog.require("config-override").effects().size());
         assertTrue(catalog.find("endpoint-publication").isPresent());
         assertThrows(IllegalArgumentException.class, () -> catalog.require("no-such-form"));
     }

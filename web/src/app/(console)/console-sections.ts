@@ -14,5 +14,6 @@ export const consoleSections: ConsoleSection[] = [
   { href: "/audit", labelKey: "navAudit", requiredPermission: "admin.read" },
   { href: "/deploy", labelKey: "navDeploy", requiredPermission: "page.read" },
   { href: "/forms", labelKey: "navForms", requiredPermission: "page.read" },
+  { href: "/pages", labelKey: "navPages", requiredPermission: "page.read" },
   { href: "/codegen", labelKey: "navCodegen", requiredPermission: "page.read" },
 ];

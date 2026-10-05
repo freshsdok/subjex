@@ -9,6 +9,23 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
+- **Console debug UX (stage 6)**: form submit API returns structured success (`submissionId`, `declarationVersion`, `submittedAt`, `effects[]`) and problems (`validation` + fieldErrors, or `permission_denied` + permission name); console `FormDebugPanel` on `/forms` and `/pages/.../new` shows them in one place (zh/en). No designer / online schema edit. See `docs/lowcode-roadmap.md`.
+  控制台调试 UX（阶段 6）：提交成功/失败结构化；控制台同处展示校验、权限、落库与副作用摘要；无设计器。
+
+- **Declaration versioning (stage 5)**: required integer `version` (≥ 1) on form / entity / flow YAML (fail-closed); catalog JSON exposes `version`; form submissions persist `declaration_version` (Flyway `V5`); process notes in `docs/declaration-migration.md` (bump version on field change; entity → new migration draft; read old submissions against old versions; rollback = redeploy prior declaration, no auto-drop). No online schema edit. See `docs/lowcode-roadmap.md`.
+  声明版本化（阶段 5）：YAML 必填整数 `version`；目录暴露版本；提交落库记下声明版本；迁移策略文档；无在线改 schema。
+
+- **Side-effect catalog (stage 4)**: checked-in `effects/side-effect-catalog.yaml` + `SideEffectKey` (`audit.write`, `task.enqueue`, `extension.invoke`); forms may declare `effects` (samples updated); `FormSideEffectRunner` runs them after validate/domain action via existing Audit / Task / extension ports under the same subject/tenant; unknown effect keys rejected at render (fail-closed). No online designer. See `docs/lowcode-roadmap.md`.
+  副作用目录（阶段 4）：检入目录与枚举；表单可声明 `effects`；提交后经已有端口执行；未知键渲染即拒；无设计器。
+
+- **Permission / tenant on declarations (stage 3)**: form / entity / flow YAML require `permission` (fail-closed if missing) and optional `tenantScoped`; samples updated; catalog JSON exposes flags; `DeclarationAccess` enforces declared permission (+ tenant header when scoped) on form/page detail and submissions without new security-config matchers per form. Console greys out entries the operator lacks. See `docs/lowcode-roadmap.md`.
+  声明上的权限/租户（阶段 3）：YAML 必填 `permission`、可选 `tenantScoped`；目录暴露标志；API 按声明强制；控制台无权限置灰。
+
+- **Page / flow declare (stage 2)** (`page-declare`): checked-in `flows/*.flow.yaml` (sample `endpoint-publication`) → validated list / detail / submit specs (console paths, `/api/v1/...` apiPaths, post-submit `redirectTo`). `PageCatalog` + `GET /api/v1/pages` / `{flowKey}`; console `/pages` renders from the declaration (list, detail, submit-then-redirect). No visual designer. See `docs/lowcode-roadmap.md`.
+  页面/流程声明（阶段 2）：检入 YAML → 校验列表/详情/提交描述；目录与 JSON API；控制台按声明渲染；无设计器。
+
+- **Entity declare (stage 1)** (`entity-declare`): checked-in `entities/*.entity.yaml` (sample `service-note`) → validated render, Flyway-style `CREATE TABLE` draft under `db/migration-draft/`, Java record + CRUD port stub + JDBC sketch (`com.subjex.entity.generated`), and `EntityDraftWriteMain` CLI. Drafts are human-editable and not applied by `platform-app` Flyway; no online schema edit; not wired into `platform-app` yet. See `docs/lowcode-roadmap.md`.
+  实体声明（阶段 1）：检入 YAML → 校验渲染、Flyway 风格建表草稿、记录/CRUD 端口/JDBC 草图与 CLI；草稿可人工编辑，未接入 `platform-app` Flyway，无在线改 schema。
 - **Contracts** (`platform-contract`): Account / Subject / Identity split, fail-closed tenant guard, single `AuditPort`, deterministic and non-deterministic tasks on one table, outbox, single idempotency / rate-limit / message ports, `DistributedLockPort`, object-storage SPI, compile-time extensions.
 - **Database**: JDBC + Flyway `V1`–`V4` shared by MySQL 8.4 and PostgreSQL 16; migration guard refuses a vendor mismatch; no ORM (enforced by ArchUnit). Live startup proof via Testcontainers when Docker is present.
 - **Operators**: table-backed HTTP Basic, seven named permissions, read-only admin pages, audit for config overrides, registrations and task submission.

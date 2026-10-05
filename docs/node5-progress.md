@@ -7,4 +7,5 @@ Slice log — 切片记录:
 5c. [done] Optional OTLP/HTTP when `platform.tracing.otlp-endpoint` / `PLATFORM_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_ENDPOINT` is set; else DiscardingSpanExporter. TracingExporterChoiceTest.
 5d. [done] Compose dual platform-app (`--scale platform-app=2`, no host 8080) + Redis; k8s `replicas: 2`; `deploy/load/smoke-load.sh`.
 5e. [done] Web operator sessions → Redis when `SESSION_REDIS_URL` / `REDIS_URL` set; memory fallback for tests/single-node; TD-1 marked done in design-notes.
-5f. [next] Push to GitHub.
+5f. [done] Pushed as remote `9e62f95` (squash-style Git Data commit on top of `06597be`).
+

@@ -4,6 +4,34 @@ This page gets `platform-app` and `sample-consumer` running on one laptop. It is
 
 这一页让 `platform-app` 和 `sample-consumer` 在一台电脑上跑起来，只用于本地。
 
+## 0. Optional init (skippable) / 可选初始化（可跳过）
+
+You can skip this entirely: copy env vars from this page, or start from `deploy/compose`. Init only writes local stubs; it does not start Postgres, Redis, or bootstrap an operator.
+
+可以整段跳过：按本页抄环境变量，或直接用 `deploy/compose`。初始化只写本地 stub，不启库、不启 Redis、不开通操作员。
+
+```shell
+mvn -pl tools/subjex-init -am -DskipTests package
+# Non-interactive defaults into ./subjex-dev / 非交互默认写到 ./subjex-dev
+java -jar tools/subjex-init/target/subjex-init-0.1.0-SNAPSHOT.jar --yes
+# Or interactive (Enter accepts defaults; type skip to abort) / 交互：回车用默认，输入 skip 放弃
+java -jar tools/subjex-init/target/subjex-init-0.1.0-SNAPSHOT.jar
+# Skip without writing / 不写任何文件
+java -jar tools/subjex-init/target/subjex-init-0.1.0-SNAPSHOT.jar --skip
+```
+
+Useful flags / 常用参数：`--dir <path>` (default `./subjex-dev`), `--yes` / `-y`, `--skip`, `--help`.
+
+Generated under the target dir / 写入目标目录：
+
+- `.env.example` — JDBC, optional `SESSION_REDIS_URL` / `OPERATOR_SESSION_SECRET` (≥32 chars when Redis sessions are on)
+- `application-local.yml` — Spring-local stub mirroring those keys
+- `INIT-NOTES.md` — compose hint (`deploy/compose`) and the **optional** one-shot operator bootstrap command (off by default; see `docs/operator-permissions.md`)
+
+Then continue with §1–§3 below (or `docker compose -f deploy/compose/docker-compose.yml up` from the repo root).
+
+写完后继续下面 §1–§3，或在仓库根用 compose 起栈。
+
 ## 1. What you need / 需要什么
 
 - JDK 21 and Maven 3.9+ / JDK 21 与 Maven 3.9 以上。

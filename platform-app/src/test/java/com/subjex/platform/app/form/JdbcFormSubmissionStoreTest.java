@@ -51,6 +51,7 @@ class JdbcFormSubmissionStoreTest {
     void saveThenListByFormKeyNewestFirst() {
         FormSubmissionRow first = store.save(
                 "endpoint-publication",
+                1,
                 "identity-a",
                 "operator-a",
                 Map.of("serviceName", "billing", "host", "10.0.0.8", "port", 8080),
@@ -58,17 +59,20 @@ class JdbcFormSubmissionStoreTest {
         now.set(Instant.parse("2026-10-05T07:01:00Z"));
         FormSubmissionRow second = store.save(
                 "endpoint-publication",
+                2,
                 "identity-b",
                 "operator-b",
                 Map.of("serviceName", "ledger", "host", "10.0.0.9", "port", 9090),
                 "ledger@10.0.0.9:9090");
-        store.save("other-form", "identity-c", "operator-c", Map.of("x", "y"), "other");
+        store.save("other-form", 1, "identity-c", "operator-c", Map.of("x", "y"), "other");
 
         List<FormSubmissionRow> rows = store.listByFormKey("endpoint-publication", 10);
         assertEquals(2, rows.size());
         assertEquals(second.submissionId(), rows.get(0).submissionId());
         assertEquals(first.submissionId(), rows.get(1).submissionId());
         assertEquals("operator-b", rows.get(0).loginName());
+        assertEquals(2, rows.get(0).declarationVersion());
+        assertEquals(1, rows.get(1).declarationVersion());
         assertTrue(rows.get(0).valuesJson().contains("ledger"));
         assertEquals("ledger@10.0.0.9:9090", rows.get(0).resultSummary());
     }

@@ -9,6 +9,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.TcpAddressProbe;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
+import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.JdbcFormSubmissionStore;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
@@ -48,6 +49,7 @@ import io.opentelemetry.api.OpenTelemetry;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.List;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -230,6 +232,18 @@ public class PlatformWiring {
     @Bean
     JdbcAdminReader jdbcAdminReader(JdbcTemplate jdbc) {
         return new JdbcAdminReader(jdbc);
+    }
+
+
+    /**
+     * Run declared form effects through Audit / Task / extension ports — 经审计 / 任务 / 扩展端口执行表单声明的副作用。
+     */
+    @Bean
+    FormSideEffectRunner formSideEffectRunner(
+            OperatorActionAudit operatorActionAudit,
+            TaskMessagePort taskMessagePort,
+            List<PlatformExtension> extensions) {
+        return new FormSideEffectRunner(operatorActionAudit, taskMessagePort, extensions);
     }
 
     /**

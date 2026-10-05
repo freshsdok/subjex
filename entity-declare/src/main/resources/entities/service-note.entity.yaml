@@ -1,0 +1,24 @@
+# Service note entity — 服务备注实体
+# Checked-in declaration. Drives Flyway draft + CRUD stubs; not an online schema editor.
+# 检入声明。驱动 Flyway 草稿与 CRUD 桩；不是在线 schema 编辑器。
+entityKey: service-note
+tableName: service_note
+version: 1
+permission: page.read
+tenantScoped: false
+fields:
+  - name: noteId
+    kind: text
+    required: true
+    maxLength: 64
+  - name: title
+    kind: text
+    required: true
+    maxLength: 200
+  - name: body
+    kind: text
+    required: false
+    maxLength: 4000
+  - name: priority
+    kind: integer
+    required: false
