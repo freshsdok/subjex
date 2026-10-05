@@ -106,5 +106,5 @@
 - `platform-app/Dockerfile` 与 `sample-consumer/Dockerfile`：多阶段构建。第一阶段用 Maven 在仓库根目录执行 `-pl <进程> -am package`；第二阶段只有 JRE 和可运行 jar，以 uid 10001 的 `subjex` 用户运行。构建上下文是仓库根目录，`.dockerignore` 排除 `target/` 和 `.git/`。
 - `deploy/k8s/` 的镜像名就是这两份 Dockerfile 打的标签（`subjex/platform-app:0.1.0-SNAPSHOT`、`subjex/sample-consumer:0.1.0-SNAPSHOT`），并设置 `runAsNonRoot`、`runAsUser: 10001`。镜像不推送到任何仓库，清单仍不被应用。清单里不启用 `local`，操作员要以表行开通。
 - `mvn test` 不构建镜像，也不需要 Docker。`ContainerImageTest` 只读文字：两阶段、非 root、清单镜像名与 Dockerfile 标签一致。
-- CI：`.github/workflows/build.yml` 在 push 和 pull request 上跑 `mvn -B test`。若令牌缺少 `workflow` 权限而无法推送该路径，同一份文件放在 `docs/ci/build.yml`，等有权限的人移到位。
+- CI：工作流在 push 和 pull request 上跑 `mvn -B test`。推送令牌缺少 `workflow` 权限，GitHub 拒绝写入 `.github/workflows/`，所以同一份文件暂放 `docs/ci/build.yml`，等有权限的人移到位。移到位之前 CI 不运行。
 

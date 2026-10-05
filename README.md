@@ -94,9 +94,9 @@ MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Dock
 
 ## Images and CI / 镜像与持续集成
 
-`platform-app/Dockerfile` and `sample-consumer/Dockerfile` are multi-stage builds run from the repository root (`docker build -f platform-app/Dockerfile -t subjex/platform-app:0.1.0-SNAPSHOT .`). The runtime stage runs as uid 10001. The image names match `deploy/k8s/`. `mvn test` does not build images. CI runs `mvn -B test` on push and pull request (`.github/workflows/build.yml`; see `docs/ci/` if it is not in place yet).
+`platform-app/Dockerfile` and `sample-consumer/Dockerfile` are multi-stage builds run from the repository root (`docker build -f platform-app/Dockerfile -t subjex/platform-app:0.1.0-SNAPSHOT .`). The runtime stage runs as uid 10001. The image names match `deploy/k8s/`. `mvn test` does not build images. The CI workflow that runs `mvn -B test` on push and pull request is at `docs/ci/build.yml` for now; it needs to be moved to `.github/workflows/` by someone whose token has the `workflow` scope (see `docs/ci/README.md`).
 
-`platform-app/Dockerfile` 与 `sample-consumer/Dockerfile` 是在仓库根目录执行的多阶段构建，运行阶段以 uid 10001 运行，镜像名与 `deploy/k8s/` 一致。`mvn test` 不构建镜像。CI 在 push 和 pull request 上跑 `mvn -B test`。
+`platform-app/Dockerfile` 与 `sample-consumer/Dockerfile` 是在仓库根目录执行的多阶段构建，运行阶段以 uid 10001 运行，镜像名与 `deploy/k8s/` 一致。`mvn test` 不构建镜像。在 push 和 pull request 上跑 `mvn -B test` 的 CI 工作流暂放在 `docs/ci/build.yml`，需要由令牌有 `workflow` 权限的人移到 `.github/workflows/`（见 `docs/ci/README.md`）。
 
 ## License / 许可证
 

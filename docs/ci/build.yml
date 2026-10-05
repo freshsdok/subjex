@@ -1,0 +1,26 @@
+# Build — 构建：每次 push 和 pull request 都跑 mvn test。
+# mvn test needs no Docker. GitHub's ubuntu runner has Docker, so the live MySQL/PostgreSQL startup tests
+# (Testcontainers) run there too; on a machine without Docker they skip themselves.
+# mvn test 不需要 Docker。GitHub 的 ubuntu 运行器自带 Docker，所以真实 MySQL/PostgreSQL 启动测试在那里也会执行；
+# 没有 Docker 的机器上它们自己跳过。
+name: build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: mvn test
+        run: mvn -B test
