@@ -7,8 +7,8 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * TaskRecordedReceipts — 已接收的任务记录：本进程收下的那一条跨进程事件。
  * <p>
- * The count is how many times the stand-in delivery reached this application, including forced failures.
- * 计数是替身投递到达本应用的次数，包含被要求失败的那些。
+ * The count is how many times the outbox socket reached this application, including requested failures.
+ * 计数是出箱套接字到达本应用的次数，包含被要求失败的那些。
  */
 public final class TaskRecordedReceipts {
 

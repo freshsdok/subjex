@@ -2,7 +2,7 @@ package com.subjex.platform.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.connection.ConfiguredConnection;
-import com.subjex.platform.app.delivery.HttpEventStandIn;
+import com.subjex.platform.app.delivery.OutboxSocketPublisher;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
@@ -104,14 +104,15 @@ public class PlatformWiring {
     }
 
     @Bean
-    HttpEventStandIn httpEventStandIn(
-            @Value("${platform.delivery.consumer-base-url}") String consumerBaseUrl,
+    OutboxSocketPublisher outboxSocketPublisher(
+            @Value("${platform.delivery.consumer-host}") String consumerHost,
+            @Value("${platform.delivery.consumer-port}") int consumerPort,
             @Value("${platform.delivery.consumer-username}") String username,
             @Value("${platform.delivery.consumer-password}") String password,
             SamplePathCircuitBreaker breaker,
-            OpenTelemetry openTelemetry,
-            ObjectMapper objectMapper) {
-        return new HttpEventStandIn(consumerBaseUrl, username, password, breaker, openTelemetry, objectMapper);
+            OpenTelemetry openTelemetry) {
+        return new OutboxSocketPublisher(
+                consumerHost, consumerPort, username, password, breaker, openTelemetry);
     }
 
     @Bean
@@ -121,12 +122,12 @@ public class PlatformWiring {
             IdempotencyPort idempotencyPort,
             AuditPort auditPort,
             DistributedLockPort lock,
-            HttpEventStandIn standIn,
+            OutboxSocketPublisher publisher,
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
             Clock clock) {
         return new JdbcTaskMessagePort(
-                jdbc, transaction, idempotencyPort, auditPort, lock, standIn, openTelemetry, objectMapper, clock);
+                jdbc, transaction, idempotencyPort, auditPort, lock, publisher, openTelemetry, objectMapper, clock);
     }
 
     @Bean

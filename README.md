@@ -18,7 +18,8 @@ export PLATFORM_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/subjex
 export PLATFORM_JDBC_USERNAME=subjex
 export PLATFORM_JDBC_PASSWORD=subjex
 export PLATFORM_JDBC_DRIVER=org.postgresql.Driver
-export SAMPLE_CONSUMER_URL=http://127.0.0.1:8081
+export SAMPLE_CONSUMER_HOST=127.0.0.1
+export SAMPLE_CONSUMER_PORT=19081
 mvn -pl platform-app spring-boot:run
 ```
 
@@ -30,7 +31,8 @@ export PLATFORM_JDBC_URL='jdbc:mysql://127.0.0.1:3306/subjex?useSSL=false&allowP
 export PLATFORM_JDBC_USERNAME=subjex
 export PLATFORM_JDBC_PASSWORD=subjex
 export PLATFORM_JDBC_DRIVER=com.mysql.cj.jdbc.Driver
-export SAMPLE_CONSUMER_URL=http://127.0.0.1:8081
+export SAMPLE_CONSUMER_HOST=127.0.0.1
+export SAMPLE_CONSUMER_PORT=19081
 mvn -pl platform-app spring-boot:run
 ```
 
@@ -41,21 +43,28 @@ Create the empty database yourself. Flyway applies `V1__platform_schema.sql` on 
 Sample consumer (second process / 第二个进程):
 
 ```shell
+export SAMPLE_DELIVERY_PORT=19081
 mvn -pl sample-consumer spring-boot:run
 ```
 
-`platform-app` publishes one event, `TaskRecorded`, to `sample-consumer` over HTTP. That HTTP call is the v1 stand-in for a broker: the event still leaves one application and enters the other. It is not an in-process method call.
+`platform-app` writes `TaskRecorded` into the JDBC outbox, then pushes that row to `sample-consumer` on a local TCP socket (`127.0.0.1:19081` unless the variables above are set). That socket is the delivery path. The event leaves one application and enters the other. It is not an in-process method call. `traceparent` travels on the socket frame. The consumer's HTTP port is only for probes.
 
-`platform-app` 通过 HTTP 向 `sample-consumer` 发布唯一事件 `TaskRecorded`。这次 HTTP 是 v1 的消息中间件替身：事件离开一个应用、进入另一个应用，不是进程内方法调用。
+`platform-app` 把 `TaskRecorded` 写入 JDBC 出箱，再把这一行通过本地 TCP 套接字推到 `sample-consumer`（未改环境变量时是 `127.0.0.1:19081`）。这个套接字就是投递路径。事件离开一个应用、进入另一个应用，不是进程内方法调用。`traceparent` 在套接字帧上。消费者的 HTTP 端口只用于探针。
 
 Operator HTTP Basic (security is on by default / 安全默认开启): `platform-operator` / `change-me`, unless `PLATFORM_OPERATOR_NAME` and `PLATFORM_OPERATOR_PASSWORD` are set. Probes `GET /actuator/health/liveness` and `GET /actuator/health/readiness` are anonymous. Read-only admin: `GET /admin/tenants`, `GET /admin/tasks`, `GET /admin/dead-letters`, `GET /admin/health`.
 
 ## Tests / 测试
 
-`mvn test` always runs the contract, lock, rate-limit, breaker, trace-header, and architecture tests.
+`mvn test` always runs the contract, lock, rate-limit, breaker, outbox-socket, model-gateway, and architecture tests.
 
-Live MySQL and PostgreSQL startup tests use Testcontainers and run only when Docker is available. Without Docker they are skipped, not faked. This workspace had no Docker daemon, so those tests were not executed against live databases here.
+Live MySQL and PostgreSQL startup tests use Testcontainers and run only when Docker is available. Without Docker they are skipped, not faked. The outbox socket test does not start a database.
 
-`mvn test` 总会跑契约、锁、限流、熔断、追踪头和架构测试。
+`mvn test` 总会跑契约、锁、限流、熔断、出箱套接字、模型网关和架构测试。
 
-MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Docker 时才执行。没有 Docker 时跳过，不用别的库冒充。当前构建机没有 Docker，因此这里没有对真实数据库执行这两项测试。
+MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Docker 时才执行。没有 Docker 时跳过，不用别的库冒充。出箱套接字测试不启动数据库。
+
+## Optional model gateway / 可选模型网关
+
+`model-gateway` is not a dependency of `platform-app`. It registers a model provider and records one invocation: provider id, model id, and input digest. There is no vendor SDK and no database.
+
+`model-gateway` 不是 `platform-app` 的依赖。它登记模型提供者，并记录一次调用：提供者标识、模型标识、输入摘要。没有厂商 SDK，也没有数据库。

@@ -1,6 +1,6 @@
 # Sample consumer — 示例消费者
-# Second application. It subscribes to the one cross-process event over the HTTP stand-in.
-# 第二个应用。它通过 HTTP 替身订阅那一条跨进程事件。
+# Second application. It takes TaskRecorded from the outbox socket.
+# 第二个应用。它从出箱套接字接收 TaskRecorded。
 spring:
   application:
     name: sample-consumer
@@ -15,6 +15,12 @@ server:
     include-message: never
     include-stacktrace: never
     include-binding-errors: never
+
+platform:
+  delivery:
+    listen-port: ${SAMPLE_DELIVERY_PORT:19081}
+    operator-name: ${PLATFORM_OPERATOR_NAME:platform-operator}
+    operator-password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
 
 management:
   endpoints:

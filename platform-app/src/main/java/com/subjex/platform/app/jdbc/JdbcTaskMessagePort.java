@@ -2,8 +2,8 @@ package com.subjex.platform.app.jdbc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.subjex.platform.app.delivery.HttpEventStandIn;
-import com.subjex.platform.app.delivery.StandInDelivery;
+import com.subjex.platform.app.delivery.OutboxSocketPublisher;
+import com.subjex.platform.app.delivery.SocketDelivery;
 import com.subjex.platform.app.task.IdempotencyConflict;
 import com.subjex.platform.app.task.SubmitLockHeld;
 import com.subjex.platform.contract.audit.AuditEntry;
@@ -46,9 +46,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * JdbcTaskMessagePort — JDBC 任务消息端口：{@link TaskMessagePort} 的唯一实现。
  * <p>
- * The task row and the outbox row are written with SQL in one transaction. Delivery then uses
- * {@link HttpEventStandIn}, the v1 cross-process stand-in. There is no entity model on this path.
- * 任务行和出箱行在同一个事务里用 SQL 写入。随后的投递使用 {@link HttpEventStandIn}，也就是第一版的跨进程替身。
+ * The task row and the outbox row are written with SQL in one transaction. Delivery then pushes that
+ * stored row through {@link OutboxSocketPublisher}. There is no entity model on this path.
+ * 任务行和出箱行在同一个事务里用 SQL 写入。随后 {@link OutboxSocketPublisher} 推送这条已落库的行。
  * 这条路径上没有实体模型。
  */
 public final class JdbcTaskMessagePort implements TaskMessagePort {
@@ -58,7 +58,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
     private final IdempotencyPort idempotencyPort;
     private final AuditPort auditPort;
     private final DistributedLockPort lock;
-    private final HttpEventStandIn standIn;
+    private final OutboxSocketPublisher publisher;
     private final OpenTelemetry openTelemetry;
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -69,7 +69,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
             IdempotencyPort idempotencyPort,
             AuditPort auditPort,
             DistributedLockPort lock,
-            HttpEventStandIn standIn,
+            OutboxSocketPublisher publisher,
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
             Clock clock) {
@@ -78,7 +78,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
         this.idempotencyPort = idempotencyPort;
         this.auditPort = auditPort;
         this.lock = lock;
-        this.standIn = standIn;
+        this.publisher = publisher;
         this.openTelemetry = openTelemetry;
         this.objectMapper = objectMapper;
         this.clock = clock;
@@ -102,8 +102,9 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
                 if (!inserted.first()) {
                     return inserted.task();
                 }
-                StandInDelivery delivery = standIn.deliver(inserted.notice(), false);
-                transaction.executeWithoutResult(status -> recordDelivery(inserted.notice().eventId(), delivery.result()));
+                OutboxEvent stored = loadOutbox(inserted.notice().eventId());
+                SocketDelivery delivery = publisher.deliver(stored, false);
+                transaction.executeWithoutResult(status -> recordDelivery(stored.eventId(), delivery.result()));
                 return loadTask(inserted.task().taskId());
             } finally {
                 lock.release(lockName, command.idempotencyToken());

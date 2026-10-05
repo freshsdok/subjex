@@ -23,6 +23,7 @@
         <module>platform-contract</module>
         <module>platform-app</module>
         <module>sample-consumer</module>
+        <module>model-gateway</module>
     </modules>
 
     <properties>

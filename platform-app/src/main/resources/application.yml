@@ -31,7 +31,8 @@ platform:
   connection:
     vendor: ${PLATFORM_CONNECTION_VENDOR:postgresql}
   delivery:
-    consumer-base-url: ${SAMPLE_CONSUMER_URL:http://127.0.0.1:8081}
+    consumer-host: ${SAMPLE_CONSUMER_HOST:127.0.0.1}
+    consumer-port: ${SAMPLE_CONSUMER_PORT:19081}
     consumer-username: ${PLATFORM_OPERATOR_NAME:platform-operator}
     consumer-password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
     breaker-failure-threshold: 3

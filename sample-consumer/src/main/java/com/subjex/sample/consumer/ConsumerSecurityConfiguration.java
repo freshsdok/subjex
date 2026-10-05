@@ -12,8 +12,8 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * ConsumerSecurityConfiguration — 消费者安全：默认需要操作员认证，探针除外。
  * <p>
- * The inbox is not anonymous. platform-app sends the same operator basic authentication.
- * 收件口不是匿名的。platform-app 带上同一个操作员的基本认证。
+ * HTTP stays authenticated except for probes. The outbox socket is not an HTTP route; the listener checks the operator.
+ * 除探针外，HTTP 需要认证。出箱套接字不是 HTTP 路由；监听者自行核对操作员。
  */
 @Configuration
 public class ConsumerSecurityConfiguration {

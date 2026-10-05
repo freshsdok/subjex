@@ -11,8 +11,8 @@ package com.subjex.platform.contract.task;
 public interface TaskMessagePort {
 
     /**
-     * Persist the task and the outbox row, then hand the notice to the cross-process stand-in.
-     * 写下任务和出箱行，再把通知交给跨进程替身。
+     * Persist the task and the outbox row, then push that row over the outbox socket.
+     * 写下任务和出箱行，再把这一行从出箱套接字推出去。
      */
     TaskRecord submit(TaskCommand command);
 

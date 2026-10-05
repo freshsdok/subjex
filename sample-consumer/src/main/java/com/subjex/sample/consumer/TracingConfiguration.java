@@ -13,8 +13,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * TracingConfiguration — 消费者追踪装配：本地 SDK，不连接采集器。
  * <p>
- * The two applications join one trace only through the W3C traceparent header.
- * 两个应用只通过 W3C traceparent 头接成同一次追踪。
+ * The two applications join one trace only through the W3C traceparent on the outbox socket frame.
+ * 两个应用只通过出箱套接字帧上的 W3C traceparent 接成同一次追踪。
  */
 @Configuration
 public class TracingConfiguration {

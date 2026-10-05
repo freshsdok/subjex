@@ -13,8 +13,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * TracingConfiguration — 追踪装配：使用 OpenTelemetry API，并在没有采集器时用丢弃导出器托底。
  * <p>
- * platform-app and sample-consumer each build a local SDK. They share a trace by the traceparent header, not by a collector.
- * platform-app 与 sample-consumer 各自建立本地 SDK。它们靠 traceparent 头共享一次追踪，不靠采集器。
+ * platform-app and sample-consumer each build a local SDK. They share a trace by traceparent on the outbox socket, not by a collector.
+ * platform-app 与 sample-consumer 各自建立本地 SDK。它们靠出箱套接字上的 traceparent 共享一次追踪，不靠采集器。
  */
 @Configuration
 public class TracingConfiguration {
