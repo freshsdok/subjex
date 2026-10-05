@@ -4,6 +4,7 @@ import com.subjex.page.declare.RenderedFlow;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.List;
@@ -29,10 +30,12 @@ public class PagesApiEndpoint {
 
     private final PageCatalog catalog;
     private final TenantGuard tenantGuard;
+    private final OperatorTenantAccess tenantAccess;
 
-    public PagesApiEndpoint(PageCatalog catalog, TenantGuard tenantGuard) {
+    public PagesApiEndpoint(PageCatalog catalog, TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
         this.catalog = catalog;
         this.tenantGuard = tenantGuard;
+        this.tenantAccess = tenantAccess;
     }
 
     @GetMapping(PATH)
@@ -56,7 +59,7 @@ public class PagesApiEndpoint {
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedFlow flow = catalog.require(flowKey);
         DeclarationAccess.requirePermission(operator, flow.permission());
-        DeclarationAccess.requireTenantWhenScoped(tenantGuard, flow.tenantScoped(), tenantId);
+        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, flow.tenantScoped(), tenantId);
         return new PageFlowDocument(
                 flow.flowKey(),
                 flow.titleZh(),

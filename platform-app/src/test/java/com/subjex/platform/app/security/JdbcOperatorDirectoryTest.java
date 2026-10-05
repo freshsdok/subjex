@@ -42,7 +42,7 @@ class JdbcOperatorDirectoryTest {
         assertTrue(operator.isEnabled());
         assertEquals(LocalOperatorSeeder.IDENTITY_ID, operator.identityId());
         assertEquals(LocalOperatorSeeder.SUBJECT_ID, operator.subjectId());
-        assertEquals(Set.of("admin.read", "page.read", "config.read", "config.write",
+        assertEquals(Set.of("admin.read", "page.read", "config.read", "config.write", "operator.manage",
                 "registry.read", "registry.write", "task.write"), operator.permissionNames());
         assertTrue(encoder.matches("change-me", operator.getPassword()));
         assertTrue(operator.getPassword().startsWith("{bcrypt}"));
@@ -92,5 +92,14 @@ class JdbcOperatorDirectoryTest {
                 VALUES ('i-1', 'a-1', 's-1', 'tenant-north', 'ACTIVE')
                 """);
         assertThrows(UsernameNotFoundException.class, () -> directory.loadUserByUsername("tenant-user"));
+    }
+
+    @Test
+    void seededLocalOperatorHasAllTenantsGrant() {
+        seeder.seed("platform-operator", "change-me");
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM operator_tenant_grant WHERE subject_id = ? AND tenant_id = '*'",
+                Integer.class,
+                LocalOperatorSeeder.SUBJECT_ID));
     }
 }

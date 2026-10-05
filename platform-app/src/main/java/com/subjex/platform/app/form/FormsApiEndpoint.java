@@ -4,6 +4,7 @@ import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.List;
@@ -30,10 +31,12 @@ public class FormsApiEndpoint {
 
     private final FormCatalog catalog;
     private final TenantGuard tenantGuard;
+    private final OperatorTenantAccess tenantAccess;
 
-    public FormsApiEndpoint(FormCatalog catalog, TenantGuard tenantGuard) {
+    public FormsApiEndpoint(FormCatalog catalog, TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
         this.catalog = catalog;
         this.tenantGuard = tenantGuard;
+        this.tenantAccess = tenantAccess;
     }
 
     @GetMapping(PATH)
@@ -57,7 +60,7 @@ public class FormsApiEndpoint {
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = catalog.require(formKey);
         DeclarationAccess.requirePermission(operator, form.permission());
-        DeclarationAccess.requireTenantWhenScoped(tenantGuard, form.tenantScoped(), tenantId);
+        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, form.tenantScoped(), tenantId);
         List<FieldDocument> fields = form.fields().stream()
                 .map(field -> new FieldDocument(
                         field.name(),

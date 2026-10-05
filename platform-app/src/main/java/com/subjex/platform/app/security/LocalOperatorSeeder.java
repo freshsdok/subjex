@@ -72,6 +72,17 @@ public final class LocalOperatorSeeder {
             if (roles == null || roles == 0) {
                 jdbc.update("INSERT INTO subject_role (subject_id, role_name) VALUES (?, ?)", SUBJECT_ID, ROLE_NAME);
             }
+            Integer grants = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM operator_tenant_grant WHERE subject_id = ? AND tenant_id = ?",
+                    Integer.class,
+                    SUBJECT_ID,
+                    OperatorTenantAccess.ALL_TENANTS);
+            if (grants == null || grants == 0) {
+                jdbc.update(
+                        "INSERT INTO operator_tenant_grant (subject_id, tenant_id) VALUES (?, ?)",
+                        SUBJECT_ID,
+                        OperatorTenantAccess.ALL_TENANTS);
+            }
         });
         LOG.warn("LOCAL ONLY: seeded operator '{}' with role {}. Do not run profile 'local' outside a laptop. "
                 + "仅限本地：已写入操作员，请勿在开发机以外启用 local。", loginName, ROLE_NAME);

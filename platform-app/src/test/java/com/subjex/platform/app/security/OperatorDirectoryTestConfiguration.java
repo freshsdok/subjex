@@ -57,6 +57,22 @@ public class OperatorDirectoryTestConfiguration {
         return new OperatorActionAudit(auditPort, Clock.systemUTC());
     }
 
+    @Bean
+    OperatorTenantAccess operatorTenantAccess(JdbcTemplate jdbc, DataSource operatorTables) {
+        return new JdbcOperatorTenantAccess(
+                jdbc, new TransactionTemplate(new DataSourceTransactionManager(operatorTables)));
+    }
+
+    @Bean
+    JdbcOperatorAdmin jdbcOperatorAdmin(
+            JdbcTemplate jdbc, DataSource operatorTables, PasswordEncoder passwordEncoder, OperatorTenantAccess tenantAccess) {
+        return new JdbcOperatorAdmin(
+                jdbc,
+                new TransactionTemplate(new DataSourceTransactionManager(operatorTables)),
+                passwordEncoder,
+                tenantAccess);
+    }
+
     /** A second operator with read-only permissions — 第二位只读操作员。 */
     static void addViewer(JdbcTemplate jdbc, PasswordEncoder passwordEncoder) {
         jdbc.update("INSERT INTO account (account_id, login_name, account_state) VALUES ('account-viewer', ?, 'ACTIVE')",

@@ -20,10 +20,12 @@ public enum OperatorPermission {
     CONFIG_WRITE("config.write"),
     /** Read the registry — 读登记簿。 */
     REGISTRY_READ("registry.read"),
-    /** Register an endpoint — 登记一个端点。 */
+    /** Register an endpoint — 登记一个服务端点。 */
     REGISTRY_WRITE("registry.write"),
     /** Submit tasks — 提交任务。 */
-    TASK_WRITE("task.write");
+    TASK_WRITE("task.write"),
+    /** Manage operators and tenant grants — 管理操作员与租户授权。 */
+    OPERATOR_MANAGE("operator.manage");
 
     private final String permissionName;
 

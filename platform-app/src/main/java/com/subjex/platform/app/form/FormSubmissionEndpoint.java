@@ -9,6 +9,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.form.FormSubmissionStore.FormSubmissionRow;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import com.subjex.platform.contract.discovery.ServiceEndpoint;
@@ -55,6 +56,7 @@ public class FormSubmissionEndpoint {
     private final ConfigCatalog config;
     private final FormSideEffectRunner sideEffects;
     private final TenantGuard tenantGuard;
+    private final OperatorTenantAccess tenantAccess;
 
     public FormSubmissionEndpoint(
             FormCatalog forms,
@@ -62,13 +64,15 @@ public class FormSubmissionEndpoint {
             ServiceCatalog services,
             ConfigCatalog config,
             FormSideEffectRunner sideEffects,
-            TenantGuard tenantGuard) {
+            TenantGuard tenantGuard,
+            OperatorTenantAccess tenantAccess) {
         this.forms = forms;
         this.submissions = submissions;
         this.services = services;
         this.config = config;
         this.sideEffects = sideEffects;
         this.tenantGuard = tenantGuard;
+        this.tenantAccess = tenantAccess;
     }
 
     @PostMapping(PATH)
@@ -79,7 +83,7 @@ public class FormSubmissionEndpoint {
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = forms.require(formKey);
         DeclarationAccess.requirePermission(operator, form.permission());
-        DeclarationAccess.requireTenantWhenScoped(tenantGuard, form.tenantScoped(), tenantId);
+        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, form.tenantScoped(), tenantId);
         Map<String, Object> rawValues = document == null || document.values() == null
                 ? Map.of()
                 : document.values();
@@ -109,7 +113,7 @@ public class FormSubmissionEndpoint {
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = forms.require(formKey);
         DeclarationAccess.requirePermission(operator, form.permission());
-        DeclarationAccess.requireTenantWhenScoped(tenantGuard, form.tenantScoped(), tenantId);
+        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, form.tenantScoped(), tenantId);
         List<FormSubmissionHistoryDocument> rows = submissions.listByFormKey(formKey, HISTORY_LIMIT).stream()
                 .map(row -> new FormSubmissionHistoryDocument(
                         row.submissionId(),

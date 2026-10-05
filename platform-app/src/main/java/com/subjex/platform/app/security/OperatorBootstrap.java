@@ -105,6 +105,7 @@ public final class OperatorBootstrap {
                 accountId,
                 hash);
         jdbc.update("INSERT INTO subject_role (subject_id, role_name) VALUES (?, ?)", subjectId, role);
+        ensureAllTenantsGrant(subjectId);
     }
 
     private void refreshExisting(String accountId, String login, String hash, String role) {
@@ -128,6 +129,21 @@ public final class OperatorBootstrap {
         String subjectId = ensurePlatformIdentity(accountId, login);
         jdbc.update("DELETE FROM subject_role WHERE subject_id = ?", subjectId);
         jdbc.update("INSERT INTO subject_role (subject_id, role_name) VALUES (?, ?)", subjectId, role);
+        ensureAllTenantsGrant(subjectId);
+    }
+
+    private void ensureAllTenantsGrant(String subjectId) {
+        Integer grants = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM operator_tenant_grant WHERE subject_id = ? AND tenant_id = ?",
+                Integer.class,
+                subjectId,
+                OperatorTenantAccess.ALL_TENANTS);
+        if (grants == null || grants == 0) {
+            jdbc.update(
+                    "INSERT INTO operator_tenant_grant (subject_id, tenant_id) VALUES (?, ?)",
+                    subjectId,
+                    OperatorTenantAccess.ALL_TENANTS);
+        }
     }
 
     private String ensurePlatformIdentity(String accountId, String login) {

@@ -45,6 +45,7 @@ class OperatorBootstrapTest {
                         "page.read",
                         "config.read",
                         "config.write",
+                        "operator.manage",
                         "registry.read",
                         "registry.write",
                         "task.write"),
@@ -52,6 +53,16 @@ class OperatorBootstrapTest {
         assertTrue(encoder.matches("long-enough", operator.getPassword()));
         assertTrue(operator.getPassword().startsWith("{bcrypt}"));
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM account WHERE login_name = 'ops-one'", Integer.class));
+        assertEquals(
+                1,
+                jdbc.queryForObject(
+                        """
+                        SELECT COUNT(*) FROM operator_tenant_grant g
+                        JOIN subject_identity i ON i.subject_id = g.subject_id
+                        JOIN account a ON a.account_id = i.account_id
+                        WHERE a.login_name = 'ops-one' AND g.tenant_id = '*'
+                        """,
+                        Integer.class));
     }
 
     @Test
@@ -96,6 +107,7 @@ class OperatorBootstrapTest {
                         "page.read",
                         "config.read",
                         "config.write",
+                        "operator.manage",
                         "registry.read",
                         "registry.write",
                         "task.write"),

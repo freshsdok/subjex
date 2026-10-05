@@ -36,6 +36,11 @@ public class PlatformSecurityConfiguration {
                         // JSON twins under /api/v1: same named permissions as their pages.
                         // /api/v1 下的 JSON 孪生接口：与对应页面相同的具名权限。
                         .requestMatchers(HttpMethod.GET, "/api/v1/me").authenticated()
+                        // Self password change: any signed-in operator (current password checked in endpoint).
+                        // 自己改密：已登录即可（端点内核对当前口令）。
+                        .requestMatchers(HttpMethod.POST, "/api/v1/operators/me/password").authenticated()
+                        .requestMatchers("/api/v1/operators", "/api/v1/operators/**")
+                                .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
                         .requestMatchers("/api/v1/openapi.json", "/api/v1/openapi.json/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/services")
                                 .hasAuthority(OperatorPermission.REGISTRY_READ.permissionName())
@@ -89,7 +94,7 @@ public class PlatformSecurityConfiguration {
 
     @Bean
     @Order(SecurityProperties.DEFAULT_FILTER_ORDER + 10)
-    TenantEnforcementFilter tenantEnforcementFilter(TenantGuard tenantGuard) {
-        return new TenantEnforcementFilter(tenantGuard);
+    TenantEnforcementFilter tenantEnforcementFilter(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
+        return new TenantEnforcementFilter(tenantGuard, tenantAccess);
     }
 }

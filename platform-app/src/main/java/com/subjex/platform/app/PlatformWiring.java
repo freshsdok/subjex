@@ -22,7 +22,10 @@ import com.subjex.platform.app.jdbc.JdbcServiceRegistry;
 import com.subjex.platform.app.jdbc.JdbcIdempotencyPort;
 import com.subjex.platform.app.jdbc.JdbcTaskMessagePort;
 import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
+import com.subjex.platform.app.security.JdbcOperatorAdmin;
 import com.subjex.platform.app.security.JdbcOperatorDirectory;
+import com.subjex.platform.app.security.JdbcOperatorTenantAccess;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
@@ -197,6 +200,20 @@ public class PlatformWiring {
     @Bean
     OperatorActionAudit operatorActionAudit(AuditPort auditPort, Clock clock) {
         return new OperatorActionAudit(auditPort, clock);
+    }
+
+    @Bean
+    OperatorTenantAccess operatorTenantAccess(JdbcTemplate jdbc, TransactionTemplate transactionTemplate) {
+        return new JdbcOperatorTenantAccess(jdbc, transactionTemplate);
+    }
+
+    @Bean
+    JdbcOperatorAdmin jdbcOperatorAdmin(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            org.springframework.security.crypto.password.PasswordEncoder passwordEncoder,
+            OperatorTenantAccess operatorTenantAccess) {
+        return new JdbcOperatorAdmin(jdbc, transactionTemplate, passwordEncoder, operatorTenantAccess);
     }
 
     @Bean
