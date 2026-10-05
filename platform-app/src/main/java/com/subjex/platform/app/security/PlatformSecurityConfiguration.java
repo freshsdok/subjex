@@ -32,7 +32,7 @@ public class PlatformSecurityConfiguration {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/prometheus").permitAll()
                         // JSON twins under /api/v1: same named permissions as their pages.
                         // /api/v1 下的 JSON 孪生接口：与对应页面相同的具名权限。
                         .requestMatchers(HttpMethod.GET, "/api/v1/me").authenticated()

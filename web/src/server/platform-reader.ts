@@ -8,7 +8,7 @@ export type OperatorSelfDocument = components["schemas"]["OperatorSelfDocument"]
 
 // Current session or go to login — 取当前会话，没有就跳登录页。
 export async function requireOperatorSession(): Promise<OperatorSession> {
-  const session = findOperatorSession((await cookies()).get(sessionCookieName)?.value);
+  const session = await findOperatorSession((await cookies()).get(sessionCookieName)?.value);
   if (!session) redirect("/login");
   return session;
 }

@@ -39,3 +39,11 @@ Round 2 — 第二轮（2026-10-05 决策后）:
     概览分区已上线。
 7c. [done] Real form submit: POST /api/v1/forms/{formKey}/submissions validates fields, registers service (registry.write + audit), UI edit → review → confirm; proxy POST enabled.
     表单真提交已打通。
+
+7d. [done] Pushed as remote `96c66e5` (decisions, overview sections, form submit).
+    已推送到 GitHub。
+
+Node 5 / TD-1 — 节点五会话:
+
+8a. [done] Operator sessions use Redis when SESSION_REDIS_URL or REDIS_URL is set; otherwise in-memory (tests + single-node). Call sites are async.
+    配置了 Redis 地址则会话进 Redis；否则仍用内存。调用方已改为 async。

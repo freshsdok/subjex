@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
+import { createClient, type RedisClientType } from "redis";
 
 // Operator session — 操作员会话：浏览器只持有随机会话号（httpOnly cookie），
-// 真正的认证头只留在 Next.js 服务端内存里。
+// 真正的认证头只留在 Next.js 服务端（Redis 或多副本共享；未配 Redis 时退回进程内存）。
 export interface OperatorSession {
   loginName: string;
   credentialHeader: string;
@@ -12,34 +13,94 @@ export interface OperatorSession {
 export const sessionCookieName = "subjex_session";
 export const sessionLifetimeSeconds = 8 * 60 * 60;
 
-// Keep the store on globalThis so dev hot reload does not drop sessions — 挂在 globalThis 上，开发热重载时会话不丢。
+const sessionKeyPrefix = "subjex:operator-session:";
+
+// Keep the memory store on globalThis so dev hot reload does not drop sessions —
+// 挂在 globalThis 上，开发热重载时内存会话不丢（仅无 Redis 时使用）。
 const sessionHolder = globalThis as typeof globalThis & {
   subjexOperatorSessions?: Map<string, OperatorSession>;
+  subjexSessionRedis?: RedisClientType;
+  subjexSessionRedisUrl?: string;
 };
-const operatorSessions: Map<string, OperatorSession> =
+const memorySessions: Map<string, OperatorSession> =
   (sessionHolder.subjexOperatorSessions ??= new Map());
 
-export function openOperatorSession(loginName: string, credentialHeader: string): string {
+function sessionRedisUrl(): string | undefined {
+  const fromSession = process.env.SESSION_REDIS_URL?.trim();
+  if (fromSession) return fromSession;
+  const fromRedis = process.env.REDIS_URL?.trim();
+  return fromRedis || undefined;
+}
+
+async function redisClient(): Promise<RedisClientType | undefined> {
+  const url = sessionRedisUrl();
+  if (!url) return undefined;
+  if (sessionHolder.subjexSessionRedis && sessionHolder.subjexSessionRedisUrl === url) {
+    return sessionHolder.subjexSessionRedis;
+  }
+  const client = createClient({ url }) as RedisClientType;
+  client.on("error", (error) => {
+    console.error("operator-session redis error", error);
+  });
+  await client.connect();
+  sessionHolder.subjexSessionRedis = client;
+  sessionHolder.subjexSessionRedisUrl = url;
+  return client;
+}
+
+export async function openOperatorSession(loginName: string, credentialHeader: string): Promise<string> {
   const sessionId = randomBytes(32).toString("base64url");
-  operatorSessions.set(sessionId, {
+  const session: OperatorSession = {
     loginName,
     credentialHeader,
     expiresAtMillis: Date.now() + sessionLifetimeSeconds * 1000,
-  });
+  };
+  const redis = await redisClient();
+  if (redis) {
+    await redis.set(sessionKeyPrefix + sessionId, JSON.stringify(session), {
+      EX: sessionLifetimeSeconds,
+    });
+    return sessionId;
+  }
+  memorySessions.set(sessionId, session);
   return sessionId;
 }
 
-export function findOperatorSession(sessionId: string | undefined): OperatorSession | undefined {
+export async function findOperatorSession(
+  sessionId: string | undefined,
+): Promise<OperatorSession | undefined> {
   if (!sessionId) return undefined;
-  const session = operatorSessions.get(sessionId);
+  const redis = await redisClient();
+  if (redis) {
+    const raw = await redis.get(sessionKeyPrefix + sessionId);
+    if (!raw) return undefined;
+    const session = JSON.parse(raw) as OperatorSession;
+    if (session.expiresAtMillis <= Date.now()) {
+      await redis.del(sessionKeyPrefix + sessionId);
+      return undefined;
+    }
+    return session;
+  }
+  const session = memorySessions.get(sessionId);
   if (!session) return undefined;
   if (session.expiresAtMillis <= Date.now()) {
-    operatorSessions.delete(sessionId);
+    memorySessions.delete(sessionId);
     return undefined;
   }
   return session;
 }
 
-export function closeOperatorSession(sessionId: string | undefined): void {
-  if (sessionId) operatorSessions.delete(sessionId);
+export async function closeOperatorSession(sessionId: string | undefined): Promise<void> {
+  if (!sessionId) return;
+  const redis = await redisClient();
+  if (redis) {
+    await redis.del(sessionKeyPrefix + sessionId);
+    return;
+  }
+  memorySessions.delete(sessionId);
+}
+
+/** Test helper: wipe memory store (Redis tests use a real/fake URL separately). */
+export function clearMemoryOperatorSessionsForTests(): void {
+  memorySessions.clear();
 }

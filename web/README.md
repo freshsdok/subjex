@@ -28,3 +28,9 @@ npm run dev
 ## 设计
 
 见 [docs/design-notes.md](docs/design-notes.md)。进度切片见 [PROGRESS.md](PROGRESS.md)。
+
+## Sessions (node 5)
+
+Set `SESSION_REDIS_URL=redis://127.0.0.1:16379` (or `REDIS_URL`) so operator sessions are shared across console replicas. Without it, sessions stay in process memory (fine for local single-node and unit tests).
+
+节点五：配置 `SESSION_REDIS_URL`（或 `REDIS_URL`）后，操作员会话进 Redis，多副本控制台共享登录态；未配置时仍用进程内存。

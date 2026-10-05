@@ -143,3 +143,20 @@ Each operator page has a JSON twin under `/api/v1` for the upcoming `web/` Next.
 - Entry gateway: separate process `entry-gateway` (`com.subjex.gateway`) that forwards HTTP to `platform-app` without replacing auth.
 - Coarse rate limit: per client id in-process via the single `RateLimitPort`; 429 when exceeded.
 - Local compose under `deploy/compose/`. No dynamic routing or TLS termination in this node.
+
+## 14. 节点五：可观测与多副本
+
+- Prometheus：`platform-app`、`entry-gateway`、`sample-consumer` 暴露 `/actuator/prometheus`（Micrometer）。存活/就绪仍匿名；指标端点同样匿名，靠网络隔离，不在进程内再做一套认证。
+- 追踪：默认仍是丢弃导出器（生成 trace id，跨进程靠 `traceparent`）。配置了 `PLATFORM_OTLP_ENDPOINT`（或 `OTEL_EXPORTER_OTLP_ENDPOINT`）时改为 OTLP/HTTP 导出；没有采集器时行为与节点一至四相同。
+- 多副本：`deploy/k8s/platform-app.yaml` 副本数为 2；`deploy/compose` 起两个 `platform-app` 实例，入口网关通过 Compose DNS 轮询上游。登记/配置/锁已在共享库，副本之间不靠进程内存。
+- 压测：`deploy/load/smoke-load.sh` 经网关打一串只读请求，打印状态码分布；不是基准测试，只证明多副本+网关可承受短突发。
+- 控制台会话（TD-1）：操作员会话从 Next.js 进程内存迁到 Redis，多副本控制台才共享登录态。网关限流仍是进程内粗限流（多网关副本各算各的），节点五不引入 Redis 限流。
+- 不做：HPA、完整 Grafana 看板、采样策略调优、跨区域。
+
+## 14. Node 5 — observability and two replicas
+
+- Prometheus scrape on `/actuator/prometheus` for the three processes.
+- Optional OTLP/HTTP when an endpoint env is set; otherwise keep the discarding exporter.
+- Two `platform-app` replicas in k8s and compose; gateway uses DNS round-robin.
+- Short smoke load script through the gateway.
+- Console sessions move to Redis (TD-1). Gateway rate limits stay in-process.

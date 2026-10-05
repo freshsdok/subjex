@@ -9,7 +9,7 @@ async function forwardToPlatform(
   context: { params: Promise<{ segments: string[] }> },
 ): Promise<Response> {
   const cookieJar = await cookies();
-  const session = findOperatorSession(cookieJar.get(sessionCookieName)?.value);
+  const session = await findOperatorSession(cookieJar.get(sessionCookieName)?.value);
   if (!session) {
     return Response.json({ reason: "signed-out" }, { status: 401 });
   }

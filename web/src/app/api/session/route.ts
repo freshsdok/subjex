@@ -35,7 +35,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ reason: "platform-error" }, { status: 502 });
   }
 
-  const sessionId = openOperatorSession(loginName, credentialHeader);
+  const sessionId = await openOperatorSession(loginName, credentialHeader);
   const cookieJar = await cookies();
   cookieJar.set(sessionCookieName, sessionId, {
     httpOnly: true,
@@ -50,7 +50,7 @@ export async function POST(request: Request): Promise<Response> {
 // Sign out — 退出：删掉服务端会话并清 cookie。
 export async function DELETE(): Promise<Response> {
   const cookieJar = await cookies();
-  closeOperatorSession(cookieJar.get(sessionCookieName)?.value);
+  await closeOperatorSession(cookieJar.get(sessionCookieName)?.value);
   cookieJar.delete(sessionCookieName);
   return new Response(null, { status: 204 });
 }

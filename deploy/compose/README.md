@@ -1,18 +1,28 @@
 # Local compose — 本地编排
 
-Starts PostgreSQL 16, `platform-app`, and `entry-gateway` for node 4.
-启动 PostgreSQL 16、`platform-app` 和 `entry-gateway`，供节点四使用。
+Starts PostgreSQL 16, Redis 7, two `platform-app` replicas, and `entry-gateway` for node 5.
+启动 PostgreSQL 16、Redis 7、两个 `platform-app` 副本和 `entry-gateway`，供节点五使用。
 
 ```bash
-docker compose -f deploy/compose/docker-compose.yml up --build
+docker compose -f deploy/compose/docker-compose.yml up --build --scale platform-app=2
 ```
 
-- Gateway: `http://127.0.0.1:8088` (forwards to platform-app)
-- Platform: `http://127.0.0.1:8080`
+- Gateway: `http://127.0.0.1:8088` (DNS round-robin to platform-app replicas)
+- Redis: `127.0.0.1:16379` (console sessions when `SESSION_REDIS_URL=redis://127.0.0.1:16379`)
 - Postgres: `127.0.0.1:15432` (user/password/db: `subjex`)
+- Platform is not published on the host; use the gateway (avoids port clash when scaled).
 
 Local operator (profile `local`): `platform-operator` / `change-me`.
 本地操作员（`local` profile）：`platform-operator` / `change-me`。
 
+Optional OTLP: `PLATFORM_OTLP_ENDPOINT=http://host.docker.internal:4318 docker compose ...`
+可选 OTLP：如上设置环境变量。
+
 `mvn test` does not build these images. Stop with Ctrl-C or `docker compose -f deploy/compose/docker-compose.yml down -v`.
 `mvn test` 不构建这些镜像。用 Ctrl-C 或 `down -v` 停掉。
+
+Short load smoke through the gateway:
+
+```bash
+./deploy/load/smoke-load.sh
+```

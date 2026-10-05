@@ -49,6 +49,9 @@ platform:
     consumer-username: ${PLATFORM_OPERATOR_NAME:platform-operator}
     consumer-password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
     breaker-failure-threshold: 3
+  tracing:
+    # Empty keeps the discarding exporter / 空则继续用丢弃导出器
+    otlp-endpoint: ${PLATFORM_OTLP_ENDPOINT:${OTEL_EXPORTER_OTLP_ENDPOINT:}}
   rate-limit:
     permits: 60
   storage:
@@ -58,12 +61,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
   endpoint:
     health:
       probes:
         enabled: true
       show-details: never
+    prometheus:
+      enabled: true
   health:
     livenessstate:
       enabled: true

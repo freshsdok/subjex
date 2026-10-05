@@ -1,25 +1,36 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { closeOperatorSession, findOperatorSession, openOperatorSession, sessionLifetimeSeconds } from "@/server/operator-session";
+import {
+  clearMemoryOperatorSessionsForTests,
+  closeOperatorSession,
+  findOperatorSession,
+  openOperatorSession,
+  sessionLifetimeSeconds,
+} from "@/server/operator-session";
 
 describe("operator session — 操作员会话", () => {
-  afterEach(() => vi.useRealTimers());
-
-  it("finds an open session and forgets a closed one — 能找到、关后找不到", () => {
-    const sessionId = openOperatorSession("platform-operator", "Basic abc");
-    expect(findOperatorSession(sessionId)?.loginName).toBe("platform-operator");
-    closeOperatorSession(sessionId);
-    expect(findOperatorSession(sessionId)).toBeUndefined();
+  afterEach(() => {
+    vi.useRealTimers();
+    clearMemoryOperatorSessionsForTests();
+    delete process.env.SESSION_REDIS_URL;
+    delete process.env.REDIS_URL;
   });
 
-  it("expires after its lifetime — 到期失效", () => {
+  it("finds an open session and forgets a closed one — 能找到、关后找不到", async () => {
+    const sessionId = await openOperatorSession("platform-operator", "Basic abc");
+    expect((await findOperatorSession(sessionId))?.loginName).toBe("platform-operator");
+    await closeOperatorSession(sessionId);
+    expect(await findOperatorSession(sessionId)).toBeUndefined();
+  });
+
+  it("expires after its lifetime — 到期失效", async () => {
     vi.useFakeTimers();
-    const sessionId = openOperatorSession("platform-operator", "Basic abc");
+    const sessionId = await openOperatorSession("platform-operator", "Basic abc");
     vi.advanceTimersByTime(sessionLifetimeSeconds * 1000 + 1);
-    expect(findOperatorSession(sessionId)).toBeUndefined();
+    expect(await findOperatorSession(sessionId)).toBeUndefined();
   });
 
-  it("rejects unknown or missing ids — 未知会话号无效", () => {
-    expect(findOperatorSession(undefined)).toBeUndefined();
-    expect(findOperatorSession("not-a-session")).toBeUndefined();
+  it("rejects unknown or missing ids — 未知会话号无效", async () => {
+    expect(await findOperatorSession(undefined)).toBeUndefined();
+    expect(await findOperatorSession("not-a-session")).toBeUndefined();
   });
 });

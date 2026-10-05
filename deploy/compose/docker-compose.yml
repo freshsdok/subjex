@@ -1,9 +1,9 @@
-# Local stack: PostgreSQL + platform-app + entry-gateway
-# 本地编排：PostgreSQL + platform-app + 入口网关
+# Local stack: PostgreSQL + Redis + two platform-app replicas + entry-gateway
+# 本地编排：PostgreSQL + Redis + 两个 platform-app 副本 + 入口网关
 # From repository root:
-#   docker compose -f deploy/compose/docker-compose.yml up --build
-# Gateway listens on http://127.0.0.1:8088 and forwards to platform-app.
-# 网关监听 http://127.0.0.1:8088，转发到 platform-app。
+#   docker compose -f deploy/compose/docker-compose.yml up --build --scale platform-app=2
+# Gateway listens on http://127.0.0.1:8088 and DNS-round-robins to platform-app.
+# 网关监听 http://127.0.0.1:8088，经 Compose DNS 轮询 platform-app。
 # Images are built here; mvn test does not build them.
 # 镜像在这里构建；mvn test 不构建它们。
 
@@ -18,6 +18,16 @@ services:
       - "15432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U subjex -d subjex"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -38,8 +48,13 @@ services:
       PLATFORM_JDBC_PASSWORD: subjex
       PLATFORM_STORAGE_DIRECTORY: /tmp/objects
       PLATFORM_DISCOVERY_HOST: platform-app
-    ports:
-      - "8080:8080"
+      # Optional OTLP collector, e.g. http://otel-collector:4318
+      # 可选 OTLP 采集器，例如 http://otel-collector:4318
+      PLATFORM_OTLP_ENDPOINT: ${PLATFORM_OTLP_ENDPOINT:-}
+    # No host port: scaling to 2 would conflict on 8080. Reach the app via the gateway.
+    # 不映射宿主机端口：扩到 2 会抢 8080。经网关访问。
+    expose:
+      - "8080"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health/readiness || exit 1"]
       interval: 5s
@@ -59,5 +74,6 @@ services:
       GATEWAY_UPSTREAM: http://platform-app:8080
       GATEWAY_RATE_LIMIT_PERMITS: "120"
       GATEWAY_RATE_LIMIT_WINDOW_SECONDS: "60"
+      PLATFORM_OTLP_ENDPOINT: ${PLATFORM_OTLP_ENDPOINT:-}
     ports:
       - "8088:8088"
