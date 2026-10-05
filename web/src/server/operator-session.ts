@@ -1,16 +1,16 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { createClient, type RedisClientType } from "redis";
 
-// Operator session — 操作员会话：浏览器只持有随机会话号（httpOnly cookie），
-// 真正的认证头只留在 Next.js 服务端（Redis 或多副本共享；未配 Redis 时退回进程内存）。
+// Operator session — 操作员会话：浏览器只持有随机会话号（httpOnly cookie）。
+// 服务端 Map / Redis 只存 AES-256-GCM 密文，解密后的 Basic 头仅在单次请求处理时短暂出现。
 export interface OperatorSession {
   loginName: string;
   credentialHeader: string;
   expiresAtMillis: number;
 }
 
-/** Shape stored in Redis: credential header is AES-256-GCM ciphertext, not plaintext Basic. */
-interface RedisStoredOperatorSession {
+/** Shape stored in Redis and process memory: credential header is ciphertext, never plaintext Basic. */
+interface StoredOperatorSession {
   loginName: string;
   credentialHeaderEnc: string;
   expiresAtMillis: number;
@@ -24,14 +24,15 @@ const sessionKeyPrefix = "subjex:operator-session:";
 const MIN_OPERATOR_SESSION_SECRET_LENGTH = 32;
 const CREDENTIAL_ENC_PREFIX = "v1:";
 
-// Keep the memory store on globalThis so dev hot reload does not drop sessions —
-// 挂在 globalThis 上，开发热重载时内存会话不丢（仅无 Redis 时使用）。
+// Keep stores on globalThis so dev hot reload does not drop sessions —
+// 挂在 globalThis 上，开发热重载时会话不丢。
 const sessionHolder = globalThis as typeof globalThis & {
-  subjexOperatorSessions?: Map<string, OperatorSession>;
+  subjexOperatorSessions?: Map<string, StoredOperatorSession>;
   subjexSessionRedis?: RedisClientType;
   subjexSessionRedisUrl?: string;
+  subjexEphemeralSessionKey?: Buffer;
 };
-const memorySessions: Map<string, OperatorSession> =
+const memorySessions: Map<string, StoredOperatorSession> =
   (sessionHolder.subjexOperatorSessions ??= new Map());
 
 function sessionRedisUrl(): string | undefined {
@@ -43,7 +44,7 @@ function sessionRedisUrl(): string | undefined {
 
 /**
  * AES-256 key derived from OPERATOR_SESSION_SECRET (required when Redis sessions are used).
- * 多副本 / Redis 会话时必须配置 OPERATOR_SESSION_SECRET（至少 32 字符），口令头加密后写入 Redis。
+ * 多副本 / Redis 会话时必须配置 OPERATOR_SESSION_SECRET（至少 32 字符）。
  */
 export function resolveOperatorSessionEncryptionKey(): Buffer {
   const secret = process.env.OPERATOR_SESSION_SECRET?.trim();
@@ -55,7 +56,27 @@ export function resolveOperatorSessionEncryptionKey(): Buffer {
   return createHash("sha256").update(secret, "utf8").digest();
 }
 
-/** Encrypt credential header for Redis at-rest storage (AES-256-GCM). */
+/**
+ * Key for encrypting credentials at rest in the session store.
+ * Redis path: OPERATOR_SESSION_SECRET required. Memory path: same secret if set, else a process-ephemeral key
+ * so the Map never holds plaintext Basic (heap dump of the Map alone is not enough without the key).
+ * Redis：必填 OPERATOR_SESSION_SECRET。进程内存：有密钥则用；否则用进程内临时密钥，Map 从不存明文 Basic。
+ */
+function resolveSessionStoreKey(redisConfigured: boolean): Buffer {
+  if (redisConfigured) {
+    return resolveOperatorSessionEncryptionKey();
+  }
+  const secret = process.env.OPERATOR_SESSION_SECRET?.trim();
+  if (secret && secret.length >= MIN_OPERATOR_SESSION_SECRET_LENGTH) {
+    return createHash("sha256").update(secret, "utf8").digest();
+  }
+  if (!sessionHolder.subjexEphemeralSessionKey) {
+    sessionHolder.subjexEphemeralSessionKey = randomBytes(32);
+  }
+  return sessionHolder.subjexEphemeralSessionKey;
+}
+
+/** Encrypt credential header for at-rest storage (AES-256-GCM). */
 export function encryptCredentialHeader(plaintext: string, key: Buffer): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
@@ -97,18 +118,28 @@ async function redisClient(): Promise<RedisClientType | undefined> {
   return client;
 }
 
+function toOperatorSession(stored: StoredOperatorSession, key: Buffer): OperatorSession | undefined {
+  if (stored.expiresAtMillis <= Date.now()) {
+    return undefined;
+  }
+  return {
+    loginName: stored.loginName,
+    credentialHeader: decryptCredentialHeader(stored.credentialHeaderEnc, key),
+    expiresAtMillis: stored.expiresAtMillis,
+  };
+}
+
 export async function openOperatorSession(loginName: string, credentialHeader: string): Promise<string> {
   const sessionId = randomBytes(32).toString("base64url");
   const expiresAtMillis = Date.now() + sessionLifetimeSeconds * 1000;
   const redisUrl = sessionRedisUrl();
+  const key = resolveSessionStoreKey(!!redisUrl);
+  const stored: StoredOperatorSession = {
+    loginName,
+    credentialHeaderEnc: encryptCredentialHeader(credentialHeader, key),
+    expiresAtMillis,
+  };
   if (redisUrl) {
-    // Require secret before connecting so misconfig fails fast without touching Redis.
-    const key = resolveOperatorSessionEncryptionKey();
-    const stored: RedisStoredOperatorSession = {
-      loginName,
-      credentialHeaderEnc: encryptCredentialHeader(credentialHeader, key),
-      expiresAtMillis,
-    };
     const redis = await redisClient();
     if (!redis) {
       throw new Error("SESSION_REDIS_URL is set but Redis client failed to initialize");
@@ -118,11 +149,7 @@ export async function openOperatorSession(loginName: string, credentialHeader: s
     });
     return sessionId;
   }
-  memorySessions.set(sessionId, {
-    loginName,
-    credentialHeader,
-    expiresAtMillis,
-  });
+  memorySessions.set(sessionId, stored);
   return sessionId;
 }
 
@@ -131,26 +158,24 @@ export async function findOperatorSession(
 ): Promise<OperatorSession | undefined> {
   if (!sessionId) return undefined;
   const redisUrl = sessionRedisUrl();
+  const key = resolveSessionStoreKey(!!redisUrl);
   if (redisUrl) {
-    const key = resolveOperatorSessionEncryptionKey();
     const redis = await redisClient();
     if (!redis) return undefined;
     const raw = await redis.get(sessionKeyPrefix + sessionId);
     if (!raw) return undefined;
-    const stored = JSON.parse(raw) as RedisStoredOperatorSession;
-    if (stored.expiresAtMillis <= Date.now()) {
+    const stored = JSON.parse(raw) as StoredOperatorSession;
+    const session = toOperatorSession(stored, key);
+    if (!session) {
       await redis.del(sessionKeyPrefix + sessionId);
       return undefined;
     }
-    return {
-      loginName: stored.loginName,
-      credentialHeader: decryptCredentialHeader(stored.credentialHeaderEnc, key),
-      expiresAtMillis: stored.expiresAtMillis,
-    };
+    return session;
   }
-  const session = memorySessions.get(sessionId);
-  if (!session) return undefined;
-  if (session.expiresAtMillis <= Date.now()) {
+  const stored = memorySessions.get(sessionId);
+  if (!stored) return undefined;
+  const session = toOperatorSession(stored, key);
+  if (!session) {
     memorySessions.delete(sessionId);
     return undefined;
   }
@@ -170,4 +195,19 @@ export async function closeOperatorSession(sessionId: string | undefined): Promi
 /** Test helper: wipe memory store (Redis tests use a real/fake URL separately). */
 export function clearMemoryOperatorSessionsForTests(): void {
   memorySessions.clear();
+  delete sessionHolder.subjexEphemeralSessionKey;
+}
+
+/** Test helper: memory Map entry must be ciphertext-only (no plaintext Basic field). */
+export function memorySessionIsEncryptedAtRestForTests(sessionId: string): boolean {
+  const stored = memorySessions.get(sessionId) as
+    | (StoredOperatorSession & { credentialHeader?: string })
+    | undefined;
+  if (!stored) return false;
+  if (typeof stored.credentialHeader === "string") return false;
+  return (
+    typeof stored.credentialHeaderEnc === "string" &&
+    stored.credentialHeaderEnc.startsWith(CREDENTIAL_ENC_PREFIX) &&
+    !stored.credentialHeaderEnc.includes("Basic")
+  );
 }

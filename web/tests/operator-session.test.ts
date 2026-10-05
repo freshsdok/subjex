@@ -5,6 +5,7 @@ import {
   decryptCredentialHeader,
   encryptCredentialHeader,
   findOperatorSession,
+  memorySessionIsEncryptedAtRestForTests,
   openOperatorSession,
   resolveOperatorSessionEncryptionKey,
   sessionLifetimeSeconds,
@@ -25,6 +26,14 @@ describe("operator session — 操作员会话", () => {
     expect((await findOperatorSession(sessionId))?.credentialHeader).toBe("Basic abc");
     await closeOperatorSession(sessionId);
     expect(await findOperatorSession(sessionId)).toBeUndefined();
+  });
+
+  it("never keeps plaintext Basic in the memory Map — 进程内存 Map 不存明文 Basic", async () => {
+    const sessionId = await openOperatorSession("platform-operator", "Basic dXNlcjpwYXNz");
+    expect(memorySessionIsEncryptedAtRestForTests(sessionId)).toBe(true);
+    // Decrypted form is only on the returned object for the request, not in the Map.
+    expect((await findOperatorSession(sessionId))?.credentialHeader).toBe("Basic dXNlcjpwYXNz");
+    expect(memorySessionIsEncryptedAtRestForTests(sessionId)).toBe(true);
   });
 
   it("expires after its lifetime — 到期失效", async () => {
