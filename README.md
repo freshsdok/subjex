@@ -103,3 +103,8 @@ MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Dock
 Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
 按 Apache License 2.0 授权，见 [`LICENSE`](LICENSE) 和 [`NOTICE`](NOTICE)。
+
+## Operator console — 操作员控制台
+
+独立 Next.js 控制台在 [`web/`](web/)，浏览器只持有 httpOnly 会话 cookie，由服务端代理访问 `/api/v1`。本地运行见 [`web/README.md`](web/README.md)；设计取舍与截图见 [`web/docs/design-notes.md`](web/docs/design-notes.md)。
+
