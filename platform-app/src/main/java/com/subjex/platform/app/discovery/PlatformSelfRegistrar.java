@@ -7,10 +7,12 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 
 /**
- * PlatformSelfRegistrar — 平台自登记：宿主进程把自己的端点写入进程内登记簿。
+ * PlatformSelfRegistrar — 平台自登记：宿主进程把自己的端点写入本地登记表。
  * <p>
- * The address is this process's advertised host and HTTP port. It is not learned from a registry server.
- * 地址是本进程公布的主机和 HTTP 端口，不是从注册中心服务器学来的。
+ * The address is this process's advertised host and HTTP port.
+ * The write lands in the local table that the HTTP registry publishes. It is not learned from Nacos.
+ * 地址是本进程公布的主机和 HTTP 端口。
+ * 写入落在本地表里，再由 HTTP 登记公布出去。不是从 Nacos 学来的。
  */
 public final class PlatformSelfRegistrar implements ApplicationRunner {
 

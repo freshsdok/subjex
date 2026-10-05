@@ -4,10 +4,10 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * FallbackServiceRegistry — 带回退的登记簿：先查进程内登记，没有再查静态配置。
+ * FallbackServiceRegistry — 带回退的登记簿：主登记簿没有这个名字时，用静态配置。
  * <p>
- * {@link #register} writes only the in-process registry. It does not change static configuration.
- * {@link #register} 只写进程内登记簿，不改静态配置。
+ * {@link #register} writes only the primary registry. It does not change static configuration.
+ * {@link #register} 只写主登记簿，不改静态配置。
  */
 public final class FallbackServiceRegistry implements ServiceRegistry {
 

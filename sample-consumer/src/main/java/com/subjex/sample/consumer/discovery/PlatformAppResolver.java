@@ -7,10 +7,10 @@ import com.subjex.platform.contract.discovery.ServiceRegistry;
 /**
  * PlatformAppResolver — 平台应用解析：示例消费者按服务名取得 platform-app 的端点。
  * <p>
- * A separate process has an empty in-process registry, so the static configuration fallback answers.
- * When the same registry already holds a registration, that registration wins.
- * 独立进程的进程内登记簿是空的，因此由静态配置兜底回答。
- * 同一登记簿里已经有登记时，以登记为准。
+ * The registry is the HTTP registry on platform-app when that call connects.
+ * When it cannot be reached, or it has no platform-app entry, static configuration answers.
+ * 登记簿是 platform-app 上的 HTTP 登记，调用连得上时用它。
+ * 连不上，或里面没有 platform-app 时，由静态配置回答。
  */
 public final class PlatformAppResolver {
 

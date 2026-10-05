@@ -3,7 +3,10 @@ package com.subjex.platform.app;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.connection.ConfiguredConnection;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
+import com.subjex.platform.app.discovery.AddressProbe;
 import com.subjex.platform.app.discovery.PlatformSelfRegistrar;
+import com.subjex.platform.app.discovery.ServiceCatalog;
+import com.subjex.platform.app.discovery.TcpAddressProbe;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
@@ -60,10 +63,28 @@ public class PlatformWiring {
     }
 
     @Bean
-    ServiceRegistry serviceRegistry(ConfigSource configSource) {
+    InProcessServiceRegistry localServiceRegistry() {
+        return new InProcessServiceRegistry();
+    }
+
+    @Bean
+    ServiceRegistry serviceRegistry(InProcessServiceRegistry localServiceRegistry, ConfigSource configSource) {
         return new FallbackServiceRegistry(
-                new InProcessServiceRegistry(),
+                localServiceRegistry,
                 StaticServiceFallback.fromConfig(configSource, PlatformServiceNames.PLATFORM_APP));
+    }
+
+    /**
+     * A short connect, not a health dashboard — 短连接，不是健康看板。
+     */
+    @Bean
+    AddressProbe addressProbe() {
+        return new TcpAddressProbe(Duration.ofMillis(300));
+    }
+
+    @Bean
+    ServiceCatalog serviceCatalog(InProcessServiceRegistry localServiceRegistry, AddressProbe addressProbe) {
+        return new ServiceCatalog(localServiceRegistry, addressProbe);
     }
 
     @Bean

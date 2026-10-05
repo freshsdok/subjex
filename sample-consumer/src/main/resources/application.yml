@@ -18,6 +18,7 @@ server:
 
 platform:
   discovery:
+    self-host: ${PLATFORM_DISCOVERY_HOST:127.0.0.1}
     static:
       platform-app:
         host: ${PLATFORM_APP_HOST:127.0.0.1}

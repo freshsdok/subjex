@@ -1,14 +1,17 @@
 package com.subjex.platform.contract.discovery;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * InProcessServiceRegistry — 进程内登记簿：只在本 JVM 里记住端点。
+ * InProcessServiceRegistry — 进程内登记表：只在本 JVM 的一张表里记住端点。
  * <p>
- * Another process has its own map. This class does not talk to a registry server.
- * 另一个进程有自己的表。这个类不连接注册中心服务器。
+ * The class itself does not open a socket. platform-app publishes this table through its HTTP registry.
+ * Another process does not read this object; it calls that HTTP registry.
+ * 这个类自己不开套接字。platform-app 通过自己的 HTTP 登记把这张表公布出去。
+ * 另一个进程不读这个对象，它调用那个 HTTP 登记。
  */
 public final class InProcessServiceRegistry implements ServiceRegistry {
 
@@ -26,5 +29,12 @@ public final class InProcessServiceRegistry implements ServiceRegistry {
             return Optional.empty();
         }
         return Optional.ofNullable(endpoints.get(serviceName));
+    }
+
+    /**
+     * @return the endpoints currently in this table / 当前表里的端点
+     */
+    public List<ServiceEndpoint> endpoints() {
+        return List.copyOf(endpoints.values());
     }
 }

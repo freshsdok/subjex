@@ -49,7 +49,7 @@
 
 目标形状：这五项留在模块化单体里，各自是一个端口，或一个不依赖宿主进程的模块。以后可以拆成独立进程，调用方仍然依赖原来的契约。它们互相不依赖。`platform-app` 与 `sample-consumer` 仍然是仅有的两个进程。不新增架构门禁：模块之间的禁止依赖靠依赖声明本身守住，`form-render` 不依赖 `platform-app` 或 `sample-consumer`，两个进程也不互相依赖。
 
-- 服务发现：契约 `ServiceRegistry`，操作是 `register` 与 `resolve`。`InProcessServiceRegistry` 只在本 JVM 里记住端点，不假装看见别的进程。`platform-app` 启动时登记自己。`sample-consumer` 解析 `platform-app`。登记簿没有这个名字时，`StaticServiceFallback` 使用本地配置里的主机和端口。没有 Nacos，也没有注册中心进程。
+- 服务发现：契约 `ServiceRegistry`，操作仍是 `register` 与 `resolve`。`platform-app` 把端点留在本进程的表里，并用 `POST /registry/services` 与 `GET /registry/services` 给另一个进程。`sample-consumer` 经这个 HTTP 登记自己、解析 `platform-app`。HTTP 连不上时，`StaticServiceFallback` 仍用 `PLATFORM_APP_HOST` 与 `PLATFORM_APP_PORT`。人看的页面是 `GET /services`：一句话、服务名、地址、状态词 `up` 或 `unknown`。没有 Nacos，也没有单独的注册中心进程。
 - 配置中心：契约 `ConfigSource`。默认实现 `LocalApplicationConfig` 读本进程的应用配置。`MemoryConfigOverride` 是第二个内存来源，测试里可以压过一个具名键。`OverridingConfigSource` 先查覆盖层，再查本地配置。没有网络配置服务器。
 - Kubernetes：`deploy/k8s/` 里是 `platform-app` 与 `sample-consumer` 的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。
 - 低代码：一份声明式表单 `form-render/src/main/resources/forms/endpoint-publication.form.yaml`。`FormRenderer` 把它变成校验过的字段列表。没有界面设计器，也没有在线表单库。
@@ -59,8 +59,10 @@
 
 仍推迟：
 
-- 真实的注册中心服务器，以及跨进程的动态发现。
+- 独立的注册中心服务器（不引入 Nacos、Eureka、Consul）。跨进程登记只走 platform-app 的 HTTP，不另起进程。
 - 真实的配置服务器。
 - 把 Kubernetes 清单应用到集群，以及自动扩容。镜像名只是占位符。
 - 表单设计器，和在线表单运行时数据库。
 - 全量 CRUD 生成（控制器、表、迁移）。现在只生成与字段对应的记录，不生成校验注解。
+
+发现这一刀：两个进程共用 platform-app 上的 HTTP 登记簿。人打开 `/services` 看名单，不看运维控制台。状态词只有连得上才是 `up`，否则是 `unknown`。
