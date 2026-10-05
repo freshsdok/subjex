@@ -38,6 +38,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -47,9 +48,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * JdbcTaskMessagePort — JDBC 任务消息端口：{@link TaskMessagePort} 的唯一实现。
  * <p>
  * The task row and the outbox row are written with SQL in one transaction. Delivery then pushes that
- * stored row through {@link OutboxSocketPublisher}. There is no entity model on this path.
+ * stored row through {@link OutboxSocketPublisher}. {@link #relayPending(int)} retries PENDING rows under a
+ * distributed lock. There is no entity model on this path.
  * 任务行和出箱行在同一个事务里用 SQL 写入。随后 {@link OutboxSocketPublisher} 推送这条已落库的行。
- * 这条路径上没有实体模型。
+ * {@link #relayPending(int)} 在分布式锁下重投 PENDING 行。这条路径上没有实体模型。
  */
 public final class JdbcTaskMessagePort implements TaskMessagePort {
 
@@ -62,6 +64,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
     private final OpenTelemetry openTelemetry;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final String relayOwnerToken;
 
     public JdbcTaskMessagePort(
             JdbcTemplate jdbc,
@@ -82,6 +85,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
         this.openTelemetry = openTelemetry;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.relayOwnerToken = UUID.randomUUID().toString();
     }
 
     @Override
@@ -166,6 +170,36 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
                     taskId);
             return loadTask(taskId);
         });
+    }
+
+    @Override
+    public int relayPending(int batchSize) {
+        if (batchSize < 1) {
+            throw new IllegalArgumentException("batch size must be at least 1");
+        }
+        String lockName = "outbox-relay";
+        if (!lock.tryAcquire(lockName, relayOwnerToken, Duration.ofSeconds(25))) {
+            return 0;
+        }
+        try {
+            List<OutboxEvent> pending = listPending(batchSize);
+            int published = 0;
+            for (OutboxEvent stored : pending) {
+                SocketDelivery delivery = publisher.deliver(stored, false);
+                if ("breaker-open".equals(delivery.result().failureReason())) {
+                    // Do not burn attempt_count while the breaker refuses calls.
+                    // 熔断拒呼时不消耗 attempt_count。
+                    break;
+                }
+                transaction.executeWithoutResult(status -> recordDelivery(stored.eventId(), delivery.result()));
+                if (delivery.result().eventState() == OutboxState.PUBLISHED) {
+                    published++;
+                }
+            }
+            return published;
+        } finally {
+            lock.release(lockName, relayOwnerToken);
+        }
     }
 
     private FirstSubmission insertOrReplay(TaskCommand command, String traceId) {
@@ -315,6 +349,21 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
                 """,
                 (row, rowNumber) -> PlatformTables.mapOutbox(row),
                 eventId);
+    }
+
+    private List<OutboxEvent> listPending(int batchSize) {
+        return jdbc.query(
+                """
+                SELECT event_id, tenant_id, event_name, event_body, event_state, trace_id,
+                       attempt_count, failure_reason, occurred_at, published_at
+                FROM outbox_event
+                WHERE event_state = ?
+                ORDER BY occurred_at ASC, event_id ASC
+                LIMIT ?
+                """,
+                (row, rowNumber) -> PlatformTables.mapOutbox(row),
+                OutboxState.PENDING.name(),
+                batchSize);
     }
 
     private String writeNotice(TaskRecordedNotice notice) {

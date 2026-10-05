@@ -1,44 +1,72 @@
 package com.subjex.platform.app.delivery;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Objects;
+
 /**
- * SamplePathCircuitBreaker — 示例路径熔断器：连续失败达到阈值后，不再调用 sample-consumer。
+ * SamplePathCircuitBreaker — 示例路径熔断器：连续失败达到阈值后暂时不再调用 sample-consumer。
  * <p>
- * The breaker guards only the sample delivery path. A success clears the streak. Once open, it stays open for this process.
- * 熔断器只看守示例投递路径。一次成功会清掉连续失败。打开之后，在本进程内保持打开。
+ * The breaker guards only the sample delivery path. A success clears the streak. Once open, calls are
+ * refused until {@code openCooldown} elapses, then one probe is allowed (half-open). That lets the
+ * background outbox relay recover after a transient consumer outage instead of leaving rows PENDING forever.
+ * 熔断器只看守示例投递路径。一次成功会清掉连续失败。打开之后在冷却期内拒呼，冷却结束后允许一次探测（半开），
+ * 这样后台出箱重投能在消费者短暂不可用后恢复，而不是永远停在 PENDING。
  */
 public final class SamplePathCircuitBreaker {
 
     private final int failureThreshold;
+    private final Duration openCooldown;
+    private final Clock clock;
     private int consecutiveFailures;
     private boolean open;
+    private Instant openedAt;
 
     public SamplePathCircuitBreaker(int failureThreshold) {
+        this(failureThreshold, Duration.ofSeconds(30), Clock.systemUTC());
+    }
+
+    public SamplePathCircuitBreaker(int failureThreshold, Duration openCooldown, Clock clock) {
         if (failureThreshold < 1) {
             throw new IllegalArgumentException("failure threshold must be at least 1");
         }
+        if (openCooldown == null || openCooldown.isNegative()) {
+            throw new IllegalArgumentException("open cooldown must not be negative");
+        }
         this.failureThreshold = failureThreshold;
+        this.openCooldown = openCooldown;
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     public synchronized boolean allowCall() {
-        return !open;
+        if (!open) {
+            return true;
+        }
+        Instant readyAt = openedAt.plus(openCooldown);
+        return !clock.instant().isBefore(readyAt);
     }
 
     public synchronized void recordSuccess() {
         consecutiveFailures = 0;
         open = false;
+        openedAt = null;
     }
 
     public synchronized void recordFailure() {
-        if (open) {
-            return;
-        }
         consecutiveFailures++;
         if (consecutiveFailures >= failureThreshold) {
             open = true;
+            openedAt = clock.instant();
         }
     }
 
     public synchronized boolean isOpen() {
+        return open && !allowCall();
+    }
+
+    /** Whether the breaker has tripped (may still be in half-open probe window). / 是否已跳闸（半开探测窗口内仍为 true）。 */
+    public synchronized boolean isTripped() {
         return open;
     }
 }

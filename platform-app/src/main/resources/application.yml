@@ -56,6 +56,9 @@ platform:
     consumer-username: ${PLATFORM_OPERATOR_NAME:platform-operator}
     consumer-password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
     breaker-failure-threshold: 3
+    # Background relay for PENDING outbox rows / PENDING 出箱行的后台重投
+    relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:2000}
+    relay-batch-size: ${OUTBOX_RELAY_BATCH_SIZE:20}
   tracing:
     # Empty keeps the discarding exporter / 空则继续用丢弃导出器
     otlp-endpoint: ${PLATFORM_OTLP_ENDPOINT:${OTEL_EXPORTER_OTLP_ENDPOINT:}}
