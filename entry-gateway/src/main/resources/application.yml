@@ -1,0 +1,38 @@
+# Entry gateway — 入口网关
+# Forwards HTTP to platform-app. Does not replace operator auth.
+# 把 HTTP 转到 platform-app。不替代操作员认证。
+spring:
+  application:
+    name: entry-gateway
+  main:
+    banner-mode: "off"
+
+server:
+  port: ${GATEWAY_PORT:8088}
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+gateway:
+  upstream:
+    base-url: ${GATEWAY_UPSTREAM:http://127.0.0.1:8080}
+  rate-limit:
+    permits: ${GATEWAY_RATE_LIMIT_PERMITS:120}
+    window-seconds: ${GATEWAY_RATE_LIMIT_WINDOW_SECONDS:60}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true

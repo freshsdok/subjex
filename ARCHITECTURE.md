@@ -127,3 +127,19 @@
 - 这些是操作员接口，不属某个租户，所以租户拦截放行 `/api/v1`。
 
 Each operator page has a JSON twin under `/api/v1` for the upcoming `web/` Next.js app; the HTML pages stay. OpenAPI is served at `/api/v1/openapi.json` (signed-in only). Auth is HTTP Basic per request; the future Next.js server-side proxy keeps the session in an httpOnly cookie, so credentials never reach browser JavaScript. `/api/v1` is operator-scoped, not tenant-scoped.
+
+## 13. 节点四：真库与入口网关
+
+- 真库证明：`VendorStartupTest` 在 Docker 可用时对着 MySQL 8.4 与 PostgreSQL 16 各启动一次 `platform-app`（命令行参数压过 `application.yml`）。没有 Docker 时跳过，不用别的库冒充。
+- 入口网关：独立进程 `entry-gateway`（包名 `com.subjex.gateway`）。它把 HTTP 原样转发到 `platform-app`，不替代认证与权限；操作员凭据仍由上游校验。
+- 粗粒度限流：网关按客户端标识（`X-Forwarded-For` 首段，否则远端地址）在本进程时间窗内计数，超限回 429。使用契约里的单一 `RateLimitPort`；实现只活在网关进程内，不是第二个限流端口，也不是 Redis。
+- 网关自己的存活/就绪探针不转发；其余路径转发并带回上游状态码与正文。
+- 本地编排：`deploy/compose/docker-compose.yml` 起 PostgreSQL、`platform-app`、`entry-gateway`。清单与镜像同节点三风格：多阶段、非 root、`mvn test` 不构建镜像。
+- 不做：动态路由、按路径改写、TLS 终结、多上游负载均衡（留给节点五多副本之后）。
+
+## 13. Node 4 — live databases and entry gateway
+
+- Live proof: `VendorStartupTest` starts `platform-app` once on MySQL 8.4 and once on PostgreSQL 16 when Docker is present.
+- Entry gateway: separate process `entry-gateway` (`com.subjex.gateway`) that forwards HTTP to `platform-app` without replacing auth.
+- Coarse rate limit: per client id in-process via the single `RateLimitPort`; 429 when exceeded.
+- Local compose under `deploy/compose/`. No dynamic routing or TLS termination in this node.

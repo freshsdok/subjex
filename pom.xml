@@ -27,6 +27,7 @@
         <module>form-render</module>
         <module>page-language</module>
         <module>page-skin</module>
+        <module>entry-gateway</module>
     </modules>
 
     <properties>
@@ -60,6 +61,11 @@
             <dependency>
                 <groupId>com.subjex</groupId>
                 <artifactId>page-skin</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.subjex</groupId>
+                <artifactId>entry-gateway</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

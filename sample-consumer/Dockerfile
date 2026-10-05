@@ -16,6 +16,7 @@ COPY model-gateway/pom.xml model-gateway/
 COPY form-render/pom.xml form-render/
 COPY page-language/pom.xml page-language/
 COPY page-skin/pom.xml page-skin/
+COPY entry-gateway/pom.xml entry-gateway/
 COPY deploy/k8s deploy/k8s
 COPY platform-contract/src platform-contract/src
 COPY platform-app/src platform-app/src

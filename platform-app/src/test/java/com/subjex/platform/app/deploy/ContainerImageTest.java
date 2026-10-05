@@ -22,7 +22,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class ContainerImageTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {"platform-app", "sample-consumer"})
+    @ValueSource(strings = {"platform-app", "sample-consumer", "entry-gateway"})
     void dockerfileIsMultiStageNonRootAndMatchesTheManifest(String workload) throws Exception {
         Path root = repositoryRoot();
         String dockerfile = Files.readString(root.resolve(workload).resolve("Dockerfile"));

@@ -24,3 +24,5 @@ platform-app in these manifests does not run the `local` profile, so no operator
 The human page is `GET /deploy` on platform-app. It reads these files. It does not apply them.
 
 给人看的页面是 platform-app 上的 `GET /deploy`。它读这些文件，不应用它们。
+---
+entry-gateway.yaml — HTTP entry gateway (not applied by tests).

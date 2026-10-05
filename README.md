@@ -86,6 +86,12 @@ MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Dock
 
 `page-language` 保存操作页的中文和英文标题。`platform-app` 用名为 `messageSource` 的 Spring `MessageSource` 读取。`?lang=zh` 或 `?lang=en` 优先，然后是 `Accept-Language`，否则是中文。`GET /language` 是只读页：一句话、当前语言，然后是这些标题的人话。说明见 `docs/i18n-ui.md`。`page-skin` 保存三个具名外观：朴素、高对比、沉静，用同样的四个 CSS 变量。`GET /skin` 显示当前名字和三个链接。链接会写入 `skin` cookie。`/services`、`/config`、`/deploy`、`/forms`、`/codegen` 和 `/language` 使用这个外观。说明见 `docs/skin-ui.md`。
 
+## Entry gateway / 入口网关
+
+`entry-gateway` is a separate process that forwards HTTP to `platform-app` and applies coarse in-process rate limiting (429 when exceeded). It does not replace operator authentication. Local stack: `deploy/compose/docker-compose.yml` (PostgreSQL + platform-app + gateway on port 8088).
+
+`entry-gateway` 是独立进程：把 HTTP 转发到 `platform-app`，并做进程内粗粒度限流（超限 429）。它不替代操作员认证。本地编排见 `deploy/compose/docker-compose.yml`（PostgreSQL + platform-app + 网关端口 8088）。
+
 ## Optional model gateway / 可选模型网关
 
 `model-gateway` is not a dependency of `platform-app`. It registers a model provider and records one invocation: provider id, model id, and input digest. There is no vendor SDK and no database.

@@ -1,0 +1,63 @@
+# Local stack: PostgreSQL + platform-app + entry-gateway
+# 本地编排：PostgreSQL + platform-app + 入口网关
+# From repository root:
+#   docker compose -f deploy/compose/docker-compose.yml up --build
+# Gateway listens on http://127.0.0.1:8088 and forwards to platform-app.
+# 网关监听 http://127.0.0.1:8088，转发到 platform-app。
+# Images are built here; mvn test does not build them.
+# 镜像在这里构建；mvn test 不构建它们。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: subjex
+      POSTGRES_USER: subjex
+      POSTGRES_PASSWORD: subjex
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subjex -d subjex"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  platform-app:
+    build:
+      context: ../..
+      dockerfile: platform-app/Dockerfile
+    image: subjex/platform-app:0.1.0-SNAPSHOT
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PLATFORM_CONNECTION_VENDOR: postgresql
+      PLATFORM_JDBC_URL: jdbc:postgresql://postgres:5432/subjex
+      PLATFORM_JDBC_USERNAME: subjex
+      PLATFORM_JDBC_PASSWORD: subjex
+      PLATFORM_STORAGE_DIRECTORY: /tmp/objects
+      PLATFORM_DISCOVERY_HOST: platform-app
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health/readiness || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 40s
+
+  entry-gateway:
+    build:
+      context: ../..
+      dockerfile: entry-gateway/Dockerfile
+    image: subjex/entry-gateway:0.1.0-SNAPSHOT
+    depends_on:
+      platform-app:
+        condition: service_healthy
+    environment:
+      GATEWAY_UPSTREAM: http://platform-app:8080
+      GATEWAY_RATE_LIMIT_PERMITS: "120"
+      GATEWAY_RATE_LIMIT_WINDOW_SECONDS: "60"
+    ports:
+      - "8088:8088"
