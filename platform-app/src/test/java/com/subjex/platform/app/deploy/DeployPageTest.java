@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = DeployPage.class)
 @Import({
     PlatformSecurityConfiguration.class,
+    com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     ManifestCatalog.class,
     DeployPageTest.GateConfiguration.class

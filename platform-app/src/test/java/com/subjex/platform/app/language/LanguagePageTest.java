@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = LanguagePage.class)
 @Import({
     PlatformSecurityConfiguration.class,
+    com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     LanguagePageTest.GateConfiguration.class
 })

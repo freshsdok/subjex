@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = CodegenPage.class)
 @Import({
     PlatformSecurityConfiguration.class,
+    com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     FormCatalog.class,
     CodegenPageTest.GateConfiguration.class

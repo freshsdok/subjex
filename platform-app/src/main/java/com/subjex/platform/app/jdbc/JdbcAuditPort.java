@@ -23,13 +23,14 @@ public final class JdbcAuditPort implements AuditPort {
         jdbc.update(
                 """
                 INSERT INTO audit_entry
-                    (audit_entry_id, tenant_id, actor_identity_id, action_name, outcome, occurred_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                    (audit_entry_id, tenant_id, actor_identity_id, action_name, action_target, outcome, occurred_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 entry.auditEntryId(),
                 entry.tenantId(),
                 entry.actorIdentityId(),
                 entry.actionName(),
+                entry.actionTarget(),
                 entry.outcome().name(),
                 PlatformTables.timestamp(entry.occurredAt()));
     }

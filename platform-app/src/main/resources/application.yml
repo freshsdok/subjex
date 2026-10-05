@@ -12,10 +12,6 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-  security:
-    user:
-      name: ${PLATFORM_OPERATOR_NAME:platform-operator}
-      password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -28,6 +24,11 @@ server:
     include-binding-errors: never
 
 platform:
+  # LOCAL ONLY: used only when SPRING_PROFILES_ACTIVE=local seeds the local operator.
+  # 仅限本地：只有 SPRING_PROFILES_ACTIVE=local 写入本地操作员时才用。
+  local-operator:
+    name: ${PLATFORM_OPERATOR_NAME:platform-operator}
+    password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
   connection:
     vendor: ${PLATFORM_CONNECTION_VENDOR:postgresql}
   discovery:

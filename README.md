@@ -40,9 +40,9 @@ export SAMPLE_CONSUMER_PORT=19081
 mvn -pl platform-app spring-boot:run
 ```
 
-Create the empty database yourself. Flyway applies `V1__platform_schema.sql` on startup. There is no database console.
+Create the empty database yourself. Flyway applies `V1__platform_schema.sql` and the later `V*` scripts on startup. There is no database console.
 
-请自行建空库。启动时 Flyway 执行 `V1__platform_schema.sql`。没有数据库控制台。
+请自行建空库。启动时 Flyway 执行 `V1__platform_schema.sql` 和之后的 `V*` 脚本。没有数据库控制台。
 
 Sample consumer (second process / 第二个进程):
 
@@ -55,15 +55,17 @@ mvn -pl sample-consumer spring-boot:run
 
 `platform-app` 把 `TaskRecorded` 写入 JDBC 出箱，再把这一行通过本地 TCP 套接字推到 `sample-consumer`（未改环境变量时是 `127.0.0.1:19081`）。这个套接字就是投递路径。事件离开一个应用、进入另一个应用，不是进程内方法调用。`traceparent` 在套接字帧上。消费者的 HTTP 端口只用于探针。
 
-Operator HTTP Basic (security is on by default / 安全默认开启): `platform-operator` / `change-me`, unless `PLATFORM_OPERATOR_NAME` and `PLATFORM_OPERATOR_PASSWORD` are set. Probes `GET /actuator/health/liveness` and `GET /actuator/health/readiness` are anonymous. Read-only admin: `GET /admin/tenants`, `GET /admin/tasks`, `GET /admin/dead-letters`, `GET /admin/health`.
+Operator HTTP Basic (security is on by default / 安全默认开启): operators sign in against the tables (`account`, `operator_credential`, `subject_identity` in tenant `platform`), and each path needs one named permission held through `subject_role` → `role_permission`. With `SPRING_PROFILES_ACTIVE=local` platform-app seeds `platform-operator` / `change-me` (or `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD`); that seed is local only. Probes `GET /actuator/health/liveness` and `GET /actuator/health/readiness` are anonymous. Read-only admin (`admin.read`): `GET /admin/tenants`, `GET /admin/tasks`, `GET /admin/dead-letters`, `GET /admin/health`, `GET /admin/audit`, and the page `GET /audit`. Config overrides and registry registrations leave audit entries. Details: `docs/operator-permissions.md`.
+
+操作员 HTTP Basic：操作员对着表登录，每条路径需要一项经 `subject_role` → `role_permission` 持有的具名权限。`SPRING_PROFILES_ACTIVE=local` 时 platform-app 写入本地操作员，只用于本地。配置覆盖和服务登记会留下审计条目，`GET /admin/audit` 与 `GET /audit` 可读。详见 `docs/operator-permissions.md`。
 
 ## Tests / 测试
 
-`mvn test` always runs the contract, lock, rate-limit, breaker, outbox-socket, model-gateway, service-discovery, config-override, http-config, form-render, record-generation, deploy-page, forms-page, codegen-page, language-page, skin-page, and architecture tests.
+`mvn test` always runs the contract, operator-permission and audit (Flyway scripts on H2 in PostgreSQL and MySQL mode, test scope only), lock, rate-limit, breaker, outbox-socket, model-gateway, service-discovery, config-override, http-config, form-render, record-generation, deploy-page, forms-page, codegen-page, language-page, skin-page, and architecture tests.
 
 Live MySQL and PostgreSQL startup tests use Testcontainers and run only when Docker is available. Without Docker they are skipped, not faked. The outbox socket test does not start a database.
 
-`mvn test` 总会跑契约、锁、限流、熔断、出箱套接字、模型网关、服务发现、配置覆盖、表单渲染、记录生成、部署清单页、字段列表页、生成类型页、语言页、外观页和架构测试。
+`mvn test` 总会跑契约、操作员权限与审计（H2 的 PostgreSQL 与 MySQL 兼容模式执行 Flyway 脚本，只在测试范围）、锁、限流、熔断、出箱套接字、模型网关、服务发现、配置覆盖、表单渲染、记录生成、部署清单页、字段列表页、生成类型页、语言页、外观页和架构测试。
 
 MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Docker 时才执行。没有 Docker 时跳过，不用别的库冒充。出箱套接字测试不启动数据库。
 

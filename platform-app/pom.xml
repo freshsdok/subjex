@@ -89,6 +89,13 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- H2 in PostgreSQL / MySQL mode runs the shared Flyway scripts in tests without Docker. It never ships. -->
+        <!-- H2 以 PostgreSQL / MySQL 兼容模式在测试里执行共用迁移脚本，不需要 Docker，也不进发布包。 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>

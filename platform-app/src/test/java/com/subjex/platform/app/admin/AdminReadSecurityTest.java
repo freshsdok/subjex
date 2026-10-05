@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = AdminReadEndpoint.class)
 @Import({
     PlatformSecurityConfiguration.class,
+    com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     AdminReadSecurityTest.GuardConfiguration.class
 })

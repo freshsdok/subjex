@@ -66,6 +66,8 @@ class VendorStartupTest {
             ConnectionVendor expected) throws Exception {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(PlatformApplication.class)
                 .properties(
+                        // LOCAL ONLY seed so the operator below exists / 仅限本地的种子，让下面的操作员存在
+                        "spring.profiles.active=local",
                         "platform.connection.vendor=" + vendor,
                         "spring.datasource.url=" + jdbcUrl,
                         "spring.datasource.username=" + username,

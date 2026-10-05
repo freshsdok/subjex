@@ -1,5 +1,6 @@
 package com.subjex.platform.app.jdbc;
 
+import com.subjex.platform.app.admin.AuditRow;
 import com.subjex.platform.contract.task.DeadLetter;
 import com.subjex.platform.contract.task.HumanConfirmation;
 import com.subjex.platform.contract.task.OriginKind;
@@ -71,6 +72,18 @@ public final class PlatformTables {
                 row.getString("tenant_id"),
                 row.getString("tenant_name"),
                 TenantState.valueOf(row.getString("tenant_state")));
+    }
+
+    public static AuditRow mapAuditRow(ResultSet row) throws SQLException {
+        return new AuditRow(
+                row.getString("audit_entry_id"),
+                instant(row, "occurred_at"),
+                row.getString("tenant_id"),
+                row.getString("actor_identity_id"),
+                row.getString("login_name"),
+                row.getString("action_name"),
+                row.getString("action_target"),
+                row.getString("outcome"));
     }
 
     public static Timestamp timestamp(Instant instant) {

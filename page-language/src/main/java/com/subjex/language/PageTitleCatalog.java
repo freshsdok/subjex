@@ -31,9 +31,12 @@ public final class PageTitleCatalog {
     /** Skin page title — 外观页标题。 */
     public static final String SKIN = "title.skin";
 
+    /** Audit page title — 审计记录标题。 */
+    public static final String AUDIT = "title.audit";
+
     /** Reading order — 阅读顺序。 */
     public static final List<String> CODES = List.of(
-            SERVICES, CONFIG, DEPLOY, FORMS, CODEGEN, LANGUAGE, SKIN);
+            SERVICES, CONFIG, DEPLOY, FORMS, CODEGEN, LANGUAGE, SKIN, AUDIT);
 
     private PageTitleCatalog() {}
 }

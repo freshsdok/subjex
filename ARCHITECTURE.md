@@ -84,3 +84,11 @@
 
 这一版落地的就是上面这一薄层。发现、配置、清单、表单和生成的行为不变，只是标题随语言变，颜色随外观变。
 
+## 9. 节点一：权限与可读审计
+
+- 单个 Basic 操作员换成表：`platform_permission`、`platform_role`、`role_permission`、`subject_role`、`operator_credential`（Flyway `V2__operator_permission.sql`）。脚本只放目录，不写入任何人或口令。
+- 操作员是 `account` → 保留租户 `platform` 里的 `subject_identity` → `subject`。`JdbcOperatorDirectory` 按登录名查出口令摘要、身份和权限名；账号和身份都是 `ACTIVE` 才可用。
+- 每条路径要一项具名权限：`admin.read`、`page.read`、`config.read`、`config.write`、`registry.read`、`registry.write`、`task.write`。缺权限 403，未登录 401。租户仍然 fail-closed：`/tasks` 缺 `X-Tenant-Id` 仍是 403。
+- 本地操作员只在 profile `local` 下由 `LocalOperatorSeeder` 写入，并打印 `LOCAL ONLY` 警告。别处以表行开通。
+- 配置覆盖（`config.override`）和服务登记（`registry.register`）各写一条审计，租户是 `platform`，操作者是操作员身份，对象是键或服务名。`audit_entry` 多一列 `action_target`。`GET /admin/audit` 给 JSON，`GET /audit` 给人看的页面。仍只有一个 `AuditPort`。
+- 测试用 H2 的 PostgreSQL / MySQL 兼容模式执行真实迁移，只在测试范围。这不是真实厂商的证明。

@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = TaskSubmissionEndpoint.class)
 @Import({
     PlatformSecurityConfiguration.class,
+    com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     TaskSubmissionSecurityTest.GuardConfiguration.class
 })

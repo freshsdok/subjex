@@ -15,6 +15,8 @@ import com.subjex.platform.app.jdbc.JdbcIdempotencyPort;
 import com.subjex.platform.app.jdbc.JdbcTaskMessagePort;
 import com.subjex.platform.app.lock.SingleProcessLock;
 import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
+import com.subjex.platform.app.security.JdbcOperatorDirectory;
+import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.app.config.ConfigCatalog;
@@ -166,6 +168,19 @@ public class PlatformWiring {
     @Bean
     AuditPort auditPort(JdbcTemplate jdbc) {
         return new JdbcAuditPort(jdbc);
+    }
+
+    /**
+     * Operators sign in against the tables, not a property — 操作员对着表登录，不对着某个属性。
+     */
+    @Bean
+    JdbcOperatorDirectory operatorDirectory(JdbcTemplate jdbc) {
+        return new JdbcOperatorDirectory(jdbc);
+    }
+
+    @Bean
+    OperatorActionAudit operatorActionAudit(AuditPort auditPort, Clock clock) {
+        return new OperatorActionAudit(auditPort, clock);
     }
 
     @Bean

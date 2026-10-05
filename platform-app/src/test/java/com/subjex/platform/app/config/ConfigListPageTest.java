@@ -34,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = {ConfigEntriesEndpoint.class, ConfigListPage.class})
 @Import({
     PlatformSecurityConfiguration.class,
+    com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     ConfigListPageTest.CatalogConfiguration.class
 })

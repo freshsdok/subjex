@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = SkinPage.class)
 @Import({
     PlatformSecurityConfiguration.class,
+    com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     SkinPageTest.GateConfiguration.class
 })

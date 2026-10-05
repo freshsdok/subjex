@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = FormsPage.class)
 @Import({
     PlatformSecurityConfiguration.class,
+    com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
     FormCatalog.class,
     FormsPageTest.GateConfiguration.class

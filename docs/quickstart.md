@@ -38,6 +38,7 @@ export PLATFORM_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/subjex
 export PLATFORM_JDBC_USERNAME=subjex
 export PLATFORM_JDBC_PASSWORD=subjex
 export PLATFORM_JDBC_DRIVER=org.postgresql.Driver
+export SPRING_PROFILES_ACTIVE=local   # LOCAL ONLY: seeds the local operator / 仅限本地：写入本地操作员
 java -jar platform-app/target/platform-app-0.1.0-SNAPSHOT-exec.jar
 ```
 
@@ -76,13 +77,14 @@ All of these are on platform-app (`http://127.0.0.1:8080`) and ask for the opera
 | `/codegen` | the record generated from that form / 由表单生成的记录 |
 | `/language` | page titles in the current language (`?lang=en`) / 当前语言的标题 |
 | `/skin` | three named skins / 三个具名外观 |
-| `/admin/health`, `/admin/tenants`, `/admin/tasks`, `/admin/dead-letters` | read-only JSON for the operator / 只读 JSON |
+| `/audit` | audit entries, newest first / 审计记录，最新在前 |
+| `/admin/health`, `/admin/tenants`, `/admin/tasks`, `/admin/dead-letters`, `/admin/audit` | read-only JSON for the operator / 只读 JSON |
 
 ## 6. Operator credentials are local only / 操作员口令只用于本地
 
-The default operator is `platform-operator` / `change-me`. It exists so a laptop works on the first start. Do not use it anywhere else. Set `PLATFORM_OPERATOR_NAME` and `PLATFORM_OPERATOR_PASSWORD` on both processes before the process is reachable by anyone else.
+The default operator is `platform-operator` / `change-me`. It is written into the tables only under `SPRING_PROFILES_ACTIVE=local`, so a laptop works on the first start. Do not use that profile or that password anywhere else. Set `PLATFORM_OPERATOR_NAME` and `PLATFORM_OPERATOR_PASSWORD` on both processes before the process is reachable by anyone else. Outside a laptop, provision operators as rows; see [`operator-permissions.md`](operator-permissions.md).
 
-默认操作员是 `platform-operator` / `change-me`，只是为了让本机第一次就能启动。不要在别处使用。进程能被别人访问之前，在两个进程上都设置 `PLATFORM_OPERATOR_NAME` 和 `PLATFORM_OPERATOR_PASSWORD`。
+默认操作员是 `platform-operator` / `change-me`，只在 `SPRING_PROFILES_ACTIVE=local` 下写入表里，让本机第一次就能启动。不要在别处使用这个 profile 或这个口令。进程能被别人访问之前，在两个进程上都设置 `PLATFORM_OPERATOR_NAME` 和 `PLATFORM_OPERATOR_PASSWORD`。开发机以外，以表行开通操作员，见 [`operator-permissions.md`](operator-permissions.md)。
 
 ```shell
 curl -u platform-operator:change-me http://127.0.0.1:8080/admin/health
