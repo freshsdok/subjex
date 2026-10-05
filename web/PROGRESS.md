@@ -25,7 +25,17 @@ Slice log — 切片记录（每片做完即本地提交）:
 6b. [done] Playwright Chromium screenshots in `docs/screenshots/` (login, wrong password, overview, services, config review, audit, en+calm). Install lives under /workspace/web-shots (not in repo).
     截图已落盘。
 6c. [done] `docs/design-notes.md` (Nacos/Consul/Spring Boot Admin/Keycloak real issue URLs + 待讨论 6 点), web README, root README console section.
-6d. [next] Push local commits since 8abf74d via Mac gh (scaffold → this slice).
+6d. [done] Pushed as remote `2d9577f` (tree of all web/ slices since 8abf74d). Local commits remain as history; remote is one squash-style Git Data commit.
+    已推送到 GitHub。
 5. [todo] Screens: config, audit, deploy, forms, codegen; i18n zh/en; three skins.
 
 Dev runtime — 开发运行环境: `next dev -p 3000` pid in /tmp/nextdev.pid, log /tmp/nextdev.log; docker container `subjex-web-dev-pg` (postgres:16-alpine, 127.0.0.1:15432, subjex/subjex/subjex); app log /tmp/subjex-dev/app.log, pid in /tmp/subjex-dev/app.pid. Rebuild jar first: `mvn -o -q package -DskipTests -pl platform-app -am`.
+
+Round 2 — 第二轮（2026-10-05 决策后）:
+
+7a. [done] Decisions + tech debt TD-1 (in-memory session) recorded in docs/design-notes.md; login page language select.
+    决策与技术债已记录；登录页可选语言。
+7b. [done] Overview sections: service health, recent audit (latest 5), unapplied deploy notice; each section degrades to a permission hint on 403.
+    概览分区已上线。
+7c. [done] Real form submit: POST /api/v1/forms/{formKey}/submissions validates fields, registers service (registry.write + audit), UI edit → review → confirm; proxy POST enabled.
+    表单真提交已打通。

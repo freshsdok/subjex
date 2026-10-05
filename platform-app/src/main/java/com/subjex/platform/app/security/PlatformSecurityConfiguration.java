@@ -43,6 +43,8 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.CONFIG_READ.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/config/**")
                                 .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/forms/*/submissions")
+                                .hasAuthority(OperatorPermission.REGISTRY_WRITE.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.GET,

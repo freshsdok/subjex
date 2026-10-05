@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/forms/{formKey}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/skins": {
         parameters: {
             query?: never;
@@ -176,6 +192,18 @@ export interface components {
             value?: string;
             origin?: string;
         };
+        FormSubmissionDocument: {
+            values?: {
+                [key: string]: unknown;
+            };
+        };
+        FormSubmissionResultDocument: {
+            formKey?: string;
+            serviceName?: string;
+            host?: string;
+            /** Format: int32 */
+            port?: number;
+        };
         SkinDocument: {
             name?: string;
             variables?: {
@@ -294,6 +322,46 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ConfigEntryDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["FormSubmissionDocument"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FormSubmissionResultDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */

@@ -16,6 +16,7 @@ import com.subjex.platform.app.deploy.ManifestCatalog;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.form.FormCatalog;
+import com.subjex.platform.app.form.FormSubmissionEndpoint;
 import com.subjex.platform.app.form.FormsApiEndpoint;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.language.LanguageApiEndpoint;
@@ -59,6 +60,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
     AuditApiEndpoint.class,
     DeployApiEndpoint.class,
     FormsApiEndpoint.class,
+    FormSubmissionEndpoint.class,
     CodegenApiEndpoint.class,
     LanguageApiEndpoint.class,
     SkinApiEndpoint.class

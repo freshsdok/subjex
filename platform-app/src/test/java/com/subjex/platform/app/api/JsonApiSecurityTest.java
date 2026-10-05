@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,6 +23,7 @@ import com.subjex.platform.app.discovery.ListedService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.form.FormCatalog;
+import com.subjex.platform.app.form.FormSubmissionEndpoint;
 import com.subjex.platform.app.form.FormsApiEndpoint;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.language.LanguageApiEndpoint;
@@ -32,6 +34,7 @@ import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.skin.SkinApiEndpoint;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import com.subjex.platform.contract.config.ConfigEntry;
 import com.subjex.platform.contract.config.ConfigOrigin;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
@@ -69,6 +72,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     AuditApiEndpoint.class,
     DeployApiEndpoint.class,
     FormsApiEndpoint.class,
+    FormSubmissionEndpoint.class,
     CodegenApiEndpoint.class,
     LanguageApiEndpoint.class,
     SkinApiEndpoint.class
@@ -216,6 +220,38 @@ class JsonApiSecurityTest {
         mockMvc.perform(get(path).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(keyField).exists());
+    }
+
+
+    @Test
+    void formSubmissionNeedsRegistryWriteRefusesBadFieldsAndIsAudited() throws Exception {
+        String path = JsonApi.BASE + "/forms/endpoint-publication/submissions";
+        String body = "{\"values\":{\"serviceName\":\"billing\",\"host\":\"10.0.0.8\",\"port\":8080}}";
+        mockMvc.perform(submit(path, body)).andExpect(status().isUnauthorized());
+        mockMvc.perform(submit(path, body).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(submit(path, body).with(httpBasic(BARE, BARE_PASSWORD)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(submit(path, "{\"values\":{\"serviceName\":\"\",\"host\":\"10.0.0.8\",\"port\":8080}}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isBadRequest());
+        verify(serviceCatalog, never()).register(any());
+        verify(operatorActionAudit, never()).record(any(), eq(OperatorActionAudit.REGISTRY_REGISTER), anyString(), any());
+
+        mockMvc.perform(submit(path, body).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.formKey").value("endpoint-publication"))
+                .andExpect(jsonPath("$.serviceName").value("billing"))
+                .andExpect(jsonPath("$.host").value("10.0.0.8"))
+                .andExpect(jsonPath("$.port").value(8080));
+        verify(serviceCatalog).register(new ServiceEndpoint("billing", "10.0.0.8", 8080));
+        verify(operatorActionAudit).record(
+                any(), eq(OperatorActionAudit.REGISTRY_REGISTER), eq("billing"), eq(AuditOutcome.ALLOWED));
+    }
+
+    private static MockHttpServletRequestBuilder submit(String path, String body) {
+        return post(path).contentType(MediaType.APPLICATION_JSON).content(body);
     }
 
     private static MockHttpServletRequestBuilder override(String path, String body) {
