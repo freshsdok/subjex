@@ -11,3 +11,7 @@ There is no cluster in the test path, and no HorizontalPodAutoscaler.
 Image names (`subjex/platform-app`, `subjex/sample-consumer`) are placeholders.
 
 镜像名（`subjex/platform-app`、`subjex/sample-consumer`）是占位符。
+
+The human page is `GET /deploy` on platform-app. It reads these files. It does not apply them.
+
+给人看的页面是 platform-app 上的 `GET /deploy`。它读这些文件，不应用它们。

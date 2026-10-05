@@ -51,7 +51,7 @@
 
 - 服务发现：契约 `ServiceRegistry`，操作仍是 `register` 与 `resolve`。`platform-app` 把端点留在本进程的表里，并用 `POST /registry/services` 与 `GET /registry/services` 给另一个进程。`sample-consumer` 经这个 HTTP 登记自己、解析 `platform-app`。HTTP 连不上时，`StaticServiceFallback` 仍用 `PLATFORM_APP_HOST` 与 `PLATFORM_APP_PORT`。人看的页面是 `GET /services`：一句话、服务名、地址、状态词 `up` 或 `unknown`。没有 Nacos，也没有单独的注册中心进程。
 - 配置中心：契约 `ConfigSource`。默认实现 `LocalApplicationConfig` 读本进程的应用配置。`MemoryConfigOverride` 是第二个内存来源，可压过一个具名键。`OverridingConfigSource` 先查覆盖层，再查本地配置。`platform-app` 把覆盖留在内存里，用 `GET/POST /config/entries` 给另一个进程读生效值或压过一个键。`sample-consumer` 经 `HttpConfigSource` 读生效值，连不上时仍用本地应用配置。人看的页面是 `GET /config`：一句话、键、生效值、来源词“本地文件”或“内存覆盖”。没有单独的配置服务器，也没有 Nacos/Apollo 客户端。
-- Kubernetes：`deploy/k8s/` 里是 `platform-app` 与 `sample-consumer` 的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。
+- Kubernetes：`deploy/k8s/` 里是 `platform-app` 与 `sample-consumer` 的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。人看的页面是 `GET /deploy`：一句话说明这些清单没有应用到任何集群，然后每个工作负载一行（名字、占位镜像、存活路径、就绪路径、用兆比字节写明的内存上限）。页面读构建时复制到 classpath 的同一份 YAML。没有集群状态，也没有应用按钮。
 - 低代码：一份声明式表单 `form-render/src/main/resources/forms/endpoint-publication.form.yaml`。`FormRenderer` 把它变成校验过的字段列表。没有界面设计器，也没有在线表单库。
 - 代码生成：`FormRecordGenerator` 读同一份表单，写出一个 Java 记录。生成结果检入 `EndpointPublication`。测试核对记录组件与表单字段一致。构建不运行注解处理器。
 
@@ -68,3 +68,5 @@
 发现这一刀：两个进程共用 platform-app 上的 HTTP 登记簿。人打开 `/services` 看名单，不看运维控制台。状态词只有连得上才是 `up`，否则是 `unknown`。
 
 配置这一刀：两个进程共用 platform-app 上的内存覆盖与 HTTP 条目。人打开 `/config` 看键、生效值和来源，不看巨型属性堆。来源词只有本地文件或内存覆盖。
+
+清单这一刀：人打开 `/deploy` 看探针路径和内存上限，不看集群。存活路径与就绪路径分开写，避免进程还在跑却被当成已就绪。内存上限写成兆比字节，避免把 `m` 读成兆。
