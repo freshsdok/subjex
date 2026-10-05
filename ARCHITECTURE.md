@@ -11,8 +11,8 @@
 - 契约：身份（Account / Subject / Identity）、租户 fail-closed、审计、事件与任务、对象存储、编译期扩展、单一幂等端口、单一限流端口。
 - 数据库端口：连接与迁移可替换。第一版跑通 MySQL 和 PostgreSQL。业务读写不经过模型层。
 - 任务端口：确定性任务是可重试、可核对的数据步骤。非确定性任务只多三个字段：模型标识、输入摘要、人工确认点。未确认不算完成。同一张任务表，不另建表。
-- `platform-app`：空宿主进程。`sample-consumer`：只订阅一条跨进程事件。
-- 薄管理台：只读租户、任务、死信、健康状态。
+- `platform-app`：空宿主进程。`sample-consumer`：只订阅一条跨进程事件。节点四起另有 `entry-gateway`（入口转发 + 粗限流，第 13 节）；`web/` 是独立的 Next.js 操作员控制台（第 12、14 节）。
+- 薄管理台：第一版只读租户、任务、死信、健康状态。之后的 HTML 页面仍只读；`/api/v1` 与 `web/` 控制台按具名权限可写配置覆盖、登记服务、提交表单（第 9、12、15 节），每次写入都留审计。
 - 架构测试只守本规范已写明的边界，开发过程中不临时加门禁。
 
 ## 3. 第一版实现
@@ -47,12 +47,12 @@
 
 ## 7. 发现、配置、清单、表单与生成
 
-目标形状：这五项留在模块化单体里，各自是一个端口，或一个不依赖宿主进程的模块。以后可以拆成独立进程，调用方仍然依赖原来的契约。它们互相不依赖。`platform-app` 与 `sample-consumer` 仍然是仅有的两个进程。不新增架构门禁：模块之间的禁止依赖靠依赖声明本身守住，`form-render` 不依赖 `platform-app` 或 `sample-consumer`，两个进程也不互相依赖。
+目标形状：这五项留在模块化单体里，各自是一个端口，或一个不依赖宿主进程的模块。以后可以拆成独立进程，调用方仍然依赖原来的契约。它们互相不依赖。本节落地时 `platform-app` 与 `sample-consumer` 是仅有的两个进程（节点四加了 `entry-gateway`，见第 13 节）。不新增架构门禁：模块之间的禁止依赖靠依赖声明本身守住，`form-render` 不依赖 `platform-app` 或 `sample-consumer`，两个进程也不互相依赖。
 
 - 服务发现：契约 `ServiceRegistry`，操作仍是 `register` 与 `resolve`。`platform-app` 把端点留在共享库的 `service_endpoint` 表里，并用 `POST /registry/services` 与 `GET /registry/services` 给另一个进程。`sample-consumer` 经这个 HTTP 登记自己、解析 `platform-app`。HTTP 连不上时，`StaticServiceFallback` 仍用 `PLATFORM_APP_HOST` 与 `PLATFORM_APP_PORT`。人看的页面是 `GET /services`：一句话、服务名、地址、状态词 `up` 或 `unknown`。没有 Nacos，也没有单独的注册中心进程。 `platform-app` 在 Web 服务器启动后（`WebServerInitializedEvent`）用真正绑定的端口登记自己，不读 `server.port`，所以 `server.port=0` 登记的是随机端口；单独的管理端口不登记。
 - 配置中心：契约 `ConfigSource`。默认实现 `LocalApplicationConfig` 读本进程的应用配置。`ConfigOverrideStore` 是可写的覆盖层（platform-app 用表 `config_override`，测试仍可用 `MemoryConfigOverride`）。`OverridingConfigSource` 先查覆盖层，再查本地配置。`platform-app` 用 `GET/POST /config/entries` 给另一个进程读生效值或压过一个键。`sample-consumer` 经 `HttpConfigSource` 读生效值，连不上时仍用本地应用配置。人看的页面是 `GET /config`：一句话、键、生效值、来源词“本地文件”或“已存覆盖”。没有单独的配置服务器，也没有 Nacos/Apollo 客户端。详见第 10 节。
-- Kubernetes：`deploy/k8s/` 里是 `platform-app` 与 `sample-consumer` 的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。人看的页面是 `GET /deploy`：一句话说明这些清单没有应用到任何集群，然后每个工作负载一行（名字、占位镜像、存活路径、就绪路径、用兆比字节写明的内存上限）。页面读构建时复制到 classpath 的同一份 YAML。没有集群状态，也没有应用按钮。
-- 低代码：一份声明式表单 `form-render/src/main/resources/forms/endpoint-publication.form.yaml`。`FormRenderer` 把它变成校验过的字段列表。人看的页面是 `GET /forms`：一句话说明这是字段列表，不是设计器，然后每个字段一行（名字、类型、是否必填，中文在前、英文在后）。页面读的是同一份 YAML。没有界面设计器，也没有在线表单库。
+- Kubernetes：`deploy/k8s/` 里是 `platform-app`、`sample-consumer`（节点四起还有 `entry-gateway`）的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。人看的页面是 `GET /deploy`：一句话说明这些清单没有应用到任何集群，然后每个工作负载一行（名字、占位镜像、存活路径、就绪路径、用兆比字节写明的内存上限）。页面读构建时复制到 classpath 的同一份 YAML。没有集群状态，也没有应用按钮。
+- 低代码：本节落地时是一份声明式表单 `form-render/src/main/resources/forms/endpoint-publication.form.yaml`（节点六起是多表单目录，另有 `config-override.form.yaml`，并可提交落库，见第 15 节）。`FormRenderer` 把它变成校验过的字段列表。人看的页面是 `GET /forms`：一句话说明这是字段列表，不是设计器，然后每个字段一行（名字、类型、是否必填，中文在前、英文在后）。页面读的是同一份 YAML。没有界面设计器，也没有在线表单库。
 - 代码生成：`FormRecordGenerator` 读同一份表单，写出一个 Java 记录。生成结果检入 `EndpointPublication`。测试核对记录组件与表单字段一致。构建不运行注解处理器。人看的页面是 `GET /codegen`：一句话说明这一页展示从表单生成的类型，不是在浏览器里运行的生成器，然后是记录名和每个组件的类型（中文在前、英文在后）。名字和类型来自已检入的记录，并与同一份 YAML 经现有生成器核对。没有运行时写文件的按钮。
 
 这一版落地的就是上面这一薄层。
@@ -67,7 +67,7 @@
 
 发现这一刀：两个进程共用 platform-app 上的 HTTP 登记簿。人打开 `/services` 看名单，不看运维控制台。状态词只有连得上才是 `up`，否则是 `unknown`。
 
-配置这一刀：两个进程共用 platform-app 上的内存覆盖与 HTTP 条目。人打开 `/config` 看键、生效值和来源，不看巨型属性堆。来源词只有本地文件或内存覆盖。
+配置这一刀：两个进程共用 platform-app 上的覆盖层与 HTTP 条目（覆盖层起初在内存，节点二起在共享库表 `config_override`）。人打开 `/config` 看键、生效值和来源，不看巨型属性堆。来源词只有“本地文件”或“已存覆盖”。
 
 清单这一刀：人打开 `/deploy` 看探针路径和内存上限，不看集群。存活路径与就绪路径分开写，避免进程还在跑却被当成已就绪。内存上限写成兆比字节，避免把 `m` 读成兆。
 
@@ -95,13 +95,15 @@
 
 ## 10. 节点二：发现、配置覆盖与锁的共享存放
 
-- 服务端点、配置覆盖和具名锁都进共享库（Flyway `V3__shared_registry_config_lock.sql`）：`service_endpoint`、`config_override`、`platform_lock`。指向同一个库的进程看到同样的行，重启之后也一样。没有 Nacos，也没有 Redis。
+- 服务端点、配置覆盖和具名锁都进共享库（Flyway `V3__shared_registry_config_lock.sql`）：`service_endpoint`、`config_override`、`platform_lock`。指向同一个库的进程看到同样的行，重启之后也一样。没有 Nacos；Java 进程不用 Redis（节点五起只有 `web/` 控制台用 Redis 存操作员会话，见第 14 节）。
 - `JdbcServiceRegistry` 实现 `ServiceRoster`（在 `ServiceRegistry` 上多一个全表读取）。`FallbackServiceRegistry` 仍包一层：主名册没有名字时用静态 host/port。`InProcessServiceRegistry` 只留给测试。
 - `JdbcConfigOverride` 实现 `ConfigOverrideStore`。本地应用配置仍是底层；覆盖层是表行。`MemoryConfigOverride` 只留给测试。人看的来源词是“本地文件”或“已存覆盖”。
 - `JdbcRowLock` 实现 `DistributedLockPort`：一行写持有者和到期时间；释放只删自己的行，过期可被接手。`SingleProcessLock` 移到测试源码。
 - 证明：同一份 H2 库上两个仓库实例（或先后新建）能读到彼此写下的登记和覆盖；锁在两个实例之间互斥，过期后可接手。
 
 ## 11. 节点三：镜像与持续集成
+
+（本节写于节点三，当时两份 Dockerfile；节点四加了 `entry-gateway/Dockerfile`，现在是三份、三个镜像，规则相同。`web/` 还没有 Dockerfile。）
 
 - `platform-app/Dockerfile` 与 `sample-consumer/Dockerfile`：多阶段构建。第一阶段用 Maven 在仓库根目录执行 `-pl <进程> -am package`；第二阶段只有 JRE 和可运行 jar，以 uid 10001 的 `subjex` 用户运行。构建上下文是仓库根目录，`.dockerignore` 排除 `target/` 和 `.git/`。
 - `deploy/k8s/` 的镜像名就是这两份 Dockerfile 打的标签（`subjex/platform-app:0.1.0-SNAPSHOT`、`subjex/sample-consumer:0.1.0-SNAPSHOT`），并设置 `runAsNonRoot`、`runAsUser: 10001`。镜像不推送到任何仓库，清单仍不被应用。清单里不启用 `local`，操作员要以表行开通。
@@ -111,7 +113,7 @@
 
 ## 12. JSON 接口与 OpenAPI
 
-每个操作页在 `/api/v1` 下都有一个 JSON 接口，给后续的 `web/` 前端（Next.js）使用。HTML 页面保留不变。权限沿用节点一的具名权限：
+每个操作页在 `/api/v1` 下都有一个 JSON 接口，给 `web/` 前端（Next.js）使用。节点六另加 `GET /api/v1/forms/{formKey}/submissions` 与 `POST` 同路径（写权限随表单而定，见第 15 节）。HTML 页面保留不变。权限沿用节点一的具名权限：
 
 | 接口 | 权限 |
 |---|---|
@@ -123,45 +125,49 @@
 | `GET /api/v1/deploy`、`/forms`、`/codegen`、`/language`、`/skins` | `page.read` |
 
 - 说明文档由 springdoc 生成，地址 `/api/v1/openapi.json`，取它也要登录；不带 Swagger UI。
-- 认证是每次请求带 HTTP Basic，没有会话。`web/` 将通过自己的服务端代理调用：会话放在 httpOnly cookie 里，代理在服务端到服务端的调用上加 Basic，口令不进浏览器脚本。
+- 认证是每次请求带 HTTP Basic，没有会话。`web/` 通过自己的服务端代理调用：浏览器只持有 httpOnly 会话 cookie（随机会话号），代理在服务端到服务端的调用上加 Basic，口令不进浏览器脚本。服务端会话里保存的就是这个 Basic 头（节点五起可放 Redis），所以 Redis 必须按存放凭据对待，见 `SECURITY.md`。
 - 这些是操作员接口，不属某个租户，所以租户拦截放行 `/api/v1`。
 
-Each operator page has a JSON twin under `/api/v1` for the upcoming `web/` Next.js app; the HTML pages stay. OpenAPI is served at `/api/v1/openapi.json` (signed-in only). Auth is HTTP Basic per request; the future Next.js server-side proxy keeps the session in an httpOnly cookie, so credentials never reach browser JavaScript. `/api/v1` is operator-scoped, not tenant-scoped.
+Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; the HTML pages stay. OpenAPI is served at `/api/v1/openapi.json` (signed-in only). Auth is HTTP Basic per request; the Next.js server-side proxy keeps a random session id in an httpOnly cookie, so credentials never reach browser JavaScript. The server-side session (memory, or Redis since node 5) holds the Basic header itself — treat that store as a credential store. `/api/v1` is operator-scoped, not tenant-scoped.
 
-## 13. 节点四：真库与入口网关
+## 13. 节点四：真库与入口网关 / Node 4
 
 - 真库证明：`VendorStartupTest` 在 Docker 可用时对着 MySQL 8.4 与 PostgreSQL 16 各启动一次 `platform-app`（命令行参数压过 `application.yml`）。没有 Docker 时跳过，不用别的库冒充。
 - 入口网关：独立进程 `entry-gateway`（包名 `com.subjex.gateway`）。它把 HTTP 原样转发到 `platform-app`，不替代认证与权限；操作员凭据仍由上游校验。
-- 粗粒度限流：网关按客户端标识（`X-Forwarded-For` 首段，否则远端地址）在本进程时间窗内计数，超限回 429。使用契约里的单一 `RateLimitPort`；实现只活在网关进程内，不是第二个限流端口，也不是 Redis。
+- 粗粒度限流：网关按客户端标识（默认远端地址；直连方属于 `gateway.trusted-proxies` 时从右往左取 `X-Forwarded-For` 中第一个不可信跳）在本进程时间窗内计数，超限回 429。使用契约里的单一 `RateLimitPort`；实现只活在网关进程内，不是第二个限流端口，也不是 Redis。
 - 网关自己的存活/就绪探针不转发；其余路径转发并带回上游状态码与正文。
-- 本地编排：`deploy/compose/docker-compose.yml` 起 PostgreSQL、`platform-app`、`entry-gateway`。清单与镜像同节点三风格：多阶段、非 root、`mvn test` 不构建镜像。
+- 本地编排：`deploy/compose/docker-compose.yml` 起 PostgreSQL、`platform-app`、`entry-gateway`（节点五加了 Redis 与第二个 `platform-app` 副本；不含 `sample-consumer` 与 `web/`）。清单与镜像同节点三风格：多阶段、非 root、`mvn test` 不构建镜像。
 - 不做：动态路由、按路径改写、TLS 终结、多上游负载均衡（留给节点五多副本之后）。
+- 已知限制：计数只在本进程内；`gateway.trusted-proxies` 配得过宽会重新允许伪造 `X-Forwarded-For`。见 `SECURITY.md`。
+- 架构测试：`sample-consumer` 与 `entry-gateway` 各自带一份 `ModuleBoundaryArchTest`，只保留本模块测试 classpath 能匹配到类的规则（ArchUnit 默认 `failOnEmptyShould`）。宿主/示例规则在 `sample-consumer`，“网关不依赖宿主”在 `entry-gateway`；“契约不依赖进程”和“不用模型层”两边都有。
 
-## 13. Node 4 — live databases and entry gateway
+### English summary — Node 4: live databases and entry gateway
 
 - Live proof: `VendorStartupTest` starts `platform-app` once on MySQL 8.4 and once on PostgreSQL 16 when Docker is present.
 - Entry gateway: separate process `entry-gateway` (`com.subjex.gateway`) that forwards HTTP to `platform-app` without replacing auth.
 - Coarse rate limit: per client id in-process via the single `RateLimitPort`; 429 when exceeded.
-- Local compose under `deploy/compose/`. No dynamic routing or TLS termination in this node.
+- Local compose under `deploy/compose/` (no `sample-consumer`, no `web/`). No dynamic routing or TLS termination in this node.
+- Client id: remote address by default; `X-Forwarded-For` is read (right to left, skipping trusted hops) only when the peer is in `gateway.trusted-proxies`. Known limit: counters are per gateway process.
+- ArchUnit: each process module keeps only the boundary rules its test classpath can match (`failOnEmptyShould` stays on).
 
-## 14. 节点五：可观测与多副本
+## 14. 节点五：可观测与多副本 / Node 5
 
 - Prometheus：`platform-app`、`entry-gateway`、`sample-consumer` 暴露 `/actuator/prometheus`（Micrometer）。存活/就绪仍匿名；指标端点同样匿名，靠网络隔离，不在进程内再做一套认证。
 - 追踪：默认仍是丢弃导出器（生成 trace id，跨进程靠 `traceparent`）。配置了 `PLATFORM_OTLP_ENDPOINT`（或 `OTEL_EXPORTER_OTLP_ENDPOINT`）时改为 OTLP/HTTP 导出；没有采集器时行为与节点一至四相同。
 - 多副本：`deploy/k8s/platform-app.yaml` 副本数为 2；`deploy/compose` 起两个 `platform-app` 实例，入口网关通过 Compose DNS 轮询上游。登记/配置/锁已在共享库，副本之间不靠进程内存。
 - 压测：`deploy/load/smoke-load.sh` 经网关打一串只读请求，打印状态码分布；不是基准测试，只证明多副本+网关可承受短突发。
-- 控制台会话（TD-1）：操作员会话从 Next.js 进程内存迁到 Redis，多副本控制台才共享登录态。网关限流仍是进程内粗限流（多网关副本各算各的），节点五不引入 Redis 限流。
+- 控制台会话（TD-1）：操作员会话从 Next.js 进程内存迁到 Redis，多副本控制台才共享登录态。网关限流仍是进程内粗限流（多网关副本各算各的），节点五不引入 Redis 限流。会话值包含上游 Basic 认证头（等价口令），Redis 要按凭据存储对待（`SECURITY.md`）。
 - 不做：HPA、完整 Grafana 看板、采样策略调优、跨区域。
 
-## 14. Node 5 — observability and two replicas
+### English summary — Node 5: observability and two replicas
 
 - Prometheus scrape on `/actuator/prometheus` for the three processes.
 - Optional OTLP/HTTP when an endpoint env is set; otherwise keep the discarding exporter.
 - Two `platform-app` replicas in k8s and compose; gateway uses DNS round-robin.
 - Short smoke load script through the gateway.
-- Console sessions move to Redis (TD-1). Gateway rate limits stay in-process.
+- Console sessions move to Redis (TD-1). Gateway rate limits stay in-process. The session value contains the upstream Basic header.
 
-## 15. 节点六：低代码加深
+## 15. 节点六：低代码加深 / Node 6
 
 - 多表单目录：`form-render` 下可有多份 `*.form.yaml`；`FormCatalog` 按 `formKey` 列出并加载，不再写死仅 `endpoint-publication`。
 - 提交落库：合法提交写入共享表 `form_submission`（Flyway），含 formKey、操作员、取值 JSON、结果摘要；`GET /api/v1/forms/{formKey}/submissions` 列历史。仍不做在线表单库或设计器。
@@ -169,10 +175,18 @@ Each operator page has a JSON twin under `/api/v1` for the upcoming `web/` Next.
 - 生成器 CLI：`form-render` 提供可执行入口 `FormRecordWriteMain`，从 YAML 重写已检入的 Java record（调用方检入；构建仍不跑注解处理器）。
 - 不做：拖拽设计器、全量 CRUD 生成、按租户的表单市场、浏览器内写文件。
 
-## 15. Node 6 — deeper low-code
+### English summary — Node 6: deeper low-code
 
 - Multi-form catalog from classpath `*.form.yaml`.
 - Persist accepted submissions in shared `form_submission`; list via API.
 - Second form `config-override` → config override + audit.
 - CLI (`FormRecordWriteMain`) regenerates checked-in records from YAML.
 - No designer, no online form library, no browser file write.
+
+## 16. 发布前状态 / Release status
+
+- 仍是 `0.1.0-SNAPSHOT`，没有 tag。全部模块 `mvn test` 应当通过（节点四复制规则造成的 4 个 ArchUnit 空规则失败已修，见 `docs/release-prep-progress.md`）。
+- CI 工作流仍在 `docs/ci/build.yml`，需要有 `workflow` 权限的人移到 `.github/workflows/`；移到位之前 CI 不运行。
+- 已知安全与运行限制汇总在 `SECURITY.md`，版本内容在 `CHANGELOG.md`，完整评估在 `docs/pre-release-assessment.md`。
+
+Still `0.1.0-SNAPSHOT`, untagged. The full `mvn test` reactor is expected to pass. CI is not active until `docs/ci/build.yml` is moved to `.github/workflows/`. Known limits: `SECURITY.md`; contents: `CHANGELOG.md`.

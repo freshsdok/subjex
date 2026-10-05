@@ -12,6 +12,12 @@ import com.tngtech.archunit.lang.ArchRule;
  * <p>
  * This is the only architecture gate added for boundaries already written in ARCHITECTURE.md.
  * 这是唯一一条为 ARCHITECTURE.md 已写明的边界增加的架构门禁。
+ * <p>
+ * Only rules whose {@code that()} clause matches classes on this module's test classpath live here
+ * (contract, host via the test-scoped {@code platform-app} dependency, and the sample). The rule
+ * {@code gateway_does_not_depend_on_the_host} lives in {@code entry-gateway}, the only module that
+ * sees gateway classes; ArchUnit's {@code failOnEmptyShould} would fail it here.
+ * 只保留在本模块测试 classpath 上能匹配到类的规则；“网关不依赖宿主”放在 entry-gateway。
  */
 @AnalyzeClasses(packages = "com.subjex", importOptions = ImportOption.DoNotIncludeTests.class)
 class ModuleBoundaryArchTest {
@@ -42,12 +48,6 @@ class ModuleBoundaryArchTest {
             noClasses()
                     .that().resideInAPackage("com.subjex.platform.app..")
                     .should().dependOnClassesThat().resideInAPackage("com.subjex.gateway..");
-
-    @ArchTest
-    static final ArchRule gateway_does_not_depend_on_the_host =
-            noClasses()
-                    .that().resideInAPackage("com.subjex.gateway..")
-                    .should().dependOnClassesThat().resideInAPackage("com.subjex.platform.app..");
 
     @ArchTest
     static final ArchRule reads_and_writes_do_not_use_a_model_layer =

@@ -8,7 +8,7 @@ Slice log — 切片记录:
 6b. [done] Flyway `form_submission` + catalog loads all `*.form.yaml`; submit persists; list API.
 6c. [done] `config-override.form.yaml` + submit path + console form picker.
 6d. [done] CLI: regenerate checked-in records from YAML.
-6e. [next] Push.
+6e. [done] Pushed as remote `275fbfd` (on top of `9e62f95`).
 
 ## 6b notes
 

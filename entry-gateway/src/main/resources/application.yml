@@ -9,6 +9,10 @@ spring:
 
 server:
   port: ${GATEWAY_PORT:8088}
+  # The gateway decides itself whether to believe X-Forwarded-For (gateway.trusted-proxies below).
+  # Keep Tomcat's RemoteIpValve off, otherwise Spring Boot turns it on under Kubernetes and trusts
+  # every private-range peer. 由网关自己决定是否采信 XFF；关掉 Tomcat RemoteIpValve（K8s 下会被自动打开）。
+  forward-headers-strategy: none
   error:
     include-message: never
     include-stacktrace: never
@@ -17,6 +21,10 @@ server:
 gateway:
   upstream:
     base-url: ${GATEWAY_UPSTREAM:http://127.0.0.1:8080}
+  # IPs / CIDRs of proxies directly in front of the gateway whose X-Forwarded-For is believed.
+  # Empty (default): X-Forwarded-For is ignored and the client id is the remote address.
+  # 直连网关的可信代理 IP/CIDR，逗号分隔；默认空 = 忽略 X-Forwarded-For，只用远端地址。
+  trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:}
   rate-limit:
     permits: ${GATEWAY_RATE_LIMIT_PERMITS:120}
     window-seconds: ${GATEWAY_RATE_LIMIT_WINDOW_SECONDS:60}

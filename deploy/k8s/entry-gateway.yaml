@@ -36,6 +36,10 @@ spec:
               value: "120"
             - name: GATEWAY_RATE_LIMIT_WINDOW_SECONDS
               value: "60"
+            # Unset = ignore X-Forwarded-For. Behind an ingress/LB, list its pod or node CIDR here.
+            # 不设 = 忽略 X-Forwarded-For。在 ingress/LB 后面时填它的 IP/CIDR。
+            # - name: GATEWAY_TRUSTED_PROXIES
+            #   value: "10.0.0.0/8"
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness

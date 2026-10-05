@@ -8,10 +8,17 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
 /**
- * Module boundary — 模块边界：契约不依赖宿主或示例，宿主与示例互不依赖，读写不经过模型层。
+ * Module boundary — 模块边界：契约不依赖宿主、示例或网关，网关不依赖宿主，读写不经过模型层。
  * <p>
  * This is the only architecture gate added for boundaries already written in ARCHITECTURE.md.
  * 这是唯一一条为 ARCHITECTURE.md 已写明的边界增加的架构门禁。
+ * <p>
+ * Only rules whose {@code that()} clause matches classes on this module's test classpath live here
+ * (contract and gateway). Host/sample rules ({@code host_does_not_depend_on_the_sample},
+ * {@code sample_does_not_depend_on_the_host}, {@code host_does_not_depend_on_the_gateway}) live in
+ * {@code sample-consumer}, whose test classpath carries both host and sample classes; ArchUnit's
+ * {@code failOnEmptyShould} would fail them here.
+ * 只保留在本模块测试 classpath 上能匹配到类的规则；宿主/示例相关规则放在 sample-consumer。
  */
 @AnalyzeClasses(packages = "com.subjex", importOptions = ImportOption.DoNotIncludeTests.class)
 class ModuleBoundaryArchTest {
@@ -24,24 +31,6 @@ class ModuleBoundaryArchTest {
                             "com.subjex.platform.app..",
                             "com.subjex.sample..",
                             "com.subjex.gateway..");
-
-    @ArchTest
-    static final ArchRule host_does_not_depend_on_the_sample =
-            noClasses()
-                    .that().resideInAPackage("com.subjex.platform.app..")
-                    .should().dependOnClassesThat().resideInAPackage("com.subjex.sample..");
-
-    @ArchTest
-    static final ArchRule sample_does_not_depend_on_the_host =
-            noClasses()
-                    .that().resideInAPackage("com.subjex.sample..")
-                    .should().dependOnClassesThat().resideInAPackage("com.subjex.platform.app..");
-
-    @ArchTest
-    static final ArchRule host_does_not_depend_on_the_gateway =
-            noClasses()
-                    .that().resideInAPackage("com.subjex.platform.app..")
-                    .should().dependOnClassesThat().resideInAPackage("com.subjex.gateway..");
 
     @ArchTest
     static final ArchRule gateway_does_not_depend_on_the_host =

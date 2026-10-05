@@ -10,10 +10,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * GatewayWiring — 网关装配：时钟、限流端口、上游 HTTP 客户端。
+ * GatewayWiring — 网关装配：时钟、限流端口、客户端标识、上游 HTTP 客户端。
  */
 @Configuration
-@EnableConfigurationProperties(UpstreamSettings.class)
+@EnableConfigurationProperties({UpstreamSettings.class, ForwardedHeaderSettings.class})
 public class GatewayWiring {
 
     /** Action name used for every forwarded HTTP call — 每次转发 HTTP 调用使用的动作名。 */
@@ -30,6 +30,11 @@ public class GatewayWiring {
             @Value("${gateway.rate-limit.window-seconds:60}") int windowSeconds,
             Clock clock) {
         return new GatewayRateLimit(permits, Duration.ofSeconds(windowSeconds), clock);
+    }
+
+    @Bean
+    ClientIdentity clientIdentity(ForwardedHeaderSettings settings) {
+        return new ClientIdentity(TrustedProxies.of(settings.getTrustedProxies()));
     }
 
     @Bean

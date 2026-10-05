@@ -22,7 +22,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * GatewayHttpFlowTest — 网关 HTTP 流程测试：转发上游正文与状态码；限流超限回 429 且不再打上游。
+ * GatewayHttpFlowTest — 网关 HTTP 流程测试：转发上游正文与状态码；限流超限回 429 且不再打上游；
+ * 默认不采信伪造的 X-Forwarded-For。
  */
 @SpringBootTest(properties = {
     "gateway.rate-limit.permits=2",
@@ -96,6 +97,23 @@ class GatewayHttpFlowTest {
             return request;
         })).andExpect(status().isTooManyRequests())
                 .andExpect(content().string("{\"reason\":\"rate-limited\"}"));
+        assertEquals(before, hits.get());
+    }
+
+    @Test
+    void spoofedForwardedForDoesNotEscapeTheLimitByDefault() throws Exception {
+        for (int i = 0; i < 2; i++) {
+            String spoofed = "203.0.113." + i;
+            mockMvc.perform(get("/hello").header("X-Forwarded-For", spoofed).with(request -> {
+                request.setRemoteAddr("198.51.100.8");
+                return request;
+            })).andExpect(status().isOk());
+        }
+        int before = hits.get();
+        mockMvc.perform(get("/hello").header("X-Forwarded-For", "203.0.113.99").with(request -> {
+            request.setRemoteAddr("198.51.100.8");
+            return request;
+        })).andExpect(status().isTooManyRequests());
         assertEquals(before, hits.get());
     }
 

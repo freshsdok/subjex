@@ -1,11 +1,13 @@
-# Local stack: PostgreSQL + Redis + two platform-app replicas + entry-gateway
-# 本地编排：PostgreSQL + Redis + 两个 platform-app 副本 + 入口网关
+# Local stack: PostgreSQL + Redis + two platform-app replicas + sample-consumer + entry-gateway
+# 本地编排：PostgreSQL + Redis + 两个 platform-app 副本 + sample-consumer + 入口网关
 # From repository root:
 #   docker compose -f deploy/compose/docker-compose.yml up --build --scale platform-app=2
 # Gateway listens on http://127.0.0.1:8088 and DNS-round-robins to platform-app.
 # 网关监听 http://127.0.0.1:8088，经 Compose DNS 轮询 platform-app。
-# Images are built here; mvn test does not build them.
-# 镜像在这里构建；mvn test 不构建它们。
+# Outbox delivery uses SAMPLE_CONSUMER_HOST/PORT (same as deploy/k8s/platform-app.yaml).
+# 出箱投递用 SAMPLE_CONSUMER_HOST/PORT（与 deploy/k8s/platform-app.yaml 一致）。
+# web/ is not in this stack. Images are built here; mvn test does not build them.
+# 本栈不含 web/。镜像在这里构建；mvn test 不构建它们。
 
 services:
   postgres:
@@ -48,6 +50,10 @@ services:
       PLATFORM_JDBC_PASSWORD: subjex
       PLATFORM_STORAGE_DIRECTORY: /tmp/objects
       PLATFORM_DISCOVERY_HOST: platform-app
+      # Same outbox target as deploy/k8s/platform-app.yaml
+      # 出箱目标与 deploy/k8s/platform-app.yaml 相同
+      SAMPLE_CONSUMER_HOST: sample-consumer
+      SAMPLE_CONSUMER_PORT: "19081"
       # Optional OTLP collector, e.g. http://otel-collector:4318
       # 可选 OTLP 采集器，例如 http://otel-collector:4318
       PLATFORM_OTLP_ENDPOINT: ${PLATFORM_OTLP_ENDPOINT:-}
@@ -57,6 +63,32 @@ services:
       - "8080"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health/readiness || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 40s
+
+  sample-consumer:
+    build:
+      context: ../..
+      dockerfile: sample-consumer/Dockerfile
+    image: subjex/sample-consumer:0.1.0-SNAPSHOT
+    depends_on:
+      platform-app:
+        condition: service_healthy
+    environment:
+      SAMPLE_DELIVERY_PORT: "19081"
+      PLATFORM_APP_HOST: platform-app
+      PLATFORM_APP_PORT: "8080"
+      PLATFORM_DISCOVERY_HOST: sample-consumer
+      PLATFORM_OTLP_ENDPOINT: ${PLATFORM_OTLP_ENDPOINT:-}
+    # Delivery TCP + HTTP probes; no host publish (platform-app reaches it on the compose network).
+    # 投递 TCP + HTTP 探针；不映射宿主机（platform-app 在编排网络上到达它）。
+    expose:
+      - "8081"
+      - "19081"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8081/actuator/health/readiness || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -74,6 +106,8 @@ services:
       GATEWAY_UPSTREAM: http://platform-app:8080
       GATEWAY_RATE_LIMIT_PERMITS: "120"
       GATEWAY_RATE_LIMIT_WINDOW_SECONDS: "60"
+      # Empty = ignore X-Forwarded-For; set to the proxy IPs/CIDRs in front of the gateway.
+      GATEWAY_TRUSTED_PROXIES: ${GATEWAY_TRUSTED_PROXIES:-}
       PLATFORM_OTLP_ENDPOINT: ${PLATFORM_OTLP_ENDPOINT:-}
     ports:
       - "8088:8088"
