@@ -4,6 +4,12 @@ import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import com.subjex.language.PageLanguage;
+import com.subjex.language.PageTitleCatalog;
+import com.subjex.platform.app.view.OperatorPage;
+import com.subjex.skin.NamedSkin;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Locale;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -34,30 +40,25 @@ public class DeployPage {
     }
 
     @GetMapping(path = PATH, produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> page() {
+    public ResponseEntity<String> page(HttpServletRequest request) {
+        Locale locale = OperatorPage.locale(request);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/html;charset=UTF-8"))
-                .body(html(catalog.list()));
+                .body(html(catalog.list(), OperatorPage.title(PageTitleCatalog.DEPLOY, locale), OperatorPage.skin(request), locale));
     }
 
     static String html(List<WorkloadManifest> workloads) {
+        return html(workloads, "部署清单", NamedSkin.PLAIN, PageLanguage.CHINESE);
+    }
+
+    /**
+     * Same manifest list, with the request language and skin.
+     * 同一份清单，带上这次请求的语言和外观。
+     */
+    static String html(List<WorkloadManifest> workloads, String title, NamedSkin skin, Locale locale) {
         StringBuilder body = new StringBuilder();
-        body.append("<!DOCTYPE html>\n")
-                .append("<html lang=\"zh-Hans\">\n")
-                .append("<head>\n")
-                .append("<meta charset=\"utf-8\">\n")
-                .append("<title>部署清单</title>\n")
-                .append("<style>\n")
-                .append("  body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 52rem; color: #1c1c1c; line-height: 1.4; }\n")
-                .append("  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }\n")
-                .append("  th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #ddd; vertical-align: top; }\n")
-                .append("  .en { display: block; color: #555; font-size: 0.85rem; font-weight: normal; }\n")
-                .append("  .intro { margin: 0; }\n")
-                .append("  code { font-size: 0.95rem; }\n")
-                .append("</style>\n")
-                .append("</head>\n")
-                .append("<body>\n")
-                .append("<p class=\"intro\">").append(NOT_APPLIED_ZH)
+        OperatorPage.open(body, title, locale, skin);
+        body.append("<p class=\"intro\">").append(NOT_APPLIED_ZH)
                 .append("<span class=\"en\">").append(NOT_APPLIED_EN).append("</span></p>\n");
         body.append("""
                 <table>
@@ -93,9 +94,8 @@ public class DeployPage {
         body.append("""
                 </tbody>
                 </table>
-                </body>
-                </html>
                 """);
+        OperatorPage.close(body);
         return body.toString();
     }
 

@@ -11,6 +11,12 @@ import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import com.subjex.language.PageLanguage;
+import com.subjex.language.PageTitleCatalog;
+import com.subjex.platform.app.view.OperatorPage;
+import com.subjex.skin.NamedSkin;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Locale;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -42,10 +48,11 @@ public class CodegenPage {
     }
 
     @GetMapping(path = PATH, produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> page() {
+    public ResponseEntity<String> page(HttpServletRequest request) {
+        Locale locale = OperatorPage.locale(request);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/html;charset=UTF-8"))
-                .body(html(catalog.publication()));
+                .body(html(catalog.publication(), OperatorPage.title(PageTitleCatalog.CODEGEN, locale), OperatorPage.skin(request), locale));
     }
 
     /**
@@ -53,25 +60,18 @@ public class CodegenPage {
      * 已检入记录与生成器一致时的类型页。
      */
     static String html(RenderedForm form) {
+        return html(form, "生成类型", NamedSkin.PLAIN, PageLanguage.CHINESE);
+    }
+
+    /**
+     * Same generated type, with the request language and skin.
+     * 同一份生成类型，带上这次请求的语言和外观。
+     */
+    static String html(RenderedForm form, String title, NamedSkin skin, Locale locale) {
         GeneratedType type = GeneratedType.agree(form);
         StringBuilder body = new StringBuilder();
-        body.append("<!DOCTYPE html>\n")
-                .append("<html lang=\"zh-Hans\">\n")
-                .append("<head>\n")
-                .append("<meta charset=\"utf-8\">\n")
-                .append("<title>生成类型</title>\n")
-                .append("<style>\n")
-                .append("  body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 52rem; color: #1c1c1c; line-height: 1.4; }\n")
-                .append("  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }\n")
-                .append("  th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #ddd; vertical-align: top; }\n")
-                .append("  .en { display: block; color: #555; font-size: 0.85rem; font-weight: normal; }\n")
-                .append("  .intro { margin: 0; }\n")
-                .append("  h1 { font-size: 1.4rem; font-weight: 600; margin: 1.25rem 0 0; }\n")
-                .append("  code { font-size: 0.95rem; }\n")
-                .append("</style>\n")
-                .append("</head>\n")
-                .append("<body>\n")
-                .append("<p class=\"intro\">").append(NOT_A_BROWSER_GENERATOR_ZH)
+        OperatorPage.open(body, title, locale, skin);
+        body.append("<p class=\"intro\">").append(NOT_A_BROWSER_GENERATOR_ZH)
                 .append("<span class=\"en\">").append(NOT_A_BROWSER_GENERATOR_EN).append("</span></p>\n")
                 .append("<h1>记录 ").append(escape(type.recordName()))
                 .append("<span class=\"en\">record ").append(escape(type.recordName())).append("</span></h1>\n");
@@ -97,9 +97,8 @@ public class CodegenPage {
         body.append("""
                 </tbody>
                 </table>
-                </body>
-                </html>
                 """);
+        OperatorPage.close(body);
         return body.toString();
     }
 

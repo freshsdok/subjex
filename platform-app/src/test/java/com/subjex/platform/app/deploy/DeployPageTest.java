@@ -109,6 +109,23 @@ class DeployPageTest {
         throw new IllegalStateException("deploy/k8s was not found");
     }
 
+
+    @Test
+    void languageAndSkinChangeTheChromeOnly() throws Exception {
+        mockMvc.perform(get("/deploy").param("lang", "en").param("skin", "high-contrast")
+                        .with(httpBasic("platform-operator", "change-me")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>Deploy manifests</title>")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("lang=\"en\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-skin=\"high-contrast\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("这些清单没有应用到任何集群。")));
+        mockMvc.perform(get("/deploy").cookie(new jakarta.servlet.http.Cookie("skin", "calm"))
+                        .with(httpBasic("platform-operator", "change-me")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-skin=\"calm\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>部署清单</title>")));
+    }
+
     @TestConfiguration
     static class GateConfiguration {
         @Bean

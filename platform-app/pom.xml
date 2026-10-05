@@ -24,6 +24,14 @@
             <artifactId>form-render</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.subjex</groupId>
+            <artifactId>page-language</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.subjex</groupId>
+            <artifactId>page-skin</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

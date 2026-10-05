@@ -4,6 +4,12 @@ import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import com.subjex.language.PageLanguage;
+import com.subjex.language.PageTitleCatalog;
+import com.subjex.platform.app.view.OperatorPage;
+import com.subjex.skin.NamedSkin;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Locale;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -27,29 +33,25 @@ public class ServiceListPage {
     }
 
     @GetMapping(path = PATH, produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> page() {
+    public ResponseEntity<String> page(HttpServletRequest request) {
+        Locale locale = OperatorPage.locale(request);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/html;charset=UTF-8"))
-                .body(html(catalog.list()));
+                .body(html(catalog.list(), OperatorPage.title(PageTitleCatalog.SERVICES, locale), OperatorPage.skin(request), locale));
     }
 
     static String html(List<ListedService> services) {
+        return html(services, "服务名单", NamedSkin.PLAIN, PageLanguage.CHINESE);
+    }
+
+    /**
+     * Same list, with the request language and skin.
+     * 同一份名单，带上这次请求的语言和外观。
+     */
+    static String html(List<ListedService> services, String title, NamedSkin skin, Locale locale) {
         StringBuilder body = new StringBuilder();
+        OperatorPage.open(body, title, locale, skin);
         body.append("""
-                <!DOCTYPE html>
-                <html lang="zh-Hans">
-                <head>
-                <meta charset="utf-8">
-                <title>服务名单</title>
-                <style>
-                  body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 40rem; color: #1c1c1c; line-height: 1.4; }
-                  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-                  th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #ddd; vertical-align: top; }
-                  .en { display: block; color: #555; font-size: 0.85rem; font-weight: normal; }
-                  .intro { margin: 0; }
-                </style>
-                </head>
-                <body>
                 <p class="intro">这是一份只读的服务名单，只列出名字、地址，以及此刻能不能连上。
                 <span class="en">This is a read-only service list: a name, an address, and whether it answers right now.</span></p>
                 """);
@@ -89,10 +91,7 @@ public class ServiceListPage {
                     </table>
                     """);
         }
-        body.append("""
-                </body>
-                </html>
-                """);
+        OperatorPage.close(body);
         return body.toString();
     }
 

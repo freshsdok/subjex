@@ -55,11 +55,11 @@ Operator HTTP Basic (security is on by default / 安全默认开启): `platform-
 
 ## Tests / 测试
 
-`mvn test` always runs the contract, lock, rate-limit, breaker, outbox-socket, model-gateway, service-discovery, config-override, http-config, form-render, record-generation, deploy-page, forms-page, codegen-page, and architecture tests.
+`mvn test` always runs the contract, lock, rate-limit, breaker, outbox-socket, model-gateway, service-discovery, config-override, http-config, form-render, record-generation, deploy-page, forms-page, codegen-page, language-page, skin-page, and architecture tests.
 
 Live MySQL and PostgreSQL startup tests use Testcontainers and run only when Docker is available. Without Docker they are skipped, not faked. The outbox socket test does not start a database.
 
-`mvn test` 总会跑契约、锁、限流、熔断、出箱套接字、模型网关、服务发现、配置覆盖、表单渲染、记录生成、部署清单页、字段列表页、生成类型页和架构测试。
+`mvn test` 总会跑契约、锁、限流、熔断、出箱套接字、模型网关、服务发现、配置覆盖、表单渲染、记录生成、部署清单页、字段列表页、生成类型页、语言页、外观页和架构测试。
 
 MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Docker 时才执行。没有 Docker 时跳过，不用别的库冒充。出箱套接字测试不启动数据库。
 
@@ -69,6 +69,12 @@ MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Dock
 `platform-app` keeps the `ServiceRegistry` and publishes it at `POST /registry/services` and `GET /registry/services`. `sample-consumer` registers itself there and resolves `platform-app` over HTTP. When that call cannot connect, static keys `platform.discovery.static.platform-app.host` and `.port` are still the fallback (`PLATFORM_APP_HOST`, `PLATFORM_APP_PORT`). `GET /services` is a read-only page for a person: one sentence, then service name, address, and the word `up` or `unknown`. The operator HTTP Basic gate applies. Notes on why the page is small are in `docs/discovery-ui.md`. Configuration is read through `ConfigSource`. `platform-app` keeps memory overrides and serves `GET/POST /config/entries` for one named key; `sample-consumer` reads the effective value over HTTP and falls back to local application config when unreachable. `GET /config` is a read-only page: key, effective value, and plain source (local file or memory override). Notes are in `docs/config-ui.md`. Kubernetes manifests under `deploy/k8s/` are files only; nothing applies them. `GET /deploy` is a read-only page: one sentence that these manifests are not applied to a cluster, then workload name, placeholder image, probe paths, and memory limit. Notes are in `docs/k8s-ui.md`. `form-render` turns `endpoint-publication.form.yaml` into a validated field list and a checked-in record `EndpointPublication`. `GET /forms` is a read-only page: one sentence that this is the field list, not a designer, then each field name, type, and whether it is required. Notes are in `docs/form-ui.md`. `GET /codegen` is a read-only page: one sentence that this page shows the type generated from the form, not a generator you run from the browser, then the record name and each component with its type. The values come from the checked-in record and are checked against the same YAML. Notes are in `docs/codegen-ui.md`.
 
 `platform-app` 保存 `ServiceRegistry`，并在 `POST /registry/services` 与 `GET /registry/services` 公布。`sample-consumer` 在那里登记自己，并用 HTTP 解析 `platform-app`。调用连不上时，静态键 `platform.discovery.static.platform-app.host` 和 `.port` 仍是兜底（`PLATFORM_APP_HOST`、`PLATFORM_APP_PORT`）。`GET /services` 是给人看的只读页：一句话，然后是服务名、地址，以及 `up` 或 `unknown`。操作员 HTTP Basic 门禁同样适用。页面为什么做小，写在 `docs/discovery-ui.md`。配置经 `ConfigSource` 读取。`platform-app` 保存内存覆盖，并用 `GET/POST /config/entries` 提供一个具名键；`sample-consumer` 经 HTTP 读生效值，连不上时回退本地应用配置。`GET /config` 是只读页：键、生效值，以及直白来源（本地文件或内存覆盖）。说明见 `docs/config-ui.md`。`deploy/k8s/` 下的 Kubernetes 清单只是文件，不会被应用。`GET /deploy` 是只读页：一句话说明这些清单没有应用到任何集群，然后是工作负载名、占位镜像、探针路径和内存上限。说明见 `docs/k8s-ui.md`。`form-render` 把 `endpoint-publication.form.yaml` 变成校验过的字段列表，以及检入仓库的记录 `EndpointPublication`。`GET /forms` 是只读页：一句话说明这是字段列表，不是设计器，然后是每个字段的名字、类型和是否必填。说明见 `docs/form-ui.md`。`GET /codegen` 是只读页：一句话说明这一页展示从表单生成的类型，不是在浏览器里运行的生成器，然后是记录名和每个组件的类型。值来自已检入的记录，并与同一份 YAML 核对。说明见 `docs/codegen-ui.md`。
+
+## Language and skin / 语言与外观
+
+`page-language` holds the operator page titles in Chinese and English. `platform-app` reads them with a Spring `MessageSource` named `messageSource`. `?lang=zh` or `?lang=en` wins, then `Accept-Language`, otherwise Chinese. `GET /language` is a read-only page: one sentence, the current language, then those titles in plain words. Notes are in `docs/i18n-ui.md`. `page-skin` holds three named skins, plain, high contrast, and calm, as the same four CSS variables. `GET /skin` shows the current name and three links. A link sets a `skin` cookie. `/services`, `/config`, `/deploy`, `/forms`, `/codegen`, and `/language` use that skin. Notes are in `docs/skin-ui.md`.
+
+`page-language` 保存操作页的中文和英文标题。`platform-app` 用名为 `messageSource` 的 Spring `MessageSource` 读取。`?lang=zh` 或 `?lang=en` 优先，然后是 `Accept-Language`，否则是中文。`GET /language` 是只读页：一句话、当前语言，然后是这些标题的人话。说明见 `docs/i18n-ui.md`。`page-skin` 保存三个具名外观：朴素、高对比、沉静，用同样的四个 CSS 变量。`GET /skin` 显示当前名字和三个链接。链接会写入 `skin` cookie。`/services`、`/config`、`/deploy`、`/forms`、`/codegen` 和 `/language` 使用这个外观。说明见 `docs/skin-ui.md`。
 
 ## Optional model gateway / 可选模型网关
 

@@ -116,6 +116,23 @@ class ConfigListPageTest {
                 .andExpect(status().isMethodNotAllowed());
     }
 
+
+    @Test
+    void languageAndSkinChangeTheChromeOnly() throws Exception {
+        mockMvc.perform(get("/config").param("lang", "en").param("skin", "high-contrast")
+                        .with(httpBasic("platform-operator", "change-me")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>Config list</title>")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("lang=\"en\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-skin=\"high-contrast\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("这是一份只读的配置名单")));
+        mockMvc.perform(get("/config").cookie(new jakarta.servlet.http.Cookie("skin", "calm"))
+                        .with(httpBasic("platform-operator", "change-me")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-skin=\"calm\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>配置名单</title>")));
+    }
+
     @TestConfiguration
     static class CatalogConfiguration {
         @Bean

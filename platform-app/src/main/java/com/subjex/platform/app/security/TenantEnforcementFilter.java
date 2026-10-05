@@ -12,9 +12,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * TenantEnforcementFilter — 租户拦截：租户作用域的请求在进入动作前先过门禁。
  * <p>
- * Probes, the read-only operator console, the service list, the config list, the deploy page, the form field list, and the generated-type page are not tenant-scoped.
+ * Probes, the read-only operator console, the service list, the config list, the deploy page, the form field list, the generated-type page, the language page, and the skin page are not tenant-scoped.
  * Every other path uses {@link TenantGuard}, whose default denies a missing tenant.
- * 探针、只读操作台、服务名单、配置名单、部署清单页、字段列表页和生成类型页不属某个租户。其余路径都走 {@link TenantGuard}，默认在租户缺失时拒绝。
+ * 探针、只读操作台、服务名单、配置名单、部署清单页、字段列表页、生成类型页、语言页和外观页不属某个租户。其余路径都走 {@link TenantGuard}，默认在租户缺失时拒绝。
  */
 public final class TenantEnforcementFilter extends OncePerRequestFilter {
 
@@ -37,6 +37,8 @@ public final class TenantEnforcementFilter extends OncePerRequestFilter {
                 || "/deploy".equals(path)
                 || "/forms".equals(path)
                 || "/codegen".equals(path)
+                || "/language".equals(path)
+                || "/skin".equals(path)
                 || path.startsWith("/config");
     }
 

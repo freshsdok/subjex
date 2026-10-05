@@ -25,6 +25,8 @@
         <module>sample-consumer</module>
         <module>model-gateway</module>
         <module>form-render</module>
+        <module>page-language</module>
+        <module>page-skin</module>
     </modules>
 
     <properties>
@@ -48,6 +50,16 @@
             <dependency>
                 <groupId>com.subjex</groupId>
                 <artifactId>form-render</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.subjex</groupId>
+                <artifactId>page-language</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.subjex</groupId>
+                <artifactId>page-skin</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

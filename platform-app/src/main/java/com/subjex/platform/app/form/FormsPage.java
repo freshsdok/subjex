@@ -6,6 +6,12 @@ import com.subjex.form.render.RenderedForm;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import com.subjex.language.PageLanguage;
+import com.subjex.language.PageTitleCatalog;
+import com.subjex.platform.app.view.OperatorPage;
+import com.subjex.skin.NamedSkin;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Locale;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -35,31 +41,25 @@ public class FormsPage {
     }
 
     @GetMapping(path = PATH, produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> page() {
+    public ResponseEntity<String> page(HttpServletRequest request) {
+        Locale locale = OperatorPage.locale(request);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/html;charset=UTF-8"))
-                .body(html(catalog.publication()));
+                .body(html(catalog.publication(), OperatorPage.title(PageTitleCatalog.FORMS, locale), OperatorPage.skin(request), locale));
     }
 
     static String html(RenderedForm form) {
+        return html(form, "字段列表", NamedSkin.PLAIN, PageLanguage.CHINESE);
+    }
+
+    /**
+     * Same field list, with the request language and skin.
+     * 同一份字段列表，带上这次请求的语言和外观。
+     */
+    static String html(RenderedForm form, String title, NamedSkin skin, Locale locale) {
         StringBuilder body = new StringBuilder();
-        body.append("<!DOCTYPE html>\n")
-                .append("<html lang=\"zh-Hans\">\n")
-                .append("<head>\n")
-                .append("<meta charset=\"utf-8\">\n")
-                .append("<title>字段列表</title>\n")
-                .append("<style>\n")
-                .append("  body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 52rem; color: #1c1c1c; line-height: 1.4; }\n")
-                .append("  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }\n")
-                .append("  th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #ddd; vertical-align: top; }\n")
-                .append("  .en { display: block; color: #555; font-size: 0.85rem; font-weight: normal; }\n")
-                .append("  .intro { margin: 0; }\n")
-                .append("  h1 { font-size: 1.4rem; font-weight: 600; margin: 1.25rem 0 0; }\n")
-                .append("  code { font-size: 0.95rem; }\n")
-                .append("</style>\n")
-                .append("</head>\n")
-                .append("<body>\n")
-                .append("<p class=\"intro\">").append(NOT_A_DESIGNER_ZH)
+        OperatorPage.open(body, title, locale, skin);
+        body.append("<p class=\"intro\">").append(NOT_A_DESIGNER_ZH)
                 .append("<span class=\"en\">").append(NOT_A_DESIGNER_EN).append("</span></p>\n")
                 .append("<h1>").append(escape(form.titleZh()))
                 .append("<span class=\"en\">").append(escape(form.titleEn())).append("</span></h1>\n");
@@ -90,9 +90,8 @@ public class FormsPage {
         body.append("""
                 </tbody>
                 </table>
-                </body>
-                </html>
                 """);
+        OperatorPage.close(body);
         return body.toString();
     }
 

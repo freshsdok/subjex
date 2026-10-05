@@ -104,6 +104,23 @@ class FormsPageTest {
         throw new IllegalStateException("endpoint-publication.form.yaml was not found");
     }
 
+
+    @Test
+    void languageAndSkinChangeTheChromeOnly() throws Exception {
+        mockMvc.perform(get("/forms").param("lang", "en").param("skin", "high-contrast")
+                        .with(httpBasic("platform-operator", "change-me")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>Field list</title>")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("lang=\"en\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-skin=\"high-contrast\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("这是字段列表，不是设计器。")));
+        mockMvc.perform(get("/forms").cookie(new jakarta.servlet.http.Cookie("skin", "calm"))
+                        .with(httpBasic("platform-operator", "change-me")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-skin=\"calm\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>字段列表</title>")));
+    }
+
     @TestConfiguration
     static class GateConfiguration {
         @Bean

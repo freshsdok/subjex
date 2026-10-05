@@ -83,6 +83,23 @@ class CodegenPageTest {
         }
     }
 
+
+    @Test
+    void languageAndSkinChangeTheChromeOnly() throws Exception {
+        mockMvc.perform(get("/codegen").param("lang", "en").param("skin", "high-contrast")
+                        .with(httpBasic("platform-operator", "change-me")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>Generated type</title>")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("lang=\"en\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-skin=\"high-contrast\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("这一页展示从表单生成的类型，不是在浏览器里运行的生成器。")));
+        mockMvc.perform(get("/codegen").cookie(new jakarta.servlet.http.Cookie("skin", "calm"))
+                        .with(httpBasic("platform-operator", "change-me")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-skin=\"calm\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>生成类型</title>")));
+    }
+
     @TestConfiguration
     static class GateConfiguration {
         @Bean
