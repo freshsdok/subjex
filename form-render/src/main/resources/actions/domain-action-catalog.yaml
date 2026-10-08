@@ -23,3 +23,16 @@ actions:
         required: true
       - name: configValue
         required: true
+  - key: entity.serviceNote.save
+    titleEn: Save service note
+    titleZh: 保存服务备注
+    fields:
+      - name: noteId
+        required: true
+      - name: title
+        required: true
+      - name: body
+        required: false
+      - name: priority
+        required: false
+

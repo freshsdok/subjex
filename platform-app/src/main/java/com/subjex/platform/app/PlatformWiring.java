@@ -11,6 +11,8 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.TcpAddressProbe;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
+import com.subjex.entity.generated.ServiceNoteStore;
+import com.subjex.platform.app.entity.InMemoryServiceNoteStore;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
@@ -390,11 +392,20 @@ public class PlatformWiring {
 
 
     /**
-     * Run declared form domainAction through Service / Config catalogs — 经服务 / 配置目录执行表单声明的领域动作。
+     * Step-4 in-memory service-note store (replaced by JDBC in step 3) — 步骤 4 内存服务备注存储（步骤 3 换 JDBC）。
      */
     @Bean
-    FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-        return new FormDomainActionRunner(serviceCatalog, configCatalog);
+    ServiceNoteStore serviceNoteStore() {
+        return new InMemoryServiceNoteStore();
+    }
+
+    /**
+     * Run declared form domainAction through Service / Config / entity catalogs — 经服务 / 配置 / 实体目录执行表单声明的领域动作。
+     */
+    @Bean
+    FormDomainActionRunner formDomainActionRunner(
+            ServiceCatalog serviceCatalog, ConfigCatalog configCatalog, ServiceNoteStore serviceNoteStore) {
+        return new FormDomainActionRunner(serviceCatalog, configCatalog, serviceNoteStore);
     }
 
     /**

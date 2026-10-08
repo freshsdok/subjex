@@ -45,6 +45,8 @@ public class PagesApiEndpoint {
                         flow.flowKey(),
                         flow.titleZh(),
                         flow.titleEn(),
+                        flow.formKey(),
+                        flow.entityKey(),
                         flow.version(),
                         flow.permission(),
                         flow.tenantScoped()))
@@ -65,6 +67,7 @@ public class PagesApiEndpoint {
                 flow.titleZh(),
                 flow.titleEn(),
                 flow.formKey(),
+                flow.entityKey(),
                 flow.version(),
                 flow.permission(),
                 flow.tenantScoped(),
@@ -79,29 +82,32 @@ public class PagesApiEndpoint {
     }
 
     /**
-     * PagesIndexDocument — 流程目录：每一份流程的键、中英标题、版本、权限与是否租户隔离。
+     * PagesIndexDocument — 流程目录：每一份流程的键、中英标题、表单/实体键、版本、权限与是否租户隔离。
      */
     public record PagesIndexDocument(List<PageIndexDocument> pages) {}
 
     /**
-     * PageIndexDocument — 目录中的一项：流程键、中文标题、英文标题、声明版本、权限、是否租户隔离。
+     * PageIndexDocument — 目录中的一项：流程键、中英标题、表单/实体键、声明版本、权限、是否租户隔离。
      */
     public record PageIndexDocument(
             String flowKey,
             String titleZh,
             String titleEn,
+            String formKey,
+            String entityKey,
             int version,
             String permission,
             boolean tenantScoped) {}
 
     /**
-     * PageFlowDocument — 流程详情：三页路径与 API、声明版本，以及权限与租户标志。
+     * PageFlowDocument — 流程详情：三页路径与 API、表单/实体键、声明版本，以及权限与租户标志。
      */
     public record PageFlowDocument(
             String flowKey,
             String titleZh,
             String titleEn,
             String formKey,
+            String entityKey,
             int version,
             String permission,
             boolean tenantScoped,

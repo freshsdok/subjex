@@ -17,6 +17,7 @@ public final class PageRenderer {
 
     private static final Pattern FLOW_KEY = Pattern.compile("[a-z][a-z0-9]*(-[a-z0-9]+)*");
     private static final Pattern FORM_KEY = Pattern.compile("[a-z][a-z0-9]*(-[a-z0-9]+)*");
+    private static final Pattern ENTITY_KEY = Pattern.compile("[a-z][a-z0-9]*(-[a-z0-9]+)*");
     private static final Pattern CONSOLE_PATH = Pattern.compile("/pages(/[a-z0-9][a-z0-9-]*)+");
     private static final Pattern DETAIL_PATH =
             Pattern.compile("/pages(/[a-z0-9][a-z0-9-]*)+/\\{id\\}");
@@ -25,7 +26,7 @@ public final class PageRenderer {
 
     private static final Pattern PERMISSION = Pattern.compile("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+");
     private static final Set<String> FLOW_KEYS = Set.of(
-            "flowKey", "titleEn", "titleZh", "formKey", "version", "permission", "tenantScoped", "list", "detail", "submit");
+            "flowKey", "titleEn", "titleZh", "formKey", "entityKey", "version", "permission", "tenantScoped", "list", "detail", "submit");
     private static final Set<String> LIST_KEYS = Set.of("path", "apiPath", "itemsKey");
     private static final Set<String> DETAIL_KEYS = Set.of("path", "apiPath", "itemsKey", "idField");
     private static final Set<String> SUBMIT_KEYS = Set.of("path", "apiPath", "redirectTo");
@@ -52,6 +53,10 @@ public final class PageRenderer {
         if (formKey != null && !FORM_KEY.matcher(formKey).matches()) {
             throw new PageDefinitionRejected("formKey must be lowercase words separated by hyphens");
         }
+        String entityKey = optionalText(document, "entityKey");
+        if (entityKey != null && !ENTITY_KEY.matcher(entityKey).matches()) {
+            throw new PageDefinitionRejected("entityKey must be lowercase words separated by hyphens");
+        }
         int version = requiredVersion(document);
         String permission = parsePermission(required(document, "permission"));
         boolean tenantScoped = optionalBoolean(document, "tenantScoped");
@@ -59,7 +64,7 @@ public final class PageRenderer {
         DetailPageSpec detail = detail(mapping(required(document, "detail"), "detail"));
         SubmitPageSpec submit = submit(mapping(required(document, "submit"), "submit"));
         return new RenderedFlow(
-                flowKey, titleEn, titleZh, formKey, version, permission, tenantScoped, list, detail, submit);
+                flowKey, titleEn, titleZh, formKey, entityKey, version, permission, tenantScoped, list, detail, submit);
     }
 
     private static ListPageSpec list(Map<?, ?> section) {

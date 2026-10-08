@@ -21,6 +21,7 @@ import com.subjex.platform.contract.extension.PlatformExtension;
 import com.subjex.platform.contract.task.TaskMessagePort;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.config.ConfigCatalog;
+import com.subjex.platform.app.entity.InMemoryServiceNoteStore;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
@@ -122,7 +123,7 @@ class DeclarationSecurityTest {
 
         @Bean
         FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-            return new FormDomainActionRunner(serviceCatalog, configCatalog);
+            return new FormDomainActionRunner(serviceCatalog, configCatalog, new InMemoryServiceNoteStore());
         }
 
         @Bean

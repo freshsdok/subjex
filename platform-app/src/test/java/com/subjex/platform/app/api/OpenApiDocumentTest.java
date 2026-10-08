@@ -17,6 +17,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.form.FormCatalog;
+import com.subjex.platform.app.entity.InMemoryServiceNoteStore;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
@@ -179,7 +180,7 @@ class OpenApiDocumentTest {
 
         @Bean
         FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-            return new FormDomainActionRunner(serviceCatalog, configCatalog);
+            return new FormDomainActionRunner(serviceCatalog, configCatalog, new InMemoryServiceNoteStore());
         }
 
         @Bean

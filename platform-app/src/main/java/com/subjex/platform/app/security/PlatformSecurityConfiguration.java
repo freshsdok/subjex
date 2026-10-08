@@ -81,6 +81,10 @@ public class PlatformSecurityConfiguration {
                                 .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/pages/*")
                                 .authenticated()
+                        // Entity list stub (step 4); same page.read as the console pages index.
+                        // 实体列表桩（步骤 4）；与控制台页面目录同为 page.read。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/entities/**")
+                                .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.GET,

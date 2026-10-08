@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.subjex.form.generated.ConfigOverride;
 import com.subjex.form.generated.EndpointPublication;
+import com.subjex.form.generated.ServiceNote;
 import java.io.IOException;
 import java.lang.reflect.RecordComponent;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,14 @@ class GeneratedRecordMatchesFormTest {
                 "forms/config-override.form.yaml",
                 "form-render/src/main/java/com/subjex/form/generated/ConfigOverride.java",
                 ConfigOverride.class);
+    }
+
+    @Test
+    void serviceNoteMatchesTheFormFields() throws IOException {
+        assertCheckedInMatches(
+                "forms/service-note.form.yaml",
+                "form-render/src/main/java/com/subjex/form/generated/ServiceNote.java",
+                ServiceNote.class);
     }
 
     private static void assertCheckedInMatches(String classpathYaml, String sourceRelative, Class<?> recordType)

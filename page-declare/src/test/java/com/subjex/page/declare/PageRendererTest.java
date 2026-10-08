@@ -21,6 +21,7 @@ class PageRendererTest {
         assertEquals("Endpoint publication", flow.titleEn());
         assertEquals("端点发布", flow.titleZh());
         assertEquals("endpoint-publication", flow.formKey());
+        assertNull(flow.entityKey());
         assertEquals(1, flow.version());
         assertEquals("page.read", flow.permission());
         assertFalse(flow.tenantScoped());
@@ -31,6 +32,23 @@ class PageRendererTest {
         assertEquals("submissionId", flow.detail().idField());
         assertEquals("/pages/endpoint-publication/new", flow.submit().path());
         assertEquals("/pages/endpoint-publication", flow.submit().redirectTo());
+    }
+
+
+    @Test
+    void rendersTheServiceNoteFlowWithEntityKey() throws IOException {
+        try (var in = PageRendererTest.class.getResourceAsStream("/flows/service-note.flow.yaml")) {
+            if (in == null) {
+                throw new IOException("service-note flow is not on the classpath");
+            }
+            RenderedFlow flow = renderer.render(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            assertEquals("service-note", flow.flowKey());
+            assertEquals("service-note", flow.formKey());
+            assertEquals("service-note", flow.entityKey());
+            assertEquals("notes", flow.list().itemsKey());
+            assertEquals("noteId", flow.detail().idField());
+            assertEquals("/api/v1/entities/service-note/notes", flow.list().apiPath());
+        }
     }
 
     @Test

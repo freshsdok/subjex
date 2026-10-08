@@ -20,12 +20,15 @@ class FormCatalogTest {
         List<RenderedForm> forms = catalog.list();
         assertTrue(forms.stream().anyMatch(form -> "endpoint-publication".equals(form.formKey())));
         assertTrue(forms.stream().anyMatch(form -> "config-override".equals(form.formKey())));
+        assertTrue(forms.stream().anyMatch(form -> "service-note".equals(form.formKey())));
         assertEquals("endpoint-publication", catalog.publication().formKey());
         assertEquals("endpoint-publication", catalog.require("endpoint-publication").formKey());
         assertEquals("config-override", catalog.require("config-override").formKey());
         assertEquals(2, catalog.require("endpoint-publication").version());
         assertEquals("registry.register", catalog.require("endpoint-publication").domainAction().key());
         assertEquals("config.override", catalog.require("config-override").domainAction().key());
+        assertEquals("entity.serviceNote.save", catalog.require("service-note").domainAction().key());
+        assertEquals("page.read", catalog.require("service-note").permission());
         assertEquals(2, catalog.require("config-override").version());
         assertEquals("registry.write", catalog.require("endpoint-publication").permission());
         assertEquals("config.write", catalog.require("config-override").permission());

@@ -1,0 +1,26 @@
+# Service note flow — 服务备注流程
+# Closes entity → page → form: list/detail read the entity stub API; submit uses the service-note form.
+# Step 4 sample. In-memory entity store until step 3 wires Flyway JDBC.
+# 贯通实体→页面→表单：列表/详情读实体桩 API；提交走 service-note 表单。
+# 第 4 步样例。步骤 3 接入 Flyway JDBC 前用进程内实体桩。
+flowKey: service-note
+titleEn: Service notes
+titleZh: 服务备注
+formKey: service-note
+entityKey: service-note
+version: 1
+permission: page.read
+tenantScoped: false
+list:
+  path: /pages/service-note
+  apiPath: /api/v1/entities/service-note/notes
+  itemsKey: notes
+detail:
+  path: /pages/service-note/{id}
+  apiPath: /api/v1/entities/service-note/notes
+  itemsKey: notes
+  idField: noteId
+submit:
+  path: /pages/service-note/new
+  apiPath: /api/v1/forms/service-note/submissions
+  redirectTo: /pages/service-note

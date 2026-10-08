@@ -56,11 +56,13 @@ export default async function DeclaredListPage({
           {rows.map((row, index) => {
             const id = String(row[idField] ?? index);
             const summary =
-              typeof row.resultSummary === "string"
-                ? row.resultSummary
-                : typeof row.valuesJson === "string"
-                  ? row.valuesJson
-                  : id;
+              typeof row.title === "string"
+                ? row.title
+                : typeof row.resultSummary === "string"
+                  ? row.resultSummary
+                  : typeof row.valuesJson === "string"
+                    ? row.valuesJson
+                    : id;
             return (
               <li key={id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                 <div className="min-w-0">

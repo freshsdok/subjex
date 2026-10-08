@@ -15,9 +15,10 @@ class DomainActionCatalogTest {
 
     @Test
     void listsCheckedInActions() {
-        assertEquals(2, catalog.list().size());
+        assertEquals(3, catalog.list().size());
         assertTrue(catalog.knows("registry.register"));
         assertTrue(catalog.knows("config.override"));
+        assertTrue(catalog.knows("entity.serviceNote.save"));
         DomainActionSpec register = catalog.require("registry.register");
         assertEquals(DomainActionKey.REGISTRY_REGISTER, register.key());
         assertTrue(register.requiredFields().contains("serviceName"));
@@ -27,6 +28,10 @@ class DomainActionCatalogTest {
         assertEquals(DomainActionKey.CONFIG_OVERRIDE, override.key());
         assertTrue(override.requiredFields().contains("configKey"));
         assertTrue(override.requiredFields().contains("configValue"));
+        DomainActionSpec note = catalog.require("entity.serviceNote.save");
+        assertEquals(DomainActionKey.ENTITY_SERVICE_NOTE_SAVE, note.key());
+        assertTrue(note.requiredFields().contains("noteId"));
+        assertTrue(note.requiredFields().contains("title"));
     }
 
     @Test

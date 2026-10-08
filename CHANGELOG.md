@@ -3,12 +3,17 @@
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/). No version has been tagged yet; the tree is `0.1.0-SNAPSHOT`.
 格式大致参照 Keep a Changelog。尚未打任何 tag，当前版本 `0.1.0-SNAPSHOT`。
 
-## [Unreleased] — planned as `v0.1.0-alpha.1` (pre-release)
+## [Unreleased]
+
+ — planned as `v0.1.0-alpha.1` (pre-release)
 
 Contract preview with thin runtime slices, for evaluation on a trusted network. See `SECURITY.md` before exposing anything.
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
+- **Sample flow entity→page→form (post-stage #4)**: `service-note` flow + form + optional flow `entityKey`; in-memory `ServiceNoteStore` + `GET /api/v1/entities/service-note/notes`; domain action `entity.serviceNote.save`. Flyway host wiring remains step 3. See `docs/lowcode-roadmap.md`.
+  贯通样例（阶段后第 4 项）：服务备注流程/表单/实体键；内存实体列表 API 与领域动作；Flyway 接入仍属步骤 3。
+
 - **OIDC SSO (Slice E)**: platform as OIDC RP (Authorization Code + PKCE); `operator_idp_link` + pending PKCE state (Flyway `V10`); `GET/POST /api/v1/auth/oidc/{status,start,callback}`; deny unlinked IdP users; admin `GET/PUT/DELETE /api/v1/operators/{login}/idp-link`; SSO issues same opaque Bearer as Slice C and skips local TOTP. Console SSO button + `/api/session/oidc/*` callback; Operators page IdP bind/unlink UI.
   OIDC SSO（切片 E）：平台作依赖方（授权码+PKCE）；绑定表与 PKCE 态（V10）；未绑定拒绝；管理员绑定/解绑；SSO 签发与 C 相同 Bearer 且跳过本地 TOTP。控制台 SSO 与回调；操作员页绑定 UI。
 

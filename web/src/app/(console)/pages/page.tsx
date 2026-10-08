@@ -8,6 +8,8 @@ type PagesIndexDocument = {
     flowKey?: string;
     titleZh?: string;
     titleEn?: string;
+    formKey?: string | null;
+    entityKey?: string | null;
     permission?: string;
     tenantScoped?: boolean;
   }[];
@@ -30,6 +32,8 @@ export default async function PagesIndexPage() {
       flowKey: string;
       titleZh: string;
       titleEn: string;
+      formKey?: string | null;
+      entityKey?: string | null;
       permission?: string;
       tenantScoped?: boolean;
     } => Boolean(entry.flowKey && entry.titleZh && entry.titleEn),
@@ -50,6 +54,12 @@ export default async function PagesIndexPage() {
                   <p className="font-medium">{title}</p>
                   <p className="text-xs text-muted">
                     {phrases.flowKeyLabel}: <code>{entry.flowKey}</code>
+                    {entry.entityKey ? (
+                      <>
+                        {" · entity "}
+                        <code>{entry.entityKey}</code>
+                      </>
+                    ) : null}
                     {entry.permission ? (
                       <>
                         {" · "}

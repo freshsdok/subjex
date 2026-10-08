@@ -26,4 +26,20 @@ class PageCatalogTest {
         assertEquals(false, flow.tenantScoped());
         assertTrue(catalog.list().stream().anyMatch(f -> f.flowKey().equals("endpoint-publication")));
     }
+
+    @Test
+    void loadsTheCheckedInServiceNoteFlowTiedToEntity() {
+        RenderedFlow flow = catalog.require("service-note");
+        assertEquals("service-note", flow.flowKey());
+        assertEquals("service-note", flow.formKey());
+        assertEquals("service-note", flow.entityKey());
+        assertEquals("/api/v1/entities/service-note/notes", flow.list().apiPath());
+        assertEquals("notes", flow.list().itemsKey());
+        assertEquals("noteId", flow.detail().idField());
+        assertEquals("/api/v1/forms/service-note/submissions", flow.submit().apiPath());
+        assertEquals("/pages/service-note", flow.submit().redirectTo());
+        assertEquals(1, flow.version());
+        assertEquals("page.read", flow.permission());
+    }
 }
+
