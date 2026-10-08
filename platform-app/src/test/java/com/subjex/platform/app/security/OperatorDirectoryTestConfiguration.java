@@ -73,6 +73,11 @@ public class OperatorDirectoryTestConfiguration {
                 tenantAccess);
     }
 
+    @Bean
+    JdbcTenantAdmin jdbcTenantAdmin(JdbcTemplate jdbc) {
+        return new JdbcTenantAdmin(jdbc);
+    }
+
     /** A second operator with read-only permissions — 第二位只读操作员。 */
     static void addViewer(JdbcTemplate jdbc, PasswordEncoder passwordEncoder) {
         jdbc.update("INSERT INTO account (account_id, login_name, account_state) VALUES ('account-viewer', ?, 'ACTIVE')",

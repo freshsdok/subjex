@@ -4,6 +4,7 @@ import com.subjex.platform.app.form.FormProblemDocument;
 import com.subjex.platform.app.form.FormValidationException;
 import com.subjex.platform.app.security.DeclarationPermissionDeniedException;
 import com.subjex.platform.app.security.OperatorTenantNotGrantedException;
+import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.app.task.IdempotencyConflict;
 import com.subjex.platform.app.task.RateLimitExceeded;
 import com.subjex.platform.app.task.SubmitLockHeld;
@@ -26,7 +27,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class PlatformExceptionAdvice {
 
-    @ExceptionHandler({TenantMissingException.class, OperatorTenantNotGrantedException.class})
+    @ExceptionHandler({TenantMissingException.class, OperatorTenantNotGrantedException.class, TenantDisabledException.class})
     ResponseEntity<Void> missingTenantOrGrant() {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }

@@ -1,7 +1,7 @@
 # Auth roadmap — console operators, tenants, tokens, SSO, MFA
 
-Status: Slice **A done** (console operator admin UI); B–E still design (2026-10-05).
-状态：切片 **A 已完成**（控制台操作员管理 UI）；B–E 仍为设计（2026-10-05）。
+Status: Slices **A–B done** (operator UI + tenant API/UI); C–E still design (2026-10-05).
+状态：切片 **A–B 已完成**（操作员 UI + 租户 API/界面）；C–E 仍为设计（2026-10-05）。
 
 Audience: operators of the reserved tenant `platform` (console + `/api/v1`), not end-user/customer identity.
 范围：保留租户 `platform` 的操作员（控制台与 `/api/v1`），不是业务终端用户身份。
@@ -35,13 +35,14 @@ There are **no** OIDC, OAuth2 resource-server, JWT, refresh-token, TOTP, or MFA 
 | Server store | Memory Map or Redis (`SESSION_REDIS_URL` / `REDIS_URL`); value is `{ loginName, credentialHeaderEnc, expiresAtMillis }` | **Still retains password capability**: AES-256-GCM ciphertext of the upstream **Basic** header (`OPERATOR_SESSION_SECRET`) |
 | Proxy | `/api/session` login verifies via `/api/v1/me`; `/api/platform/*` decrypts Basic and forwards | Password-equivalent lives for session lifetime |
 | Operators UI (`/operators`) | Self password; with `operator.manage`: list, create, admin password reset, disable/enable, **editable** tenant grants (`*` supported) | Slice A done; role catalog UI deferred |
-| Tenants UI | None | Only platform HTML/JSON `GET /admin/tenants` (admin.read); no `/api/v1/tenants` twin, no create/disable |
+| Tenants UI (`/tenants`) | List + create + rename + disable/enable with `tenant.manage`; soft-disable = `SUSPENDED` | Quotas / hard delete / paging deferred |
 
 ### 1.3 Tenant model
 
 - Table `tenant (tenant_id, tenant_name, tenant_state)` from Flyway `V1`.
-- Business tenants still **auto-created** on first granted task submission (`JdbcTaskMessagePort`).
-- Reserved tenant `platform` seeded in `V2`.
+- Business tenants still **auto-created** on first granted task submission (`JdbcTaskMessagePort`) when missing; **SUSPENDED** tenants refuse new task writes (403).
+- Reserved tenant `platform` seeded in `V2`; immutable via tenant.manage API.
+- Explicit CRUD twin: `GET/POST /api/v1/tenants`, `PATCH .../{id}`, `POST .../{id}/disable|enable`.
 - Operator–tenant grants already gate tenant-scoped paths; missing grant → 403.
 
 ### 1.4 Explicit non-goals of this roadmap
@@ -209,7 +210,7 @@ Ask the user only if they disagree with these defaults:
 ## 6. Checklist (fill as slices land) / 落地勾选
 
 - [x] A Operator console create / admin password / grant editor
-- [ ] B Tenant API + `/tenants` UI + `tenant.manage`
+- [x] B Tenant API + `/tenants` UI + `tenant.manage`
 - [ ] C Login/refresh tokens; console drops Basic-at-rest
 - [ ] D TOTP MFA + recovery codes
 - [ ] E OIDC RP + IdP link table

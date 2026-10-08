@@ -44,3 +44,4 @@ async function forwardToPlatform(
 export const GET = forwardToPlatform;
 export const PUT = forwardToPlatform;
 export const POST = forwardToPlatform;
+export const PATCH = forwardToPlatform;

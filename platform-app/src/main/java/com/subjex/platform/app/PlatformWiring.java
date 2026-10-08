@@ -23,6 +23,7 @@ import com.subjex.platform.app.jdbc.JdbcIdempotencyPort;
 import com.subjex.platform.app.jdbc.JdbcTaskMessagePort;
 import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
 import com.subjex.platform.app.security.JdbcOperatorAdmin;
+import com.subjex.platform.app.security.JdbcTenantAdmin;
 import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.JdbcOperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorTenantAccess;
@@ -214,6 +215,11 @@ public class PlatformWiring {
             org.springframework.security.crypto.password.PasswordEncoder passwordEncoder,
             OperatorTenantAccess operatorTenantAccess) {
         return new JdbcOperatorAdmin(jdbc, transactionTemplate, passwordEncoder, operatorTenantAccess);
+    }
+
+    @Bean
+    JdbcTenantAdmin jdbcTenantAdmin(JdbcTemplate jdbc) {
+        return new JdbcTenantAdmin(jdbc);
     }
 
     @Bean

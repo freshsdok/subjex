@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/v1/operators/{loginName}/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTenants"];
+        put: operations["replaceTenants"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/config/{key}": {
         parameters: {
             query?: never;
@@ -20,6 +36,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list"];
+        put?: never;
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenantId}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenantId}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["disable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_1"];
+        put?: never;
+        post: operations["create_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/{loginName}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeOtherPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/{loginName}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enable_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/{loginName}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["disable_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeOwnPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/forms/{formKey}/submissions": {
         parameters: {
             query?: never;
@@ -27,13 +171,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["formSubmissionHistory"];
+        get: operations["history"];
         put?: never;
         post: operations["submit"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["rename"];
         trace?: never;
     };
     "/api/v1/skins": {
@@ -60,6 +220,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["services"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pages/{flowKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["detail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -107,7 +299,23 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["forms"];
+        get: operations["index_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{formKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["detail_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -180,58 +388,13 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/forms/{formKey}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["formDetail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/pages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["pages"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/pages/{flowKey}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["pageDetail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        TenantGrantsRequest: {
+            tenantIds?: string[];
+        };
         ConfigValueDocument: {
             value?: string;
         };
@@ -240,10 +403,42 @@ export interface components {
             value?: string;
             origin?: string;
         };
+        CreateTenantRequest: {
+            tenantId?: string;
+            tenantName?: string;
+        };
+        TenantDocument: {
+            tenantId?: string;
+            tenantName?: string;
+            tenantState?: string;
+        };
+        CreateOperatorRequest: {
+            loginName?: string;
+            password?: string;
+            roleName?: string;
+        };
+        OperatorDocument: {
+            loginName?: string;
+            accountState?: string;
+            subjectId?: string;
+            identityId?: string;
+            roleName?: string;
+        };
+        ChangePasswordRequest: {
+            newPassword?: string;
+        };
+        ChangeOwnPasswordRequest: {
+            currentPassword?: string;
+            newPassword?: string;
+        };
         FormSubmissionDocument: {
             values?: {
                 [key: string]: unknown;
             };
+        };
+        EffectOutcomeDocument: {
+            key?: string;
+            outcome?: string;
         };
         FormSubmissionResultDocument: {
             submissionId?: string;
@@ -255,20 +450,11 @@ export interface components {
             submittedAt?: string;
             effects?: components["schemas"]["EffectOutcomeDocument"][];
         };
-        EffectOutcomeDocument: {
-            key?: string;
-            outcome?: string;
+        RenameTenantRequest: {
+            tenantName?: string;
         };
-        FormFieldErrorDocument: {
-            field?: string;
-            code?: string;
-            message?: string;
-        };
-        FormProblemDocument: {
-            kind?: string;
-            fieldErrors?: components["schemas"]["FormFieldErrorDocument"][];
-            permission?: string;
-            message?: string;
+        TenantsDocument: {
+            tenants?: components["schemas"]["TenantDocument"][];
         };
         SkinDocument: {
             name?: string;
@@ -289,6 +475,54 @@ export interface components {
         ServiceListDocument: {
             services?: components["schemas"]["ServiceDocument"][];
         };
+        PageIndexDocument: {
+            flowKey?: string;
+            titleZh?: string;
+            titleEn?: string;
+            /** Format: int32 */
+            version?: number;
+            permission?: string;
+            tenantScoped?: boolean;
+        };
+        PagesIndexDocument: {
+            pages?: components["schemas"]["PageIndexDocument"][];
+        };
+        DetailSpecDocument: {
+            path?: string;
+            apiPath?: string;
+            itemsKey?: string;
+            idField?: string;
+        };
+        ListSpecDocument: {
+            path?: string;
+            apiPath?: string;
+            itemsKey?: string;
+        };
+        PageFlowDocument: {
+            flowKey?: string;
+            titleZh?: string;
+            titleEn?: string;
+            formKey?: string;
+            /** Format: int32 */
+            version?: number;
+            permission?: string;
+            tenantScoped?: boolean;
+            list?: components["schemas"]["ListSpecDocument"];
+            detail?: components["schemas"]["DetailSpecDocument"];
+            submit?: components["schemas"]["SubmitSpecDocument"];
+        };
+        SubmitSpecDocument: {
+            path?: string;
+            apiPath?: string;
+            redirectTo?: string;
+        };
+        OperatorsDocument: {
+            operators?: components["schemas"]["OperatorDocument"][];
+        };
+        TenantGrantsDocument: {
+            loginName?: string;
+            tenantIds?: string[];
+        };
         OperatorSelfDocument: {
             loginName?: string;
             identityId?: string;
@@ -304,6 +538,18 @@ export interface components {
         LanguageListDocument: {
             languages?: components["schemas"]["LanguageDocument"][];
         };
+        FormIndexDocument: {
+            formKey?: string;
+            titleZh?: string;
+            titleEn?: string;
+            /** Format: int32 */
+            version?: number;
+            permission?: string;
+            tenantScoped?: boolean;
+        };
+        FormsIndexDocument: {
+            forms?: components["schemas"]["FormIndexDocument"][];
+        };
         FieldDocument: {
             name?: string;
             kind?: string;
@@ -318,6 +564,21 @@ export interface components {
             permission?: string;
             tenantScoped?: boolean;
             fields?: components["schemas"]["FieldDocument"][];
+        };
+        FormSubmissionHistoryDocument: {
+            submissionId?: string;
+            formKey?: string;
+            /** Format: int32 */
+            declarationVersion?: number;
+            actorIdentityId?: string;
+            loginName?: string;
+            valuesJson?: string;
+            resultSummary?: string;
+            /** Format: date-time */
+            submittedAt?: string;
+        };
+        FormSubmissionListDocument: {
+            submissions?: components["schemas"]["FormSubmissionHistoryDocument"][];
         };
         DeployDocument: {
             applied?: boolean;
@@ -361,74 +622,6 @@ export interface components {
             outcomeWordZh?: string;
             outcomeWordEn?: string;
         };
-        FormsIndexDocument: {
-            forms?: components["schemas"]["FormIndexDocument"][];
-        };
-        FormIndexDocument: {
-            formKey?: string;
-            titleZh?: string;
-            titleEn?: string;
-            /** Format: int32 */
-            version?: number;
-            permission?: string;
-            tenantScoped?: boolean;
-        };
-        FormSubmissionListDocument: {
-            submissions?: components["schemas"]["FormSubmissionHistoryDocument"][];
-        };
-        FormSubmissionHistoryDocument: {
-            submissionId?: string;
-            formKey?: string;
-            /** Format: int32 */
-            declarationVersion?: number;
-            actorIdentityId?: string;
-            loginName?: string;
-            valuesJson?: string;
-            resultSummary?: string;
-            /** Format: date-time */
-            submittedAt?: string;
-        };
-        PageIndexDocument: {
-            flowKey?: string;
-            titleZh?: string;
-            titleEn?: string;
-            /** Format: int32 */
-            version?: number;
-            permission?: string;
-            tenantScoped?: boolean;
-        };
-        PagesIndexDocument: {
-            pages?: components["schemas"]["PageIndexDocument"][];
-        };
-        ListSpecDocument: {
-            path?: string;
-            apiPath?: string;
-            itemsKey?: string;
-        };
-        DetailSpecDocument: {
-            path?: string;
-            apiPath?: string;
-            itemsKey?: string;
-            idField?: string;
-        };
-        SubmitSpecDocument: {
-            path?: string;
-            apiPath?: string;
-            redirectTo?: string;
-        };
-        PageFlowDocument: {
-            flowKey?: string;
-            titleZh?: string;
-            titleEn?: string;
-            formKey?: string;
-            /** Format: int32 */
-            version?: number;
-            permission?: string;
-            tenantScoped?: boolean;
-            list?: components["schemas"]["ListSpecDocument"];
-            detail?: components["schemas"]["DetailSpecDocument"];
-            submit?: components["schemas"]["SubmitSpecDocument"];
-        };
     };
     responses: never;
     parameters: never;
@@ -438,6 +631,80 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listTenants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                loginName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TenantGrantsDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    replaceTenants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                loginName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantGrantsRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     override: {
         parameters: {
             query?: never;
@@ -478,10 +745,368 @@ export interface operations {
             };
         };
     };
-    formSubmissionHistory: {
+    list: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TenantsDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create: {
         parameters: {
             query?: never;
             header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTenantRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TenantDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    enable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    disable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OperatorsDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateOperatorRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OperatorDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    changeOtherPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                loginName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    enable_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                loginName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    disable_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                loginName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    changeOwnPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeOwnPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    history: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string;
+            };
             path: {
                 formKey: string;
             };
@@ -517,7 +1142,9 @@ export interface operations {
     submit: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Tenant-Id"?: string;
+            };
             path: {
                 formKey: string;
             };
@@ -538,13 +1165,40 @@ export interface operations {
                     "*/*": components["schemas"]["FormSubmissionResultDocument"];
                 };
             };
-            /** @description Field validation failed — 字段校验失败 */
-            400: {
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["FormProblemDocument"];
+                    "*/*": components["schemas"]["TenantDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */
@@ -554,14 +1208,52 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Operator lacks the declared permission — 操作员缺少声明权限 */
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "*/*": components["schemas"]["FormProblemDocument"];
+                content?: never;
+            };
+        };
+    };
+    rename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameTenantRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content: {
+                    "*/*": components["schemas"]["TenantDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -615,6 +1307,78 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ServiceListDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    index: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PagesIndexDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    detail: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string;
+            };
+            path: {
+                flowKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageFlowDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */
@@ -701,7 +1465,7 @@ export interface operations {
             };
         };
     };
-    forms: {
+    index_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -717,6 +1481,44 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["FormsIndexDocument"];
+                };
+            };
+            /** @description No operator signed in — 没有已登录的操作员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Operator lacks the permission — 操作员缺少这项权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    detail_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string;
+            };
+            path: {
+                formKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FormsDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */
@@ -853,112 +1655,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AuditDocument"];
-                };
-            };
-            /** @description No operator signed in — 没有已登录的操作员 */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Operator lacks the permission — 操作员缺少这项权限 */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    formDetail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                formKey: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["FormsDocument"];
-                };
-            };
-            /** @description No operator signed in — 没有已登录的操作员 */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Operator lacks the permission — 操作员缺少这项权限 */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    pages: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["PagesIndexDocument"];
-                };
-            };
-            /** @description No operator signed in — 没有已登录的操作员 */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Operator lacks the permission — 操作员缺少这项权限 */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    pageDetail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                flowKey: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["PageFlowDocument"];
                 };
             };
             /** @description No operator signed in — 没有已登录的操作员 */

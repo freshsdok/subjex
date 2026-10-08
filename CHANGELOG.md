@@ -9,6 +9,8 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
+- **Tenant management (Slice B)**: permission `tenant.manage`; `/api/v1/tenants` list/get/create, `PATCH` rename, disable/enable (soft `SUSPENDED`); reserved `platform` immutable; task submit to suspended tenant → 403; console `/tenants` (review→confirm). Flyway `V7__tenant_manage.sql`.
+  租户管理（切片 B）：`tenant.manage`；列表/创建/改名/软禁用；保留租户不可改；禁用租户拒绝任务；控制台 `/tenants`。迁移 V7。
 - **Operator management (thin slice)**: permission `operator.manage`; APIs under `/api/v1/operators` for list/create, disable/enable, change other password, replace tenant grants; `POST /api/v1/operators/me/password` (current password required) for any signed-in operator. One-shot bootstrap remains optional. Console Operators page for self password change + admin list/disable/enable. Flyway `V6__operator_management.sql`.
   操作员管理薄切片：`operator.manage`；列表/创建/禁用/启用/改他人口令/租户授权；自己改密需当前口令。一次性开通仍可选。控制台操作员页。迁移 V6。
 - **Operator–tenant authorization**: table `operator_tenant_grant` (subject + tenant id, `*` = all tenants). Tenant-scoped paths (`/tasks/**`, declaration `tenantScoped`) reject missing grant as well as missing `X-Tenant-Id` (fail-closed). Local seed and bootstrap grant `*`.
@@ -74,6 +76,6 @@ See `SECURITY.md` for the security-relevant ones. Also:
 - `deploy/compose` includes `sample-consumer` (wired like k8s) but not `web/`; full compose image build / end-to-end smoke still optional and not always run in this release cycle.
 - `web/` has no Dockerfile or manifests (CI now covers typecheck/test/build; no image yet).
 - Activating `.github/workflows/*` on the remote requires a token with the `workflow` scope; until that push lands, GitHub Actions still will not run.
-- Operator create UI in the console is still list/disable/enable + self password only; create and tenant-grant editing remain API/SQL (`docs/operator-permissions.md`).
-- Auto-creating tenants on first granted task submission remains; there is no tenant admin UI yet.
+- Console operator create / password reset / grant editor landed (Slice A); role catalog UI still deferred.
+- Auto-creating tenants on first granted task submission remains for missing ACTIVE tenants; explicit admin is `/api/v1/tenants` + `/tenants` (Slice B). Hard delete / quotas deferred.
 - Platform-issued operator API tokens (drop retained Basic after login) are still future work.

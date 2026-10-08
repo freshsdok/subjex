@@ -41,6 +41,12 @@ public class PlatformSecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/v1/operators/me/password").authenticated()
                         .requestMatchers("/api/v1/operators", "/api/v1/operators/**")
                                 .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
+                        // Tenant list/get: admin.read; writes: tenant.manage.
+                        // 租户列表/读取：admin.read；写操作：tenant.manage。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tenants", "/api/v1/tenants/**")
+                                .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
+                        .requestMatchers("/api/v1/tenants", "/api/v1/tenants/**")
+                                .hasAuthority(OperatorPermission.TENANT_MANAGE.permissionName())
                         .requestMatchers("/api/v1/openapi.json", "/api/v1/openapi.json/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/services")
                                 .hasAuthority(OperatorPermission.REGISTRY_READ.permissionName())

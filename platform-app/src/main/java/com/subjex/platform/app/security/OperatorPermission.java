@@ -25,7 +25,9 @@ public enum OperatorPermission {
     /** Submit tasks — 提交任务。 */
     TASK_WRITE("task.write"),
     /** Manage operators and tenant grants — 管理操作员与租户授权。 */
-    OPERATOR_MANAGE("operator.manage");
+    OPERATOR_MANAGE("operator.manage"),
+    /** Create, rename, disable, and enable tenants — 创建、改名、禁用与启用租户。 */
+    TENANT_MANAGE("tenant.manage");
 
     private final String permissionName;
 

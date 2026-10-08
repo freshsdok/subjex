@@ -61,3 +61,10 @@ Auth roadmap Slice A — 操作员控制台补齐（2026-10-05）:
     控制台操作员管理：新建、管理员重置口令、租户授权编辑（含通配 *）；无授权失败关闭提示；中英文案；授权辅助单测。
     Next: Slice B tenants API + `/tenants` UI. Do not start C–E until A/B land as planned.
     下一片：B 租户 API 与界面。按计划先不要开 C–E。
+
+Auth roadmap Slice B — 租户管理（2026-10-05）:
+
+9c. [done] `tenant.manage` permission (V7); `/api/v1/tenants` list/get/create/rename/disable/enable; soft-disable = SUSPENDED; reserved `platform` immutable; task submit refuses SUSPENDED; console `/tenants` with review→confirm; nav; zh/en; vitest helpers.
+    权限、REST、软禁用、保留租户不可改、禁用租户拒绝任务、控制台页与导航、中英文案、辅助单测。
+    Next: Slice C Bearer tokens (drop Basic-at-rest). Do not start D–E until C lands.
+    下一片：C 平台令牌。按计划先不要开 D–E。

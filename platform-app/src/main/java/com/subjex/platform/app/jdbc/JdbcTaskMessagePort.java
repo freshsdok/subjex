@@ -26,6 +26,7 @@ import com.subjex.platform.contract.task.TaskMessagePort;
 import com.subjex.platform.contract.task.TaskRecord;
 import com.subjex.platform.contract.task.TaskRecordedNotice;
 import com.subjex.platform.contract.task.TaskState;
+import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.contract.tenant.TenantState;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
@@ -300,9 +301,14 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
     }
 
     private void ensureTenant(String tenantId) {
-        Long count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM tenant WHERE tenant_id = ?", Long.class, tenantId);
-        if (count != null && count > 0) {
+        List<String> states = jdbc.query(
+                "SELECT tenant_state FROM tenant WHERE tenant_id = ?",
+                (row, n) -> row.getString("tenant_state"),
+                tenantId);
+        if (!states.isEmpty()) {
+            if (!TenantState.ACTIVE.name().equals(states.get(0))) {
+                throw new TenantDisabledException(tenantId);
+            }
             return;
         }
         jdbc.update(
