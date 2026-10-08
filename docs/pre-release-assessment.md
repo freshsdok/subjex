@@ -16,6 +16,8 @@ subjex 是一个**契约优先、刻意做薄**的 Java 21 / Spring Boot 3.5 模
 
 > **进度（2026-10-05 16:41 UTC+8，本机未 push）**：B1 已绿；B3 文档已落地；低代码阶段 0–6 已在远端 `77ce565`。**B2 本机已做**：`.github/workflows/build.yml`（Maven + web typecheck/test/build），`docs/ci/` 仅指引；远端写入仍需 `workflow` scope。详见 [`release-prep-progress.md`](release-prep-progress.md)。
 
+> **低代码后续（2026-10-08 UTC+8，本机未 push）**：产品决策已锁定——`entity-declare` **不是**永久只出草稿；将按 [`lowcode-roadmap.md`](lowcode-roadmap.md)「阶段后下一步」接入 `platform-app`（顺序 1 锁定 → 2 domainAction → 4 贯通样例 → 3 实体迁移）。评估表「低代码表单」缺口里「新表单需改代码」将由 domainAction 声明化收窄。
+
 ---
 
 ## 1. 产品定位 / Product identity & positioning

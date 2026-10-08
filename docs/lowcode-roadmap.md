@@ -39,11 +39,17 @@ Do not start stage *N+1* until stage *N* is committed and usable for the next sl
 
 ## Stage 1 notes — entity drafts / 第 1 阶段说明
 
-- Module: `entity-declare` (thin renderer + generators; no Spring, not wired into `platform-app`).
+- Module: `entity-declare` (thin renderer + generators; no Spring).
 - Sample: `entities/service-note.entity.yaml` → checked-in drafts under `db/migration-draft/` and `com.subjex.entity.generated`.
 - Spec keys: `entityKey`, `tableName`, required `version` (≥ 1), `fields[]` with `name` / `kind` (`text`|`integer`) / `required` / optional `maxLength`.
 - First field is the primary key. SQL drafts are **not** applied by `platform-app` Flyway until a human moves them.
 - 第一个字段视为主键。SQL 草稿在人工移入 `platform-app` 迁移目录前不会被应用。
+
+### Product decision — entity host wiring / 产品决策：实体接入宿主
+
+**`entity-declare` is not a permanent draft-only module.** Stage 1 delivered checked-in drafts on purpose; the next deepening order (see [Post-stage next work](#post-stage-next-work--阶段后下一步)) wires those drafts into `platform-app` (Flyway migration, JDBC CRUD, thin API/page). Until that slice lands, drafts stay out of the host classpath by design — not because host wiring was cancelled.
+
+**`entity-declare` 不是永久只出草稿的模块。** 第 1 阶段故意只检入草稿；后续加深顺序（见下方「阶段后下一步」）会把草稿接入 `platform-app`（Flyway 迁移、JDBC CRUD、薄 API/页）。在该切片落地前，草稿故意不进宿主 classpath——不是因为取消接入。
 
 Regenerate drafts / 重新生成草稿:
 
@@ -112,3 +118,20 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - E. [done] Stage 4: side-effect catalog YAML + `SideEffectKey`; form `effects` on samples; `FormSideEffectRunner` invokes audit/task/extension ports after submit; renderer rejects unknown keys; tests; local commits only (no push).
 - F. [done] Stage 5: required `version` on form/entity/flow YAML; catalog exposes version; `declaration_version` on submissions (Flyway V5); `docs/declaration-migration.md`; tests; local commits only (no push).
 - G. [done] Stage 6: structured form submit success/problem payloads; console debug/result panel on forms and page submit; OpenAPI aligned; tests; local commits only (no push). All six deepening stages complete locally.
+- H. [done] Product lock: entity-declare will be wired into `platform-app` (not permanent draft-only); documented here + README + pre-release note. Local commit only (no push).
+
+## Post-stage next work / 阶段后下一步
+
+Ordered follow-ups after stages 0–6 (do in this sequence unless the owner renumbers):
+
+阶段 0–6 之后的后续工作（除非负责人改序，否则按此顺序）：
+
+| # | Work / 工作 | Intent / 意图 | Status / 状态 |
+| --- | --- | --- | --- |
+| 1 | Entity host product lock / 实体接入产品锁定 | Document that `entity-declare` drafts will enter `platform-app` later — not permanent draft-only. | done (this note) |
+| 2 | Domain action declarative / 领域动作声明化 | Replace `FormSubmissionEndpoint` `formKey` if-branches with enumerable `domainAction` + catalog so new forms need less Java. | next |
+| 3 | Entity → platform-app / 实体接入宿主 | Move `service-note` (or successor) migration into platform Flyway; wire JDBC CRUD + thin API/page. | planned (after 2 and sample flow) |
+| 4 | Sample flow spanning entity→page→form / 贯通样例 | One flow that ties an entity, page, and form end-to-end. | planned (between 2 and 3 in owner order: 1→2→4→3) |
+
+Owner order for the current pass: **1 → 2 → 4 → 3** (lock → domainAction → flow sample → entity migrate).
+当前回合负责人顺序：**1 → 2 → 4 → 3**。
