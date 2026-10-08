@@ -40,11 +40,31 @@ export async function POST(request: Request): Promise<Response> {
   if (tokenReply.status === 401) {
     return Response.json({ reason: "wrong-credentials" }, { status: 401 });
   }
+  if (tokenReply.status === 403) {
+    const denied = (await tokenReply.json().catch(() => ({}))) as { reason?: unknown };
+    if (denied.reason === "mfa-enrollment-required") {
+      return Response.json({ reason: "mfa-enrollment-required" }, { status: 403 });
+    }
+    return Response.json({ reason: "platform-error" }, { status: 502 });
+  }
   if (!tokenReply.ok) {
     return Response.json({ reason: "platform-error" }, { status: 502 });
   }
 
-  const tokens = (await tokenReply.json()) as TokenReply;
+  const tokens = (await tokenReply.json()) as TokenReply & {
+    mfaRequired?: unknown;
+    mfaToken?: unknown;
+  };
+  if (tokens.mfaRequired === true) {
+    const mfaToken = typeof tokens.mfaToken === "string" ? tokens.mfaToken : "";
+    const expiresIn = typeof tokens.expiresIn === "number" ? tokens.expiresIn : 0;
+    if (!mfaToken || expiresIn <= 0) {
+      return Response.json({ reason: "platform-error" }, { status: 502 });
+    }
+    // No session cookie yet — client must POST /api/session/mfa with the code.
+    // 尚未写会话 cookie；客户端需带验证码 POST /api/session/mfa。
+    return Response.json({ mfaRequired: true, mfaToken, expiresIn });
+  }
   const accessToken = typeof tokens.accessToken === "string" ? tokens.accessToken : "";
   const refreshToken = typeof tokens.refreshToken === "string" ? tokens.refreshToken : "";
   const expiresIn = typeof tokens.expiresIn === "number" ? tokens.expiresIn : 0;

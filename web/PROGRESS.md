@@ -75,3 +75,10 @@ Auth roadmap Slice C — 平台令牌（2026-10-05）:
     不透明 Bearer + 轮换刷新；控制台不再静态保留 Basic。登录走令牌端点；会话只存加密令牌；代理 Bearer 与静默刷新；退出吊销族。
     Next: Slice D TOTP MFA. Do not start E until D lands as planned.
     下一片：D TOTP。按计划先不要开 E。
+
+Auth roadmap Slice D — TOTP MFA（2026-10-08）:
+
+9e. [done] TOTP (RFC 6238) enroll/confirm/disable; login mfaToken challenge + verify; recovery codes once; AES-GCM secret at rest (V9); console second login step + Operators self enroll/disable. `platform.mfa.required=false` initially.
+    TOTP 登记/确认/关闭；登录挑战与校验；恢复码一次性；密钥 AES-GCM 入库（V9）；控制台二次登录与操作员页自助登记。默认不强制。
+    Next: Slice E OIDC. Do not start E until product asks.
+    下一片：E OIDC。等产品明确要求再开。

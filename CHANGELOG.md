@@ -9,6 +9,9 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
+- **TOTP MFA (Slice D)**: `POST /api/v1/auth/mfa/totp/{start,confirm,disable}`, `GET /api/v1/auth/mfa`, login returns `mfaToken` when enrolled, `POST /api/v1/auth/mfa/verify` → Bearer pair; recovery codes (hashed, one-shot); AES-GCM TOTP secret at rest; `platform.mfa.required=false` / `required-for-platform-operator`; console login second step + Operators self enroll/disable. Flyway `V9__operator_mfa.sql`.
+  TOTP 多因素（切片 D）：登记/确认/关闭与状态；已登记则登录先发 mfaToken；校验后签发令牌；恢复码摘要入库一次性；密钥 AES-GCM；默认不强制；控制台二次登录与自助登记。迁移 V9。
+
 - **Platform-issued tokens (Slice C)**: `POST /api/v1/auth/login|refresh|logout`; opaque Bearer access (default TTL 30m) + rotating refresh (8h, SHA-256 at rest, family reuse detection); APIs accept Bearer or Basic; password change / disable revokes all families. Console stores only encrypted access/refresh (no Basic-at-rest); proxy silent-refreshes on 401. Flyway `V8__operator_tokens.sql`.
   平台签发令牌（切片 C）：登录/刷新/退出；不透明 Bearer + 轮换刷新（摘要入库、重放吊销整族）；接口接受 Bearer 或 Basic；改密/禁用吊销令牌。控制台只存加密令牌；代理 401 静默刷新。迁移 V8。
 

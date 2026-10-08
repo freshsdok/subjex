@@ -2,6 +2,7 @@ import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/pag
 import { currentLanguage } from "@/i18n/server-language";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { ChangePasswordForm } from "./change-password-form";
+import { MfaEnrollForm } from "./mfa-enroll-form";
 import { CreateOperatorForm } from "./create-operator-form";
 import { OperatorAdminActions } from "./operator-admin-actions";
 import { TenantGrantsEditor } from "./tenant-grants-editor";
@@ -21,8 +22,9 @@ type TenantGrantsDocument = { loginName?: string; tenantIds?: string[] };
 // Operators page — 操作员页：人人可改自己的口令；operator.manage 可新建、重置口令、禁用/启用并编辑租户授权。
 export default async function OperatorsPage() {
   const { phrases } = await currentLanguage();
-  const { body: me } = await readPlatform<OperatorSelfDocument>("me");
+  const { body: me } = await readPlatform<OperatorSelfDocument & { mfaEnrolled?: boolean }>("me");
   const canManage = new Set(me?.permissions ?? []).has("operator.manage");
+  const mfaEnrolled = Boolean(me?.mfaEnrolled);
 
   let operators: NonNullable<OperatorsDocument["operators"]> = [];
   let listStatus = 200;
@@ -52,6 +54,7 @@ export default async function OperatorsPage() {
     <section>
       <PageHeading title={phrases.operatorsTitle} hint={phrases.operatorsHint} />
       <ChangePasswordForm phrases={phrases} />
+      <MfaEnrollForm phrases={phrases} enrolled={mfaEnrolled} />
       {canManage ? (
         <>
           <CreateOperatorForm phrases={phrases} />
