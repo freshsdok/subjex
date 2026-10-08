@@ -26,6 +26,8 @@ import com.subjex.platform.app.security.JdbcOperatorAdmin;
 import com.subjex.platform.app.security.JdbcTenantAdmin;
 import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.JdbcOperatorTokenStore;
+import com.subjex.platform.app.security.JdbcOperatorMfaStore;
+import com.subjex.platform.app.security.AesGcmSecretCipher;
 import com.subjex.platform.app.security.JdbcOperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorActionAudit;
@@ -209,6 +211,43 @@ public class PlatformWiring {
             @Value("${platform.auth.refresh-token-ttl:PT8H}") Duration refreshTokenTtl) {
         return new JdbcOperatorTokenStore(
                 jdbc, transactionTemplate, operatorDirectory, clock, accessTokenTtl, refreshTokenTtl);
+    }
+
+    @Bean
+    AesGcmSecretCipher mfaSecretCipher(
+            @Value("${platform.mfa.encryption-key:}") String encryptionKey) {
+        String key = encryptionKey == null ? "" : encryptionKey.trim();
+        if (key.isEmpty()) {
+            // Ephemeral key: enroll/verify fail across restarts until PLATFORM_MFA_ENCRYPTION_KEY is set.
+            // 临时密钥：未配置时进程内可用，重启后无法解密已存密钥；生产必须配置。
+            byte[] bytes = new byte[32];
+            new java.security.SecureRandom().nextBytes(bytes);
+            key = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        }
+        return new AesGcmSecretCipher(key);
+    }
+
+    @Bean
+    JdbcOperatorMfaStore operatorMfaStore(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            JdbcOperatorDirectory operatorDirectory,
+            AesGcmSecretCipher mfaSecretCipher,
+            Clock clock,
+            @Value("${platform.mfa.challenge-ttl:PT5M}") Duration challengeTtl,
+            @Value("${platform.mfa.issuer:subjex}") String issuer,
+            @Value("${platform.mfa.required:false}") boolean required,
+            @Value("${platform.mfa.required-for-platform-operator:false}") boolean requiredForPlatformOperator) {
+        return new JdbcOperatorMfaStore(
+                jdbc,
+                transactionTemplate,
+                operatorDirectory,
+                mfaSecretCipher,
+                clock,
+                challengeTtl,
+                issuer,
+                required,
+                requiredForPlatformOperator);
     }
 
     @Bean

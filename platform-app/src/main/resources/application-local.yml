@@ -5,3 +5,7 @@ platform:
     hmac-secret: ${OUTBOX_HMAC_SECRET:change-me-outbox-hmac-secret-local!!}
     tls:
       enabled: false
+  # LOCAL ONLY — MFA secret encryption key for laptop enroll/verify.
+  # 仅限本地 — 本机登记/校验 MFA 的密钥加密口令。
+  mfa:
+    encryption-key: ${PLATFORM_MFA_ENCRYPTION_KEY:change-me-mfa-encryption-key-local!!!!}

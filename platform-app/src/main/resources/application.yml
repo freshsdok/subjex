@@ -35,6 +35,14 @@ platform:
   auth:
     access-token-ttl: PT30M
     refresh-token-ttl: PT8H
+  # TOTP MFA (Slice D). required=false initially; set encryption-key in every shared environment.
+  # TOTP 多因素（切片 D）。默认不强制；共享环境必须配置 encryption-key。
+  mfa:
+    required: false
+    required-for-platform-operator: false
+    challenge-ttl: PT5M
+    issuer: subjex
+    encryption-key: ${PLATFORM_MFA_ENCRYPTION_KEY:}
   # LOCAL ONLY: used only when SPRING_PROFILES_ACTIVE=local seeds the local operator.
   # 仅限本地：只有 SPRING_PROFILES_ACTIVE=local 写入本地操作员时才用。
   local-operator:

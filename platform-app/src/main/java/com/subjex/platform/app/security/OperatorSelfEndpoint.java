@@ -18,16 +18,32 @@ public class OperatorSelfEndpoint {
     /** JSON path — JSON 路径。 */
     public static final String PATH = JsonApi.BASE + "/me";
 
+    private final JdbcOperatorMfaStore mfaStore;
+
+    public OperatorSelfEndpoint(JdbcOperatorMfaStore mfaStore) {
+        this.mfaStore = mfaStore;
+    }
+
     @GetMapping(PATH)
     public OperatorSelfDocument me(@AuthenticationPrincipal OperatorPrincipal operator) {
         List<String> permissions = operator.permissionNames().stream().sorted().toList();
         return new OperatorSelfDocument(
-                operator.getUsername(), operator.identityId(), operator.subjectId(), permissions);
+                operator.getUsername(),
+                operator.identityId(),
+                operator.subjectId(),
+                permissions,
+                mfaStore.isEnrolled(operator.subjectId()),
+                mfaStore.enrollmentRequired(operator));
     }
 
     /**
-     * OperatorSelfDocument — 操作员自述：登录名、身份标识、主体标识、排好序的权限名。
+     * OperatorSelfDocument — 操作员自述：登录名、身份、主体、权限、是否已登记 MFA、策略是否强制登记。
      */
     public record OperatorSelfDocument(
-            String loginName, String identityId, String subjectId, List<String> permissions) {}
+            String loginName,
+            String identityId,
+            String subjectId,
+            List<String> permissions,
+            boolean mfaEnrolled,
+            boolean mfaEnrollmentRequired) {}
 }

@@ -18,7 +18,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 /**
  * PlatformSecurityConfiguration — 平台安全：先认出操作员，再按具名权限放行每一个 HTTP 动作。
  * <p>
- * Anonymous access is limited to liveness/readiness probes and auth token endpoints (login/refresh/logout).
+ * Anonymous access is limited to liveness/readiness probes and auth token endpoints (login/refresh/logout/mfa-verify).
  * {@code Authorization: Bearer} (opaque platform tokens) is the primary path for the console; HTTP Basic
  * remains for scripts and local tooling. {@link JdbcOperatorDirectory} backs Basic; {@link JdbcOperatorTokenStore}
  * backs Bearer. CSRF is off because there is no browser form posting to Java.
@@ -39,8 +39,13 @@ public class PlatformSecurityConfiguration {
                         .requestMatchers(HttpMethod.POST,
                                 OperatorAuthEndpoint.PATH + "/login",
                                 OperatorAuthEndpoint.PATH + "/refresh",
-                                OperatorAuthEndpoint.PATH + "/logout")
+                                OperatorAuthEndpoint.PATH + "/logout",
+                                OperatorAuthEndpoint.PATH + "/mfa/verify")
                                 .permitAll()
+                        // MFA enroll/disable/status — signed-in operator only.
+                        // MFA 登记/关闭/状态 — 仅已登录操作员。
+                        .requestMatchers(OperatorMfaEndpoint.PATH, OperatorMfaEndpoint.PATH + "/**")
+                                .authenticated()
                         // JSON twins under /api/v1: same named permissions as their pages.
                         // /api/v1 下的 JSON 孪生接口：与对应页面相同的具名权限。
                         .requestMatchers(HttpMethod.GET, "/api/v1/me").authenticated()

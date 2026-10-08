@@ -3,6 +3,7 @@ package com.subjex.platform.app.security;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.contract.audit.AuditOutcome;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -12,11 +13,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * OperatorAuthEndpoint — 登录 / 刷新 / 退出：口令只用于签发不透明 Bearer，之后用访问+刷新令牌。
+ * OperatorAuthEndpoint — 登录 / 刷新 / 退出 / MFA 校验：口令只用于签发不透明 Bearer（或 MFA 挑战）。
  * <p>
- * Login validates username/password once and issues opaque access + rotating refresh tokens.
- * Refresh rotates; reuse of an old refresh revokes the family. Logout revokes the refresh family.
- * 登录核对一次口令后签发访问+刷新令牌。刷新会轮换；重用旧刷新则吊销整族。退出吊销刷新族。
+ * Login validates username/password once. If TOTP is enrolled, returns a short-lived {@code mfaToken}
+ * instead of access/refresh; {@code POST .../mfa/verify} completes the flow. Refresh rotates; reuse of
+ * an old refresh revokes the family. Logout revokes the refresh family.
+ * 登录核对一次口令。若已登记 TOTP 则先发短时 mfaToken；校验后再签发访问/刷新。刷新轮换；重用旧刷新吊销整族。
  */
 @RestController
 public class OperatorAuthEndpoint {
@@ -26,21 +28,24 @@ public class OperatorAuthEndpoint {
     private final JdbcOperatorDirectory directory;
     private final PasswordEncoder passwordEncoder;
     private final JdbcOperatorTokenStore tokenStore;
+    private final JdbcOperatorMfaStore mfaStore;
     private final OperatorActionAudit audit;
 
     public OperatorAuthEndpoint(
             JdbcOperatorDirectory directory,
             PasswordEncoder passwordEncoder,
             JdbcOperatorTokenStore tokenStore,
+            JdbcOperatorMfaStore mfaStore,
             OperatorActionAudit audit) {
         this.directory = directory;
         this.passwordEncoder = passwordEncoder;
         this.tokenStore = tokenStore;
+        this.mfaStore = mfaStore;
         this.audit = audit;
     }
 
     @PostMapping(PATH + "/login")
-    public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest body, HttpServletRequest request) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest body, HttpServletRequest request) {
         String loginName = body == null || body.loginName() == null ? "" : body.loginName().trim();
         String password = body == null ? null : body.password();
         if (loginName.isEmpty() || password == null || password.isEmpty()) {
@@ -55,10 +60,43 @@ public class OperatorAuthEndpoint {
         if (!operator.isEnabled() || !passwordEncoder.matches(password, operator.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (mfaStore.isEnrolled(operator.subjectId())) {
+            JdbcOperatorMfaStore.IssuedChallenge challenge = mfaStore.issueChallenge(operator);
+            audit.record(operator, "operator.auth.login.mfa-challenge", operator.getUsername(), AuditOutcome.ALLOWED);
+            return ResponseEntity.ok(new MfaChallengeResponse(
+                    true, challenge.mfaToken(), challenge.expiresInSeconds(), "MfaChallenge"));
+        }
+        if (mfaStore.enrollmentRequired(operator)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("reason", "mfa-enrollment-required"));
+        }
         JdbcOperatorTokenStore.IssuedTokens issued =
                 tokenStore.issue(operator, request.getHeader("User-Agent"), clientIp(request));
         audit.record(operator, "operator.auth.login", operator.getUsername(), AuditOutcome.ALLOWED);
         return ResponseEntity.ok(toResponse(issued));
+    }
+
+    @PostMapping(PATH + "/mfa/verify")
+    public ResponseEntity<?> verifyMfa(@RequestBody MfaVerifyRequest body, HttpServletRequest request) {
+        String mfaToken = body == null ? null : body.mfaToken();
+        String code = body == null ? null : body.code();
+        try {
+            OperatorPrincipal operator = mfaStore.verifyChallenge(mfaToken, code);
+            JdbcOperatorTokenStore.IssuedTokens issued =
+                    tokenStore.issue(operator, request.getHeader("User-Agent"), clientIp(request));
+            audit.record(operator, "operator.auth.login", operator.getUsername(), AuditOutcome.ALLOWED);
+            return ResponseEntity.ok(toResponse(issued));
+        } catch (InvalidOperatorTokenException ex) {
+            mfaStore.loginNameForChallenge(mfaToken).ifPresent(login -> {
+                try {
+                    OperatorPrincipal actor = (OperatorPrincipal) directory.loadUserByUsername(login);
+                    audit.record(actor, "operator.mfa.verify", login, AuditOutcome.REFUSED);
+                } catch (UsernameNotFoundException ignored) {
+                    // Challenge may already be gone; skip audit.
+                }
+            });
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("reason", "invalid-mfa"));
+        }
     }
 
     @PostMapping(PATH + "/refresh")
@@ -97,5 +135,10 @@ public class OperatorAuthEndpoint {
 
     public record RefreshRequest(String refreshToken) {}
 
+    public record MfaVerifyRequest(String mfaToken, String code) {}
+
     public record TokenResponse(String accessToken, String refreshToken, long expiresIn, String tokenType) {}
+
+    public record MfaChallengeResponse(
+            boolean mfaRequired, String mfaToken, long expiresIn, String tokenType) {}
 }

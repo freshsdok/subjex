@@ -91,6 +91,29 @@ public class OperatorDirectoryTestConfiguration {
                 Duration.ofHours(8));
     }
 
+    @Bean
+    AesGcmSecretCipher mfaSecretCipher() {
+        return new AesGcmSecretCipher("test-mfa-encryption-key-32chars!!");
+    }
+
+    @Bean
+    JdbcOperatorMfaStore operatorMfaStore(
+            JdbcTemplate jdbc,
+            DataSource operatorTables,
+            JdbcOperatorDirectory operatorDirectory,
+            AesGcmSecretCipher mfaSecretCipher) {
+        return new JdbcOperatorMfaStore(
+                jdbc,
+                new TransactionTemplate(new DataSourceTransactionManager(operatorTables)),
+                operatorDirectory,
+                mfaSecretCipher,
+                Clock.systemUTC(),
+                Duration.ofMinutes(5),
+                "subjex-test",
+                false,
+                false);
+    }
+
     /** A second operator with read-only permissions — 第二位只读操作员。 */
     static void addViewer(JdbcTemplate jdbc, PasswordEncoder passwordEncoder) {
         jdbc.update("INSERT INTO account (account_id, login_name, account_state) VALUES ('account-viewer', ?, 'ACTIVE')",
