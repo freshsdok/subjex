@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "subjex",
-    "description": "JSON API behind the operator pages \u2014 \u64cd\u4f5c\u9875\u80cc\u540e\u7684 JSON \u63a5\u53e3",
+    "description": "JSON API behind the operator pages — 操作页背后的 JSON 接口",
     "license": {
       "name": "Apache-2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
@@ -52,10 +52,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       },
@@ -89,10 +89,10 @@
             "description": "No Content"
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -134,10 +134,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -170,10 +170,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       },
@@ -204,10 +204,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -233,10 +233,10 @@
             "description": "No Content"
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -262,10 +262,10 @@
             "description": "No Content"
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -288,10 +288,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       },
@@ -322,10 +322,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -361,10 +361,10 @@
             "description": "No Content"
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -390,10 +390,10 @@
             "description": "No Content"
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -419,10 +419,10 @@
             "description": "No Content"
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -448,10 +448,10 @@
             "description": "No Content"
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -492,10 +492,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       },
@@ -543,10 +543,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -579,10 +579,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       },
@@ -623,10 +623,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -649,10 +649,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -675,10 +675,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -701,10 +701,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -745,10 +745,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -771,10 +771,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -797,10 +797,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -823,10 +823,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -867,10 +867,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -893,10 +893,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -919,10 +919,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -945,10 +945,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -971,10 +971,10 @@
             }
           },
           "401": {
-            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+            "description": "No operator signed in — 没有已登录的操作员"
           },
           "403": {
-            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+            "description": "Operator lacks the permission — 操作员缺少这项权限"
           }
         }
       }
@@ -1007,7 +1007,7 @@
             }
           },
           "401": {
-            "description": "Wrong credentials \u2014 \u53e3\u4ee4\u9519\u8bef"
+            "description": "Wrong credentials — 口令错误"
           }
         },
         "security": []
@@ -1041,7 +1041,7 @@
             }
           },
           "401": {
-            "description": "Invalid or reused refresh \u2014 \u5237\u65b0\u4ee4\u724c\u65e0\u6548\u6216\u88ab\u91cd\u7528"
+            "description": "Invalid or reused refresh — 刷新令牌无效或被重用"
           }
         },
         "security": []
@@ -1512,6 +1512,9 @@
           },
           "tenantScoped": {
             "type": "boolean"
+          },
+          "domainAction": {
+            "type": "string"
           }
         }
       },
@@ -1561,6 +1564,9 @@
           },
           "tenantScoped": {
             "type": "boolean"
+          },
+          "domainAction": {
+            "type": "string"
           },
           "fields": {
             "type": "array",
@@ -1782,14 +1788,14 @@
     "securitySchemes": {
       "operatorBasic": {
         "type": "http",
-        "description": "Operator login and password (scripts/local tooling) \u2014 \u64cd\u4f5c\u5458\u53e3\u4ee4\uff08\u811a\u672c/\u672c\u673a\u5de5\u5177\uff09",
+        "description": "Operator login and password (scripts/local tooling) — 操作员口令（脚本/本机工具）",
         "scheme": "basic"
       },
       "operatorBearer": {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "opaque",
-        "description": "Opaque access token from POST /api/v1/auth/login \u2014 \u6765\u81ea\u767b\u5f55\u63a5\u53e3\u7684\u4e0d\u900f\u660e\u8bbf\u95ee\u4ee4\u724c"
+        "description": "Opaque access token from POST /api/v1/auth/login — 来自登录接口的不透明访问令牌"
       }
     }
   }

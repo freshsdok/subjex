@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.subjex.form.render.DeclaredEffect;
+import com.subjex.form.render.DomainActionKey;
 import com.subjex.form.render.FieldKind;
 import com.subjex.form.render.FormField;
 import com.subjex.form.render.RenderedForm;
@@ -84,6 +85,7 @@ class FormSideEffectRunnerTest {
                 1,
                 "registry.write",
                 false,
+                DomainActionKey.REGISTRY_REGISTER,
                 "Demo",
                 List.of(new FormField("serviceName", FieldKind.TEXT, true, null, null, 64)),
                 List.of(effects));

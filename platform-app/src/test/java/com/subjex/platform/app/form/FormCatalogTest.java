@@ -23,7 +23,10 @@ class FormCatalogTest {
         assertEquals("endpoint-publication", catalog.publication().formKey());
         assertEquals("endpoint-publication", catalog.require("endpoint-publication").formKey());
         assertEquals("config-override", catalog.require("config-override").formKey());
-        assertEquals(1, catalog.require("endpoint-publication").version());
+        assertEquals(2, catalog.require("endpoint-publication").version());
+        assertEquals("registry.register", catalog.require("endpoint-publication").domainAction().key());
+        assertEquals("config.override", catalog.require("config-override").domainAction().key());
+        assertEquals(2, catalog.require("config-override").version());
         assertEquals("registry.write", catalog.require("endpoint-publication").permission());
         assertEquals("config.write", catalog.require("config-override").permission());
         assertEquals(false, catalog.require("endpoint-publication").tenantScoped());

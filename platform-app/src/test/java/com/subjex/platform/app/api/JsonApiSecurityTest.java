@@ -25,6 +25,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.form.FormCatalog;
+import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
 import com.subjex.platform.app.form.FormSubmissionStore;
@@ -245,11 +246,13 @@ class JsonApiSecurityTest {
         mockMvc.perform(get(JsonApi.BASE + "/forms").with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.forms[0].formKey").value("config-override"))
-                .andExpect(jsonPath("$.forms[0].version").value(1))
+                .andExpect(jsonPath("$.forms[0].version").value(2))
+                .andExpect(jsonPath("$.forms[0].domainAction").value("config.override"))
                 .andExpect(jsonPath("$.forms[0].permission").value("config.write"))
                 .andExpect(jsonPath("$.forms[0].tenantScoped").value(false))
                 .andExpect(jsonPath("$.forms[1].formKey").value("endpoint-publication"))
-                .andExpect(jsonPath("$.forms[1].version").value(1))
+                .andExpect(jsonPath("$.forms[1].version").value(2))
+                .andExpect(jsonPath("$.forms[1].domainAction").value("registry.register"))
                 .andExpect(jsonPath("$.forms[1].permission").value("registry.write"))
                 .andExpect(jsonPath("$.forms[1].tenantScoped").value(false));
         mockMvc.perform(get(JsonApi.BASE + "/pages").with(httpBasic(VIEWER, VIEWER_PASSWORD)))
@@ -298,7 +301,7 @@ class JsonApiSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.formKey").value("endpoint-publication"))
                 .andExpect(jsonPath("$.submissionId").value("sub-1"))
-                .andExpect(jsonPath("$.declarationVersion").value(1))
+                .andExpect(jsonPath("$.declarationVersion").value(2))
                 .andExpect(jsonPath("$.resultSummary").value("billing@10.0.0.8:8080"))
                 .andExpect(jsonPath("$.submittedAt").value("2026-10-05T07:00:00Z"))
                 .andExpect(jsonPath("$.effects[0].key").value("audit.write"))
@@ -310,7 +313,7 @@ class JsonApiSecurityTest {
         verify(taskMessagePort).submit(any());
         verify(formSubmissionStore).save(
                 eq("endpoint-publication"),
-                eq(1),
+                eq(2),
                 anyString(),
                 eq(OPERATOR),
                 any(),
@@ -342,9 +345,10 @@ class JsonApiSecurityTest {
         mockMvc.perform(get(path).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.formKey").value("endpoint-publication"))
-                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.version").value(2))
                 .andExpect(jsonPath("$.permission").value("registry.write"))
                 .andExpect(jsonPath("$.tenantScoped").value(false))
+                .andExpect(jsonPath("$.domainAction").value("registry.register"))
                 .andExpect(jsonPath("$.fields").isArray());
     }
 
@@ -391,7 +395,7 @@ class JsonApiSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.formKey").value("config-override"))
                 .andExpect(jsonPath("$.submissionId").value("sub-cfg-1"))
-                .andExpect(jsonPath("$.declarationVersion").value(1))
+                .andExpect(jsonPath("$.declarationVersion").value(2))
                 .andExpect(jsonPath("$.resultSummary").value("subjex.greeting=hi"))
                 .andExpect(jsonPath("$.effects[0].key").value("audit.write"))
                 .andExpect(jsonPath("$.effects[1].key").value("extension.invoke"));
@@ -425,6 +429,11 @@ class JsonApiSecurityTest {
                 OperatorActionAudit operatorActionAudit, TaskMessagePort taskMessagePort) {
             return new FormSideEffectRunner(
                     operatorActionAudit, taskMessagePort, List.of(new TaskDeliveryExtension()));
+        }
+
+        @Bean
+        FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
+            return new FormDomainActionRunner(serviceCatalog, configCatalog);
         }
 
         @Bean

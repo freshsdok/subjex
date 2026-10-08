@@ -27,8 +27,13 @@ class FormRecordWriteMainTest {
                 titleZh: 样例
                 version: 1
                 permission: page.read
+                domainAction: config.override
                 fields:
-                  - name: label
+                  - name: configKey
+                    kind: text
+                    required: true
+                    maxLength: 32
+                  - name: configValue
                     kind: text
                     required: true
                     maxLength: 32

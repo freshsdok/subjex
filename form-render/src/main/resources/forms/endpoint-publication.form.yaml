@@ -4,9 +4,10 @@
 formKey: endpoint-publication
 titleEn: Endpoint publication
 titleZh: 端点发布
-version: 1
+version: 2
 permission: registry.write
 tenantScoped: false
+domainAction: registry.register
 fields:
   - name: serviceName
     kind: text

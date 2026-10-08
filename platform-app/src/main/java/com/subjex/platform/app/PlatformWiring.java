@@ -11,6 +11,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.TcpAddressProbe;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
+import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.JdbcFormSubmissionStore;
@@ -386,6 +387,15 @@ public class PlatformWiring {
         return new JdbcAdminReader(jdbc);
     }
 
+
+
+    /**
+     * Run declared form domainAction through Service / Config catalogs — 经服务 / 配置目录执行表单声明的领域动作。
+     */
+    @Bean
+    FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
+        return new FormDomainActionRunner(serviceCatalog, configCatalog);
+    }
 
     /**
      * Run declared form effects through Audit / Task / extension ports — 经审计 / 任务 / 扩展端口执行表单声明的副作用。

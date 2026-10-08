@@ -12,12 +12,15 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
- * FormRenderer — 表单渲染器：读取一份声明式表单，产出校验过的字段列表与可选副作用。
+ * FormRenderer — 表单渲染器：读取一份声明式表单，产出校验过的字段列表、领域动作与可选副作用。
  * <p>
  * Invalid definitions are rejected. The renderer does not store answers.
+ * {@code domainAction} must appear in the checked-in {@link DomainActionCatalog} (fail-closed);
+ * required field names from that catalog must exist on the form.
  * Effect keys must appear in the checked-in {@link SideEffectCatalog} (fail-closed).
  * 不合法的定义会被拒绝。渲染器不保存填写结果。
- * 副作用键必须出现在检入的 {@link SideEffectCatalog} 中（失败关闭）。
+ * {@code domainAction} 必须出现在检入的 {@link DomainActionCatalog} 中（失败关闭）；
+ * 目录要求的字段名须出现在表单上。副作用键必须出现在检入的 {@link SideEffectCatalog} 中（失败关闭）。
  */
 public final class FormRenderer {
 
@@ -26,18 +29,33 @@ public final class FormRenderer {
     private static final Pattern PERMISSION = Pattern.compile("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+");
     private static final Pattern PARAM_NAME = Pattern.compile("[a-z][A-Za-z0-9]*");
     private static final Set<String> FORM_KEYS =
-            Set.of("formKey", "titleEn", "titleZh", "version", "permission", "tenantScoped", "fields", "effects");
+            Set.of(
+                    "formKey",
+                    "titleEn",
+                    "titleZh",
+                    "version",
+                    "permission",
+                    "tenantScoped",
+                    "domainAction",
+                    "fields",
+                    "effects");
     private static final Set<String> FIELD_KEYS = Set.of("name", "kind", "required", "maxLength", "minimum", "maximum");
     private static final Set<String> EFFECT_KEYS = Set.of("key", "params");
 
     private final SideEffectCatalog sideEffects;
+    private final DomainActionCatalog domainActions;
 
     public FormRenderer() {
-        this(new SideEffectCatalog());
+        this(new SideEffectCatalog(), new DomainActionCatalog());
     }
 
     public FormRenderer(SideEffectCatalog sideEffects) {
+        this(sideEffects, new DomainActionCatalog());
+    }
+
+    public FormRenderer(SideEffectCatalog sideEffects, DomainActionCatalog domainActions) {
         this.sideEffects = sideEffects;
+        this.domainActions = domainActions;
     }
 
     /**
@@ -73,6 +91,7 @@ public final class FormRenderer {
             }
             fields.add(field(field, names));
         }
+        DomainActionKey domainAction = domainAction(document, names);
         List<DeclaredEffect> effects = effects(document.get("effects"), names);
         return new RenderedForm(
                 formKey,
@@ -81,9 +100,21 @@ public final class FormRenderer {
                 version,
                 permission,
                 tenantScoped,
+                domainAction,
                 recordName(formKey),
                 List.copyOf(fields),
                 effects);
+    }
+
+    private DomainActionKey domainAction(Map<?, ?> document, Set<String> fieldNames) {
+        DomainActionSpec spec = domainActions.require(text(required(document, "domainAction"), "domainAction"));
+        for (String requiredName : spec.requiredFields()) {
+            if (!fieldNames.contains(requiredName)) {
+                throw new FormDefinitionRejected(
+                        "domainAction " + spec.key().key() + " requires field " + requiredName);
+            }
+        }
+        return spec.key();
     }
 
     private List<DeclaredEffect> effects(Object rawEffects, Set<String> fieldNames) {

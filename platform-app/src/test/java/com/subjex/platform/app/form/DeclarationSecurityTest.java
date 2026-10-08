@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.subjex.form.render.DomainActionKey;
 import com.subjex.form.render.FieldKind;
 import com.subjex.form.render.FormField;
 import com.subjex.form.render.RenderedForm;
@@ -120,6 +121,11 @@ class DeclarationSecurityTest {
         }
 
         @Bean
+        FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
+            return new FormDomainActionRunner(serviceCatalog, configCatalog);
+        }
+
+        @Bean
         PlatformExtension taskDeliveryExtension() {
             return new TaskDeliveryExtension();
         }
@@ -138,6 +144,7 @@ class DeclarationSecurityTest {
                     1,
                     "registry.write",
                     true,
+                    DomainActionKey.REGISTRY_REGISTER,
                     "TenantNote",
                     List.of(new FormField("title", FieldKind.TEXT, true, null, null, 64)),
                     List.of());

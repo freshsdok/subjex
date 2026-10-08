@@ -4,9 +4,10 @@
 formKey: config-override
 titleEn: Config override
 titleZh: 配置覆盖
-version: 1
+version: 2
 permission: config.write
 tenantScoped: false
+domainAction: config.override
 fields:
   - name: configKey
     kind: text

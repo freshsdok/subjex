@@ -17,6 +17,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.form.FormCatalog;
+import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
 import com.subjex.platform.app.form.FormSubmissionStore;
@@ -114,6 +115,9 @@ class OpenApiDocumentTest {
     @MockitoBean
     private TaskMessagePort taskMessagePort;
 
+    @MockitoBean
+    private OperatorActionAudit operatorActionAudit;
+
     @Test
     void anonymousIsRefused() throws Exception {
         mockMvc.perform(get(DOCUMENT)).andExpect(status().isUnauthorized());
@@ -171,6 +175,11 @@ class OpenApiDocumentTest {
                 OperatorActionAudit operatorActionAudit, TaskMessagePort taskMessagePort) {
             return new FormSideEffectRunner(
                     operatorActionAudit, taskMessagePort, List.of(new TaskDeliveryExtension()));
+        }
+
+        @Bean
+        FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
+            return new FormDomainActionRunner(serviceCatalog, configCatalog);
         }
 
         @Bean

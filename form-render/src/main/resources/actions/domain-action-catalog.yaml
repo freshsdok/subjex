@@ -1,0 +1,25 @@
+# Domain-action catalog — 领域动作目录
+# Checked-in allowlist of domainAction keys forms may declare.
+# Field names listed here must appear on the form (fail-closed at render).
+# Unknown keys are rejected. Not a designer.
+# 表单可声明的领域动作键白名单。目录中的字段名必须出现在表单上（渲染时失败关闭）。
+# 未知键拒绝。不是设计器。
+actions:
+  - key: registry.register
+    titleEn: Register service endpoint
+    titleZh: 登记服务端点
+    fields:
+      - name: serviceName
+        required: true
+      - name: host
+        required: true
+      - name: port
+        required: true
+  - key: config.override
+    titleEn: Override config entry
+    titleZh: 覆盖配置项
+    fields:
+      - name: configKey
+        required: true
+      - name: configValue
+        required: true

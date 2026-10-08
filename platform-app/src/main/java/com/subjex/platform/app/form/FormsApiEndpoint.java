@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * FormsApiEndpoint — 表单接口：目录索引列出每一份表单的键、标题、版本、权限与租户标志；详情给出字段。
+ * FormsApiEndpoint — 表单接口：目录索引列出每一份表单的键、标题、版本、权限、租户标志与领域动作；详情给出字段。
  * <p>
  * Index needs {@code page.read} at the security layer and exposes declaration flags for the console.
  * Detail checks the form's declared permission (fail-closed) and tenant when {@code tenantScoped}.
@@ -48,7 +48,8 @@ public class FormsApiEndpoint {
                         form.titleEn(),
                         form.version(),
                         form.permission(),
-                        form.tenantScoped()))
+                        form.tenantScoped(),
+                        form.domainAction().key()))
                 .toList();
         return new FormsIndexDocument(forms);
     }
@@ -74,6 +75,7 @@ public class FormsApiEndpoint {
                 form.version(),
                 form.permission(),
                 form.tenantScoped(),
+                form.domainAction().key(),
                 fields);
     }
 
@@ -83,7 +85,7 @@ public class FormsApiEndpoint {
     public record FormsIndexDocument(List<FormIndexDocument> forms) {}
 
     /**
-     * FormIndexDocument — 目录中的一项：表单键、中文标题、英文标题、声明版本、权限、是否租户隔离。
+     * FormIndexDocument — 目录中的一项：表单键、中文标题、英文标题、声明版本、权限、是否租户隔离、领域动作键。
      */
     public record FormIndexDocument(
             String formKey,
@@ -91,10 +93,11 @@ public class FormsApiEndpoint {
             String titleEn,
             int version,
             String permission,
-            boolean tenantScoped) {}
+            boolean tenantScoped,
+            String domainAction) {}
 
     /**
-     * FormsDocument — 表单详情：表单键、中文标题、英文标题、声明版本、权限、是否租户隔离，以及字段。
+     * FormsDocument — 表单详情：表单键、中文标题、英文标题、声明版本、权限、是否租户隔离、领域动作键，以及字段。
      */
     public record FormsDocument(
             String formKey,
@@ -103,6 +106,7 @@ public class FormsApiEndpoint {
             int version,
             String permission,
             boolean tenantScoped,
+            String domainAction,
             List<FieldDocument> fields) {}
 
     /**

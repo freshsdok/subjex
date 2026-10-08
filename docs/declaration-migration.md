@@ -14,6 +14,9 @@ Stage 5 of [`lowcode-roadmap.md`](lowcode-roadmap.md). Checked-in drafts + human
 Bump `version` when fields (or other contract-facing keys) change in a way that old submissions or generated drafts must stay distinguishable.
 字段或其它契约面键变更、需要与旧提交/旧草稿区分时，递增 `version`。
 
+Adding or changing required `domainAction` (or its catalog field set) is a contract-facing change — bump the form `version` (samples moved to `version: 2` when `domainAction` became required).
+新增或变更必填的 `domainAction`（或其目录字段集）属于契约面变更——递增表单 `version`（样例在 `domainAction` 必填时升到 `version: 2`）。
+
 ## Form submissions store the declaration version / 表单提交记下声明版本
 
 `platform-app` Flyway `V5__form_submission_declaration_version.sql` adds `form_submission.declaration_version`.

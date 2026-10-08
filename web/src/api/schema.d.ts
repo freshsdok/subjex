@@ -594,6 +594,7 @@ export interface components {
             version?: number;
             permission?: string;
             tenantScoped?: boolean;
+            domainAction?: string;
         };
         FormsIndexDocument: {
             forms?: components["schemas"]["FormIndexDocument"][];
@@ -611,6 +612,7 @@ export interface components {
             version?: number;
             permission?: string;
             tenantScoped?: boolean;
+            domainAction?: string;
             fields?: components["schemas"]["FieldDocument"][];
         };
         FormSubmissionHistoryDocument: {

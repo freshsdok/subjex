@@ -119,6 +119,15 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - F. [done] Stage 5: required `version` on form/entity/flow YAML; catalog exposes version; `declaration_version` on submissions (Flyway V5); `docs/declaration-migration.md`; tests; local commits only (no push).
 - G. [done] Stage 6: structured form submit success/problem payloads; console debug/result panel on forms and page submit; OpenAPI aligned; tests; local commits only (no push). All six deepening stages complete locally.
 - H. [done] Product lock: entity-declare will be wired into `platform-app` (not permanent draft-only); documented here + README + pre-release note. Local commit only (no push).
+- I. [done] Domain action declarative: catalog + `domainAction` on forms; `FormDomainActionRunner` replaces formKey if-branches; tests + docs; local commit only (no push).
+
+## Domain action notes (post-stage #2) / 领域动作说明（阶段后第 2 项）
+
+- Catalog: `form-render` checked-in `actions/domain-action-catalog.yaml` + `DomainActionKey` enum (`registry.register`, `config.override`); each action lists required form field names.
+- Form YAML required `domainAction` (fail-closed at render); required catalog fields must exist on the form. Samples bumped to `version: 2`.
+- Runtime: `FormDomainActionRunner` switches on the declared key (not `formKey`). Catalog JSON exposes `domainAction` on form index/detail.
+- New form reusing an existing key: YAML only. New key: add enum + catalog row + one switch arm.
+- 目录检入 YAML + 枚举；表单必填 `domainAction`；执行按声明键而非 formKey；复用已有键只需 YAML。
 
 ## Post-stage next work / 阶段后下一步
 
@@ -129,7 +138,7 @@ Ordered follow-ups after stages 0–6 (do in this sequence unless the owner renu
 | # | Work / 工作 | Intent / 意图 | Status / 状态 |
 | --- | --- | --- | --- |
 | 1 | Entity host product lock / 实体接入产品锁定 | Document that `entity-declare` drafts will enter `platform-app` later — not permanent draft-only. | done (this note) |
-| 2 | Domain action declarative / 领域动作声明化 | Replace `FormSubmissionEndpoint` `formKey` if-branches with enumerable `domainAction` + catalog so new forms need less Java. | next |
+| 2 | Domain action declarative / 领域动作声明化 | Replace `FormSubmissionEndpoint` `formKey` if-branches with enumerable `domainAction` + catalog so new forms need less Java. | done |
 | 3 | Entity → platform-app / 实体接入宿主 | Move `service-note` (or successor) migration into platform Flyway; wire JDBC CRUD + thin API/page. | planned (after 2 and sample flow) |
 | 4 | Sample flow spanning entity→page→form / 贯通样例 | One flow that ties an entity, page, and form end-to-end. | planned (between 2 and 3 in owner order: 1→2→4→3) |
 

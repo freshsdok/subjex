@@ -19,9 +19,10 @@ class FormRendererTest {
         RenderedForm form = renderer.render(formYaml());
 
         assertEquals("endpoint-publication", form.formKey());
-        assertEquals(1, form.version());
+        assertEquals(2, form.version());
         assertEquals("registry.write", form.permission());
         assertFalse(form.tenantScoped());
+        assertEquals(DomainActionKey.REGISTRY_REGISTER, form.domainAction());
         assertEquals("EndpointPublication", form.recordName());
         assertEquals(3, form.fields().size());
         assertEquals(new FormField("serviceName", FieldKind.TEXT, true, null, null, 64), form.fields().get(0));
@@ -139,9 +140,16 @@ class FormRendererTest {
                 titleZh: 端点发布
                 version: 1
                 permission: registry.write
+                domainAction: registry.register
                 fields:
+                  - name: serviceName
+                    kind: text
+                    required: true
                   - name: host
                     kind: text
+                    required: true
+                  - name: port
+                    kind: integer
                     required: true
                 effects:
                   - key: webhook.call
@@ -161,15 +169,90 @@ class FormRendererTest {
                 titleZh: 端点发布
                 version: 1
                 permission: registry.write
+                domainAction: registry.register
                 fields:
+                  - name: serviceName
+                    kind: text
+                    required: true
                   - name: host
                     kind: text
+                    required: true
+                  - name: port
+                    kind: integer
                     required: true
                 effects:
                   - key: audit.write
                     params: {}
                 """;
         assertThrows(FormDefinitionRejected.class, () -> renderer.render(yaml));
+    }
+
+    @Test
+    void missingDomainActionIsRejected() {
+        String yaml = """
+                formKey: endpoint-publication
+                titleEn: Endpoint publication
+                titleZh: 端点发布
+                version: 1
+                permission: registry.write
+                fields:
+                  - name: serviceName
+                    kind: text
+                    required: true
+                  - name: host
+                    kind: text
+                    required: true
+                  - name: port
+                    kind: integer
+                    required: true
+                """;
+        FormDefinitionRejected rejected =
+                assertThrows(FormDefinitionRejected.class, () -> renderer.render(yaml));
+        assertTrue(rejected.getMessage().contains("domainAction"));
+    }
+
+    @Test
+    void unknownDomainActionIsRejected() {
+        String yaml = """
+                formKey: endpoint-publication
+                titleEn: Endpoint publication
+                titleZh: 端点发布
+                version: 1
+                permission: registry.write
+                domainAction: webhook.call
+                fields:
+                  - name: serviceName
+                    kind: text
+                    required: true
+                  - name: host
+                    kind: text
+                    required: true
+                  - name: port
+                    kind: integer
+                    required: true
+                """;
+        FormDefinitionRejected rejected =
+                assertThrows(FormDefinitionRejected.class, () -> renderer.render(yaml));
+        assertTrue(rejected.getMessage().contains("unknown domainAction"));
+    }
+
+    @Test
+    void domainActionMissingRequiredFieldIsRejected() {
+        String yaml = """
+                formKey: endpoint-publication
+                titleEn: Endpoint publication
+                titleZh: 端点发布
+                version: 1
+                permission: registry.write
+                domainAction: registry.register
+                fields:
+                  - name: host
+                    kind: text
+                    required: true
+                """;
+        FormDefinitionRejected rejected =
+                assertThrows(FormDefinitionRejected.class, () -> renderer.render(yaml));
+        assertTrue(rejected.getMessage().contains("requires field"));
     }
 
     static String formYaml() throws IOException {

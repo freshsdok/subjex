@@ -4,15 +4,12 @@ import com.subjex.form.render.FieldKind;
 import com.subjex.form.render.FormField;
 import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.api.JsonApi;
-import com.subjex.platform.app.config.ConfigCatalog;
-import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.form.FormSubmissionStore.FormSubmissionRow;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.contract.tenant.TenantGuard;
-import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -31,13 +28,13 @@ import org.springframework.web.bind.annotation.RestController;
  * FormSubmissionEndpoint — 表单提交接口：按字段定义校验取值，落到对应的平台动作，执行声明副作用，并写入带声明版本的提交历史。
  * <p>
  * Each form's declared {@code permission} is checked (fail-closed). {@code tenantScoped} forms also need a tenant.
- * Domain actions stay form-specific ({@code endpoint-publication} registers a service;
- * {@code config-override} writes a config override). Audit / task / extension side effects come from the
- * checked-in {@code effects} list on the form YAML, not hardcoded beside those actions.
+ * Domain actions come from the form's declared {@code domainAction} (catalog key), not from {@code formKey}
+ * if-branches. Audit / task / extension side effects come from the checked-in {@code effects} list on the
+ * form YAML, not hardcoded beside those actions.
  * Success returns submission id, declaration version, timestamps, and effect outcomes for the console debug panel.
  * Field violations return structured {@code fieldErrors}; missing declared permission is 403 with the permission name.
  * 每张表单按声明的 {@code permission} 检查（失败关闭）；{@code tenantScoped} 时还要租户。
- * 领域动作仍按表单键（登记服务 / 写配置覆盖）。审计 / 任务 / 扩展副作用来自 YAML 的 {@code effects} 目录声明，不再写死在动作旁。
+ * 领域动作来自表单声明的 {@code domainAction}（目录键），不再按 formKey 分支。审计 / 任务 / 扩展副作用来自 YAML 的 {@code effects} 目录声明，不再写死在动作旁。
  * 成功响应含提交编号、声明版本、时间戳与副作用摘要，供控制台调试面板；字段违规返回结构化 fieldErrors；缺权限 403 带权限名。
  */
 @RestController
@@ -48,12 +45,9 @@ public class FormSubmissionEndpoint {
 
     private static final int HISTORY_LIMIT = 50;
 
-    private static final String CONFIG_OVERRIDE_KEY = "config-override";
-
     private final FormCatalog forms;
     private final FormSubmissionStore submissions;
-    private final ServiceCatalog services;
-    private final ConfigCatalog config;
+    private final FormDomainActionRunner domainActions;
     private final FormSideEffectRunner sideEffects;
     private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
@@ -61,15 +55,13 @@ public class FormSubmissionEndpoint {
     public FormSubmissionEndpoint(
             FormCatalog forms,
             FormSubmissionStore submissions,
-            ServiceCatalog services,
-            ConfigCatalog config,
+            FormDomainActionRunner domainActions,
             FormSideEffectRunner sideEffects,
             TenantGuard tenantGuard,
             OperatorTenantAccess tenantAccess) {
         this.forms = forms;
         this.submissions = submissions;
-        this.services = services;
-        this.config = config;
+        this.domainActions = domainActions;
         this.sideEffects = sideEffects;
         this.tenantGuard = tenantGuard;
         this.tenantAccess = tenantAccess;
@@ -88,7 +80,7 @@ public class FormSubmissionEndpoint {
                 ? Map.of()
                 : document.values();
         Map<String, Object> accepted = validate(form, rawValues);
-        String resultSummary = applyAction(formKey, accepted);
+        String resultSummary = domainActions.apply(form, accepted);
         List<EffectOutcomeDocument> effectOutcomes = sideEffects.run(form, accepted, operator, tenantId);
         FormSubmissionRow row = submissions.save(
                 formKey,
@@ -126,23 +118,6 @@ public class FormSubmissionEndpoint {
                         row.submittedAt()))
                 .toList();
         return new FormSubmissionListDocument(rows);
-    }
-
-    private String applyAction(String formKey, Map<String, Object> accepted) {
-        if (FormCatalog.PUBLICATION_KEY.equals(formKey)) {
-            String serviceName = stringValue(accepted, "serviceName");
-            String host = stringValue(accepted, "host");
-            int port = intValue(accepted, "port");
-            services.register(new ServiceEndpoint(serviceName, host, port));
-            return serviceName + "@" + host + ":" + port;
-        }
-        if (CONFIG_OVERRIDE_KEY.equals(formKey)) {
-            String configKey = stringValue(accepted, "configKey");
-            String configValue = stringValue(accepted, "configValue");
-            config.override(configKey, configValue);
-            return configKey + "=" + configValue;
-        }
-        throw new IllegalArgumentException("unknown form: " + formKey);
     }
 
     /**
@@ -213,18 +188,6 @@ public class FormSubmissionEndpoint {
             throw new FormFieldCoerceException(
                     "not_integer", "field " + fieldName + " must be a whole number");
         }
-    }
-
-    private static String stringValue(Map<String, Object> values, String name) {
-        return Objects.toString(values.get(name), "");
-    }
-
-    private static int intValue(Map<String, Object> values, String name) {
-        Object raw = values.get(name);
-        if (raw instanceof Number number) {
-            return number.intValue();
-        }
-        throw new IllegalArgumentException("field " + name + " must be a whole number");
     }
 
     /**
