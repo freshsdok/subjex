@@ -47,3 +47,10 @@ Node 5 / TD-1 — 节点五会话:
 
 8a. [done] Operator sessions use Redis when SESSION_REDIS_URL or REDIS_URL is set; otherwise in-memory (tests + single-node). Call sites are async.
     配置了 Redis 地址则会话进 Redis；否则仍用内存。调用方已改为 async。
+
+Auth roadmap (design only) — 认证路线图（仅设计，2026-10-05）:
+
+9a. [done] Inventory + plan in `docs/auth-roadmap.md` (no token/SSO/MFA/UI code this slice).
+    盘点现状并写入路线图；本片不实现令牌 / SSO / MFA / 界面。
+    Next slices (see roadmap): A operator console create/password/grants → B tenants → C Bearer tokens (drop Basic-at-rest) → D TOTP → E OIDC.
+    下一片：A 操作员控制台补齐 → B 租户管理 → C 平台令牌 → D TOTP → E OIDC。
