@@ -5,6 +5,7 @@ import com.subjex.platform.contract.audit.AuditOutcome;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,12 +29,17 @@ public class OperatorManagementEndpoint {
     private final JdbcOperatorAdmin admin;
     private final OperatorActionAudit audit;
     private final JdbcOperatorTokenStore tokenStore;
+    private final JdbcOperatorIdpLinkStore idpLinkStore;
 
     public OperatorManagementEndpoint(
-            JdbcOperatorAdmin admin, OperatorActionAudit audit, JdbcOperatorTokenStore tokenStore) {
+            JdbcOperatorAdmin admin,
+            OperatorActionAudit audit,
+            JdbcOperatorTokenStore tokenStore,
+            JdbcOperatorIdpLinkStore idpLinkStore) {
         this.admin = admin;
         this.audit = audit;
         this.tokenStore = tokenStore;
+        this.idpLinkStore = idpLinkStore;
     }
 
     @GetMapping(PATH)
@@ -116,6 +122,42 @@ public class OperatorManagementEndpoint {
         audit.record(actor, "operator.tenants.replace", loginName, AuditOutcome.ALLOWED);
     }
 
+
+    @GetMapping(PATH + "/{loginName}/idp-link")
+    public IdpLinkDocument getIdpLink(@PathVariable("loginName") String loginName) {
+        admin.requireSubjectId(loginName);
+        return idpLinkStore
+                .findByLoginName(loginName)
+                .map(link -> new IdpLinkDocument(link.loginName(), link.issuer(), link.idpSubject(), true))
+                .orElseGet(() -> new IdpLinkDocument(loginName, null, null, false));
+    }
+
+    @PutMapping(PATH + "/{loginName}/idp-link")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void bindIdpLink(
+            @AuthenticationPrincipal OperatorPrincipal actor,
+            @PathVariable("loginName") String loginName,
+            @RequestBody IdpLinkRequest body) {
+        String accountId = admin.requireAccountId(loginName);
+        String subjectId = admin.requireSubjectId(loginName);
+        idpLinkStore.bind(
+                accountId,
+                subjectId,
+                loginName,
+                body == null ? null : body.issuer(),
+                body == null ? null : body.idpSubject());
+        audit.record(actor, "operator.idp.bind", loginName, AuditOutcome.ALLOWED);
+    }
+
+    @DeleteMapping(PATH + "/{loginName}/idp-link")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlinkIdp(
+            @AuthenticationPrincipal OperatorPrincipal actor, @PathVariable("loginName") String loginName) {
+        admin.requireSubjectId(loginName);
+        idpLinkStore.unlinkByLoginName(loginName);
+        audit.record(actor, "operator.idp.unlink", loginName, AuditOutcome.ALLOWED);
+    }
+
     public record OperatorsDocument(List<OperatorDocument> operators) {}
 
     public record OperatorDocument(
@@ -130,4 +172,8 @@ public class OperatorManagementEndpoint {
     public record TenantGrantsDocument(String loginName, List<String> tenantIds) {}
 
     public record TenantGrantsRequest(List<String> tenantIds) {}
+
+    public record IdpLinkDocument(String loginName, String issuer, String idpSubject, boolean linked) {}
+
+    public record IdpLinkRequest(String issuer, String idpSubject) {}
 }

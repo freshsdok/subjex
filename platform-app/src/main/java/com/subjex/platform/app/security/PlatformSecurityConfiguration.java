@@ -18,11 +18,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 /**
  * PlatformSecurityConfiguration — 平台安全：先认出操作员，再按具名权限放行每一个 HTTP 动作。
  * <p>
- * Anonymous access is limited to liveness/readiness probes and auth token endpoints (login/refresh/logout/mfa-verify).
+ * Anonymous access is limited to liveness/readiness probes and auth token endpoints (login/refresh/logout/mfa-verify/oidc).
  * {@code Authorization: Bearer} (opaque platform tokens) is the primary path for the console; HTTP Basic
  * remains for scripts and local tooling. {@link JdbcOperatorDirectory} backs Basic; {@link JdbcOperatorTokenStore}
  * backs Bearer. CSRF is off because there is no browser form posting to Java.
- * 匿名访问只留给探针与令牌端点。控制台主路径是 Bearer；Basic 留给脚本。无浏览器表单直投 Java，关闭 CSRF。
+ * 匿名访问只留给探针与令牌端点（含 OIDC）。控制台主路径是 Bearer；Basic 留给脚本。无浏览器表单直投 Java，关闭 CSRF。
  */
 @Configuration
 public class PlatformSecurityConfiguration {
@@ -40,7 +40,11 @@ public class PlatformSecurityConfiguration {
                                 OperatorAuthEndpoint.PATH + "/login",
                                 OperatorAuthEndpoint.PATH + "/refresh",
                                 OperatorAuthEndpoint.PATH + "/logout",
-                                OperatorAuthEndpoint.PATH + "/mfa/verify")
+                                OperatorAuthEndpoint.PATH + "/mfa/verify",
+                                OperatorOidcEndpoint.PATH + "/start",
+                                OperatorOidcEndpoint.PATH + "/callback")
+                                .permitAll()
+                        .requestMatchers(HttpMethod.GET, OperatorOidcEndpoint.PATH + "/status")
                                 .permitAll()
                         // MFA enroll/disable/status — signed-in operator only.
                         // MFA 登记/关闭/状态 — 仅已登录操作员。

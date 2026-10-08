@@ -28,6 +28,12 @@ import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.JdbcOperatorTokenStore;
 import com.subjex.platform.app.security.JdbcOperatorMfaStore;
 import com.subjex.platform.app.security.AesGcmSecretCipher;
+import com.subjex.platform.app.security.OidcProperties;
+import com.subjex.platform.app.security.JdbcOidcLoginStore;
+import com.subjex.platform.app.security.JdbcOperatorIdpLinkStore;
+import com.subjex.platform.app.security.OidcTokenClient;
+import com.subjex.platform.app.security.HttpOidcTokenClient;
+import com.subjex.platform.app.security.OperatorOidcService;
 import com.subjex.platform.app.security.JdbcOperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorActionAudit;
@@ -248,6 +254,59 @@ public class PlatformWiring {
                 issuer,
                 required,
                 requiredForPlatformOperator);
+    }
+
+    @Bean
+    OidcProperties oidcProperties(
+            @Value("${platform.oidc.enabled:false}") boolean enabled,
+            @Value("${platform.oidc.issuer:}") String issuer,
+            @Value("${platform.oidc.client-id:}") String clientId,
+            @Value("${platform.oidc.client-secret:}") String clientSecret,
+            @Value("${platform.oidc.redirect-uri:}") String redirectUri,
+            @Value("${platform.oidc.scopes:openid,profile,email}") String scopesCsv,
+            @Value("${platform.oidc.login-ttl:PT10M}") Duration loginTtl) {
+        java.util.List<String> scopes = java.util.Arrays.stream(scopesCsv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        return new OidcProperties(enabled, issuer, clientId, clientSecret, redirectUri, scopes, loginTtl);
+    }
+
+    @Bean
+    JdbcOidcLoginStore oidcLoginStore(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            Clock clock,
+            OidcProperties oidcProperties) {
+        return new JdbcOidcLoginStore(jdbc, transactionTemplate, clock, oidcProperties.loginTtl());
+    }
+
+    @Bean
+    JdbcOperatorIdpLinkStore operatorIdpLinkStore(
+            JdbcTemplate jdbc, TransactionTemplate transactionTemplate, Clock clock) {
+        return new JdbcOperatorIdpLinkStore(jdbc, transactionTemplate, clock);
+    }
+
+    @Bean
+    OidcTokenClient oidcTokenClient(OidcProperties oidcProperties, ObjectMapper objectMapper) {
+        return new HttpOidcTokenClient(oidcProperties, objectMapper);
+    }
+
+    @Bean
+    OperatorOidcService operatorOidcService(
+            OidcProperties oidcProperties,
+            JdbcOidcLoginStore oidcLoginStore,
+            OidcTokenClient oidcTokenClient,
+            JdbcOperatorIdpLinkStore operatorIdpLinkStore,
+            JdbcOperatorDirectory operatorDirectory,
+            JdbcOperatorTokenStore operatorTokenStore) {
+        return new OperatorOidcService(
+                oidcProperties,
+                oidcLoginStore,
+                oidcTokenClient,
+                operatorIdpLinkStore,
+                operatorDirectory,
+                operatorTokenStore);
     }
 
     @Bean

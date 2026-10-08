@@ -172,6 +172,11 @@ public final class JdbcOperatorAdmin {
         return requireAccount(loginName).subjectId();
     }
 
+    /** Account id for a login (IdP link bind) — 登录名对应账号（IdP 绑定）。 */
+    public String requireAccountId(String loginName) {
+        return requireAccount(loginName).accountId();
+    }
+
     private static void requirePasswordLength(String password) {
         if (password == null || password.length() < OperatorBootstrap.MIN_PASSWORD_LENGTH) {
             throw new IllegalArgumentException(

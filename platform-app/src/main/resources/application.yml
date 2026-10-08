@@ -45,6 +45,18 @@ platform:
     encryption-key: ${PLATFORM_MFA_ENCRYPTION_KEY:}
   # LOCAL ONLY: used only when SPRING_PROFILES_ACTIVE=local seeds the local operator.
   # 仅限本地：只有 SPRING_PROFILES_ACTIVE=local 写入本地操作员时才用。
+  # OIDC RP (Slice E). Off by default; deny unlinked IdP users (no auto-provision).
+  # OIDC 依赖方（切片 E）。默认关闭；未绑定 IdP 用户拒绝（不自动建号）。
+  # SSO skips local TOTP (trust IdP MFA); password path still uses Slice D.
+  # SSO 不走本地 TOTP（信任 IdP MFA）；口令登录仍用切片 D。
+  oidc:
+    enabled: ${PLATFORM_OIDC_ENABLED:false}
+    issuer: ${PLATFORM_OIDC_ISSUER:}
+    client-id: ${PLATFORM_OIDC_CLIENT_ID:}
+    client-secret: ${PLATFORM_OIDC_CLIENT_SECRET:}
+    redirect-uri: ${PLATFORM_OIDC_REDIRECT_URI:}
+    scopes: openid,profile,email
+    login-ttl: PT10M
   local-operator:
     name: ${PLATFORM_OPERATOR_NAME:platform-operator}
     password: ${PLATFORM_OPERATOR_PASSWORD:change-me}

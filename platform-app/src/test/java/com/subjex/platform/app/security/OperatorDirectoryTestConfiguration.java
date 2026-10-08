@@ -114,6 +114,60 @@ public class OperatorDirectoryTestConfiguration {
                 false);
     }
 
+
+    @Bean
+    JdbcOperatorIdpLinkStore operatorIdpLinkStore(JdbcTemplate jdbc, DataSource operatorTables) {
+        return new JdbcOperatorIdpLinkStore(
+                jdbc, new TransactionTemplate(new DataSourceTransactionManager(operatorTables)), Clock.systemUTC());
+    }
+
+    @Bean
+    OidcProperties oidcProperties() {
+        return new OidcProperties(
+                true,
+                "https://idp.example/realms/subjex",
+                "subjex-console",
+                "test-secret",
+                "http://localhost:3000/api/session/oidc/callback",
+                java.util.List.of("openid", "profile", "email"),
+                Duration.ofMinutes(10));
+    }
+
+    @Bean
+    JdbcOidcLoginStore oidcLoginStore(JdbcTemplate jdbc, DataSource operatorTables, OidcProperties oidcProperties) {
+        return new JdbcOidcLoginStore(
+                jdbc,
+                new TransactionTemplate(new DataSourceTransactionManager(operatorTables)),
+                Clock.systemUTC(),
+                oidcProperties.loginTtl());
+    }
+
+    @Bean
+    OidcTokenClient oidcTokenClient() {
+        // Default stub: tests that need claims replace this bean in their own @TestConfiguration.
+        // 默认桩：需要声明的测试在自己的 TestConfiguration 里覆盖。
+        return (pending, code) -> {
+            throw new InvalidOperatorTokenException("oidc-stub-not-configured");
+        };
+    }
+
+    @Bean
+    OperatorOidcService operatorOidcService(
+            OidcProperties oidcProperties,
+            JdbcOidcLoginStore oidcLoginStore,
+            OidcTokenClient oidcTokenClient,
+            JdbcOperatorIdpLinkStore operatorIdpLinkStore,
+            JdbcOperatorDirectory operatorDirectory,
+            JdbcOperatorTokenStore operatorTokenStore) {
+        return new OperatorOidcService(
+                oidcProperties,
+                oidcLoginStore,
+                oidcTokenClient,
+                operatorIdpLinkStore,
+                operatorDirectory,
+                operatorTokenStore);
+    }
+
     /** A second operator with read-only permissions — 第二位只读操作员。 */
     static void addViewer(JdbcTemplate jdbc, PasswordEncoder passwordEncoder) {
         jdbc.update("INSERT INTO account (account_id, login_name, account_state) VALUES ('account-viewer', ?, 'ACTIVE')",
