@@ -1,7 +1,7 @@
 # Auth roadmap — console operators, tenants, tokens, SSO, MFA
 
-Status: Slices **A–B done** (operator UI + tenant API/UI); C–E still design (2026-10-05).
-状态：切片 **A–B 已完成**（操作员 UI + 租户 API/界面）；C–E 仍为设计（2026-10-05）。
+Status: Slices **A–C done** (operators, tenants, opaque Bearer + rotating refresh); D–E still design (2026-10-05).
+状态：切片 **A–C 已完成**（操作员、租户、不透明 Bearer + 轮换刷新）；D–E 仍为设计（2026-10-05）。
 
 Audience: operators of the reserved tenant `platform` (console + `/api/v1`), not end-user/customer identity.
 范围：保留租户 `platform` 的操作员（控制台与 `/api/v1`），不是业务终端用户身份。
@@ -16,24 +16,24 @@ Related: `docs/operator-permissions.md`, `SECURITY.md`, `ARCHITECTURE.md`, `web/
 
 | Area | What exists | Gaps |
 | --- | --- | --- |
-| Wire auth | HTTP Basic on every request (`PlatformSecurityConfiguration`, `SessionCreationPolicy.STATELESS`) | No Bearer/API tokens; no browser session on Java side |
+| Wire auth | Opaque Bearer (primary) + HTTP Basic (scripts); `SessionCreationPolicy.STATELESS`; `POST /api/v1/auth/{login,refresh,logout}` | MFA/OIDC still future (D/E) |
 | Identity store | `account` → `subject_identity` (tenant `platform`) → `subject`; `operator_credential` bcrypt (`{bcrypt}`) via `JdbcOperatorDirectory` | Password only; no IdP link, no MFA factors |
 | Permissions | Named authorities: `admin.read`, `page.read`, `config.read/write`, `registry.read/write`, `task.write`, `operator.manage` via `subject_role` → `role_permission` | No online role editor (by design: declaration/SQL) |
-| Tenant grants | `operator_tenant_grant` (`*` = all); `TenantEnforcementFilter` after `TenantGuard` — **fail-closed** | Grants API exists; console cannot edit yet |
+| Tenant grants | `operator_tenant_grant` (`*` = all); `TenantEnforcementFilter` after `TenantGuard` — **fail-closed**; console grant editor (Slice A) | — |
 | Operator admin API | `GET/POST /api/v1/operators`, `POST .../me/password`, `POST .../{login}/password\|disable\|enable`, `GET/PUT .../{login}/tenants` | Complete for slice-1 UI |
 | Bootstrap | `local` seeder + one-shot `--platform.operator.bootstrap=true` (off by default); grants `*` | Still the only non-UI provision path outside APIs |
-| Hardening called out in `SECURITY.md` | TLS termination expected in front | **No** lockout, **no** MFA, **no** OIDC/SSO, **no** platform-issued tokens |
+| Hardening called out in `SECURITY.md` | TLS termination expected in front; opaque tokens landed (Slice C) | **No** lockout, **no** MFA, **no** OIDC/SSO |
 | OpenAPI / probes | `/api/v1/openapi.json` authenticated; liveness/readiness/prometheus anonymous | — |
 
-There are **no** OIDC, OAuth2 resource-server, JWT, refresh-token, TOTP, or MFA stubs in `platform-app` source. Sample-consumer uses its own Basic gate; entry-gateway forwards `Authorization` unchanged and does not authenticate.
+Opaque Bearer + rotating refresh landed (Slice C). There are **no** OIDC, JWT access tokens, TOTP, or MFA stubs yet. Sample-consumer uses its own Basic gate; entry-gateway forwards `Authorization` unchanged and does not authenticate.
 
 ### 1.2 Web console session
 
 | Area | What exists | Gaps |
 | --- | --- | --- |
 | Browser | httpOnly `SameSite=Strict` cookie `subjex_session` (random id, 8h) | OK |
-| Server store | Memory Map or Redis (`SESSION_REDIS_URL` / `REDIS_URL`); value is `{ loginName, credentialHeaderEnc, expiresAtMillis }` | **Still retains password capability**: AES-256-GCM ciphertext of the upstream **Basic** header (`OPERATOR_SESSION_SECRET`) |
-| Proxy | `/api/session` login verifies via `/api/v1/me`; `/api/platform/*` decrypts Basic and forwards | Password-equivalent lives for session lifetime |
+| Server store | Memory Map or Redis; value is `{ loginName, accessTokenEnc, refreshTokenEnc, accessExpiresAtMillis, expiresAtMillis }` | Legacy Basic-at-rest sessions refused on read (must re-login) |
+| Proxy | `/api/session` login via `/api/v1/auth/login`; `/api/platform/*` sends Bearer + silent refresh on 401 | — |
 | Operators UI (`/operators`) | Self password; with `operator.manage`: list, create, admin password reset, disable/enable, **editable** tenant grants (`*` supported) | Slice A done; role catalog UI deferred |
 | Tenants UI (`/tenants`) | List + create + rename + disable/enable with `tenant.manage`; soft-disable = `SUSPENDED` | Quotas / hard delete / paging deferred |
 
@@ -211,7 +211,7 @@ Ask the user only if they disagree with these defaults:
 
 - [x] A Operator console create / admin password / grant editor
 - [x] B Tenant API + `/tenants` UI + `tenant.manage`
-- [ ] C Login/refresh tokens; console drops Basic-at-rest
+- [x] C Login/refresh tokens; console drops Basic-at-rest
 - [ ] D TOTP MFA + recovery codes
 - [ ] E OIDC RP + IdP link table
 - [ ] Follow-up: login lockout / rate limit

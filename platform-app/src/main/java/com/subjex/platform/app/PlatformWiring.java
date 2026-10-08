@@ -25,6 +25,7 @@ import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
 import com.subjex.platform.app.security.JdbcOperatorAdmin;
 import com.subjex.platform.app.security.JdbcTenantAdmin;
 import com.subjex.platform.app.security.JdbcOperatorDirectory;
+import com.subjex.platform.app.security.JdbcOperatorTokenStore;
 import com.subjex.platform.app.security.JdbcOperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorActionAudit;
@@ -196,6 +197,18 @@ public class PlatformWiring {
     @Bean
     JdbcOperatorDirectory operatorDirectory(JdbcTemplate jdbc) {
         return new JdbcOperatorDirectory(jdbc);
+    }
+
+    @Bean
+    JdbcOperatorTokenStore operatorTokenStore(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            JdbcOperatorDirectory operatorDirectory,
+            Clock clock,
+            @Value("${platform.auth.access-token-ttl:PT30M}") Duration accessTokenTtl,
+            @Value("${platform.auth.refresh-token-ttl:PT8H}") Duration refreshTokenTtl) {
+        return new JdbcOperatorTokenStore(
+                jdbc, transactionTemplate, operatorDirectory, clock, accessTokenTtl, refreshTokenTtl);
     }
 
     @Bean

@@ -2,30 +2,39 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { createClient, type RedisClientType } from "redis";
 
 // Operator session — 操作员会话：浏览器只持有随机会话号（httpOnly cookie）。
-// 服务端 Map / Redis 只存 AES-256-GCM 密文，解密后的 Basic 头仅在单次请求处理时短暂出现。
+// 服务端 Map / Redis 只存 AES-256-GCM 密文的 access/refresh 令牌，从不存 Basic/口令。
 export interface OperatorSession {
   loginName: string;
-  credentialHeader: string;
+  accessToken: string;
+  refreshToken: string;
+  accessExpiresAtMillis: number;
   expiresAtMillis: number;
 }
 
-/** Shape stored in Redis and process memory: credential header is ciphertext, never plaintext Basic. */
+/** Shape stored in Redis and process memory: tokens are ciphertext, never plaintext. */
 interface StoredOperatorSession {
   loginName: string;
-  credentialHeaderEnc: string;
+  accessTokenEnc: string;
+  refreshTokenEnc: string;
+  accessExpiresAtMillis: number;
   expiresAtMillis: number;
 }
 
-// Cookie name and lifetime — cookie 名称与有效期（8 小时，过期后需重新登录）。
+export interface OpenOperatorSessionInput {
+  loginName: string;
+  accessToken: string;
+  refreshToken: string;
+  accessExpiresAtMillis: number;
+}
+
+// Cookie name and lifetime — cookie 名称与有效期（8 小时，与刷新令牌默认 TTL 对齐）。
 export const sessionCookieName = "subjex_session";
 export const sessionLifetimeSeconds = 8 * 60 * 60;
 
 const sessionKeyPrefix = "subjex:operator-session:";
 const MIN_OPERATOR_SESSION_SECRET_LENGTH = 32;
-const CREDENTIAL_ENC_PREFIX = "v1:";
+const TOKEN_ENC_PREFIX = "v1:";
 
-// Keep stores on globalThis so dev hot reload does not drop sessions —
-// 挂在 globalThis 上，开发热重载时会话不丢。
 const sessionHolder = globalThis as typeof globalThis & {
   subjexOperatorSessions?: Map<string, StoredOperatorSession>;
   subjexSessionRedis?: RedisClientType;
@@ -57,10 +66,9 @@ export function resolveOperatorSessionEncryptionKey(): Buffer {
 }
 
 /**
- * Key for encrypting credentials at rest in the session store.
- * Redis path: OPERATOR_SESSION_SECRET required. Memory path: same secret if set, else a process-ephemeral key
- * so the Map never holds plaintext Basic (heap dump of the Map alone is not enough without the key).
- * Redis：必填 OPERATOR_SESSION_SECRET。进程内存：有密钥则用；否则用进程内临时密钥，Map 从不存明文 Basic。
+ * Key for encrypting tokens at rest in the session store.
+ * Redis path: OPERATOR_SESSION_SECRET required. Memory path: same secret if set, else a process-ephemeral key.
+ * Redis：必填 OPERATOR_SESSION_SECRET。进程内存：有密钥则用；否则用进程内临时密钥。
  */
 function resolveSessionStoreKey(redisConfigured: boolean): Buffer {
   if (redisConfigured) {
@@ -76,23 +84,23 @@ function resolveSessionStoreKey(redisConfigured: boolean): Buffer {
   return sessionHolder.subjexEphemeralSessionKey;
 }
 
-/** Encrypt credential header for at-rest storage (AES-256-GCM). */
-export function encryptCredentialHeader(plaintext: string, key: Buffer): string {
+/** Encrypt a token string for at-rest storage (AES-256-GCM). */
+export function encryptSessionSecret(plaintext: string, key: Buffer): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return CREDENTIAL_ENC_PREFIX + Buffer.concat([iv, tag, encrypted]).toString("base64url");
+  return TOKEN_ENC_PREFIX + Buffer.concat([iv, tag, encrypted]).toString("base64url");
 }
 
-/** Decrypt credential header previously written by encryptCredentialHeader. */
-export function decryptCredentialHeader(blob: string, key: Buffer): string {
-  if (!blob.startsWith(CREDENTIAL_ENC_PREFIX)) {
-    throw new Error("unsupported credential encryption version");
+/** Decrypt a token previously written by encryptSessionSecret. */
+export function decryptSessionSecret(blob: string, key: Buffer): string {
+  if (!blob.startsWith(TOKEN_ENC_PREFIX)) {
+    throw new Error("unsupported token encryption version");
   }
-  const raw = Buffer.from(blob.slice(CREDENTIAL_ENC_PREFIX.length), "base64url");
+  const raw = Buffer.from(blob.slice(TOKEN_ENC_PREFIX.length), "base64url");
   if (raw.length < 12 + 16) {
-    throw new Error("credential ciphertext too short");
+    throw new Error("token ciphertext too short");
   }
   const iv = raw.subarray(0, 12);
   const tag = raw.subarray(12, 28);
@@ -101,6 +109,11 @@ export function decryptCredentialHeader(blob: string, key: Buffer): string {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
 }
+
+/** @deprecated Use encryptSessionSecret — kept name alias for clarity in older tests. */
+export const encryptCredentialHeader = encryptSessionSecret;
+/** @deprecated Use decryptSessionSecret. */
+export const decryptCredentialHeader = decryptSessionSecret;
 
 async function redisClient(): Promise<RedisClientType | undefined> {
   const url = sessionRedisUrl();
@@ -124,21 +137,29 @@ function toOperatorSession(stored: StoredOperatorSession, key: Buffer): Operator
   }
   return {
     loginName: stored.loginName,
-    credentialHeader: decryptCredentialHeader(stored.credentialHeaderEnc, key),
+    accessToken: decryptSessionSecret(stored.accessTokenEnc, key),
+    refreshToken: decryptSessionSecret(stored.refreshTokenEnc, key),
+    accessExpiresAtMillis: stored.accessExpiresAtMillis,
     expiresAtMillis: stored.expiresAtMillis,
   };
 }
 
-export async function openOperatorSession(loginName: string, credentialHeader: string): Promise<string> {
+function toStored(input: OpenOperatorSessionInput, expiresAtMillis: number, key: Buffer): StoredOperatorSession {
+  return {
+    loginName: input.loginName,
+    accessTokenEnc: encryptSessionSecret(input.accessToken, key),
+    refreshTokenEnc: encryptSessionSecret(input.refreshToken, key),
+    accessExpiresAtMillis: input.accessExpiresAtMillis,
+    expiresAtMillis,
+  };
+}
+
+export async function openOperatorSession(input: OpenOperatorSessionInput): Promise<string> {
   const sessionId = randomBytes(32).toString("base64url");
   const expiresAtMillis = Date.now() + sessionLifetimeSeconds * 1000;
   const redisUrl = sessionRedisUrl();
   const key = resolveSessionStoreKey(!!redisUrl);
-  const stored: StoredOperatorSession = {
-    loginName,
-    credentialHeaderEnc: encryptCredentialHeader(credentialHeader, key),
-    expiresAtMillis,
-  };
+  const stored = toStored(input, expiresAtMillis, key);
   if (redisUrl) {
     const redis = await redisClient();
     if (!redis) {
@@ -153,6 +174,49 @@ export async function openOperatorSession(loginName: string, credentialHeader: s
   return sessionId;
 }
 
+export async function updateOperatorSessionTokens(
+  sessionId: string,
+  tokens: { accessToken: string; refreshToken: string; accessExpiresAtMillis: number },
+): Promise<void> {
+  const redisUrl = sessionRedisUrl();
+  const key = resolveSessionStoreKey(!!redisUrl);
+  if (redisUrl) {
+    const redis = await redisClient();
+    if (!redis) return;
+    const raw = await redis.get(sessionKeyPrefix + sessionId);
+    if (!raw) return;
+    const previous = JSON.parse(raw) as StoredOperatorSession;
+    const stored = toStored(
+      {
+        loginName: previous.loginName,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        accessExpiresAtMillis: tokens.accessExpiresAtMillis,
+      },
+      previous.expiresAtMillis,
+      key,
+    );
+    const ttlSeconds = Math.max(1, Math.ceil((previous.expiresAtMillis - Date.now()) / 1000));
+    await redis.set(sessionKeyPrefix + sessionId, JSON.stringify(stored), { EX: ttlSeconds });
+    return;
+  }
+  const previous = memorySessions.get(sessionId);
+  if (!previous) return;
+  memorySessions.set(
+    sessionId,
+    toStored(
+      {
+        loginName: previous.loginName,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        accessExpiresAtMillis: tokens.accessExpiresAtMillis,
+      },
+      previous.expiresAtMillis,
+      key,
+    ),
+  );
+}
+
 export async function findOperatorSession(
   sessionId: string | undefined,
 ): Promise<OperatorSession | undefined> {
@@ -165,6 +229,12 @@ export async function findOperatorSession(
     const raw = await redis.get(sessionKeyPrefix + sessionId);
     if (!raw) return undefined;
     const stored = JSON.parse(raw) as StoredOperatorSession;
+    // Refuse legacy Basic-at-rest sessions (Slice C cutover).
+    // 拒绝仍含 Basic 密文的旧会话（切片 C 切换）。
+    if ("credentialHeaderEnc" in stored || !("accessTokenEnc" in stored)) {
+      await redis.del(sessionKeyPrefix + sessionId);
+      return undefined;
+    }
     const session = toOperatorSession(stored, key);
     if (!session) {
       await redis.del(sessionKeyPrefix + sessionId);
@@ -174,6 +244,10 @@ export async function findOperatorSession(
   }
   const stored = memorySessions.get(sessionId);
   if (!stored) return undefined;
+  if ("credentialHeaderEnc" in (stored as object) || !("accessTokenEnc" in stored)) {
+    memorySessions.delete(sessionId);
+    return undefined;
+  }
   const session = toOperatorSession(stored, key);
   if (!session) {
     memorySessions.delete(sessionId);
@@ -192,22 +266,37 @@ export async function closeOperatorSession(sessionId: string | undefined): Promi
   memorySessions.delete(sessionId);
 }
 
-/** Test helper: wipe memory store (Redis tests use a real/fake URL separately). */
+/** Bearer Authorization header for upstream platform calls — 上游平台用的 Bearer 头。 */
+export function bearerAuthorizationHeader(accessToken: string): string {
+  return `Bearer ${accessToken}`;
+}
+
+/** Test helper: wipe memory store. */
 export function clearMemoryOperatorSessionsForTests(): void {
   memorySessions.clear();
   delete sessionHolder.subjexEphemeralSessionKey;
 }
 
-/** Test helper: memory Map entry must be ciphertext-only (no plaintext Basic field). */
+/** Test helper: memory Map must hold encrypted tokens only (no Basic / plaintext tokens). */
 export function memorySessionIsEncryptedAtRestForTests(sessionId: string): boolean {
   const stored = memorySessions.get(sessionId) as
-    | (StoredOperatorSession & { credentialHeader?: string })
+    | (StoredOperatorSession & {
+        credentialHeader?: string;
+        credentialHeaderEnc?: string;
+        accessToken?: string;
+        refreshToken?: string;
+      })
     | undefined;
   if (!stored) return false;
   if (typeof stored.credentialHeader === "string") return false;
+  if (typeof stored.credentialHeaderEnc === "string") return false;
+  if (typeof stored.accessToken === "string" || typeof stored.refreshToken === "string") return false;
   return (
-    typeof stored.credentialHeaderEnc === "string" &&
-    stored.credentialHeaderEnc.startsWith(CREDENTIAL_ENC_PREFIX) &&
-    !stored.credentialHeaderEnc.includes("Basic")
+    typeof stored.accessTokenEnc === "string" &&
+    stored.accessTokenEnc.startsWith(TOKEN_ENC_PREFIX) &&
+    typeof stored.refreshTokenEnc === "string" &&
+    stored.refreshTokenEnc.startsWith(TOKEN_ENC_PREFIX) &&
+    !stored.accessTokenEnc.includes("Basic") &&
+    !stored.refreshTokenEnc.includes("Basic")
   );
 }

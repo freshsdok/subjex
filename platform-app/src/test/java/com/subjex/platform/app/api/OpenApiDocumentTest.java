@@ -130,9 +130,12 @@ class OpenApiDocumentTest {
 
         assertThat(document.path("openapi").asText()).startsWith("3.");
         assertThat(document.path("info").path("title").asText()).isEqualTo("subjex");
-        JsonNode scheme = document.path("components").path("securitySchemes").path(JsonApi.BASIC_SCHEME);
-        assertThat(scheme.path("type").asText()).isEqualTo("http");
-        assertThat(scheme.path("scheme").asText()).isEqualTo("basic");
+        JsonNode basic = document.path("components").path("securitySchemes").path(JsonApi.BASIC_SCHEME);
+        assertThat(basic.path("type").asText()).isEqualTo("http");
+        assertThat(basic.path("scheme").asText()).isEqualTo("basic");
+        JsonNode bearer = document.path("components").path("securitySchemes").path("operatorBearer");
+        assertThat(bearer.path("type").asText()).isEqualTo("http");
+        assertThat(bearer.path("scheme").asText()).isEqualTo("bearer");
 
         Set<String> mapped = new TreeSet<>();
         handlerMapping.getHandlerMethods().keySet().forEach(mapping ->

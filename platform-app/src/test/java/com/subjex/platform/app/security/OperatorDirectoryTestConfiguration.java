@@ -3,6 +3,7 @@ package com.subjex.platform.app.security;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.contract.audit.AuditPort;
 import java.time.Clock;
+import java.time.Duration;
 import javax.sql.DataSource;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -76,6 +77,18 @@ public class OperatorDirectoryTestConfiguration {
     @Bean
     JdbcTenantAdmin jdbcTenantAdmin(JdbcTemplate jdbc) {
         return new JdbcTenantAdmin(jdbc);
+    }
+
+    @Bean
+    JdbcOperatorTokenStore operatorTokenStore(
+            JdbcTemplate jdbc, DataSource operatorTables, JdbcOperatorDirectory operatorDirectory) {
+        return new JdbcOperatorTokenStore(
+                jdbc,
+                new TransactionTemplate(new DataSourceTransactionManager(operatorTables)),
+                operatorDirectory,
+                Clock.systemUTC(),
+                Duration.ofMinutes(30),
+                Duration.ofHours(8));
     }
 
     /** A second operator with read-only permissions — 第二位只读操作员。 */

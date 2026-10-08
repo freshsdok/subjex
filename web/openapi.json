@@ -1,1 +1,1796 @@
-{"openapi":"3.1.0","info":{"title":"subjex","description":"JSON API behind the operator pages — 操作页背后的 JSON 接口","license":{"name":"Apache-2.0","url":"https://www.apache.org/licenses/LICENSE-2.0"},"version":"v1"},"servers":[{"url":"http://127.0.0.1:8080","description":"Generated server url"}],"security":[{"operatorBasic":[]}],"paths":{"/api/v1/operators/{loginName}/tenants":{"get":{"tags":["operator-management-endpoint"],"operationId":"listTenants","parameters":[{"name":"loginName","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/TenantGrantsDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}},"put":{"tags":["operator-management-endpoint"],"operationId":"replaceTenants","parameters":[{"name":"loginName","in":"path","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TenantGrantsRequest"}}},"required":true},"responses":{"204":{"description":"No Content"},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/config/{key}":{"put":{"tags":["config-api-endpoint"],"operationId":"override","parameters":[{"name":"key","in":"path","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ConfigValueDocument"}}}},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ConfigEntryDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/tenants":{"get":{"tags":["tenant-management-endpoint"],"operationId":"list","parameters":[{"name":"q","in":"query","required":false,"schema":{"type":"string"}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/TenantsDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}},"post":{"tags":["tenant-management-endpoint"],"operationId":"create","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateTenantRequest"}}},"required":true},"responses":{"201":{"description":"Created","content":{"*/*":{"schema":{"$ref":"#/components/schemas/TenantDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/tenants/{tenantId}/enable":{"post":{"tags":["tenant-management-endpoint"],"operationId":"enable","parameters":[{"name":"tenantId","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"204":{"description":"No Content"},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/tenants/{tenantId}/disable":{"post":{"tags":["tenant-management-endpoint"],"operationId":"disable","parameters":[{"name":"tenantId","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"204":{"description":"No Content"},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/operators":{"get":{"tags":["operator-management-endpoint"],"operationId":"list_1","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/OperatorsDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}},"post":{"tags":["operator-management-endpoint"],"operationId":"create_1","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateOperatorRequest"}}},"required":true},"responses":{"201":{"description":"Created","content":{"*/*":{"schema":{"$ref":"#/components/schemas/OperatorDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/operators/{loginName}/password":{"post":{"tags":["operator-management-endpoint"],"operationId":"changeOtherPassword","parameters":[{"name":"loginName","in":"path","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ChangePasswordRequest"}}},"required":true},"responses":{"204":{"description":"No Content"},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/operators/{loginName}/enable":{"post":{"tags":["operator-management-endpoint"],"operationId":"enable_1","parameters":[{"name":"loginName","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"204":{"description":"No Content"},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/operators/{loginName}/disable":{"post":{"tags":["operator-management-endpoint"],"operationId":"disable_1","parameters":[{"name":"loginName","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"204":{"description":"No Content"},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/operators/me/password":{"post":{"tags":["operator-management-endpoint"],"operationId":"changeOwnPassword","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ChangeOwnPasswordRequest"}}},"required":true},"responses":{"204":{"description":"No Content"},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/forms/{formKey}/submissions":{"get":{"tags":["form-submission-endpoint"],"operationId":"history","parameters":[{"name":"formKey","in":"path","required":true,"schema":{"type":"string"}},{"name":"X-Tenant-Id","in":"header","required":false,"schema":{"type":"string"}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/FormSubmissionListDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}},"post":{"tags":["form-submission-endpoint"],"operationId":"submit","parameters":[{"name":"formKey","in":"path","required":true,"schema":{"type":"string"}},{"name":"X-Tenant-Id","in":"header","required":false,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/FormSubmissionDocument"}}}},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/FormSubmissionResultDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/tenants/{tenantId}":{"get":{"tags":["tenant-management-endpoint"],"operationId":"get","parameters":[{"name":"tenantId","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/TenantDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}},"patch":{"tags":["tenant-management-endpoint"],"operationId":"rename","parameters":[{"name":"tenantId","in":"path","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RenameTenantRequest"}}},"required":true},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/TenantDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/skins":{"get":{"tags":["skin-api-endpoint"],"operationId":"skins","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/SkinListDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/services":{"get":{"tags":["service-list-api-endpoint"],"operationId":"services","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ServiceListDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/pages":{"get":{"tags":["pages-api-endpoint"],"operationId":"index","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/PagesIndexDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/pages/{flowKey}":{"get":{"tags":["pages-api-endpoint"],"operationId":"detail","parameters":[{"name":"flowKey","in":"path","required":true,"schema":{"type":"string"}},{"name":"X-Tenant-Id","in":"header","required":false,"schema":{"type":"string"}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/PageFlowDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/me":{"get":{"tags":["operator-self-endpoint"],"operationId":"me","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/OperatorSelfDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/language":{"get":{"tags":["language-api-endpoint"],"operationId":"languages","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/LanguageListDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/forms":{"get":{"tags":["forms-api-endpoint"],"operationId":"index_1","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/FormsIndexDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/forms/{formKey}":{"get":{"tags":["forms-api-endpoint"],"operationId":"detail_1","parameters":[{"name":"formKey","in":"path","required":true,"schema":{"type":"string"}},{"name":"X-Tenant-Id","in":"header","required":false,"schema":{"type":"string"}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/FormsDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/deploy":{"get":{"tags":["deploy-api-endpoint"],"operationId":"deploy","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/DeployDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/config":{"get":{"tags":["config-api-endpoint"],"operationId":"config","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ConfigDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/codegen":{"get":{"tags":["codegen-api-endpoint"],"operationId":"codegen","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/CodegenDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}},"/api/v1/audit":{"get":{"tags":["audit-api-endpoint"],"operationId":"audit","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/AuditDocument"}}}},"401":{"description":"No operator signed in — 没有已登录的操作员"},"403":{"description":"Operator lacks the permission — 操作员缺少这项权限"}}}}},"components":{"schemas":{"TenantGrantsRequest":{"type":"object","properties":{"tenantIds":{"type":"array","items":{"type":"string"}}}},"ConfigValueDocument":{"type":"object","properties":{"value":{"type":"string"}}},"ConfigEntryDocument":{"type":"object","properties":{"key":{"type":"string"},"value":{"type":"string"},"origin":{"type":"string"}}},"CreateTenantRequest":{"type":"object","properties":{"tenantId":{"type":"string"},"tenantName":{"type":"string"}}},"TenantDocument":{"type":"object","properties":{"tenantId":{"type":"string"},"tenantName":{"type":"string"},"tenantState":{"type":"string"}}},"CreateOperatorRequest":{"type":"object","properties":{"loginName":{"type":"string"},"password":{"type":"string"},"roleName":{"type":"string"}}},"OperatorDocument":{"type":"object","properties":{"loginName":{"type":"string"},"accountState":{"type":"string"},"subjectId":{"type":"string"},"identityId":{"type":"string"},"roleName":{"type":"string"}}},"ChangePasswordRequest":{"type":"object","properties":{"newPassword":{"type":"string"}}},"ChangeOwnPasswordRequest":{"type":"object","properties":{"currentPassword":{"type":"string"},"newPassword":{"type":"string"}}},"FormSubmissionDocument":{"type":"object","properties":{"values":{"type":"object","additionalProperties":{}}}},"EffectOutcomeDocument":{"type":"object","properties":{"key":{"type":"string"},"outcome":{"type":"string"}}},"FormSubmissionResultDocument":{"type":"object","properties":{"submissionId":{"type":"string"},"formKey":{"type":"string"},"declarationVersion":{"type":"integer","format":"int32"},"resultSummary":{"type":"string"},"submittedAt":{"type":"string","format":"date-time"},"effects":{"type":"array","items":{"$ref":"#/components/schemas/EffectOutcomeDocument"}}}},"RenameTenantRequest":{"type":"object","properties":{"tenantName":{"type":"string"}}},"TenantsDocument":{"type":"object","properties":{"tenants":{"type":"array","items":{"$ref":"#/components/schemas/TenantDocument"}}}},"SkinDocument":{"type":"object","properties":{"name":{"type":"string"},"variables":{"type":"object","additionalProperties":{"type":"string"}}}},"SkinListDocument":{"type":"object","properties":{"skins":{"type":"array","items":{"$ref":"#/components/schemas/SkinDocument"}}}},"ServiceDocument":{"type":"object","properties":{"serviceName":{"type":"string"},"host":{"type":"string"},"port":{"type":"integer","format":"int32"},"status":{"type":"string"}}},"ServiceListDocument":{"type":"object","properties":{"services":{"type":"array","items":{"$ref":"#/components/schemas/ServiceDocument"}}}},"PageIndexDocument":{"type":"object","properties":{"flowKey":{"type":"string"},"titleZh":{"type":"string"},"titleEn":{"type":"string"},"version":{"type":"integer","format":"int32"},"permission":{"type":"string"},"tenantScoped":{"type":"boolean"}}},"PagesIndexDocument":{"type":"object","properties":{"pages":{"type":"array","items":{"$ref":"#/components/schemas/PageIndexDocument"}}}},"DetailSpecDocument":{"type":"object","properties":{"path":{"type":"string"},"apiPath":{"type":"string"},"itemsKey":{"type":"string"},"idField":{"type":"string"}}},"ListSpecDocument":{"type":"object","properties":{"path":{"type":"string"},"apiPath":{"type":"string"},"itemsKey":{"type":"string"}}},"PageFlowDocument":{"type":"object","properties":{"flowKey":{"type":"string"},"titleZh":{"type":"string"},"titleEn":{"type":"string"},"formKey":{"type":"string"},"version":{"type":"integer","format":"int32"},"permission":{"type":"string"},"tenantScoped":{"type":"boolean"},"list":{"$ref":"#/components/schemas/ListSpecDocument"},"detail":{"$ref":"#/components/schemas/DetailSpecDocument"},"submit":{"$ref":"#/components/schemas/SubmitSpecDocument"}}},"SubmitSpecDocument":{"type":"object","properties":{"path":{"type":"string"},"apiPath":{"type":"string"},"redirectTo":{"type":"string"}}},"OperatorsDocument":{"type":"object","properties":{"operators":{"type":"array","items":{"$ref":"#/components/schemas/OperatorDocument"}}}},"TenantGrantsDocument":{"type":"object","properties":{"loginName":{"type":"string"},"tenantIds":{"type":"array","items":{"type":"string"}}}},"OperatorSelfDocument":{"type":"object","properties":{"loginName":{"type":"string"},"identityId":{"type":"string"},"subjectId":{"type":"string"},"permissions":{"type":"array","items":{"type":"string"}}}},"LanguageDocument":{"type":"object","properties":{"code":{"type":"string"},"phrases":{"type":"object","additionalProperties":{"type":"string"}}}},"LanguageListDocument":{"type":"object","properties":{"languages":{"type":"array","items":{"$ref":"#/components/schemas/LanguageDocument"}}}},"FormIndexDocument":{"type":"object","properties":{"formKey":{"type":"string"},"titleZh":{"type":"string"},"titleEn":{"type":"string"},"version":{"type":"integer","format":"int32"},"permission":{"type":"string"},"tenantScoped":{"type":"boolean"}}},"FormsIndexDocument":{"type":"object","properties":{"forms":{"type":"array","items":{"$ref":"#/components/schemas/FormIndexDocument"}}}},"FieldDocument":{"type":"object","properties":{"name":{"type":"string"},"kind":{"type":"string"},"required":{"type":"boolean"}}},"FormsDocument":{"type":"object","properties":{"formKey":{"type":"string"},"titleZh":{"type":"string"},"titleEn":{"type":"string"},"version":{"type":"integer","format":"int32"},"permission":{"type":"string"},"tenantScoped":{"type":"boolean"},"fields":{"type":"array","items":{"$ref":"#/components/schemas/FieldDocument"}}}},"FormSubmissionHistoryDocument":{"type":"object","properties":{"submissionId":{"type":"string"},"formKey":{"type":"string"},"declarationVersion":{"type":"integer","format":"int32"},"actorIdentityId":{"type":"string"},"loginName":{"type":"string"},"valuesJson":{"type":"string"},"resultSummary":{"type":"string"},"submittedAt":{"type":"string","format":"date-time"}}},"FormSubmissionListDocument":{"type":"object","properties":{"submissions":{"type":"array","items":{"$ref":"#/components/schemas/FormSubmissionHistoryDocument"}}}},"DeployDocument":{"type":"object","properties":{"applied":{"type":"boolean"},"workloads":{"type":"array","items":{"$ref":"#/components/schemas/WorkloadDocument"}}}},"WorkloadDocument":{"type":"object","properties":{"name":{"type":"string"},"image":{"type":"string"},"livenessPath":{"type":"string"},"readinessPath":{"type":"string"},"memoryLimit":{"type":"string"}}},"ConfigDocument":{"type":"object","properties":{"entries":{"type":"array","items":{"$ref":"#/components/schemas/ConfigEntryDocument"}}}},"CodegenDocument":{"type":"object","properties":{"recordName":{"type":"string"},"components":{"type":"array","items":{"$ref":"#/components/schemas/ComponentDocument"}}}},"ComponentDocument":{"type":"object","properties":{"name":{"type":"string"},"javaType":{"type":"string"},"typeZh":{"type":"string"}}},"AuditDocument":{"type":"object","properties":{"entries":{"type":"array","items":{"$ref":"#/components/schemas/AuditEntryDocument"}}}},"AuditEntryDocument":{"type":"object","properties":{"auditEntryId":{"type":"string"},"occurredAt":{"type":"string","format":"date-time"},"tenantId":{"type":"string"},"actorIdentityId":{"type":"string"},"actorLogin":{"type":"string"},"actor":{"type":"string"},"actionName":{"type":"string"},"actionWordZh":{"type":"string"},"actionWordEn":{"type":"string"},"actionTarget":{"type":"string"},"outcome":{"type":"string"},"outcomeWordZh":{"type":"string"},"outcomeWordEn":{"type":"string"}}}},"securitySchemes":{"operatorBasic":{"type":"http","description":"Operator login and password on every request — 每次请求都带操作员登录名和口令","scheme":"basic"}}}}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "subjex",
+    "description": "JSON API behind the operator pages \u2014 \u64cd\u4f5c\u9875\u80cc\u540e\u7684 JSON \u63a5\u53e3",
+    "license": {
+      "name": "Apache-2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080",
+      "description": "Generated server url"
+    }
+  ],
+  "security": [
+    {
+      "operatorBearer": []
+    },
+    {
+      "operatorBasic": []
+    }
+  ],
+  "paths": {
+    "/api/v1/operators/{loginName}/tenants": {
+      "get": {
+        "tags": [
+          "operator-management-endpoint"
+        ],
+        "operationId": "listTenants",
+        "parameters": [
+          {
+            "name": "loginName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantGrantsDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "operator-management-endpoint"
+        ],
+        "operationId": "replaceTenants",
+        "parameters": [
+          {
+            "name": "loginName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantGrantsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/config/{key}": {
+      "put": {
+        "tags": [
+          "config-api-endpoint"
+        ],
+        "operationId": "override",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigValueDocument"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigEntryDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants": {
+      "get": {
+        "tags": [
+          "tenant-management-endpoint"
+        ],
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantsDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tenant-management-endpoint"
+        ],
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/enable": {
+      "post": {
+        "tags": [
+          "tenant-management-endpoint"
+        ],
+        "operationId": "enable",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/disable": {
+      "post": {
+        "tags": [
+          "tenant-management-endpoint"
+        ],
+        "operationId": "disable",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/operators": {
+      "get": {
+        "tags": [
+          "operator-management-endpoint"
+        ],
+        "operationId": "list_1",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorsDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "operator-management-endpoint"
+        ],
+        "operationId": "create_1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOperatorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/operators/{loginName}/password": {
+      "post": {
+        "tags": [
+          "operator-management-endpoint"
+        ],
+        "operationId": "changeOtherPassword",
+        "parameters": [
+          {
+            "name": "loginName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/operators/{loginName}/enable": {
+      "post": {
+        "tags": [
+          "operator-management-endpoint"
+        ],
+        "operationId": "enable_1",
+        "parameters": [
+          {
+            "name": "loginName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/operators/{loginName}/disable": {
+      "post": {
+        "tags": [
+          "operator-management-endpoint"
+        ],
+        "operationId": "disable_1",
+        "parameters": [
+          {
+            "name": "loginName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/operators/me/password": {
+      "post": {
+        "tags": [
+          "operator-management-endpoint"
+        ],
+        "operationId": "changeOwnPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeOwnPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/forms/{formKey}/submissions": {
+      "get": {
+        "tags": [
+          "form-submission-endpoint"
+        ],
+        "operationId": "history",
+        "parameters": [
+          {
+            "name": "formKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSubmissionListDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "form-submission-endpoint"
+        ],
+        "operationId": "submit",
+        "parameters": [
+          {
+            "name": "formKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormSubmissionDocument"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSubmissionResultDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}": {
+      "get": {
+        "tags": [
+          "tenant-management-endpoint"
+        ],
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tenant-management-endpoint"
+        ],
+        "operationId": "rename",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/skins": {
+      "get": {
+        "tags": [
+          "skin-api-endpoint"
+        ],
+        "operationId": "skins",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkinListDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/services": {
+      "get": {
+        "tags": [
+          "service-list-api-endpoint"
+        ],
+        "operationId": "services",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceListDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/pages": {
+      "get": {
+        "tags": [
+          "pages-api-endpoint"
+        ],
+        "operationId": "index",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagesIndexDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/pages/{flowKey}": {
+      "get": {
+        "tags": [
+          "pages-api-endpoint"
+        ],
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "flowKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageFlowDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "operator-self-endpoint"
+        ],
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSelfDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/language": {
+      "get": {
+        "tags": [
+          "language-api-endpoint"
+        ],
+        "operationId": "languages",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LanguageListDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/forms": {
+      "get": {
+        "tags": [
+          "forms-api-endpoint"
+        ],
+        "operationId": "index_1",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormsIndexDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/forms/{formKey}": {
+      "get": {
+        "tags": [
+          "forms-api-endpoint"
+        ],
+        "operationId": "detail_1",
+        "parameters": [
+          {
+            "name": "formKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormsDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/deploy": {
+      "get": {
+        "tags": [
+          "deploy-api-endpoint"
+        ],
+        "operationId": "deploy",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/config": {
+      "get": {
+        "tags": [
+          "config-api-endpoint"
+        ],
+        "operationId": "config",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/codegen": {
+      "get": {
+        "tags": [
+          "codegen-api-endpoint"
+        ],
+        "operationId": "codegen",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodegenDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "tags": [
+          "audit-api-endpoint"
+        ],
+        "operationId": "audit",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No operator signed in \u2014 \u6ca1\u6709\u5df2\u767b\u5f55\u7684\u64cd\u4f5c\u5458"
+          },
+          "403": {
+            "description": "Operator lacks the permission \u2014 \u64cd\u4f5c\u5458\u7f3a\u5c11\u8fd9\u9879\u6743\u9650"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "operator-auth-endpoint"
+        ],
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Wrong credentials \u2014 \u53e3\u4ee4\u9519\u8bef"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "operator-auth-endpoint"
+        ],
+        "operationId": "refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or reused refresh \u2014 \u5237\u65b0\u4ee4\u724c\u65e0\u6548\u6216\u88ab\u91cd\u7528"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "operator-auth-endpoint"
+        ],
+        "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TenantGrantsRequest": {
+        "type": "object",
+        "properties": {
+          "tenantIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ConfigValueDocument": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfigEntryDocument": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateTenantRequest": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          }
+        }
+      },
+      "TenantDocument": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "tenantState": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateOperatorRequest": {
+        "type": "object",
+        "properties": {
+          "loginName": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "roleName": {
+            "type": "string"
+          }
+        }
+      },
+      "OperatorDocument": {
+        "type": "object",
+        "properties": {
+          "loginName": {
+            "type": "string"
+          },
+          "accountState": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "identityId": {
+            "type": "string"
+          },
+          "roleName": {
+            "type": "string"
+          }
+        }
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "properties": {
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "ChangeOwnPasswordRequest": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "FormSubmissionDocument": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
+      "EffectOutcomeDocument": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        }
+      },
+      "FormSubmissionResultDocument": {
+        "type": "object",
+        "properties": {
+          "submissionId": {
+            "type": "string"
+          },
+          "formKey": {
+            "type": "string"
+          },
+          "declarationVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resultSummary": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectOutcomeDocument"
+            }
+          }
+        }
+      },
+      "RenameTenantRequest": {
+        "type": "object",
+        "properties": {
+          "tenantName": {
+            "type": "string"
+          }
+        }
+      },
+      "TenantsDocument": {
+        "type": "object",
+        "properties": {
+          "tenants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantDocument"
+            }
+          }
+        }
+      },
+      "SkinDocument": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SkinListDocument": {
+        "type": "object",
+        "properties": {
+          "skins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkinDocument"
+            }
+          }
+        }
+      },
+      "ServiceDocument": {
+        "type": "object",
+        "properties": {
+          "serviceName": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ServiceListDocument": {
+        "type": "object",
+        "properties": {
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceDocument"
+            }
+          }
+        }
+      },
+      "PageIndexDocument": {
+        "type": "object",
+        "properties": {
+          "flowKey": {
+            "type": "string"
+          },
+          "titleZh": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "tenantScoped": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PagesIndexDocument": {
+        "type": "object",
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PageIndexDocument"
+            }
+          }
+        }
+      },
+      "DetailSpecDocument": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "apiPath": {
+            "type": "string"
+          },
+          "itemsKey": {
+            "type": "string"
+          },
+          "idField": {
+            "type": "string"
+          }
+        }
+      },
+      "ListSpecDocument": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "apiPath": {
+            "type": "string"
+          },
+          "itemsKey": {
+            "type": "string"
+          }
+        }
+      },
+      "PageFlowDocument": {
+        "type": "object",
+        "properties": {
+          "flowKey": {
+            "type": "string"
+          },
+          "titleZh": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "formKey": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "tenantScoped": {
+            "type": "boolean"
+          },
+          "list": {
+            "$ref": "#/components/schemas/ListSpecDocument"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/DetailSpecDocument"
+          },
+          "submit": {
+            "$ref": "#/components/schemas/SubmitSpecDocument"
+          }
+        }
+      },
+      "SubmitSpecDocument": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "apiPath": {
+            "type": "string"
+          },
+          "redirectTo": {
+            "type": "string"
+          }
+        }
+      },
+      "OperatorsDocument": {
+        "type": "object",
+        "properties": {
+          "operators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperatorDocument"
+            }
+          }
+        }
+      },
+      "TenantGrantsDocument": {
+        "type": "object",
+        "properties": {
+          "loginName": {
+            "type": "string"
+          },
+          "tenantIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OperatorSelfDocument": {
+        "type": "object",
+        "properties": {
+          "loginName": {
+            "type": "string"
+          },
+          "identityId": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LanguageDocument": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "phrases": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LanguageListDocument": {
+        "type": "object",
+        "properties": {
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LanguageDocument"
+            }
+          }
+        }
+      },
+      "FormIndexDocument": {
+        "type": "object",
+        "properties": {
+          "formKey": {
+            "type": "string"
+          },
+          "titleZh": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "tenantScoped": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FormsIndexDocument": {
+        "type": "object",
+        "properties": {
+          "forms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormIndexDocument"
+            }
+          }
+        }
+      },
+      "FieldDocument": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FormsDocument": {
+        "type": "object",
+        "properties": {
+          "formKey": {
+            "type": "string"
+          },
+          "titleZh": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "tenantScoped": {
+            "type": "boolean"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldDocument"
+            }
+          }
+        }
+      },
+      "FormSubmissionHistoryDocument": {
+        "type": "object",
+        "properties": {
+          "submissionId": {
+            "type": "string"
+          },
+          "formKey": {
+            "type": "string"
+          },
+          "declarationVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actorIdentityId": {
+            "type": "string"
+          },
+          "loginName": {
+            "type": "string"
+          },
+          "valuesJson": {
+            "type": "string"
+          },
+          "resultSummary": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FormSubmissionListDocument": {
+        "type": "object",
+        "properties": {
+          "submissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormSubmissionHistoryDocument"
+            }
+          }
+        }
+      },
+      "DeployDocument": {
+        "type": "object",
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "workloads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkloadDocument"
+            }
+          }
+        }
+      },
+      "WorkloadDocument": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "livenessPath": {
+            "type": "string"
+          },
+          "readinessPath": {
+            "type": "string"
+          },
+          "memoryLimit": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfigDocument": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigEntryDocument"
+            }
+          }
+        }
+      },
+      "CodegenDocument": {
+        "type": "object",
+        "properties": {
+          "recordName": {
+            "type": "string"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComponentDocument"
+            }
+          }
+        }
+      },
+      "ComponentDocument": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "javaType": {
+            "type": "string"
+          },
+          "typeZh": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditDocument": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEntryDocument"
+            }
+          }
+        }
+      },
+      "AuditEntryDocument": {
+        "type": "object",
+        "properties": {
+          "auditEntryId": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "actorIdentityId": {
+            "type": "string"
+          },
+          "actorLogin": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "actionName": {
+            "type": "string"
+          },
+          "actionWordZh": {
+            "type": "string"
+          },
+          "actionWordEn": {
+            "type": "string"
+          },
+          "actionTarget": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "outcomeWordZh": {
+            "type": "string"
+          },
+          "outcomeWordEn": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "loginName": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tokenType": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "operatorBasic": {
+        "type": "http",
+        "description": "Operator login and password (scripts/local tooling) \u2014 \u64cd\u4f5c\u5458\u53e3\u4ee4\uff08\u811a\u672c/\u672c\u673a\u5de5\u5177\uff09",
+        "scheme": "basic"
+      },
+      "operatorBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque",
+        "description": "Opaque access token from POST /api/v1/auth/login \u2014 \u6765\u81ea\u767b\u5f55\u63a5\u53e3\u7684\u4e0d\u900f\u660e\u8bbf\u95ee\u4ee4\u724c"
+      }
+    }
+  }
+}

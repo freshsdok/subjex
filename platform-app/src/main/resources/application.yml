@@ -30,6 +30,11 @@ server:
     include-binding-errors: never
 
 platform:
+  # Opaque Bearer access + rotating refresh (Slice C). Console uses these; Basic remains for scripts.
+  # 不透明 Bearer 访问令牌 + 轮换刷新（切片 C）。控制台用令牌；Basic 留给脚本。
+  auth:
+    access-token-ttl: PT30M
+    refresh-token-ttl: PT8H
   # LOCAL ONLY: used only when SPRING_PROFILES_ACTIVE=local seeds the local operator.
   # 仅限本地：只有 SPRING_PROFILES_ACTIVE=local 写入本地操作员时才用。
   local-operator:

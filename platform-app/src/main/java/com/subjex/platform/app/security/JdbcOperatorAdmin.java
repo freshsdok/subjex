@@ -167,6 +167,11 @@ public final class JdbcOperatorAdmin {
         tenantAccess.replaceGrants(account.subjectId(), tenantIds == null ? List.of() : tenantIds);
     }
 
+    /** Subject id for a login (token revocation) — 登录名对应主体（用于吊销令牌）。 */
+    public String requireSubjectId(String loginName) {
+        return requireAccount(loginName).subjectId();
+    }
+
     private static void requirePasswordLength(String password) {
         if (password == null || password.length() < OperatorBootstrap.MIN_PASSWORD_LENGTH) {
             throw new IllegalArgumentException(

@@ -27,10 +27,13 @@ public class OperatorManagementEndpoint {
 
     private final JdbcOperatorAdmin admin;
     private final OperatorActionAudit audit;
+    private final JdbcOperatorTokenStore tokenStore;
 
-    public OperatorManagementEndpoint(JdbcOperatorAdmin admin, OperatorActionAudit audit) {
+    public OperatorManagementEndpoint(
+            JdbcOperatorAdmin admin, OperatorActionAudit audit, JdbcOperatorTokenStore tokenStore) {
         this.admin = admin;
         this.audit = audit;
+        this.tokenStore = tokenStore;
     }
 
     @GetMapping(PATH)
@@ -64,6 +67,7 @@ public class OperatorManagementEndpoint {
             @AuthenticationPrincipal OperatorPrincipal self, @RequestBody ChangeOwnPasswordRequest body) {
         admin.changeOwnPassword(
                 self, body == null ? null : body.currentPassword(), body == null ? null : body.newPassword());
+        tokenStore.revokeAllForSubject(self.subjectId());
         audit.record(self, "operator.password.change-self", self.getUsername(), AuditOutcome.ALLOWED);
     }
 
@@ -74,6 +78,7 @@ public class OperatorManagementEndpoint {
             @PathVariable("loginName") String loginName,
             @RequestBody ChangePasswordRequest body) {
         admin.changePassword(loginName, body == null ? null : body.newPassword());
+        tokenStore.revokeAllForSubject(admin.requireSubjectId(loginName));
         audit.record(actor, "operator.password.change", loginName, AuditOutcome.ALLOWED);
     }
 
@@ -81,7 +86,9 @@ public class OperatorManagementEndpoint {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void disable(
             @AuthenticationPrincipal OperatorPrincipal actor, @PathVariable("loginName") String loginName) {
+        String subjectId = admin.requireSubjectId(loginName);
         admin.disable(actor, loginName);
+        tokenStore.revokeAllForSubject(subjectId);
         audit.record(actor, "operator.disable", loginName, AuditOutcome.ALLOWED);
     }
 

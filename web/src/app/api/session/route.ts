@@ -1,13 +1,21 @@
 import { cookies } from "next/headers";
 import {
   closeOperatorSession,
+  findOperatorSession,
   openOperatorSession,
   sessionCookieName,
   sessionLifetimeSeconds,
 } from "@/server/operator-session";
-import { basicCredentialHeader, platformApiBase } from "@/server/upstream";
+import { platformApiBase } from "@/server/upstream";
 
-// Sign in — 登录：用账号密码向平台 /api/v1/me 验证，成功后发 httpOnly 会话 cookie。
+type TokenReply = {
+  accessToken?: unknown;
+  refreshToken?: unknown;
+  expiresIn?: unknown;
+  tokenType?: unknown;
+};
+
+// Sign in — 登录：调用平台 /api/v1/auth/login，会话只存加密的 access/refresh，从不存 Basic。
 export async function POST(request: Request): Promise<Response> {
   const signInForm = (await request.json().catch(() => null)) as
     | { loginName?: unknown; password?: unknown }
@@ -18,24 +26,51 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ reason: "missing-credentials" }, { status: 400 });
   }
 
-  const credentialHeader = basicCredentialHeader(loginName, password);
-  let upstreamReply: Response;
+  let tokenReply: Response;
   try {
-    upstreamReply = await fetch(`${platformApiBase}/api/v1/me`, {
-      headers: { authorization: credentialHeader, accept: "application/json" },
+    tokenReply = await fetch(`${platformApiBase}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ loginName, password }),
       cache: "no-store",
     });
   } catch {
     return Response.json({ reason: "platform-unreachable" }, { status: 502 });
   }
-  if (upstreamReply.status === 401) {
+  if (tokenReply.status === 401) {
     return Response.json({ reason: "wrong-credentials" }, { status: 401 });
   }
-  if (!upstreamReply.ok) {
+  if (!tokenReply.ok) {
     return Response.json({ reason: "platform-error" }, { status: 502 });
   }
 
-  const sessionId = await openOperatorSession(loginName, credentialHeader);
+  const tokens = (await tokenReply.json()) as TokenReply;
+  const accessToken = typeof tokens.accessToken === "string" ? tokens.accessToken : "";
+  const refreshToken = typeof tokens.refreshToken === "string" ? tokens.refreshToken : "";
+  const expiresIn = typeof tokens.expiresIn === "number" ? tokens.expiresIn : 0;
+  if (!accessToken || !refreshToken || expiresIn <= 0) {
+    return Response.json({ reason: "platform-error" }, { status: 502 });
+  }
+
+  let meReply: Response;
+  try {
+    meReply = await fetch(`${platformApiBase}/api/v1/me`, {
+      headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch {
+    return Response.json({ reason: "platform-unreachable" }, { status: 502 });
+  }
+  if (!meReply.ok) {
+    return Response.json({ reason: "platform-error" }, { status: 502 });
+  }
+
+  const sessionId = await openOperatorSession({
+    loginName,
+    accessToken,
+    refreshToken,
+    accessExpiresAtMillis: Date.now() + expiresIn * 1000,
+  });
   const cookieJar = await cookies();
   cookieJar.set(sessionCookieName, sessionId, {
     httpOnly: true,
@@ -44,13 +79,27 @@ export async function POST(request: Request): Promise<Response> {
     path: "/",
     maxAge: sessionLifetimeSeconds,
   });
-  return Response.json(await upstreamReply.json());
+  return Response.json(await meReply.json());
 }
 
-// Sign out — 退出：删掉服务端会话并清 cookie。
+// Sign out — 退出：吊销平台刷新族、删掉服务端会话并清 cookie。
 export async function DELETE(): Promise<Response> {
   const cookieJar = await cookies();
-  await closeOperatorSession(cookieJar.get(sessionCookieName)?.value);
+  const sessionId = cookieJar.get(sessionCookieName)?.value;
+  const session = await findOperatorSession(sessionId);
+  if (session?.refreshToken) {
+    try {
+      await fetch(`${platformApiBase}/api/v1/auth/logout`, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+        cache: "no-store",
+      });
+    } catch {
+      // Session cookie is still cleared below even if revoke is unreachable.
+    }
+  }
+  await closeOperatorSession(sessionId);
   cookieJar.delete(sessionCookieName);
   return new Response(null, { status: 204 });
 }

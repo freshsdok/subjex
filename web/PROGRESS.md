@@ -68,3 +68,10 @@ Auth roadmap Slice B — 租户管理（2026-10-05）:
     权限、REST、软禁用、保留租户不可改、禁用租户拒绝任务、控制台页与导航、中英文案、辅助单测。
     Next: Slice C Bearer tokens (drop Basic-at-rest). Do not start D–E until C lands.
     下一片：C 平台令牌。按计划先不要开 D–E。
+
+Auth roadmap Slice C — 平台令牌（2026-10-05）:
+
+9d. [done] Opaque Bearer access + rotating refresh; console drops Basic-at-rest entirely. Login via `/api/v1/auth/login`; session stores encrypted access/refresh; proxy Bearer + silent refresh; logout revokes family. Vitest session tests updated.
+    不透明 Bearer + 轮换刷新；控制台不再静态保留 Basic。登录走令牌端点；会话只存加密令牌；代理 Bearer 与静默刷新；退出吊销族。
+    Next: Slice D TOTP MFA. Do not start E until D lands as planned.
+    下一片：D TOTP。按计划先不要开 E。

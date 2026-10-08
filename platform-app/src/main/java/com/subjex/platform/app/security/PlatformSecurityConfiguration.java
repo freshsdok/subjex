@@ -13,26 +13,34 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * PlatformSecurityConfiguration — 平台安全：先认出操作员，再按具名权限放行每一个 HTTP 动作。
  * <p>
- * Anonymous access is limited to liveness and readiness probes. HTTP Basic identifies the operator through
- * {@link JdbcOperatorDirectory}; each path then needs one {@link OperatorPermission}. A signed-in operator without
- * that permission gets 403. CSRF is off because there is no browser form.
- * 匿名访问只留给存活和就绪探针。HTTP Basic 经 {@link JdbcOperatorDirectory} 认出操作员，然后每条路径需要一项
- * {@link OperatorPermission}。已登录但没有这项权限的操作员得到 403。没有浏览器表单，因此关闭 CSRF。
+ * Anonymous access is limited to liveness/readiness probes and auth token endpoints (login/refresh/logout).
+ * {@code Authorization: Bearer} (opaque platform tokens) is the primary path for the console; HTTP Basic
+ * remains for scripts and local tooling. {@link JdbcOperatorDirectory} backs Basic; {@link JdbcOperatorTokenStore}
+ * backs Bearer. CSRF is off because there is no browser form posting to Java.
+ * 匿名访问只留给探针与令牌端点。控制台主路径是 Bearer；Basic 留给脚本。无浏览器表单直投 Java，关闭 CSRF。
  */
 @Configuration
 public class PlatformSecurityConfiguration {
 
     @Bean
-    SecurityFilterChain platformSecurity(HttpSecurity http) throws Exception {
+    SecurityFilterChain platformSecurity(HttpSecurity http, JdbcOperatorTokenStore tokenStore) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/prometheus").permitAll()
+                        // Token issue / rotate / revoke — no prior auth (password or refresh in body).
+                        // 签发 / 轮换 / 吊销 — 事先无需认证（口令或刷新令牌在正文里）。
+                        .requestMatchers(HttpMethod.POST,
+                                OperatorAuthEndpoint.PATH + "/login",
+                                OperatorAuthEndpoint.PATH + "/refresh",
+                                OperatorAuthEndpoint.PATH + "/logout")
+                                .permitAll()
                         // JSON twins under /api/v1: same named permissions as their pages.
                         // /api/v1 下的 JSON 孪生接口：与对应页面相同的具名权限。
                         .requestMatchers(HttpMethod.GET, "/api/v1/me").authenticated()
@@ -87,6 +95,7 @@ public class PlatformSecurityConfiguration {
                         // 未映射的路径仍要求已登录的操作员；它们只会回 404，不给数据。
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
+                .addFilterBefore(new BearerTokenAuthenticationFilter(tokenStore), UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
