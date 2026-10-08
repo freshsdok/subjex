@@ -9,6 +9,9 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
+- **OIDC SSO (Slice E)**: platform as OIDC RP (Authorization Code + PKCE); `operator_idp_link` + pending PKCE state (Flyway `V10`); `GET/POST /api/v1/auth/oidc/{status,start,callback}`; deny unlinked IdP users; admin `GET/PUT/DELETE /api/v1/operators/{login}/idp-link`; SSO issues same opaque Bearer as Slice C and skips local TOTP. Console SSO button + `/api/session/oidc/*` callback; Operators page IdP bind/unlink UI.
+  OIDC SSO（切片 E）：平台作依赖方（授权码+PKCE）；绑定表与 PKCE 态（V10）；未绑定拒绝；管理员绑定/解绑；SSO 签发与 C 相同 Bearer 且跳过本地 TOTP。控制台 SSO 与回调；操作员页绑定 UI。
+
 - **TOTP MFA (Slice D)**: `POST /api/v1/auth/mfa/totp/{start,confirm,disable}`, `GET /api/v1/auth/mfa`, login returns `mfaToken` when enrolled, `POST /api/v1/auth/mfa/verify` → Bearer pair; recovery codes (hashed, one-shot); AES-GCM TOTP secret at rest; `platform.mfa.required=false` / `required-for-platform-operator`; console login second step + Operators self enroll/disable. Flyway `V9__operator_mfa.sql`.
   TOTP 多因素（切片 D）：登记/确认/关闭与状态；已登记则登录先发 mfaToken；校验后签发令牌；恢复码摘要入库一次性；密钥 AES-GCM；默认不强制；控制台二次登录与自助登记。迁移 V9。
 
@@ -84,5 +87,5 @@ See `SECURITY.md` for the security-relevant ones. Also:
 - Activating `.github/workflows/*` on the remote requires a token with the `workflow` scope; until that push lands, GitHub Actions still will not run.
 - Console operator create / password reset / grant editor landed (Slice A); role catalog UI still deferred.
 - Auto-creating tenants on first granted task submission remains for missing ACTIVE tenants; explicit admin is `/api/v1/tenants` + `/tenants` (Slice B). Hard delete / quotas deferred.
-- Opaque Bearer + rotating refresh landed (Slice C); MFA (D) and OIDC (E) still deferred. Login lockout/rate-limit still deferred.
+- Opaque Bearer, TOTP MFA, and OIDC RP landed (Slices C–E). Login lockout/rate-limit still deferred.
 - HTTP Basic remains available for scripts/local tooling; console path uses Bearer only after login.

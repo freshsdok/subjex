@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
 import type { PhraseBook } from "@/i18n/phrases";
 
 // Sign-in failure reasons from /api/session — 登录失败原因（与 /api/session 返回的 reason 对应）。
@@ -12,7 +12,11 @@ type SignInFailure =
   | "platformError"
   | "invalidMfa"
   | "mfaEnrollmentRequired"
-  | "missingMfa";
+  | "missingMfa"
+  | "oidcUnlinked"
+  | "oidcDenied"
+  | "oidcDisabled"
+  | "oidcError";
 
 const failureByReason: Record<string, SignInFailure> = {
   "wrong-credentials": "wrongCredentials",
@@ -23,11 +27,42 @@ const failureByReason: Record<string, SignInFailure> = {
   "missing-mfa": "missingMfa",
 };
 
+const oidcFailureByQuery: Record<string, SignInFailure> = {
+  unlinked: "oidcUnlinked",
+  denied: "oidcDenied",
+  disabled: "oidcDisabled",
+  unreachable: "platformUnreachable",
+  error: "oidcError",
+};
+
 export function SignInForm({ phrases }: { phrases: PhraseBook }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [signingIn, setSigningIn] = useState(false);
   const [failure, setFailure] = useState<SignInFailure | null>(null);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [oidcEnabled, setOidcEnabled] = useState(false);
+
+  useEffect(() => {
+    const oidc = searchParams.get("oidc");
+    if (oidc && oidcFailureByQuery[oidc]) {
+      setFailure(oidcFailureByQuery[oidc]);
+    }
+    let cancelled = false;
+    fetch("/api/session/oidc/status", { cache: "no-store" })
+      .then(async (reply) => {
+        if (!reply.ok) return;
+        const body = (await reply.json()) as { enabled?: unknown };
+        if (!cancelled && body.enabled === true) setOidcEnabled(true);
+      })
+      .catch(() => {
+        // Status probe failure: hide SSO button; password path remains.
+        // 状态探测失败：隐藏 SSO，仍可用口令。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   async function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -134,37 +169,55 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
   }
 
   return (
-    <form onSubmit={submitPassword} className="flex flex-col gap-4" noValidate>
-      <label className="flex flex-col gap-1 text-sm">
-        {phrases.loginNameLabel}
-        <input
-          name="loginName"
-          autoComplete="username"
-          autoFocus
-          className="rounded-md border border-border bg-surface px-3 py-2 text-base"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        {phrases.passwordLabel}
-        <input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          className="rounded-md border border-border bg-surface px-3 py-2 text-base"
-        />
-      </label>
-      {failure && (
-        <p role="alert" className="text-sm text-danger">
-          {phrases[failure]}
-        </p>
+    <div className="flex flex-col gap-4">
+      <form onSubmit={submitPassword} className="flex flex-col gap-4" noValidate>
+        <label className="flex flex-col gap-1 text-sm">
+          {phrases.loginNameLabel}
+          <input
+            name="loginName"
+            autoComplete="username"
+            autoFocus
+            className="rounded-md border border-border bg-surface px-3 py-2 text-base"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          {phrases.passwordLabel}
+          <input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            className="rounded-md border border-border bg-surface px-3 py-2 text-base"
+          />
+        </label>
+        {failure && (
+          <p role="alert" className="text-sm text-danger">
+            {phrases[failure]}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={signingIn}
+          className="rounded-md bg-accent px-3 py-2 font-medium text-white disabled:opacity-60"
+        >
+          {signingIn ? phrases.signingIn : phrases.signInAction}
+        </button>
+      </form>
+      {oidcEnabled && (
+        <>
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span className="h-px flex-1 bg-border" />
+            <span>{phrases.oidcOrDivider}</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <a
+            href="/api/session/oidc/start"
+            className="rounded-md border border-border bg-background px-3 py-2 text-center text-sm font-medium hover:bg-surface"
+          >
+            {phrases.oidcSignInAction}
+          </a>
+          <p className="text-xs text-muted">{phrases.oidcSignInHint}</p>
+        </>
       )}
-      <button
-        type="submit"
-        disabled={signingIn}
-        className="rounded-md bg-accent px-3 py-2 font-medium text-white disabled:opacity-60"
-      >
-        {signingIn ? phrases.signingIn : phrases.signInAction}
-      </button>
-    </form>
+    </div>
   );
 }

@@ -1,8 +1,9 @@
+import { Suspense } from "react";
 import { AppearanceSwitcher } from "@/components/appearance-switcher";
 import { currentLanguage } from "@/i18n/server-language";
 import { SignInForm } from "./sign-in-form";
 
-// Login page — 登录页：只有一个表单，失败时就地说明原因。
+// Login page — 登录页：口令表单；OIDC 启用时另有企业登录入口。
 export default async function LoginPage() {
   const { language, phrases } = await currentLanguage();
   return (
@@ -15,7 +16,9 @@ export default async function LoginPage() {
         </div>
         <h1 className="mb-1 text-xl font-semibold">{phrases.signInTitle}</h1>
         <p className="mb-5 text-sm text-muted">{phrases.signInHint}</p>
-        <SignInForm phrases={phrases} />
+        <Suspense fallback={<p className="text-sm text-muted">{phrases.signingIn}</p>}>
+          <SignInForm phrases={phrases} />
+        </Suspense>
       </section>
     </main>
   );

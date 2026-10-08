@@ -82,3 +82,11 @@ Auth roadmap Slice D — TOTP MFA（2026-10-08）:
     TOTP 登记/确认/关闭；登录挑战与校验；恢复码一次性；密钥 AES-GCM 入库（V9）；控制台二次登录与操作员页自助登记。默认不强制。
     Next: Slice E OIDC. Do not start E until product asks.
     下一片：E OIDC。等产品明确要求再开。
+
+Auth roadmap Slice E — OIDC SSO（2026-10-08）:
+
+9f. [done] OIDC RP + PKCE; `operator_idp_link` (deny unlinked); `/api/v1/auth/oidc/{status,start,callback}` → same Bearer as C; SSO skips local TOTP; admin bind/unlink API + Operators UI; console SSO button + callback routes. Flyway V10. `platform.oidc.enabled=false` by default.
+    OIDC 依赖方 + PKCE；绑定表（未绑定拒绝）；OIDC 端点签发与 C 相同 Bearer；SSO 跳过本地 TOTP；管理员绑定 API 与界面；控制台 SSO。迁移 V10。默认关闭。
+    Next: login lockout / rate-limit follow-up. Multi-IdP / SAML / SCIM deferred.
+    下一片：登录锁定/限流。多 IdP / SAML / SCIM 延后。
+

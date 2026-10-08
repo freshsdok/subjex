@@ -1,7 +1,7 @@
 # Auth roadmap — console operators, tenants, tokens, SSO, MFA
 
-Status: Slices **A–D done** (operators, tenants, opaque Bearer + rotating refresh, TOTP MFA); E still design (2026-10-08).
-状态：切片 **A–D 已完成**（操作员、租户、不透明 Bearer + 轮换刷新、TOTP MFA）；E 仍为设计（2026-10-08）。
+Status: Slices **A–E done** (operators, tenants, opaque Bearer + rotating refresh, TOTP MFA, OIDC RP); follow-ups remain (2026-10-08).
+状态：切片 **A–E 已完成**（操作员、租户、不透明 Bearer + 轮换刷新、TOTP MFA、OIDC 依赖方）；后续项仍在（2026-10-08）。
 
 Audience: operators of the reserved tenant `platform` (console + `/api/v1`), not end-user/customer identity.
 范围：保留租户 `platform` 的操作员（控制台与 `/api/v1`），不是业务终端用户身份。
@@ -16,16 +16,16 @@ Related: `docs/operator-permissions.md`, `SECURITY.md`, `ARCHITECTURE.md`, `web/
 
 | Area | What exists | Gaps |
 | --- | --- | --- |
-| Wire auth | Opaque Bearer (primary) + HTTP Basic (scripts); `SessionCreationPolicy.STATELESS`; `POST /api/v1/auth/{login,refresh,logout,mfa/verify}`; MFA enroll under `/api/v1/auth/mfa/**` | OIDC still future (E) |
-| Identity store | `account` → `subject_identity` (tenant `platform`) → `subject`; `operator_credential` bcrypt; `operator_mfa_totp` + `operator_mfa_recovery` (Slice D) | No IdP link yet (E) |
+| Wire auth | Opaque Bearer (primary) + HTTP Basic (scripts); `SessionCreationPolicy.STATELESS`; `POST /api/v1/auth/{login,refresh,logout,mfa/verify}`; MFA enroll under `/api/v1/auth/mfa/**`; OIDC `GET/POST /api/v1/auth/oidc/{status,start,callback}` | Login lockout still future |
+| Identity store | `account` → `subject_identity` (tenant `platform`) → `subject`; `operator_credential` bcrypt; `operator_mfa_totp` + `operator_mfa_recovery` (Slice D); `operator_idp_link` (Slice E) | — |
 | Permissions | Named authorities: `admin.read`, `page.read`, `config.read/write`, `registry.read/write`, `task.write`, `operator.manage` via `subject_role` → `role_permission` | No online role editor (by design: declaration/SQL) |
 | Tenant grants | `operator_tenant_grant` (`*` = all); `TenantEnforcementFilter` after `TenantGuard` — **fail-closed**; console grant editor (Slice A) | — |
 | Operator admin API | `GET/POST /api/v1/operators`, `POST .../me/password`, `POST .../{login}/password\|disable\|enable`, `GET/PUT .../{login}/tenants` | Complete for slice-1 UI |
 | Bootstrap | `local` seeder + one-shot `--platform.operator.bootstrap=true` (off by default); grants `*` | Still the only non-UI provision path outside APIs |
-| Hardening called out in `SECURITY.md` | TLS termination expected in front; opaque tokens (C); TOTP MFA (D) | **No** lockout, **no** OIDC/SSO |
+| Hardening called out in `SECURITY.md` | TLS termination expected in front; opaque tokens (C); TOTP MFA (D); OIDC RP (E) | **No** lockout yet |
 | OpenAPI / probes | `/api/v1/openapi.json` authenticated; liveness/readiness/prometheus anonymous | — |
 
-Opaque Bearer + rotating refresh (Slice C) and TOTP MFA + recovery codes (Slice D) landed. There is **no** OIDC or JWT access tokens yet. Sample-consumer uses its own Basic gate; entry-gateway forwards `Authorization` unchanged and does not authenticate.
+Opaque Bearer + rotating refresh (Slice C), TOTP MFA (Slice D), and OIDC RP + IdP link (Slice E) landed. Access tokens remain opaque (no JWT). Sample-consumer uses its own Basic gate; entry-gateway forwards `Authorization` unchanged and does not authenticate.
 
 ### 1.2 Web console session
 
@@ -33,8 +33,8 @@ Opaque Bearer + rotating refresh (Slice C) and TOTP MFA + recovery codes (Slice 
 | --- | --- | --- |
 | Browser | httpOnly `SameSite=Strict` cookie `subjex_session` (random id, 8h) | OK |
 | Server store | Memory Map or Redis; value is `{ loginName, accessTokenEnc, refreshTokenEnc, accessExpiresAtMillis, expiresAtMillis }` | Legacy Basic-at-rest sessions refused on read (must re-login) |
-| Proxy | `/api/session` login via `/api/v1/auth/login` (MFA challenge → `/api/session/mfa`); `/api/platform/*` sends Bearer + silent refresh on 401 | — |
-| Operators UI (`/operators`) | Self password + TOTP enroll/disable; with `operator.manage`: list, create, admin password reset, disable/enable, **editable** tenant grants (`*` supported) | Slice A+D done; role catalog UI deferred |
+| Proxy | `/api/session` login via `/api/v1/auth/login` (MFA challenge → `/api/session/mfa`); OIDC `/api/session/oidc/{status,start,callback}`; `/api/platform/*` sends Bearer + silent refresh on 401 | — |
+| Operators UI (`/operators`) | Self password + TOTP enroll/disable; with `operator.manage`: list, create, admin password reset, disable/enable, **editable** tenant grants (`*` supported), IdP bind/unlink | Slice A+D+E done; role catalog UI deferred |
 | Tenants UI (`/tenants`) | List + create + rename + disable/enable with `tenant.manage`; soft-disable = `SUSPENDED` | Quotas / hard delete / paging deferred |
 
 ### 1.3 Tenant model
@@ -156,7 +156,7 @@ Each slice: small PR-sized change, local git commit, update `web/PROGRESS.md` (a
 | Config | `platform.oidc.enabled`, issuer, client id/secret, redirect URI(s), scopes `openid profile email` |
 | Linkage | Map IdP `sub` (or email) → `account` via new `operator_idp_link` table; first login: **deny by default** unless link pre-provisioned or allow-list email domain config |
 | Flow | Console `/login` → IdP → `/api/session/oidc/callback` → platform issues same access/refresh as password login |
-| MFA | Prefer IdP MFA when SSO used; local TOTP still applies to password path; do not double-prompt if IdP `amr` indicates MFA (optional later) |
+| MFA | **SSO skips local TOTP** (trust IdP MFA — industry default for linked enterprise IdPs); local TOTP still applies to password path; optional later: require IdP `amr` claim before skipping |
 | Basic/password | Remain for break-glass local operators when OIDC enabled |
 
 **Success criteria:** Linked operator signs in via IdP with no password to console; unlinked IdP user gets a clear refusal; tokens identical in shape to Slice C.
@@ -213,6 +213,35 @@ Ask the user only if they disagree with these defaults:
 - [x] B Tenant API + `/tenants` UI + `tenant.manage`
 - [x] C Login/refresh tokens; console drops Basic-at-rest
 - [x] D TOTP MFA + recovery codes
-- [ ] E OIDC RP + IdP link table
+- [x] E OIDC RP + IdP link table
 - [ ] Follow-up: login lockout / rate limit
 - [ ] Docs: SECURITY.md + operator-permissions.md + OpenAPI after each slice
+
+
+---
+
+## 7. Test IdP notes (Keycloak / Auth0) / 测试 IdP 备注
+
+Configure platform (env or `application.yml`):
+
+```bash
+export PLATFORM_OIDC_ENABLED=true
+export PLATFORM_OIDC_ISSUER=https://keycloak.example/realms/subjex   # no trailing slash preferred
+export PLATFORM_OIDC_CLIENT_ID=subjex-console
+export PLATFORM_OIDC_CLIENT_SECRET=...          # confidential client
+export PLATFORM_OIDC_REDIRECT_URI=http://127.0.0.1:3000/api/session/oidc/callback
+```
+
+**Keycloak:** Create realm client `subjex-console`, Client authentication ON, Standard flow ON, Valid redirect URIs = the redirect URI above, Web origins = console origin. Copy client secret. User's Keycloak `sub` (UUID) must be bound:
+
+```http
+PUT /api/v1/operators/{login}/idp-link
+{"issuer":"https://keycloak.example/realms/subjex","idpSubject":"<keycloak-user-sub>"}
+```
+
+Or use the Operators console IdP bind form. Then open console `/login` →「使用企业账号登录（SSO）」.
+
+**Auth0:** Application type Regular Web; Allowed Callback URLs = redirect URI; issuer = `https://<tenant>.auth0.com/` (discovery normalizes). Bind Auth0 `sub` (e.g. `auth0|...`) the same way.
+
+**Verify:** Unlinked IdP user → `/login?oidc=unlinked` (403 `oidc-unlinked` from platform). Linked → console session with Bearer (no TOTP prompt). Password login still challenges TOTP when enrolled.
+
