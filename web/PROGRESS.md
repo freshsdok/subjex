@@ -54,3 +54,10 @@ Auth roadmap (design only) — 认证路线图（仅设计，2026-10-05）:
     盘点现状并写入路线图；本片不实现令牌 / SSO / MFA / 界面。
     Next slices (see roadmap): A operator console create/password/grants → B tenants → C Bearer tokens (drop Basic-at-rest) → D TOTP → E OIDC.
     下一片：A 操作员控制台补齐 → B 租户管理 → C 平台令牌 → D TOTP → E OIDC。
+
+Auth roadmap Slice A — 操作员控制台补齐（2026-10-05）:
+
+9b. [done] Console operator admin UI against existing `/api/v1/operators/**`: create (login/password/role, review→confirm), admin password reset, tenant grants editor (add/remove including `*`, review→confirm). Fail-closed notice for empty grants. zh/en phrases. Minimal vitest for grant helpers.
+    控制台操作员管理：新建、管理员重置口令、租户授权编辑（含通配 *）；无授权失败关闭提示；中英文案；授权辅助单测。
+    Next: Slice B tenants API + `/tenants` UI. Do not start C–E until A/B land as planned.
+    下一片：B 租户 API 与界面。按计划先不要开 C–E。

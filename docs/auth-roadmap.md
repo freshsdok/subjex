@@ -1,7 +1,7 @@
 # Auth roadmap — console operators, tenants, tokens, SSO, MFA
 
-Status: **design only** (2026-10-05). No token/SSO/MFA/UI implementation in the commit that adds this file.
-状态：**仅设计**（2026-10-05）。本文件落盘的同一次提交不实现令牌 / SSO / MFA / 控制台改造。
+Status: Slice **A done** (console operator admin UI); B–E still design (2026-10-05).
+状态：切片 **A 已完成**（控制台操作员管理 UI）；B–E 仍为设计（2026-10-05）。
 
 Audience: operators of the reserved tenant `platform` (console + `/api/v1`), not end-user/customer identity.
 范围：保留租户 `platform` 的操作员（控制台与 `/api/v1`），不是业务终端用户身份。
@@ -34,7 +34,7 @@ There are **no** OIDC, OAuth2 resource-server, JWT, refresh-token, TOTP, or MFA 
 | Browser | httpOnly `SameSite=Strict` cookie `subjex_session` (random id, 8h) | OK |
 | Server store | Memory Map or Redis (`SESSION_REDIS_URL` / `REDIS_URL`); value is `{ loginName, credentialHeaderEnc, expiresAtMillis }` | **Still retains password capability**: AES-256-GCM ciphertext of the upstream **Basic** header (`OPERATOR_SESSION_SECRET`) |
 | Proxy | `/api/session` login verifies via `/api/v1/me`; `/api/platform/*` decrypts Basic and forwards | Password-equivalent lives for session lifetime |
-| Operators UI (`/operators`) | Self password change; with `operator.manage`: list, disable/enable, **read-only** tenant grant labels | **Missing:** create operator, admin password reset, edit tenant grants |
+| Operators UI (`/operators`) | Self password; with `operator.manage`: list, create, admin password reset, disable/enable, **editable** tenant grants (`*` supported) | Slice A done; role catalog UI deferred |
 | Tenants UI | None | Only platform HTML/JSON `GET /admin/tenants` (admin.read); no `/api/v1/tenants` twin, no create/disable |
 
 ### 1.3 Tenant model
@@ -208,7 +208,7 @@ Ask the user only if they disagree with these defaults:
 
 ## 6. Checklist (fill as slices land) / 落地勾选
 
-- [ ] A Operator console create / admin password / grant editor
+- [x] A Operator console create / admin password / grant editor
 - [ ] B Tenant API + `/tenants` UI + `tenant.manage`
 - [ ] C Login/refresh tokens; console drops Basic-at-rest
 - [ ] D TOTP MFA + recovery codes
