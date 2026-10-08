@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PageRendererTest {
@@ -32,6 +34,9 @@ class PageRendererTest {
         assertEquals("submissionId", flow.detail().idField());
         assertEquals("/pages/endpoint-publication/new", flow.submit().path());
         assertEquals("/pages/endpoint-publication", flow.submit().redirectTo());
+        assertTrue(flow.list().blocks().isEmpty());
+        assertTrue(flow.detail().blocks().isEmpty());
+        assertTrue(flow.submit().blocks().isEmpty());
     }
 
 
@@ -197,6 +202,117 @@ class PageRendererTest {
     @Test
     void blankDefinitionIsRejected() {
         assertThrows(PageDefinitionRejected.class, () -> renderer.render("   "));
+    }
+
+
+    @Test
+    void rendersOptionalBlocksInOrder() {
+        String yaml = """
+                flowKey: demo-item
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                list:
+                  path: /pages/demo-item
+                  apiPath: /api/v1/demo/items
+                  blocks:
+                    - Section
+                    - ListTable
+                detail:
+                  path: /pages/demo-item/{id}
+                  apiPath: /api/v1/demo/items
+                  idField: itemId
+                  blocks:
+                    - DetailReadonly
+                submit:
+                  path: /pages/demo-item/new
+                  apiPath: /api/v1/demo/items
+                  redirectTo: /pages/demo-item
+                  blocks:
+                    - FormFields
+                    - SubmitBar
+                """;
+        RenderedFlow flow = renderer.render(yaml);
+        assertEquals(List.of("Section", "ListTable"), flow.list().blocks());
+        assertEquals(List.of("DetailReadonly"), flow.detail().blocks());
+        assertEquals(List.of("FormFields", "SubmitBar"), flow.submit().blocks());
+    }
+
+    @Test
+    void emptyBlocksListIsAccepted() {
+        String yaml = """
+                flowKey: demo-item
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                list:
+                  path: /pages/demo-item
+                  apiPath: /api/v1/demo/items
+                  blocks: []
+                detail:
+                  path: /pages/demo-item/{id}
+                  apiPath: /api/v1/demo/items
+                  idField: itemId
+                submit:
+                  path: /pages/demo-item/new
+                  apiPath: /api/v1/demo/items
+                  redirectTo: /pages/demo-item
+                """;
+        RenderedFlow flow = renderer.render(yaml);
+        assertTrue(flow.list().blocks().isEmpty());
+    }
+
+    @Test
+    void unknownBlockIdIsRejected() {
+        String yaml = """
+                flowKey: demo-item
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                list:
+                  path: /pages/demo-item
+                  apiPath: /api/v1/demo/items
+                  blocks:
+                    - NotARealBlock
+                detail:
+                  path: /pages/demo-item/{id}
+                  apiPath: /api/v1/demo/items
+                  idField: itemId
+                submit:
+                  path: /pages/demo-item/new
+                  apiPath: /api/v1/demo/items
+                  redirectTo: /pages/demo-item
+                """;
+        assertThrows(PageDefinitionRejected.class, () -> renderer.render(yaml));
+    }
+
+    @Test
+    void duplicateBlockIdIsRejected() {
+        String yaml = """
+                flowKey: demo-item
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                list:
+                  path: /pages/demo-item
+                  apiPath: /api/v1/demo/items
+                  blocks:
+                    - ListTable
+                    - ListTable
+                detail:
+                  path: /pages/demo-item/{id}
+                  apiPath: /api/v1/demo/items
+                  idField: itemId
+                submit:
+                  path: /pages/demo-item/new
+                  apiPath: /api/v1/demo/items
+                  redirectTo: /pages/demo-item
+                """;
+        assertThrows(PageDefinitionRejected.class, () -> renderer.render(yaml));
     }
 
     static String flowYaml() throws IOException {

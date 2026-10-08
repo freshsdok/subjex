@@ -3,10 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { FormDebugPanel } from "@/components/form-debug-panel";
+import { OrgPicker, SubmitBar, UserPicker } from "@/components/page-blocks";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 import { parseSubmitReply, type FormDebugState } from "@/lib/form-debug";
+import {
+  buildFormPayload,
+  emptyFieldValues,
+  fieldControlKind,
+  fieldKindLabel,
+  isRequiredFieldMissing,
+  type FormFieldInput,
+} from "@/lib/form-field-input";
 
-type FormField = { name: string; kind: string; required: boolean };
 type SubmitStep = "editing" | "reviewing" | "submitting";
 
 // Declared submit form — 声明式提交表单：填写 → 核对 → POST 到声明 API → 展示结果面板（可继续跳转）。
@@ -19,21 +27,20 @@ export function DeclaredSubmitForm({
   canWrite,
   writePermission,
   phrases,
+  tenantId,
 }: {
   formKey: string;
   formTitle: string;
-  fields: FormField[];
+  fields: FormFieldInput[];
   submitApiPath: string;
   redirectTo: string;
   canWrite: boolean;
   writePermission: string;
   phrases: PhraseBook;
+  tenantId?: string;
 }) {
   const router = useRouter();
-  const emptyValues = useMemo(
-    () => Object.fromEntries(fields.map((field) => [field.name, ""])),
-    [fields],
-  );
+  const emptyValues = useMemo(() => emptyFieldValues(fields), [fields]);
   const [values, setValues] = useState<Record<string, string>>(emptyValues);
   const [step, setStep] = useState<SubmitStep>("editing");
   const [debug, setDebug] = useState<FormDebugState>({ kind: "idle" });
@@ -44,7 +51,7 @@ export function DeclaredSubmitForm({
 
   function reviewSubmission() {
     for (const field of fields) {
-      if (field.required && (values[field.name] ?? "").trim() === "") {
+      if (isRequiredFieldMissing(field, values[field.name])) {
         setDebug({
           kind: "validation",
           fieldErrors: [
@@ -65,11 +72,7 @@ export function DeclaredSubmitForm({
 
   async function confirmSubmit() {
     setStep("submitting");
-    const payload: Record<string, string | number> = {};
-    for (const field of fields) {
-      const raw = (values[field.name] ?? "").trim();
-      payload[field.name] = field.kind === "integer" ? Number(raw) : raw;
-    }
+    const payload = buildFormPayload(fields, values);
     const reply = await fetch(`/api/platform/${submitApiPath}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -119,24 +122,92 @@ export function DeclaredSubmitForm({
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {fields.map((field) => (
-            <label key={field.name} className="flex flex-col gap-1 text-sm">
-              <span>
+          {fields.map((field) => {
+            const kindLabel = fieldKindLabel(field.kind, phrases);
+            const labelText = `${field.name} (${kindLabel}${field.required ? ` · ${phrases.requiredMark}` : ""})`;
+            if (field.name === "orgUnit") {
+              return (
+                <OrgPicker
+                  key={field.name}
+                  name={field.name}
+                  label={labelText}
+                  value={values[field.name] ?? ""}
+                  onChange={(next) => updateField(field.name, next)}
+                  tenantId={tenantId}
+                  phrases={phrases}
+                />
+              );
+            }
+            if (field.name === "assignee") {
+              return (
+                <UserPicker
+                  key={field.name}
+                  name={field.name}
+                  label={labelText}
+                  value={values[field.name] ?? ""}
+                  onChange={(next) => updateField(field.name, next)}
+                  tenantId={tenantId}
+                  phrases={phrases}
+                />
+              );
+            }
+            const control = fieldControlKind(field);
+            const label = (
+              <>
                 <code>{field.name}</code>
                 <span className="ml-2 text-xs text-muted">
-                  {field.kind === "integer" ? phrases.fieldKindInteger : phrases.fieldKindText}
+                  {kindLabel}
                   {field.required ? ` · ${phrases.requiredMark}` : ""}
                 </span>
-              </span>
-              <input
-                name={field.name}
-                type={field.kind === "integer" ? "number" : "text"}
-                value={values[field.name] ?? ""}
-                onChange={(event) => updateField(field.name, event.target.value)}
-                className="rounded-md border border-border bg-background px-2 py-1"
-              />
-            </label>
-          ))}
+              </>
+            );
+            if (control === "checkbox") {
+              return (
+                <label key={field.name} className="flex items-center gap-2 text-sm">
+                  <input
+                    name={field.name}
+                    type="checkbox"
+                    checked={(values[field.name] ?? "false") === "true"}
+                    onChange={(event) => updateField(field.name, event.target.checked ? "true" : "false")}
+                    className="rounded border border-border"
+                  />
+                  <span>{label}</span>
+                </label>
+              );
+            }
+            if (control === "select") {
+              return (
+                <label key={field.name} className="flex flex-col gap-1 text-sm">
+                  <span>{label}</span>
+                  <select
+                    name={field.name}
+                    value={values[field.name] ?? ""}
+                    onChange={(event) => updateField(field.name, event.target.value)}
+                    className="rounded-md border border-border bg-background px-2 py-1"
+                  >
+                    <option value="">—</option>
+                    {(field.enumValues ?? []).map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              );
+            }
+            return (
+              <label key={field.name} className="flex flex-col gap-1 text-sm">
+                <span>{label}</span>
+                <input
+                  name={field.name}
+                  type={control === "date" ? "date" : control === "number" ? "number" : "text"}
+                  value={values[field.name] ?? ""}
+                  onChange={(event) => updateField(field.name, event.target.value)}
+                  className="rounded-md border border-border bg-background px-2 py-1"
+                />
+              </label>
+            );
+          })}
         </div>
       )}
 
@@ -147,7 +218,7 @@ export function DeclaredSubmitForm({
       />
 
       {canWrite ? (
-        <div className="mt-4 flex gap-2">
+        <SubmitBar>
           {step === "editing" ? (
             <button
               type="button"
@@ -176,7 +247,7 @@ export function DeclaredSubmitForm({
               {phrases.cancelAction}
             </button>
           ) : null}
-        </div>
+        </SubmitBar>
       ) : null}
     </fieldset>
   );

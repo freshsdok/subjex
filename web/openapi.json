@@ -1354,6 +1354,13 @@
           },
           "idField": {
             "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional ordered page-block catalog ids; empty/omitted = default layout"
           }
         }
       },
@@ -1368,6 +1375,13 @@
           },
           "itemsKey": {
             "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional ordered page-block catalog ids; empty/omitted = default layout"
           }
         }
       },
@@ -1418,6 +1432,13 @@
           },
           "redirectTo": {
             "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional ordered page-block catalog ids; empty/omitted = default layout"
           }
         }
       },
@@ -1515,6 +1536,11 @@
           },
           "domainAction": {
             "type": "string"
+          },
+          "entityKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional entity key when domainAction is entity.record.upsert"
           }
         }
       },
@@ -1540,6 +1566,13 @@
           },
           "required": {
             "type": "boolean"
+          },
+          "enumValues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Allowed values when kind is enum; empty otherwise"
           }
         }
       },
@@ -1567,6 +1600,11 @@
           },
           "domainAction": {
             "type": "string"
+          },
+          "entityKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional entity key when domainAction is entity.record.upsert"
           },
           "fields": {
             "type": "array",

@@ -99,6 +99,7 @@ async function forwardToPlatform(
   });
 }
 
+// GET/PUT/POST/PATCH/DELETE — includes declaration migrations enqueue/review/apply POSTs.
 export const GET = forwardToPlatform;
 export const PUT = forwardToPlatform;
 export const POST = forwardToPlatform;

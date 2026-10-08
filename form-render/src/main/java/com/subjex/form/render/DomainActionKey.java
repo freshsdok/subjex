@@ -5,16 +5,21 @@ package com.subjex.form.render;
  * <p>
  * Forms declare one of these under {@code domainAction}. Unknown strings are rejected (fail-closed).
  * Domain actions are the primary write (register service, override config, save entity stub); side effects stay separate.
+ * Capability actions invoke the thin algorithm/AI catalog (preview/deterministic stubs; AI does not write stores).
  * 表单在 {@code domainAction} 下声明其中一个键。未知字符串一律拒绝（失败关闭）。
- * 领域动作是主写入；副作用仍单独声明。
+ * 领域动作是主写入；副作用仍单独声明。能力动作挂接薄算法/AI 目录（确定性/预览桩；AI 不写库）。
  */
 public enum DomainActionKey {
     /** Register a service endpoint via ServiceCatalog — 经 ServiceCatalog 登记服务端点。 */
     REGISTRY_REGISTER("registry.register"),
     /** Write a config override via ConfigCatalog — 经 ConfigCatalog 写配置覆盖。 */
     CONFIG_OVERRIDE("config.override"),
-    /** Save a service-note row via the entity store stub — 经实体存储桩保存服务备注。 */
-    ENTITY_SERVICE_NOTE_SAVE("entity.serviceNote.save");
+    /** Upsert a generic entity record by form entityKey — 按表单 entityKey 写入通用实体记录。 */
+    ENTITY_RECORD_UPSERT("entity.record.upsert"),
+    /** Deterministic SHA-256 fingerprint of inputText — inputText 的确定性 SHA-256 指纹。 */
+    CAPABILITY_ALGO_HASH_FINGERPRINT("capability.algo.hashFingerprint"),
+    /** AI summarize preview stub (no store write) — AI 摘要预览桩（不写库）。 */
+    CAPABILITY_AI_SUMMARIZE_PREVIEW("capability.ai.summarizePreview");
 
     private final String key;
 

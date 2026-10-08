@@ -60,9 +60,11 @@ class GeneratedRecordMatchesFormTest {
         for (int index = 0; index < components.length; index++) {
             FormField field = form.fields().get(index);
             assertEquals(field.name(), components[index].getName());
-            Class<?> expected = field.kind() == FieldKind.INTEGER
-                    ? (field.required() ? int.class : Integer.class)
-                    : String.class;
+            Class<?> expected = switch (field.kind()) {
+                case INTEGER -> field.required() ? int.class : Integer.class;
+                case BOOLEAN -> field.required() ? boolean.class : Boolean.class;
+                case TEXT, DATE, ENUM -> String.class;
+            };
             assertEquals(expected, components[index].getType());
         }
     }

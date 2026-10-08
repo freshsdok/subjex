@@ -6,8 +6,8 @@ import java.util.Optional;
 /**
  * ServiceNoteStore — 实体 service-note 的 CRUD 端口（无 ORM）。
  * <p>
- * Implemented in {@code platform-app} by JDBC after Flyway V11 ({@code service_note}).
- * 由 {@code platform-app} 在 Flyway V11 后以 JDBC 实现。
+ * Codegen port stub. Runtime CRUD uses {@code GenericEntityStore} after Flyway V11 ({@code service_note}).
+ * 代码生成端口桩。运行时 CRUD 经 {@code GenericEntityStore}（Flyway V11）。
  */
 public interface ServiceNoteStore {
 

@@ -18,7 +18,7 @@ type PageFlowDocument = {
 type FormsDocument = {
   formKey?: string;
   permission?: string;
-  fields?: { name?: string; kind?: string; required?: boolean }[];
+  fields?: { name?: string; kind?: string; required?: boolean; enumValues?: string[] }[];
 };
 
 // Declared submit page — 声明式提交页：按 formKey 拉字段；写权限取自表单声明，不再按键硬编码。
@@ -59,10 +59,15 @@ export default async function DeclaredSubmitPage({
     return <LoadFailedNotice phrases={phrases} status={formRead.status || 404} />;
   }
   const fields = formRead.body.fields
-    .filter((field): field is { name: string; kind: string; required: boolean } =>
+    .filter((field): field is { name: string; kind: string; required: boolean; enumValues?: string[] } =>
       Boolean(field.name && field.kind && field.required !== undefined),
     )
-    .map((field) => ({ name: field.name, kind: field.kind, required: field.required }));
+    .map((field) => ({
+      name: field.name,
+      kind: field.kind,
+      required: field.required,
+      enumValues: Array.isArray(field.enumValues) ? field.enumValues.filter((v): v is string => typeof v === "string") : undefined,
+    }));
   const writePermission = formRead.body.permission ?? "";
   const canWrite = writePermission !== "" && (meRead.body?.permissions ?? []).includes(writePermission);
   const title = language === "zh" ? flow.titleZh : flow.titleEn;
@@ -74,6 +79,7 @@ export default async function DeclaredSubmitPage({
           {phrases.backToListAction}
         </Link>
       </p>
+      {/* No console tenant cookie yet — omit tenantId so pickers use text fallback. 尚无租户 cookie，不传 tenantId，选人/选部门退回文本。 */}
       <DeclaredSubmitForm
         formKey={formKey}
         formTitle={title ?? formKey}

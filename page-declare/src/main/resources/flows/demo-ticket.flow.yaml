@@ -1,0 +1,26 @@
+# Demo ticket flow — 演示工单流程
+# List/detail read generic /records; submit uses the demo-ticket form (entity.record.upsert).
+# Z2 sample: new entity page via YAML only on the generic entity API.
+# 列表/详情读通用 /records；提交走 demo-ticket 表单（entity.record.upsert）。
+# Z2 样例：新实体页仅 YAML，走通用实体 API。
+flowKey: demo-ticket
+titleEn: Demo tickets
+titleZh: 演示工单
+formKey: demo-ticket
+entityKey: demo-ticket
+version: 1
+permission: page.read
+tenantScoped: false
+list:
+  path: /pages/demo-ticket
+  apiPath: /api/v1/entities/demo-ticket/records
+  itemsKey: records
+detail:
+  path: /pages/demo-ticket/{id}
+  apiPath: /api/v1/entities/demo-ticket/records
+  itemsKey: records
+  idField: ticketId
+submit:
+  path: /pages/demo-ticket/new
+  apiPath: /api/v1/forms/demo-ticket/submissions
+  redirectTo: /pages/demo-ticket

@@ -540,11 +540,15 @@ export interface components {
             apiPath?: string;
             itemsKey?: string;
             idField?: string;
+            /** @description Optional ordered page-block catalog ids; empty/omitted = default layout */
+            blocks?: string[];
         };
         ListSpecDocument: {
             path?: string;
             apiPath?: string;
             itemsKey?: string;
+            /** @description Optional ordered page-block catalog ids; empty/omitted = default layout */
+            blocks?: string[];
         };
         PageFlowDocument: {
             flowKey?: string;
@@ -563,6 +567,8 @@ export interface components {
             path?: string;
             apiPath?: string;
             redirectTo?: string;
+            /** @description Optional ordered page-block catalog ids; empty/omitted = default layout */
+            blocks?: string[];
         };
         OperatorsDocument: {
             operators?: components["schemas"]["OperatorDocument"][];
@@ -595,6 +601,8 @@ export interface components {
             permission?: string;
             tenantScoped?: boolean;
             domainAction?: string;
+            /** @description Optional entity key when domainAction is entity.record.upsert */
+            entityKey?: string | null;
         };
         FormsIndexDocument: {
             forms?: components["schemas"]["FormIndexDocument"][];
@@ -603,6 +611,8 @@ export interface components {
             name?: string;
             kind?: string;
             required?: boolean;
+            /** Allowed values when kind is enum; empty otherwise */
+            enumValues?: string[];
         };
         FormsDocument: {
             formKey?: string;
@@ -613,6 +623,8 @@ export interface components {
             permission?: string;
             tenantScoped?: boolean;
             domainAction?: string;
+            /** @description Optional entity key when domainAction is entity.record.upsert */
+            entityKey?: string | null;
             fields?: components["schemas"]["FieldDocument"][];
         };
         FormSubmissionHistoryDocument: {

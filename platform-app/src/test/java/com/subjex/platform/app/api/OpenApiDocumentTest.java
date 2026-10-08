@@ -1,7 +1,9 @@
 package com.subjex.platform.app.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,8 +19,13 @@ import com.subjex.platform.app.deploy.ManifestCatalog;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
+import com.subjex.platform.app.declaration.EffectiveDeclarationService;
+import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
-import com.subjex.entity.generated.ServiceNoteStore;
+import com.subjex.entity.declare.EntityCatalog;
+import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.capability.CapabilityCatalog;
+import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
@@ -39,6 +46,7 @@ import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
@@ -180,8 +188,27 @@ class OpenApiDocumentTest {
         }
 
         @Bean
-        FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-            return new FormDomainActionRunner(serviceCatalog, configCatalog, mock(ServiceNoteStore.class));
+        EffectiveDeclarationService effectiveDeclarationService(FormCatalog formCatalog, PageCatalog pageCatalog) {
+            JdbcDeclarationStore store = mock(JdbcDeclarationStore.class);
+            when(store.latest(any(), any(), any())).thenReturn(Optional.empty());
+            return new EffectiveDeclarationService(
+                    store,
+                    EntityCatalog.load(EntityCatalog.class.getClassLoader()),
+                    formCatalog,
+                    pageCatalog);
+        }
+
+        @Bean
+        FormDomainActionRunner formDomainActionRunner(
+                ServiceCatalog serviceCatalog,
+                ConfigCatalog configCatalog,
+                EffectiveDeclarationService effectiveDeclarationService) {
+            return new FormDomainActionRunner(
+                    serviceCatalog,
+                    configCatalog,
+                    effectiveDeclarationService,
+                    mock(GenericEntityStore.class),
+                    new CapabilityRunner(new CapabilityCatalog()));
         }
 
         @Bean

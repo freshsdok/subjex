@@ -47,3 +47,50 @@ Form/flow declarations do not auto-generate DB migrations; only the submission s
 - No online bump of `version` without a checked-in YAML change.
 
 不做浏览器/运行时 schema 编辑器；不自动删列或改写历史 JSON；不在未改检入 YAML 的情况下在线抬版本。
+
+## Migration queue (MQ-1) / 迁移队列（MQ-1）
+
+Schema/field changes are **not** casual console DDL. Operators enqueue reviewed SQL into `declaration_migration` (Flyway V16).
+
+字段/schema 变更**不是**控制台随意 DDL。操作员把审阅过的 SQL 入队到 `declaration_migration`（Flyway V16）。
+
+| Status / 状态 | Meaning / 含义 |
+| --- | --- |
+| `PENDING` | Enqueued, awaiting review / 已入队待审 |
+| `REVIEWED` | Human accepted SQL text; not executed yet / 人工接受 SQL，尚未执行 |
+| `APPLIED` | Executor ran successfully (MQ-2) / 执行成功（MQ-2） |
+| `FAILED` | Executor failed (MQ-2) / 执行失败（MQ-2） |
+| `CANCELLED` | Abandoned before apply / 执行前放弃 |
+
+**Permission:** `declaration.migrate` (enqueue + review) on `platform-operator`; list uses `declaration.read`. Chosen **new** permission (not reuse `declaration.promote`) so promote (git metadata) stays separate from schema queue ops.
+
+**权限：** 入队/审阅用新建的 `declaration.migrate`（不复用 `declaration.promote`），晋升（git 元数据）与改表队列分离；列表用 `declaration.read`。
+
+**MQ-1 scope:** persist + HTTP list/enqueue/review. Prefer additive SQL; no auto-drop.
+
+**MQ-1 范围：** 落库 + HTTP 列表/入队/审阅。优先加列；不自动删列。
+
+## Apply + promote bind (MQ-2) / 执行与晋升绑定（MQ-2）
+
+**Apply** `POST /api/v1/declarations/{kind}/{key}/migrations/{id}/apply?tenantId=` (`declaration.migrate`, audit `declaration.migrate.apply`):
+
+- Status must be `REVIEWED` (else 409). Kind must be **`entity`** (form/flow → 400).
+- Fail-closed `sqlText`: trim; single statement only (at most one trailing `;`); must start with `ALTER TABLE` or `CREATE TABLE`; reject `DROP` / `TRUNCATE` / `ALTER TABLE … DROP`.
+- Execute via `JdbcTemplate` in a transaction → `APPLIED`; on DDL error → `FAILED` + truncated `errorMessage` → HTTP 500.
+
+**Entity promote bind:** before git write / `PROMOTED`, if any migration row exists for the same tenant+kind+key+**revision** that is not `APPLIED` and not `CANCELLED` (i.e. `PENDING` / `REVIEWED` / `FAILED`) → refuse promote **409**. **No** migration rows for that revision → allow (metadata-only). Form/flow promote unchanged.
+
+**Schema-change path:** enqueue → review → **apply** → then promote. Do not promote entity revisions with open or failed migrations.
+
+**执行** 同上路径；仅 entity；失败关闭白名单 DDL；成功 APPLIED，失败 FAILED。**实体晋升**与同修订迁移绑定；无迁移行则可晋升。表单/流程不绑。有 schema 变更时：入队 → 审阅 → **执行** → 再晋升。
+
+## Console UI (MQ-3) / 控制台（MQ-3）
+
+`/declarations` (entity kind only): list migrations, enqueue (revision + `sqlText`) with review→confirm, Review (`PENDING`→`REVIEWED`) and Apply (`REVIEWED`→`APPLIED`/`FAILED`) with review→confirm. Form/flow show a one-line note. Gate: `declaration.migrate` (`canMigrate`). Platform web proxy already forwards POST for `…/migrations` paths.
+
+声明页仅 **entity** 展示迁移队列：列表、入队（审阅→确认）、审阅、执行；表单/流程一行说明。权限 `declaration.migrate`。代理已转发迁移 POST。
+
+**Migration-queue baseline landed** when MQ-1..3 are done: persist + apply bind + console.
+
+**迁移队列基线齐**（MQ-1..3）：落库 + 执行绑定 + 控制台。
+

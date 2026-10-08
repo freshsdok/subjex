@@ -114,8 +114,10 @@ public final class DomainActionCatalog {
         String titleEn = text(required(action, "titleEn"), "titleEn");
         String titleZh = text(required(action, "titleZh"), "titleZh");
         Object rawFields = required(action, "fields");
-        if (!(rawFields instanceof List<?> fieldList) || fieldList.isEmpty()) {
-            throw new FormDefinitionRejected("fields must be a non-empty list");
+        // Empty fields list is allowed (e.g. entity.record.upsert validates against the entity at runtime).
+        // 允许空字段列表（例如 entity.record.upsert 在运行时按实体定义校验）。
+        if (!(rawFields instanceof List<?> fieldList)) {
+            throw new FormDefinitionRejected("fields must be a list");
         }
         Set<String> requiredFields = new LinkedHashSet<>();
         Set<String> optionalFields = new LinkedHashSet<>();

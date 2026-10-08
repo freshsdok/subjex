@@ -31,9 +31,10 @@ public final class FormRecordGenerator {
     }
 
     private static String javaType(FormField field) {
-        if (field.kind() == FieldKind.TEXT) {
-            return "String";
-        }
-        return field.required() ? "int" : "Integer";
+        return switch (field.kind()) {
+            case INTEGER -> field.required() ? "int" : "Integer";
+            case BOOLEAN -> field.required() ? "boolean" : "Boolean";
+            case TEXT, DATE, ENUM -> "String";
+        };
     }
 }

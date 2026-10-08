@@ -37,9 +37,11 @@ public final class FormRenderer {
                     "permission",
                     "tenantScoped",
                     "domainAction",
+                    "entityKey",
                     "fields",
                     "effects");
-    private static final Set<String> FIELD_KEYS = Set.of("name", "kind", "required", "maxLength", "minimum", "maximum");
+    private static final Pattern ENTITY_KEY = Pattern.compile("[a-z][a-z0-9]*(-[a-z0-9]+)*");
+    private static final Set<String> FIELD_KEYS = Set.of("name", "kind", "required", "maxLength", "minimum", "maximum", "enumValues");
     private static final Set<String> EFFECT_KEYS = Set.of("key", "params");
 
     private final SideEffectCatalog sideEffects;
@@ -92,6 +94,10 @@ public final class FormRenderer {
             fields.add(field(field, names));
         }
         DomainActionKey domainAction = domainAction(document, names);
+        String entityKey = optionalEntityKey(document);
+        if (domainAction == DomainActionKey.ENTITY_RECORD_UPSERT && entityKey == null) {
+            throw new FormDefinitionRejected("entity.record.upsert requires entityKey");
+        }
         List<DeclaredEffect> effects = effects(document.get("effects"), names);
         return new RenderedForm(
                 formKey,
@@ -101,9 +107,22 @@ public final class FormRenderer {
                 permission,
                 tenantScoped,
                 domainAction,
+                entityKey,
                 recordName(formKey),
                 List.copyOf(fields),
                 effects);
+    }
+
+    private static String optionalEntityKey(Map<?, ?> document) {
+        Object value = document.get("entityKey");
+        if (value == null) {
+            return null;
+        }
+        String entityKey = text(value, "entityKey");
+        if (!ENTITY_KEY.matcher(entityKey).matches()) {
+            throw new FormDefinitionRejected("entityKey must be lowercase words separated by hyphens");
+        }
+        return entityKey;
     }
 
     private DomainActionKey domainAction(Map<?, ?> document, Set<String> fieldNames) {
@@ -183,22 +202,30 @@ public final class FormRenderer {
         Integer minimum = optionalInt(field, "minimum");
         Integer maximum = optionalInt(field, "maximum");
         Integer maxLength = optionalInt(field, "maxLength");
-        if (kind == FieldKind.TEXT) {
-            if (minimum != null || maximum != null) {
-                throw new FormDefinitionRejected("text field " + name + " cannot set minimum or maximum");
-            }
-            if (maxLength != null && maxLength < 1) {
-                throw new FormDefinitionRejected("maxLength must be at least 1");
-            }
-        } else {
-            if (maxLength != null) {
-                throw new FormDefinitionRejected("integer field " + name + " cannot set maxLength");
-            }
-            if (minimum != null && maximum != null && minimum > maximum) {
-                throw new FormDefinitionRejected("minimum is greater than maximum");
-            }
+        List<String> enumValues = optionalStringList(field, "enumValues");
+        if (!kind.allowsIntegerBounds() && (minimum != null || maximum != null)) {
+            throw new FormDefinitionRejected("field " + name + " cannot set minimum or maximum");
         }
-        return new FormField(name, kind, required, minimum, maximum, maxLength);
+        if (kind.allowsIntegerBounds()
+                && minimum != null
+                && maximum != null
+                && minimum > maximum) {
+            throw new FormDefinitionRejected("minimum is greater than maximum");
+        }
+        if (!kind.allowsMaxLength() && maxLength != null) {
+            throw new FormDefinitionRejected("field " + name + " cannot set maxLength");
+        }
+        if (maxLength != null && maxLength < 1) {
+            throw new FormDefinitionRejected("maxLength must be at least 1");
+        }
+        if (kind == FieldKind.ENUM) {
+            if (enumValues.isEmpty()) {
+                throw new FormDefinitionRejected("enum field " + name + " requires non-empty enumValues");
+            }
+        } else if (!enumValues.isEmpty()) {
+            throw new FormDefinitionRejected("field " + name + " cannot set enumValues unless kind is enum");
+        }
+        return new FormField(name, kind, required, minimum, maximum, maxLength, enumValues);
     }
 
     static String recordName(String formKey) {
@@ -230,6 +257,27 @@ public final class FormRenderer {
             throw new FormDefinitionRejected(label + " must be a single line of text");
         }
         return text;
+    }
+
+
+    private static List<String> optionalStringList(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return List.of();
+        }
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            throw new FormDefinitionRejected(key + " must be a non-empty list");
+        }
+        List<String> out = new ArrayList<>(list.size());
+        Set<String> seen = new LinkedHashSet<>();
+        for (Object item : list) {
+            String entry = text(item, key + " entry");
+            if (!seen.add(entry)) {
+                throw new FormDefinitionRejected(key + " has a duplicate value");
+            }
+            out.add(entry);
+        }
+        return List.copyOf(out);
     }
 
     private static Integer optionalInt(Map<?, ?> map, String key) {

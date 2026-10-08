@@ -21,8 +21,14 @@ import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.contract.extension.PlatformExtension;
 import com.subjex.platform.contract.task.TaskMessagePort;
 import com.subjex.platform.app.api.JsonApi;
+import com.subjex.platform.app.capability.CapabilityCatalog;
+import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.config.ConfigCatalog;
-import com.subjex.entity.generated.ServiceNoteStore;
+import com.subjex.entity.declare.EntityCatalog;
+import com.subjex.platform.app.declaration.EffectiveDeclarationService;
+import com.subjex.platform.app.declaration.JdbcDeclarationStore;
+import com.subjex.platform.app.page.PageCatalog;
+import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
@@ -32,6 +38,7 @@ import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -123,8 +130,27 @@ class DeclarationSecurityTest {
         }
 
         @Bean
-        FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-            return new FormDomainActionRunner(serviceCatalog, configCatalog, mock(ServiceNoteStore.class));
+        EffectiveDeclarationService effectiveDeclarationService(FormCatalog formCatalog) {
+            JdbcDeclarationStore store = mock(JdbcDeclarationStore.class);
+            when(store.latest(any(), any(), any())).thenReturn(Optional.empty());
+            return new EffectiveDeclarationService(
+                    store,
+                    EntityCatalog.load(EntityCatalog.class.getClassLoader()),
+                    formCatalog,
+                    new PageCatalog());
+        }
+
+        @Bean
+        FormDomainActionRunner formDomainActionRunner(
+                ServiceCatalog serviceCatalog,
+                ConfigCatalog configCatalog,
+                EffectiveDeclarationService effectiveDeclarationService) {
+            return new FormDomainActionRunner(
+                    serviceCatalog,
+                    configCatalog,
+                    effectiveDeclarationService,
+                    mock(GenericEntityStore.class),
+                    new CapabilityRunner(new CapabilityCatalog()));
         }
 
         @Bean
@@ -147,8 +173,9 @@ class DeclarationSecurityTest {
                     "registry.write",
                     true,
                     DomainActionKey.REGISTRY_REGISTER,
+                    null,
                     "TenantNote",
-                    List.of(new FormField("title", FieldKind.TEXT, true, null, null, 64)),
+                    List.of(new FormField("title", FieldKind.TEXT, true, null, null, 64, List.of())),
                     List.of());
             return new FormCatalog(Map.of("tenant-note", scoped));
         }

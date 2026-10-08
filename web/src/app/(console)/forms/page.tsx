@@ -70,10 +70,17 @@ export default async function FormsPage({
         formKey={body.formKey ?? preferred}
         formTitle={formTitle ?? ""}
         fields={(body.fields ?? [])
-          .filter((field): field is { name: string; kind: string; required: boolean } =>
+          .filter((field): field is { name: string; kind: string; required: boolean; enumValues?: string[] } =>
             Boolean(field.name && field.kind && field.required !== undefined),
           )
-          .map((field) => ({ name: field.name, kind: field.kind, required: field.required }))}
+          .map((field) => ({
+            name: field.name,
+            kind: field.kind,
+            required: field.required,
+            enumValues: Array.isArray(field.enumValues)
+              ? field.enumValues.filter((v): v is string => typeof v === "string")
+              : undefined,
+          }))}
         canWrite={canWrite}
         writePermission={writePermission}
         phrases={phrases}

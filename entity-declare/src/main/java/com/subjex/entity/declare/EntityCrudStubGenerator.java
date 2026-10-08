@@ -138,9 +138,10 @@ public final class EntityCrudStubGenerator {
     }
 
     private static String javaType(EntityField field) {
-        if (field.kind() == EntityFieldKind.TEXT) {
-            return "String";
-        }
-        return field.required() ? "int" : "Integer";
+        return switch (field.kind()) {
+            case INTEGER -> field.required() ? "int" : "Integer";
+            case BOOLEAN -> field.required() ? "boolean" : "Boolean";
+            case TEXT, ENUM, DATE, USER_REF, ORG_REF, ENTITY_REF -> "String";
+        };
     }
 }

@@ -1,8 +1,7 @@
 # Service note flow — 服务备注流程
-# Closes entity → page → form: list/detail read the entity stub API; submit uses the service-note form.
-# Step 4 sample. In-memory entity store until step 3 wires Flyway JDBC.
-# 贯通实体→页面→表单：列表/详情读实体桩 API；提交走 service-note 表单。
-# 第 4 步样例。步骤 3 接入 Flyway JDBC 前用进程内实体桩。
+# Closes entity → page → form: list/detail read the /notes compatibility shim; submit uses service-note form
+# (entity.record.upsert → GenericEntityStore on Flyway V11). Prefer /records for new clients.
+# 贯通实体→页面→表单：列表/详情读 /notes 兼容垫片；提交走 service-note 表单（通用 upsert）。
 flowKey: service-note
 titleEn: Service notes
 titleZh: 服务备注

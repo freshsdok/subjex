@@ -25,8 +25,13 @@ import com.subjex.platform.app.discovery.ListedService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
+import com.subjex.platform.app.declaration.EffectiveDeclarationService;
+import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
-import com.subjex.entity.generated.ServiceNoteStore;
+import com.subjex.entity.declare.EntityCatalog;
+import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.capability.CapabilityCatalog;
+import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
@@ -244,7 +249,8 @@ class JsonApiSecurityTest {
 
     @Test
     void formsAndPagesIndexExposePermissionFlags() throws Exception {
-        // Sorted by formKey: config-override then endpoint-publication — 按 formKey 排序。
+        // Sorted by formKey: config-override, demo-ticket, endpoint-publication, service-note.
+        // 按 formKey 排序。
         mockMvc.perform(get(JsonApi.BASE + "/forms").with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.forms[0].formKey").value("config-override"))
@@ -252,11 +258,16 @@ class JsonApiSecurityTest {
                 .andExpect(jsonPath("$.forms[0].domainAction").value("config.override"))
                 .andExpect(jsonPath("$.forms[0].permission").value("config.write"))
                 .andExpect(jsonPath("$.forms[0].tenantScoped").value(false))
-                .andExpect(jsonPath("$.forms[1].formKey").value("endpoint-publication"))
-                .andExpect(jsonPath("$.forms[1].version").value(2))
-                .andExpect(jsonPath("$.forms[1].domainAction").value("registry.register"))
-                .andExpect(jsonPath("$.forms[1].permission").value("registry.write"))
-                .andExpect(jsonPath("$.forms[1].tenantScoped").value(false));
+                .andExpect(jsonPath("$.forms[0].entityKey").isEmpty())
+                .andExpect(jsonPath("$.forms[1].formKey").value("demo-ticket"))
+                .andExpect(jsonPath("$.forms[1].entityKey").value("demo-ticket"))
+                .andExpect(jsonPath("$.forms[1].domainAction").value("entity.record.upsert"))
+                .andExpect(jsonPath("$.forms[2].formKey").value("endpoint-publication"))
+                .andExpect(jsonPath("$.forms[2].version").value(2))
+                .andExpect(jsonPath("$.forms[2].domainAction").value("registry.register"))
+                .andExpect(jsonPath("$.forms[2].permission").value("registry.write"))
+                .andExpect(jsonPath("$.forms[2].tenantScoped").value(false))
+                .andExpect(jsonPath("$.forms[2].entityKey").isEmpty());
         mockMvc.perform(get(JsonApi.BASE + "/pages").with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pages[0].version").value(1))
@@ -434,8 +445,27 @@ class JsonApiSecurityTest {
         }
 
         @Bean
-        FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-            return new FormDomainActionRunner(serviceCatalog, configCatalog, mock(ServiceNoteStore.class));
+        EffectiveDeclarationService effectiveDeclarationService(FormCatalog formCatalog, PageCatalog pageCatalog) {
+            JdbcDeclarationStore store = mock(JdbcDeclarationStore.class);
+            when(store.latest(any(), any(), any())).thenReturn(Optional.empty());
+            return new EffectiveDeclarationService(
+                    store,
+                    EntityCatalog.load(EntityCatalog.class.getClassLoader()),
+                    formCatalog,
+                    pageCatalog);
+        }
+
+        @Bean
+        FormDomainActionRunner formDomainActionRunner(
+                ServiceCatalog serviceCatalog,
+                ConfigCatalog configCatalog,
+                EffectiveDeclarationService effectiveDeclarationService) {
+            return new FormDomainActionRunner(
+                    serviceCatalog,
+                    configCatalog,
+                    effectiveDeclarationService,
+                    mock(GenericEntityStore.class),
+                    new CapabilityRunner(new CapabilityCatalog()));
         }
 
         @Bean

@@ -207,4 +207,63 @@ Node 6 delivered the multi-form catalog, submission store, second business form,
 6. **版本化** / Versioning — 声明与生成物的版本约定。
 7. **控制台调试 UX** / Console debug UX — 操作员控制台侧的只读/调试体验，放在声明链路之后；提交结果与校验/权限失败在同一调试面板可见（见 `docs/lowcode-roadmap.md` 第 6 阶段）。
 
-**本路线明确不做 / Explicit non-goals：** 拖拽设计器、浏览器内在线改 schema、强制跑初始化向导（init 可完全跳过）、把 bootstrap 绑进日常启动。
+**本路线（阶段 0–6）明确不做 / Explicit non-goals for stages 0–6：** 强制跑初始化向导（init 可完全跳过）、把 bootstrap 绑进日常启动。浏览器内自由画布设计器、随意在线 DDL 与任意脚本仍非目标；零代码目标下的**结构化页面构建器 + 声明双轨 + 严格库管迁移**见 §18。
+
+**Stages 0–6 non-goals:** no forced init wizard; bootstrap stays one-shot. Free-canvas designer, casual online DDL, and arbitrary page scripts remain out of scope; structured page builder + dual-track declarations + strict schema migrations are the zero-code target — see §18.
+
+## 18. 零代码模型（七维 + 人员/组织底座） / Zero-code model
+
+产品方向：在声明为唯一真相的前提下，用控制台结构化编排搭出系统基本能力。详细七维、第 0 维人员/组织、**已拍板**双轨晋升、非目标与 Z0–Z6 切片见 [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) 的 **Zero-code model / 七维零代码模型**。
+
+Product direction: with declarations as the single source of truth, structured console authoring builds baseline system capability. Seven dimensions, people/org base (dim 0), **decided** dual-track promote, non-goals, and Z0–Z6 slices: [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) § Zero-code model.
+
+- **底座 / Base：** 租户隔离；租户内 `org_unit`；人员按**权限分层**（非主拆两套登录账号）；平台超管为**独立角色名**（如 `platform.super-admin`），与其他账号/角色隔离；IdP/OIDC 为主；组织只约束权限范围。
+- **Base：** Tenant isolation; in-tenant `org_unit`; people split by **permission tiers** (not separate login account types as the primary axis); platform **super-admin** is its **own role name** (e.g. `platform.super-admin`), isolated from all other accounts/roles; IdP/OIDC primary; org supplies scope only.
+- **七维 / Seven dims：** 数据 · **页面（结构化构建器 + 常用组件积木）** · 流程 · 权限/租户 · 动作/副作用 · 算法目录 · AI 目录（经 `model-gateway`，关键写回需确认）。
+- **Seven dims：** Data · **pages (structured builder + common visual component blocks)** · flow · permission/tenant · actions · algorithm catalog · AI catalog (`model-gateway`; confirm before critical writes).
+- **页面 UX / Page UX：** **已拍板**——首波用结构化**页面构建器/配置器**（非自由画布）；具体首波积木见下方「首波页面积木」。
+- **Page UX：** **Decided** — structured **page builder/configurator** first (not free canvas); concrete first-wave blocks under “First-wave page blocks” below.
+- **算法/AI / Algo·AI：** **已拍板且首波已落地**——薄层（目录 + 桩 + 领域动作挂接）；完整引擎后置。
+- **Algo/AI：** **Decided and first-wave landed** — thin layer (catalog + stubs + domain-action bind); full engines later.
+- **Z6（基线已落地 / baseline landed）：** Entity kinds `boolean` / `enum` / `date` / `entityRef`; generic list filter/sort API + thin declared-list filter UI; form FieldKind boolean/date/enum; entity/form wizards; page form widgets (checkbox/date/select) + `FieldDocument.enumValues`.
+- **Z6：** 实体种类 boolean/enum/date/entityRef；列表筛选/排序 API + 声明列表薄筛选 UI；表单种类与向导；页面表单控件（布尔/日期/枚举）+ API 暴露 enumValues。
+- **Schema：** **已拍板**——字段/schema 变更走**严格数据库管理**（版本化受控迁移），经双轨晋升落地；**禁止**控制台随意在线 DDL。
+- **Schema：** **Decided** — field/schema changes follow **strict DB management** (controlled migrations) via dual-track promote; **no** casual online DDL.
+- **热加载与迁移绑定 / Hot-reload bind：** **已拍板**——已晋升**声明元数据**可热加载；**改表**走**迁移队列**，迁移完成后才切换声明，二者绑定。
+- **Hot-reload bind：** **Decided** — promoted declaration **metadata** may hot-reload; **schema/table** changes use a **migration queue** and declaration switches only after migration completes — **bound together**.
+- **首波页面积木 / First-wave page blocks：** **已拍板**——通用窗体组件、ListTable、FormFields（按实体）、DetailReadonly、Section/Tabs、SubmitBar、UserPicker/OrgPicker 占位、流程分拣器。
+- **First-wave page blocks：** **Decided** — generic form components, ListTable, FormFields (from entity), DetailReadonly, Section/Tabs, SubmitBar, UserPicker/OrgPicker placeholders, flow sorter/router.
+- **Z1 样例 / Z1 samples：** **已拍板**——通用引擎先吃**新样例**和/或**并行只读适配 `service_note`**；旧 JDBC 可暂留再删。
+- **Z1 samples：** **Decided** — generic engine first eats a **new sample** and/or **parallel read-adapts `service_note`**; old JDBC may remain then delete.
+- **HTTP Basic：** **已拍板**——更安全默认（非 `local` 关闭）；与 Z1 改 curl/文档；实现可稍后。
+- **HTTP Basic：** **Decided** — safer default (**off** outside `local`); update curl/docs with Z1; implementation may follow later.
+- **真相 / Truth：** **已拍板双轨 B**（**租户隔离**控制台草稿 → 晋升进**内部 git** YAML，自建/平台内置，**不依赖 GitHub**）；不以「仅改 YAML」为产品路径。首波交付含通用运行时（Z1–Z2）与声明库 + 页面构建器（Z3–Z4，可与 Z1 重叠）。
+- **Truth：** **Dual-track B decided** (**tenant-scoped** console drafts → promote into **internal git** YAML; self-hosted / in-platform; **not** GitHub-dependent); YAML-only is not the product path. First wave includes generic runtime (Z1–Z2) and declaration store + page builder (Z3–Z4; Z1↔Z3 overlap OK).
+- **优先级 / Priority：** **已拍板 R1** — Z1 → 薄人员/组织（树+membership+只读）→ Z2（组件积木 + 预留选人/选部门）→ Z3/Z4；SCIM/复杂兼岗后置。
+- **Priority：** **R1 decided** — Z1 → thin people/org (tree + membership + read-only) → Z2 (component blocks + reserve User/Org pickers) → Z3/Z4; SCIM / complex dual-role deferred.
+- **Thin-org-1：** Flyway V13 `org_unit`/`org_membership`；`org.read`；预留 `platform.super-admin`（本片零普通权限、未分配主体）；JDBC 只读目录。
+- **Thin-org-1：** Flyway V13 `org_unit`/`org_membership`; `org.read`; reserved `platform.super-admin` (zero ordinary permissions this slice; no subject assigned); JDBC read directory.
+- **Thin-org-2：** 只读 `GET /api/v1/org/units|memberships`（`org.read`）；无写接口/控制台/SCIM；超管仍未分配。薄组织基线齐，下一片 Z2。
+- **Thin-org-2：** Read-only `GET /api/v1/org/units|memberships` (`org.read`); no writes/console/SCIM; super-admin still unused. Thin-org baseline complete → Z2 next.
+- **Z2-3：** 详情优先 `GET /records/{id}`；选人/选部门接薄组织只读（无租户文本回退）；表单 JSON `entityKey`。**Z2 基线齐** → 下一片 Z3。
+- **Z2-3：** Detail prefers `GET /records/{id}`; thin live User/Org pickers (text fallback); forms JSON `entityKey`. **Z2 baseline landed** → Z3 next.
+- **Z3-1：** Flyway V14 `declaration_revision`（租户草稿修订，YAML 文本）；`declaration.read`/`write`；`JdbcDeclarationStore`。尚无 HTTP / 目录覆盖 / 晋升（Z3-2 / Z5）。
+- **Z3-1：** Flyway V14 `declaration_revision` (tenant draft revisions, YAML text); `declaration.read`/`write`; `JdbcDeclarationStore`. No HTTP / catalog overlay / promote yet (Z3-2 / Z5).
+- **Z3-2：** 声明草稿 HTTP + `EffectiveDeclarationService`（库内 DRAFT 覆盖 classpath）+ `/effective`；运行时目录仍 classpath。
+- **Z3-2：** Declaration draft HTTP + `EffectiveDeclarationService` (DB DRAFT over classpath) + `/effective`; runtime catalogs still classpath.
+- **Z3-3：** 带 `X-Tenant-Id` 时实体/表单/流程运行时覆盖（实体须 classpath 且表名+主键一致，否则 409）；**Z3 基线齐** → Z4。
+- **Z3-3：** Runtime overlay with `X-Tenant-Id` for entity/form/flow (entity safe rule: classpath + matching tableName/PK else 409); **Z3 baseline landed** → Z4.
+- **Z4-3：** `/declarations` 实体/表单薄结构化向导（字段表 → 写回 YAML；流程积木编排已在 Z4-2）；**Z4 基线齐** → Z5 晋升。
+- **Z4-3：** Thin entity/form structured wizards on `/declarations` (field tables → YAML; flow composer in Z4-2); **Z4 baseline landed** → Z5 promote.
+- **Z5-1：** 平台内 git 晋升核心（非裸工作树、`declaration_promote`、`declaration.promote`、`PROMOTED`）；仅本地提交；尚无 HTTP。
+- **Z5-1：** In-platform git promote core (non-bare tree, `declaration_promote`, `declaration.promote`, `PROMOTED`); local commit only; no HTTP yet.
+- **Z5-2：** POST `/api/v1/declarations/{kind}/{key}/promote` + GET `…/promotes`；`declaration.promote` / 审计 / 409 已晋升；仅本地提交。
+- **Z5-2：** POST promote + GET promote history; `declaration.promote` / audit / 409 already PROMOTED; local commit only.
+- **Z5-3：** 控制台 `/declarations` 晋升（审阅→确认、git SHA、晋升历史）；**Z5 基线齐**，双轨晋升闭环。仅本地提交（不依赖 GitHub）。
+- **Z5-3：** Console `/declarations` promote (review→confirm, git SHA, history); **Z5 baseline landed**, dual-track promote loop closed. Local commit only (not GitHub-dependent).
+- **Thin algo/AI：** `capabilities/algorithm-catalog.yaml` + `ai-catalog.yaml`；`CapabilityCatalog`/`CapabilityRunner` 桩（`algo.hashFingerprint`、`ai.summarizePreview`）；领域动作 `capability.algo.hashFingerprint` / `capability.ai.summarizePreview`；`GET /api/v1/capabilities`（`page.read`）；AI 桩不写库、不依赖 model-gateway 模块。仅本地提交。
+- **Thin algo/AI：** Algorithm/AI YAML catalogs; stub runner; domain actions; `GET /api/v1/capabilities` (`page.read`); AI stub does not write / no model-gateway hard dep. Local commit only.
+- **MQ-1：** Flyway V16 `declaration_migration` 队列 + `declaration.migrate`；HTTP 入队/列表/审阅。仅本地提交。
+- **MQ-1：** Flyway V16 `declaration_migration` queue + `declaration.migrate`; HTTP enqueue/list/review. Local commit only.
+- **MQ-2：** 执行 REVIEWED 实体 DDL（失败关闭：单语句 `ALTER TABLE`/`CREATE TABLE`，拒 DROP/TRUNCATE）；`POST …/migrations/{id}/apply`；实体晋升与同修订迁移绑定（未 APPLIED/CANCELLED → 409；无行可晋升）。仅本地提交。
+- **MQ-2：** Apply REVIEWED entity DDL (fail-closed allowlist); apply HTTP; entity promote bound to migration settlement (block unless APPLIED/CANCELLED; no rows OK). Local commit only.

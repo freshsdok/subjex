@@ -1,7 +1,13 @@
 import Link from "next/link";
+import { DetailReadonly } from "@/components/page-blocks";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
-import { itemsFromBody, platformPathFromApi } from "@/lib/page-flow";
+import {
+  isGenericRecordsCollectionPath,
+  itemsFromBody,
+  platformPathFromApi,
+  recordDetailPlatformPath,
+} from "@/lib/page-flow";
 import { readPlatform } from "@/server/platform-reader";
 
 type PageFlowDocument = {
@@ -11,7 +17,7 @@ type PageFlowDocument = {
   detail?: { apiPath?: string; itemsKey?: string | null; idField?: string };
 };
 
-// Declared detail page — 声明式详情页：从声明的 apiPath 取行，再按 idField 挑出一项。
+// Declared detail page — 声明式详情页：优先 GET /records/{id}，否则列表里按 idField 挑一项。
 export default async function DeclaredDetailPage({
   params,
 }: {
@@ -25,11 +31,30 @@ export default async function DeclaredDetailPage({
     return <LoadFailedNotice phrases={phrases} status={flowRead.status || 404} />;
   }
   const detail = flowRead.body.detail;
-  const listRead = await readPlatform<unknown>(platformPathFromApi(detail.apiPath!));
-  if (listRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
-  if (listRead.status >= 400) return <LoadFailedNotice phrases={phrases} status={listRead.status} />;
-  const rows = itemsFromBody(listRead.body, detail.itemsKey);
-  const row = rows.find((entry) => String(entry[detail.idField!]) === id);
+  let row: Record<string, unknown> | undefined;
+
+  if (isGenericRecordsCollectionPath(detail.apiPath!)) {
+    const oneRead = await readPlatform<Record<string, unknown>>(
+      recordDetailPlatformPath(detail.apiPath!, id),
+    );
+    if (
+      oneRead.status === 200 &&
+      oneRead.body &&
+      typeof oneRead.body === "object" &&
+      !Array.isArray(oneRead.body)
+    ) {
+      row = oneRead.body;
+    }
+  }
+
+  if (!row) {
+    const listRead = await readPlatform<unknown>(platformPathFromApi(detail.apiPath!));
+    if (listRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
+    if (listRead.status >= 400) return <LoadFailedNotice phrases={phrases} status={listRead.status} />;
+    const rows = itemsFromBody(listRead.body, detail.itemsKey);
+    row = rows.find((entry) => String(entry[detail.idField!]) === id);
+  }
+
   if (!row) return <LoadFailedNotice phrases={phrases} status={404} />;
   const title = language === "zh" ? flowRead.body.titleZh : flowRead.body.titleEn;
   return (
@@ -40,26 +65,7 @@ export default async function DeclaredDetailPage({
           {phrases.backToListAction}
         </Link>
       </p>
-      <dl className="max-w-2xl space-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
-        {Object.entries(row).map(([key, value]) => (
-          <div key={key} className="grid grid-cols-[10rem_1fr] gap-2">
-            <dt className="font-mono text-xs text-muted">{key}</dt>
-            <dd className="break-all font-mono text-xs">{formatValue(value)}</dd>
-          </div>
-        ))}
-      </dl>
+      <DetailReadonly record={row} />
     </section>
   );
-}
-
-function formatValue(value: unknown): string {
-  if (value == null) return "";
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
 }

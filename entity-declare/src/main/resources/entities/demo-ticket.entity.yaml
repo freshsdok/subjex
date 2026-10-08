@@ -1,0 +1,29 @@
+# Demo ticket entity — 演示工单实体（Z1 通用引擎样例）
+# New sample for the generic entity engine; does not replace service-note.
+# 通用实体引擎新样例；不替换 service-note。
+entityKey: demo-ticket
+tableName: demo_ticket
+version: 1
+permission: page.read
+tenantScoped: false
+fields:
+  - name: ticketId
+    kind: text
+    required: true
+    maxLength: 64
+  - name: title
+    kind: text
+    required: true
+    maxLength: 200
+  - name: status
+    kind: text
+    required: true
+    maxLength: 32
+  - name: assignee
+    kind: userRef
+    required: false
+    maxLength: 64
+  - name: orgUnit
+    kind: orgRef
+    required: false
+    maxLength: 64

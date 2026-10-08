@@ -1,13 +1,14 @@
 # Service note form — 服务备注表单
-# Fields align with entities/service-note.entity.yaml. Domain action writes the entity stub store.
-# 字段与实体声明对齐。领域动作写入实体桩存储（步骤 3 前非 Flyway）。
+# Fields align with entities/service-note.entity.yaml. Generic upsert via entity.record.upsert.
+# 字段与实体声明对齐。经 entity.record.upsert 通用写入。
 formKey: service-note
 titleEn: Service note
 titleZh: 服务备注
 version: 1
 permission: page.read
 tenantScoped: false
-domainAction: entity.serviceNote.save
+domainAction: entity.record.upsert
+entityKey: service-note
 fields:
   - name: noteId
     kind: text
@@ -29,5 +30,5 @@ fields:
 effects:
   - key: audit.write
     params:
-      actionName: entity.serviceNote.save
+      actionName: entity.record.upsert
       actionTargetField: noteId

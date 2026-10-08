@@ -8,9 +8,13 @@ Semantic modular platform: subject identity, tenant isolation, and a single task
 
 **状态：** 发布前（`0.1.0-SNAPSHOT`，尚未打 tag）。契约完整且有测试，运行面多为刻意做薄的切片。仅适合在受信网络内评估，已知限制见 [`SECURITY.md`](SECURITY.md)，内容清单见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-**What it is not / 它不是：** not a Nacos/Apollo/Consul replacement (discovery and config are shared tables behind `platform-app` HTTP), not a low-code platform (two declarative forms, no designer), not an API gateway product (no dynamic routing, no TLS), not an AI platform (`model-gateway` only records an invocation). See `ARCHITECTURE.md` §4 and §7.
+**What it is not / 它不是：** not a Nacos/Apollo/Consul replacement (discovery and config are shared tables behind `platform-app` HTTP), not an API gateway product (no dynamic routing, no TLS), not a full AI platform (`model-gateway` only records an invocation today). See `ARCHITECTURE.md` §4 and §7.
 
-不是 Nacos/Apollo/Consul 的替代（发现与配置是 `platform-app` HTTP 后面的共享表），不是低代码平台（两份声明式表单，无设计器），不是 API 网关产品（无动态路由、无 TLS），不是 AI 平台（`model-gateway` 只记录一次调用）。见 `ARCHITECTURE.md` 第 4、7 节。
+**Low-code / zero-code today vs target / 低代码·零代码（现状 vs 目标）：** **Shipped** is declaration-driven tooling in-repo (forms, pages/flows, permissions, side-effects, domain actions, entity drafts → host) — **not** a Retool-style free-canvas product. **Target** is a seven-dimension zero-code model on a people/org base (structured console configurator + **decided dual-track**: drafts → promote to Git YAML). Details: [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) (Zero-code model) / `ARCHITECTURE.md` §18.
+
+不是 Nacos/Apollo/Consul 的替代（发现与配置是 `platform-app` HTTP 后面的共享表），不是 API 网关产品（无动态路由、无 TLS），今天也不是完整 AI 平台（`model-gateway` 目前只记录调用）。见 `ARCHITECTURE.md` 第 4、7 节。
+
+**低代码 / 零代码：** **已交付**的是仓库内声明式工具链（表单、页面/流程、权限、副作用、领域动作、实体草稿接入宿主），**不是** Retool 类自由画布产品。**目标**是人员/组织底座上的七维零代码（结构化控制台配置器 + **已拍板双轨**：草稿 → 晋升回 Git YAML）。详见 [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md)（零代码模型）与 `ARCHITECTURE.md` 第 18 节。
 
 Processes / 进程：`platform-app` (host), `sample-consumer` (receives one cross-process event), `entry-gateway` (HTTP forwarder + coarse rate limit), and the separate Next.js operator console in `web/`. `model-gateway` is an optional library, not on the startup path.
 
@@ -18,9 +22,9 @@ Start here / 从这里开始: [`docs/quickstart.md`](docs/quickstart.md) builds 
 
 [`docs/quickstart.md`](docs/quickstart.md) 讲怎么构建、在本机启动 `platform-app` 和 `sample-consumer`，以及打开哪些页面。默认操作员口令只用于本地。
 
-Optional local stubs / 可选本地 stub: build and run `tools/subjex-init` (`java -jar tools/subjex-init/target/subjex-init-0.1.0-SNAPSHOT.jar --yes`, or `--skip` to do nothing). Details in [`docs/quickstart.md`](docs/quickstart.md) §0. Low-code deepening order: [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17. **Entity drafts (`entity-declare`) are wired into `platform-app` (Flyway V11 `service_note` + JDBC store) — not permanent draft-only.**
+Optional local stubs / 可选本地 stub: build and run `tools/subjex-init` (`java -jar tools/subjex-init/target/subjex-init-0.1.0-SNAPSHOT.jar --yes`, or `--skip` to do nothing). Details in [`docs/quickstart.md`](docs/quickstart.md) §0. Low-code deepening (stages 0–6): [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17. Zero-code target (seven dims + people/org): same roadmap § Zero-code model / `ARCHITECTURE.md` §18. **Entity drafts (`entity-declare`) are wired into `platform-app` (Flyway V11 `service_note` + JDBC store) — not permanent draft-only.**
 
-可选本地 stub：构建并运行 `tools/subjex-init`（`--yes` 写默认，`--skip` 什么都不做）。见 [`docs/quickstart.md`](docs/quickstart.md) §0。低代码加深顺序：[`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17。**实体草稿（`entity-declare`）已接入 `platform-app`（Flyway V11 `service_note` + JDBC），不是永久只出草稿。**
+可选本地 stub：构建并运行 `tools/subjex-init`（`--yes` 写默认，`--skip` 什么都不做）。见 [`docs/quickstart.md`](docs/quickstart.md) §0。低代码加深（阶段 0–6）：[`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17。零代码目标（七维 + 人员组织）：同路线图「零代码模型」/ `ARCHITECTURE.md` 第 18 节。**实体草稿（`entity-declare`）已接入 `platform-app`（Flyway V11 `service_note` + JDBC），不是永久只出草稿。**
 
 
 ## Run / 运行

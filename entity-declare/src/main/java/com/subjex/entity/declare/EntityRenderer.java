@@ -24,7 +24,8 @@ public final class EntityRenderer {
     private static final Pattern PERMISSION = Pattern.compile("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+");
     private static final Set<String> ENTITY_KEYS =
             Set.of("entityKey", "tableName", "version", "permission", "tenantScoped", "fields");
-    private static final Set<String> FIELD_KEYS = Set.of("name", "kind", "required", "maxLength");
+    private static final Set<String> FIELD_KEYS =
+            Set.of("name", "kind", "required", "maxLength", "enumValues", "refEntityKey");
 
     /**
      * Render one entity document — 渲染一份实体文档。
@@ -79,14 +80,29 @@ public final class EntityRenderer {
             throw new EntityDefinitionRejected("required must be true or false");
         }
         Integer maxLength = optionalInt(field, "maxLength");
-        if (kind == EntityFieldKind.TEXT) {
+        if (kind.allowsMaxLength()) {
             if (maxLength != null && maxLength < 1) {
                 throw new EntityDefinitionRejected("maxLength must be at least 1");
             }
         } else if (maxLength != null) {
-            throw new EntityDefinitionRejected("integer field " + name + " cannot set maxLength");
+            throw new EntityDefinitionRejected(kind.name().toLowerCase() + " field " + name + " cannot set maxLength");
         }
-        return new EntityField(name, kind, required, maxLength);
+        List<String> enumValues = optionalStringList(field, "enumValues");
+        if (kind == EntityFieldKind.ENUM) {
+            if (enumValues.isEmpty()) {
+                throw new EntityDefinitionRejected("enum field " + name + " requires non-empty enumValues");
+            }
+        } else if (!enumValues.isEmpty()) {
+            throw new EntityDefinitionRejected("field " + name + " cannot set enumValues unless kind is enum");
+        }
+        String refEntityKey = optionalText(field, "refEntityKey");
+        if (refEntityKey != null && kind != EntityFieldKind.ENTITY_REF) {
+            throw new EntityDefinitionRejected("field " + name + " cannot set refEntityKey unless kind is entityRef");
+        }
+        if (refEntityKey != null && !ENTITY_KEY.matcher(refEntityKey).matches()) {
+            throw new EntityDefinitionRejected("refEntityKey must be lowercase words separated by hyphens");
+        }
+        return new EntityField(name, kind, required, maxLength, enumValues, refEntityKey);
     }
 
     static String typeName(String entityKey) {
@@ -134,6 +150,34 @@ public final class EntityRenderer {
             throw new EntityDefinitionRejected(label + " must be a single line of text");
         }
         return text;
+    }
+
+    private static String optionalText(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return null;
+        }
+        return text(value, key);
+    }
+
+    private static List<String> optionalStringList(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return List.of();
+        }
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            throw new EntityDefinitionRejected(key + " must be a non-empty list");
+        }
+        List<String> out = new ArrayList<>(list.size());
+        Set<String> seen = new LinkedHashSet<>();
+        for (Object item : list) {
+            String entry = text(item, key + " entry");
+            if (!seen.add(entry)) {
+                throw new EntityDefinitionRejected(key + " has a duplicate value");
+            }
+            out.add(entry);
+        }
+        return List.copyOf(out);
     }
 
     private static Integer optionalInt(Map<?, ?> map, String key) {

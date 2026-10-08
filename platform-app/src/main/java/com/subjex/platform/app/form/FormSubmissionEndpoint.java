@@ -80,7 +80,7 @@ public class FormSubmissionEndpoint {
                 ? Map.of()
                 : document.values();
         Map<String, Object> accepted = validate(form, rawValues);
-        String resultSummary = domainActions.apply(form, accepted);
+        String resultSummary = domainActions.apply(form, accepted, tenantId);
         List<EffectOutcomeDocument> effectOutcomes = sideEffects.run(form, accepted, operator, tenantId);
         FormSubmissionRow row = submissions.save(
                 formKey,
@@ -150,28 +150,54 @@ public class FormSubmissionEndpoint {
     }
 
     private static Object coerce(FormField field, Object raw) {
-        if (field.kind() == FieldKind.TEXT) {
-            String text = Objects.toString(raw, "").trim();
-            if (field.maxLength() != null && text.length() > field.maxLength()) {
-                throw new FormFieldCoerceException(
-                        "too_long", "field " + field.name() + " is too long");
+        return switch (field.kind()) {
+            case TEXT, DATE -> coerceTextLike(field, raw);
+            case ENUM -> {
+                String text = coerceTextLike(field, raw);
+                if (!field.enumValues().contains(text)) {
+                    throw new FormFieldCoerceException(
+                            "not_enum_value", "field " + field.name() + " must be one of enumValues");
+                }
+                yield text;
             }
-            return text;
+            case INTEGER -> {
+                int number = parseWholeNumber(field.name(), raw);
+                if (field.minimum() != null && number < field.minimum()) {
+                    throw new FormFieldCoerceException(
+                            "below_minimum", "field " + field.name() + " is below minimum");
+                }
+                if (field.maximum() != null && number > field.maximum()) {
+                    throw new FormFieldCoerceException(
+                            "above_maximum", "field " + field.name() + " is above maximum");
+                }
+                yield number;
+            }
+            case BOOLEAN -> coerceBoolean(field.name(), raw);
+        };
+    }
+
+    private static String coerceTextLike(FormField field, Object raw) {
+        String text = Objects.toString(raw, "").trim();
+        if (field.maxLength() != null && text.length() > field.maxLength()) {
+            throw new FormFieldCoerceException(
+                    "too_long", "field " + field.name() + " is too long");
         }
-        if (field.kind() == FieldKind.INTEGER) {
-            int number = parseWholeNumber(field.name(), raw);
-            if (field.minimum() != null && number < field.minimum()) {
-                throw new FormFieldCoerceException(
-                        "below_minimum", "field " + field.name() + " is below minimum");
-            }
-            if (field.maximum() != null && number > field.maximum()) {
-                throw new FormFieldCoerceException(
-                        "above_maximum", "field " + field.name() + " is above maximum");
-            }
-            return number;
+        return text;
+    }
+
+    private static Boolean coerceBoolean(String fieldName, Object raw) {
+        if (raw instanceof Boolean b) {
+            return b;
+        }
+        String text = Objects.toString(raw, "").trim();
+        if ("true".equalsIgnoreCase(text)) {
+            return Boolean.TRUE;
+        }
+        if ("false".equalsIgnoreCase(text)) {
+            return Boolean.FALSE;
         }
         throw new FormFieldCoerceException(
-                "unsupported_kind", "field " + field.name() + " has an unsupported kind");
+                "not_boolean", "field " + fieldName + " must be true or false");
     }
 
     private static int parseWholeNumber(String fieldName, Object raw) {

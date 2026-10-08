@@ -1,0 +1,9 @@
+# Algorithm capability catalog — 算法能力目录
+# Deterministic stubs only. Unknown keys rejected at CapabilityCatalog load/require.
+# 仅确定性桩。未知键在目录加载/require 时拒绝。
+capabilities:
+  - id: algo.hashFingerprint
+    titleEn: Hash fingerprint
+    titleZh: 哈希指纹
+    summaryEn: SHA-256 hex digest of inputText (deterministic stub).
+    summaryZh: 对 inputText 做 SHA-256 十六进制摘要（确定性桩）。

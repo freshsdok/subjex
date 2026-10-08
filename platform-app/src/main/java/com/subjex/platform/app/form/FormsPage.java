@@ -99,6 +99,9 @@ public class FormsPage {
         return switch (kind) {
             case TEXT -> "文本";
             case INTEGER -> "整数";
+            case BOOLEAN -> "布尔";
+            case DATE -> "日期";
+            case ENUM -> "枚举";
         };
     }
 
@@ -106,6 +109,9 @@ public class FormsPage {
         return switch (kind) {
             case TEXT -> "text";
             case INTEGER -> "integer";
+            case BOOLEAN -> "boolean";
+            case DATE -> "date";
+            case ENUM -> "enum";
         };
     }
 

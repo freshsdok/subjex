@@ -1,0 +1,9 @@
+# AI capability catalog — AI 能力目录
+# Preview stubs only; real calls go through model-gateway later. Never write stores from these stubs.
+# 仅预览桩；真实调用日后经 model-gateway。桩不得写库。
+capabilities:
+  - id: ai.summarizePreview
+    titleEn: Summarize preview
+    titleZh: 摘要预览
+    summaryEn: Returns a fixed template preview string; does not write. Confirm before critical writes when gateway is wired.
+    summaryZh: 返回固定模板预览字符串，不写库。接入网关后关键写回须确认。

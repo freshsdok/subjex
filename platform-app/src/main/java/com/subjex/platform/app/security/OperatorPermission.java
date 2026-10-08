@@ -27,7 +27,17 @@ public enum OperatorPermission {
     /** Manage operators and tenant grants — 管理操作员与租户授权。 */
     OPERATOR_MANAGE("operator.manage"),
     /** Create, rename, disable, and enable tenants — 创建、改名、禁用与启用租户。 */
-    TENANT_MANAGE("tenant.manage");
+    TENANT_MANAGE("tenant.manage"),
+    /** List org_unit tree and memberships (read-only) — 列出组织树与成员关系（只读）。 */
+    ORG_READ("org.read"),
+    /** List and read tenant declaration drafts — 列出并读取租户声明草稿。 */
+    DECLARATION_READ("declaration.read"),
+    /** Save tenant declaration drafts — 保存租户声明草稿。 */
+    DECLARATION_WRITE("declaration.write"),
+    /** Promote tenant declaration drafts into internal git — 将租户声明草稿晋升进内部 git。 */
+    DECLARATION_PROMOTE("declaration.promote"),
+    /** Enqueue and review declaration schema migrations — 入队并审阅声明 schema 迁移。 */
+    DECLARATION_MIGRATE("declaration.migrate");
 
     private final String permissionName;
 

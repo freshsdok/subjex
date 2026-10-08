@@ -4,11 +4,11 @@
 
 Flyway `V2__operator_permission.sql` adds the catalog. It writes no person and no password.
 Flyway `V6__operator_management.sql` adds `operator.manage` and `operator_tenant_grant`.
-Flyway `V7__tenant_manage.sql` adds `tenant.manage`.
+Flyway `V7__tenant_manage.sql` adds `tenant.manage`. Flyway `V13__org_unit.sql` adds `org.read` and reserves role `platform.super-admin` (no ordinary grants).
 
 Flyway `V2__operator_permission.sql` 加入目录，不写入任何人，也不写入任何口令。
 `V6__operator_management.sql` 增加 `operator.manage` 与 `operator_tenant_grant`。
-`V7__tenant_manage.sql` 增加 `tenant.manage`。
+`V7__tenant_manage.sql` 增加 `tenant.manage`。`V13__org_unit.sql` 增加 `org.read`，并预留角色 `platform.super-admin`（无普通授权）。
 
 | Table / 表 | One row is / 一行是 |
 | --- | --- |
@@ -36,10 +36,15 @@ An operator is an `account` → `subject_identity` in the reserved tenant `platf
 | `task.write` | `/tasks/**` (needs `X-Tenant-Id` **and** an `operator_tenant_grant` for that tenant or `*`; missing either is 403) |
 | `operator.manage` | `/api/v1/operators/**` except `POST .../me/password` (list/create/disable/enable/change other password/tenant grants) |
 | `tenant.manage` | `POST/PATCH /api/v1/tenants/**` (create/rename/disable/enable); list/get use `admin.read` |
+| `org.read` | `GET /api/v1/org/units`, `GET /api/v1/org/memberships` (read-only; `tenantId` required) |
 
-Roles: `platform-operator` holds all nine (including `operator.manage` and `tenant.manage`). `platform-reader` holds `admin.read`, `page.read`, `config.read`, `registry.read`. A signed-in operator without the permission gets 403; no login or a wrong password gets 401.
+Roles: `platform-operator` holds all ten (including `operator.manage`, `tenant.manage`, and `org.read`). `platform-reader` holds `admin.read`, `page.read`, `config.read`, `org.read`, `registry.read`. Reserved role `platform.super-admin` is isolated break-glass and holds **no** ordinary permissions in this slice. A signed-in operator without the permission gets 403; no login or a wrong password gets 401.
 
-角色：`platform-operator` 拥有全部九项（含 `operator.manage` 与 `tenant.manage`）。`platform-reader` 只有四项读权限。已登录但缺权限得 403；未登录或口令错误得 401。
+角色：`platform-operator` 拥有全部十项（含 `operator.manage`、`tenant.manage`、`org.read`）。`platform-reader` 含 `admin.read`、`page.read`、`config.read`、`org.read`、`registry.read`。预留角色 `platform.super-admin` 为隔离破窗，本片**无**普通权限。已登录但缺权限得 403；未登录或口令错误得 401。
+
+Permission **tiers** (not separate login account types) separate console vs business operators; reserved `platform.super-admin` remains an isolated unused role until break-glass is wired.
+
+权限**分层**（非主拆两套登录账号）区分控制台与业务操作员；预留 `platform.super-admin` 在破窗接线前保持隔离未用。
 
 ## Local operator (local only) / 本地操作员（只用于本地）
 

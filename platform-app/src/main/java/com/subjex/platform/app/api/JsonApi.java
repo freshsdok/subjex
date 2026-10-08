@@ -16,9 +16,10 @@ import org.springframework.context.annotation.Configuration;
  * JsonApi — JSON 接口：给即将到来的 {@code web/} Next.js 应用读写的 {@code /api/v1}，以及它的 OpenAPI 说明。
  * <p>
  * Every operator page has a JSON twin under {@link #BASE}. Prefer opaque Bearer access tokens; HTTP Basic
- * remains for scripts. There is no server-side browser session on Java.
+ * is a local/script opt-in and will be off outside {@code local} by default later (safer default; impl may follow).
+ * There is no server-side browser session on Java.
  * The description is served at {@code /api/v1/openapi.json} and itself needs a signed-in operator.
- * 每个操作页在 {@link #BASE} 下都有 JSON 孪生。优先不透明 Bearer；Basic 留给脚本。Java 侧无浏览器会话。
+ * 每个操作页在 {@link #BASE} 下都有 JSON 孪生。优先不透明 Bearer；Basic 为本地/脚本可选，非 {@code local} 稍后默认关闭。
  * 说明文档在 {@code /api/v1/openapi.json}，取它本身也需要已登录的操作员。
  */
 @Configuration

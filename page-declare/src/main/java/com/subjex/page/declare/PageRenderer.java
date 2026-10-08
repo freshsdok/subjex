@@ -1,5 +1,8 @@
 package com.subjex.page.declare;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -27,9 +30,21 @@ public final class PageRenderer {
     private static final Pattern PERMISSION = Pattern.compile("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+");
     private static final Set<String> FLOW_KEYS = Set.of(
             "flowKey", "titleEn", "titleZh", "formKey", "entityKey", "version", "permission", "tenantScoped", "list", "detail", "submit");
-    private static final Set<String> LIST_KEYS = Set.of("path", "apiPath", "itemsKey");
-    private static final Set<String> DETAIL_KEYS = Set.of("path", "apiPath", "itemsKey", "idField");
-    private static final Set<String> SUBMIT_KEYS = Set.of("path", "apiPath", "redirectTo");
+    private static final Set<String> LIST_KEYS = Set.of("path", "apiPath", "itemsKey", "blocks");
+    private static final Set<String> DETAIL_KEYS = Set.of("path", "apiPath", "itemsKey", "idField", "blocks");
+    private static final Set<String> SUBMIT_KEYS = Set.of("path", "apiPath", "redirectTo", "blocks");
+
+    /** First-wave page-block catalog ids — 首波页面积木目录 id（与 page-block-catalog.yaml 对齐）。 */
+    private static final Set<String> CATALOG_BLOCK_IDS = Set.of(
+            "ListTable",
+            "FormFields",
+            "DetailReadonly",
+            "Section",
+            "Tabs",
+            "SubmitBar",
+            "UserPicker",
+            "OrgPicker",
+            "FlowSorter");
 
     /**
      * Render one flow document — 渲染一份流程文档。
@@ -72,7 +87,8 @@ public final class PageRenderer {
         String path = consolePath(text(required(section, "path"), "path"), "list.path");
         String apiPath = apiPath(text(required(section, "apiPath"), "apiPath"));
         String itemsKey = optionalFieldName(section, "itemsKey");
-        return new ListPageSpec(path, apiPath, itemsKey);
+        List<String> blocks = parseBlocks(section, "list");
+        return new ListPageSpec(path, apiPath, itemsKey, blocks);
     }
 
     private static DetailPageSpec detail(Map<?, ?> section) {
@@ -87,7 +103,8 @@ public final class PageRenderer {
         if (!FIELD_NAME.matcher(idField).matches()) {
             throw new PageDefinitionRejected("idField must be a lower camel identifier");
         }
-        return new DetailPageSpec(path, apiPath, itemsKey, idField);
+        List<String> blocks = parseBlocks(section, "detail");
+        return new DetailPageSpec(path, apiPath, itemsKey, idField, blocks);
     }
 
     private static SubmitPageSpec submit(Map<?, ?> section) {
@@ -95,7 +112,8 @@ public final class PageRenderer {
         String path = consolePath(text(required(section, "path"), "path"), "submit.path");
         String apiPath = apiPath(text(required(section, "apiPath"), "apiPath"));
         String redirectTo = consolePath(text(required(section, "redirectTo"), "redirectTo"), "redirectTo");
-        return new SubmitPageSpec(path, apiPath, redirectTo);
+        List<String> blocks = parseBlocks(section, "submit");
+        return new SubmitPageSpec(path, apiPath, redirectTo, blocks);
     }
 
     private static String consolePath(String path, String label) {
@@ -128,6 +146,35 @@ public final class PageRenderer {
             throw new PageDefinitionRejected(label + " must be a mapping");
         }
         return map;
+    }
+
+
+    private static List<String> parseBlocks(Map<?, ?> section, String sectionLabel) {
+        Object value = section.get("blocks");
+        if (value == null) {
+            return List.of();
+        }
+        if (!(value instanceof List<?> raw)) {
+            throw new PageDefinitionRejected(sectionLabel + ".blocks must be a list");
+        }
+        if (raw.isEmpty()) {
+            return List.of();
+        }
+        List<String> blocks = new ArrayList<>(raw.size());
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (Object item : raw) {
+            if (!(item instanceof String id) || id.isBlank() || id.indexOf('\n') >= 0 || id.indexOf('\r') >= 0) {
+                throw new PageDefinitionRejected(sectionLabel + ".blocks entries must be single-line block ids");
+            }
+            if (!CATALOG_BLOCK_IDS.contains(id)) {
+                throw new PageDefinitionRejected(sectionLabel + ".blocks has an unknown block id");
+            }
+            if (!seen.add(id)) {
+                throw new PageDefinitionRejected(sectionLabel + ".blocks must not contain duplicate ids");
+            }
+            blocks.add(id);
+        }
+        return List.copyOf(blocks);
     }
 
     private static void rejectUnknown(Map<?, ?> map, Set<String> allowed, String label) {

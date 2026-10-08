@@ -20,9 +20,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * <p>
  * Anonymous access is limited to liveness/readiness probes and auth token endpoints (login/refresh/logout/mfa-verify/oidc).
  * {@code Authorization: Bearer} (opaque platform tokens) is the primary path for the console; HTTP Basic
- * remains for scripts and local tooling. {@link JdbcOperatorDirectory} backs Basic; {@link JdbcOperatorTokenStore}
- * backs Bearer. CSRF is off because there is no browser form posting to Java.
- * 匿名访问只留给探针与令牌端点（含 OIDC）。控制台主路径是 Bearer；Basic 留给脚本。无浏览器表单直投 Java，关闭 CSRF。
+ * is a local/script opt-in (safer default: off outside {@code local} later; impl may follow).
+ * {@link JdbcOperatorDirectory} backs Basic; {@link JdbcOperatorTokenStore} backs Bearer.
+ * CSRF is off because there is no browser form posting to Java.
+ * 匿名访问只留给探针与令牌端点（含 OIDC）。控制台主路径是 Bearer；Basic 为本地/脚本可选（非 local 稍后默认关）。无浏览器表单直投 Java，关闭 CSRF。
  */
 @Configuration
 public class PlatformSecurityConfiguration {
@@ -81,14 +82,39 @@ public class PlatformSecurityConfiguration {
                                 .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/pages/*")
                                 .authenticated()
-                        // Entity list (service-note JDBC); same page.read as the console pages index.
-                        // 实体列表（service-note JDBC）；与控制台页面目录同为 page.read。
+                        // Entity list (service-note /notes shim + generic GET); same page.read as the console pages index.
+                        // 实体列表（service-note /notes 垫片 + 通用 GET）；与控制台页面目录同为 page.read。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/org/**")
+                                .hasAuthority(OperatorPermission.ORG_READ.permissionName())
+                        // Declaration promote: POST needs declaration.promote; GET history uses declaration.read below.
+                        // 声明晋升：POST 要 declaration.promote；GET 历史走下方 declaration.read。
+                        .requestMatchers(HttpMethod.POST, "/api/v1/declarations/*/*/promote")
+                                .hasAuthority(OperatorPermission.DECLARATION_PROMOTE.permissionName())
+                        // Declaration migration queue: enqueue/review/apply need declaration.migrate; GET list uses declaration.read.
+                        // 声明迁移队列：入队/审阅/执行要 declaration.migrate；GET 列表走 declaration.read。
+                        .requestMatchers(HttpMethod.POST, "/api/v1/declarations/*/*/migrations",
+                                "/api/v1/declarations/*/*/migrations/*/review",
+                                "/api/v1/declarations/*/*/migrations/*/apply")
+                                .hasAuthority(OperatorPermission.DECLARATION_MIGRATE.permissionName())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/declarations", "/api/v1/declarations/**")
+                                .hasAuthority(OperatorPermission.DECLARATION_READ.permissionName())
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/declarations", "/api/v1/declarations/**")
+                                .hasAuthority(OperatorPermission.DECLARATION_WRITE.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/entities/**")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                        // Generic entity writes: signed-in only; declared permission checked in the endpoint.
+                        // 通用实体写入：只要求已登录；声明权限在接口里核对。
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/entities/**")
+                                .authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/entities/**")
+                                .authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/entities/**")
+                                .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.GET,
-                                "/api/v1/deploy", "/api/v1/forms", "/api/v1/pages", "/api/v1/codegen", "/api/v1/language", "/api/v1/skins")
+                                "/api/v1/deploy", "/api/v1/forms", "/api/v1/pages", "/api/v1/codegen", "/api/v1/language", "/api/v1/skins",
+                                "/api/v1/capabilities")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         .requestMatchers("/admin", "/admin/**", "/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())

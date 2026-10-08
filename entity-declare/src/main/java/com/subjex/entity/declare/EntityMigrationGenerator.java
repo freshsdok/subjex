@@ -44,10 +44,14 @@ public final class EntityMigrationGenerator {
     }
 
     private static String sqlType(EntityField field) {
-        if (field.kind() == EntityFieldKind.INTEGER) {
-            return "INTEGER";
-        }
-        int length = field.maxLength() == null ? 255 : field.maxLength();
-        return "VARCHAR(" + length + ")";
+        return switch (field.kind()) {
+            case INTEGER -> "INTEGER";
+            case BOOLEAN -> "BOOLEAN";
+            case DATE -> "VARCHAR(10)";
+            case TEXT, ENUM, USER_REF, ORG_REF, ENTITY_REF -> {
+                int length = field.maxLength() == null ? field.kind().defaultVarcharLength() : field.maxLength();
+                yield "VARCHAR(" + length + ")";
+            }
+        };
     }
 }

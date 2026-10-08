@@ -41,5 +41,18 @@ class PageCatalogTest {
         assertEquals(1, flow.version());
         assertEquals("page.read", flow.permission());
     }
+
+    @Test
+    void requiresDemoTicketFlowOnGenericRecords() {
+        RenderedFlow flow = catalog.require("demo-ticket");
+        assertEquals("demo-ticket", flow.flowKey());
+        assertEquals("demo-ticket", flow.formKey());
+        assertEquals("demo-ticket", flow.entityKey());
+        assertEquals("/api/v1/entities/demo-ticket/records", flow.list().apiPath());
+        assertEquals("records", flow.list().itemsKey());
+        assertEquals("ticketId", flow.detail().idField());
+        assertEquals("/api/v1/forms/demo-ticket/submissions", flow.submit().apiPath());
+        assertEquals("/pages/demo-ticket", flow.submit().redirectTo());
+    }
 }
 

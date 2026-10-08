@@ -45,7 +45,12 @@ class OperatorBootstrapTest {
                         "page.read",
                         "config.read",
                         "config.write",
+                        "declaration.migrate",
+                        "declaration.promote",
+                        "declaration.read",
+                        "declaration.write",
                         "operator.manage",
+                        "org.read",
                         "tenant.manage",
                         "registry.read",
                         "registry.write",
@@ -72,7 +77,8 @@ class OperatorBootstrapTest {
 
         OperatorPrincipal reader = (OperatorPrincipal) directory.loadUserByUsername("ops-reader");
         assertEquals(
-                Set.of("admin.read", "page.read", "config.read", "registry.read"), reader.permissionNames());
+                Set.of("admin.read", "page.read", "config.read", "declaration.read", "org.read", "registry.read"),
+                reader.permissionNames());
     }
 
     @Test
@@ -108,7 +114,12 @@ class OperatorBootstrapTest {
                         "page.read",
                         "config.read",
                         "config.write",
+                        "declaration.migrate",
+                        "declaration.promote",
+                        "declaration.read",
+                        "declaration.write",
                         "operator.manage",
+                        "org.read",
                         "tenant.manage",
                         "registry.read",
                         "registry.write",

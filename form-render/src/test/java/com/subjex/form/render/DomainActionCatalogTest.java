@@ -15,10 +15,12 @@ class DomainActionCatalogTest {
 
     @Test
     void listsCheckedInActions() {
-        assertEquals(3, catalog.list().size());
+        assertEquals(5, catalog.list().size());
         assertTrue(catalog.knows("registry.register"));
         assertTrue(catalog.knows("config.override"));
-        assertTrue(catalog.knows("entity.serviceNote.save"));
+        assertTrue(catalog.knows("entity.record.upsert"));
+        assertTrue(catalog.knows("capability.algo.hashFingerprint"));
+        assertTrue(catalog.knows("capability.ai.summarizePreview"));
         DomainActionSpec register = catalog.require("registry.register");
         assertEquals(DomainActionKey.REGISTRY_REGISTER, register.key());
         assertTrue(register.requiredFields().contains("serviceName"));
@@ -28,10 +30,16 @@ class DomainActionCatalogTest {
         assertEquals(DomainActionKey.CONFIG_OVERRIDE, override.key());
         assertTrue(override.requiredFields().contains("configKey"));
         assertTrue(override.requiredFields().contains("configValue"));
-        DomainActionSpec note = catalog.require("entity.serviceNote.save");
-        assertEquals(DomainActionKey.ENTITY_SERVICE_NOTE_SAVE, note.key());
-        assertTrue(note.requiredFields().contains("noteId"));
-        assertTrue(note.requiredFields().contains("title"));
+        DomainActionSpec upsert = catalog.require("entity.record.upsert");
+        assertEquals(DomainActionKey.ENTITY_RECORD_UPSERT, upsert.key());
+        assertTrue(upsert.requiredFields().isEmpty());
+        assertTrue(upsert.optionalFields().isEmpty());
+        DomainActionSpec hash = catalog.require("capability.algo.hashFingerprint");
+        assertEquals(DomainActionKey.CAPABILITY_ALGO_HASH_FINGERPRINT, hash.key());
+        assertTrue(hash.requiredFields().contains("inputText"));
+        DomainActionSpec summarize = catalog.require("capability.ai.summarizePreview");
+        assertEquals(DomainActionKey.CAPABILITY_AI_SUMMARIZE_PREVIEW, summarize.key());
+        assertTrue(summarize.requiredFields().contains("inputText"));
     }
 
     @Test

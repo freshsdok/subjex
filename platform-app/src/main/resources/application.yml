@@ -30,8 +30,9 @@ server:
     include-binding-errors: never
 
 platform:
-  # Opaque Bearer access + rotating refresh (Slice C). Console uses these; Basic remains for scripts.
-  # 不透明 Bearer 访问令牌 + 轮换刷新（切片 C）。控制台用令牌；Basic 留给脚本。
+  # Opaque Bearer access + rotating refresh (Slice C). Console uses these; Basic is local/script opt-in
+  # (safer default: off outside local later; impl may follow).
+  # 不透明 Bearer 访问令牌 + 轮换刷新（切片 C）。控制台用令牌；Basic 为本地/脚本可选（非 local 稍后默认关）。
   auth:
     access-token-ttl: PT30M
     refresh-token-ttl: PT8H
@@ -98,6 +99,11 @@ platform:
     permits: 60
   storage:
     directory: ${PLATFORM_STORAGE_DIRECTORY:object-store}
+  # Internal (in-platform) git working tree for declaration promote (Z5). Non-bare; local commit only — not GitHub.
+  # 声明晋升用的平台内 git 工作树（Z5）。非裸库；仅本地提交——不依赖 GitHub。
+  declaration:
+    git:
+      dir: ${DECLARATION_GIT_DIR:./data/declaration-git}
 
 management:
   endpoints:

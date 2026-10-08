@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { ListFilterBar, ListTable } from "@/components/page-blocks";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
+import {
+  isGenericEntityRecordsPath,
+  listFilterFieldOptions,
+  parseListFilterSearchParams,
+  platformPathWithListFilter,
+} from "@/lib/list-filter-query";
 import { itemsFromBody, platformPathFromApi } from "@/lib/page-flow";
 import { readPlatform } from "@/server/platform-reader";
 
@@ -9,18 +16,23 @@ type PageFlowDocument = {
   titleZh?: string;
   titleEn?: string;
   formKey?: string | null;
-  list?: { path?: string; apiPath?: string; itemsKey?: string | null };
-  detail?: { idField?: string };
-  submit?: { path?: string };
+  list?: { path?: string; apiPath?: string; itemsKey?: string | null; columns?: string[]; blocks?: string[] };
+  detail?: { idField?: string; blocks?: string[] };
+  submit?: { path?: string; blocks?: string[] };
 };
 
-// Declared list page — 声明式列表页：按 flow 声明的 apiPath 拉数据，不是设计器。
+// Declared list page — 声明式列表页：按 flow 声明的 apiPath 拉数据，用 ListTable 积木渲染。
+// Generic /entities/.../records paths get a thin filter/sort bar via URL searchParams.
+// list.blocks is exposed on the page API; empty/omitted still uses ListTable (default layout).
 export default async function DeclaredListPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ flowKey: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { flowKey } = await params;
+  const rawSearch = await searchParams;
   const { language, phrases } = await currentLanguage();
   const flowRead = await readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`);
   if (flowRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
@@ -28,13 +40,21 @@ export default async function DeclaredListPage({
     return <LoadFailedNotice phrases={phrases} status={flowRead.status || 404} />;
   }
   const flow = flowRead.body;
-  const listPath = platformPathFromApi(flow.list!.apiPath!);
+  const apiPath = flow.list!.apiPath!;
+  const supportsFilter = isGenericEntityRecordsPath(apiPath);
+  const filterParams = supportsFilter ? parseListFilterSearchParams(rawSearch) : {};
+  const listBase = platformPathFromApi(apiPath);
+  const listPath = supportsFilter ? platformPathWithListFilter(listBase, filterParams) : listBase;
   const listRead = await readPlatform<unknown>(listPath);
   if (listRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   if (listRead.status >= 400) return <LoadFailedNotice phrases={phrases} status={listRead.status} />;
   const rows = itemsFromBody(listRead.body, flow.list?.itemsKey);
   const idField = flow.detail!.idField!;
   const title = language === "zh" ? flow.titleZh : flow.titleEn;
+  const fieldOptions = supportsFilter
+    ? listFilterFieldOptions(flow.list?.columns, rows, filterParams)
+    : [];
+  const listHref = `/pages/${encodeURIComponent(flowKey)}`;
   return (
     <section>
       <PageHeading title={title ?? flowKey} hint={phrases.pagesListHint} />
@@ -49,37 +69,31 @@ export default async function DeclaredListPage({
           {phrases.backToPagesAction}
         </Link>
       </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted">{phrases.emptyList}</p>
-      ) : (
-        <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-          {rows.map((row, index) => {
-            const id = String(row[idField] ?? index);
-            const summary =
-              typeof row.title === "string"
-                ? row.title
-                : typeof row.resultSummary === "string"
-                  ? row.resultSummary
-                  : typeof row.valuesJson === "string"
-                    ? row.valuesJson
-                    : id;
-            return (
-              <li key={id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-mono text-xs text-muted">{id}</p>
-                  <p className="truncate">{summary}</p>
-                </div>
-                <Link
-                  href={`/pages/${encodeURIComponent(flowKey)}/${encodeURIComponent(id)}`}
-                  className="shrink-0 rounded-md border border-border px-3 py-1.5 hover:bg-background"
-                >
-                  {phrases.openDetailAction}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {supportsFilter && fieldOptions.length > 0 ? (
+        <ListFilterBar
+          actionPath={listHref}
+          fields={fieldOptions}
+          active={filterParams}
+          phrases={{
+            listFilterFieldLabel: phrases.listFilterFieldLabel,
+            listFilterValueLabel: phrases.listFilterValueLabel,
+            listSortFieldLabel: phrases.listSortFieldLabel,
+            listSortOrderLabel: phrases.listSortOrderLabel,
+            listSortOrderAsc: phrases.listSortOrderAsc,
+            listSortOrderDesc: phrases.listSortOrderDesc,
+            listFilterApplyAction: phrases.listFilterApplyAction,
+            listFilterClearAction: phrases.listFilterClearAction,
+            listFilterAnyField: phrases.listFilterAnyField,
+          }}
+        />
+      ) : null}
+      <ListTable
+        rows={rows}
+        idField={idField}
+        columns={flow.list?.columns}
+        detailHref={(id) => `/pages/${encodeURIComponent(flowKey)}/${encodeURIComponent(id)}`}
+        phrases={{ emptyList: phrases.emptyList, openDetailAction: phrases.openDetailAction }}
+      />
     </section>
   );
 }

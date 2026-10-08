@@ -11,8 +11,19 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.TcpAddressProbe;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
-import com.subjex.entity.generated.ServiceNoteStore;
-import com.subjex.platform.app.entity.JdbcServiceNoteStore;
+import com.subjex.entity.declare.EntityCatalog;
+import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.declaration.DeclarationMigrationApplyService;
+import com.subjex.platform.app.declaration.DeclarationPromoteService;
+import com.subjex.platform.app.declaration.EffectiveDeclarationService;
+import com.subjex.platform.app.declaration.InternalDeclarationGit;
+import com.subjex.platform.app.declaration.JdbcDeclarationMigrationStore;
+import com.subjex.platform.app.declaration.JdbcDeclarationStore;
+import com.subjex.platform.app.form.FormCatalog;
+import com.subjex.platform.app.page.PageCatalog;
+import com.subjex.platform.app.org.JdbcOrgDirectory;
+import com.subjex.platform.app.capability.CapabilityCatalog;
+import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
@@ -392,20 +403,50 @@ public class PlatformWiring {
 
 
     /**
-     * Durable service-note store (Flyway V11 {@code service_note}) — 持久化服务备注存储（Flyway V11）。
+     * Classpath entity catalog (entity-declare YAML) — classpath 实体目录（entity-declare YAML）。
      */
     @Bean
-    ServiceNoteStore serviceNoteStore(JdbcTemplate jdbc) {
-        return new JdbcServiceNoteStore(jdbc);
+    EntityCatalog entityCatalog() {
+        return EntityCatalog.load(EntityCatalog.class.getClassLoader());
     }
 
     /**
-     * Run declared form domainAction through Service / Config / entity catalogs — 经服务 / 配置 / 实体目录执行表单声明的领域动作。
+     * Metadata-driven JDBC CRUD for generic entities — 元数据驱动的通用实体 JDBC CRUD。
+     */
+    @Bean
+    GenericEntityStore genericEntityStore(JdbcTemplate jdbc) {
+        return new GenericEntityStore(jdbc);
+    }
+
+    /**
+     * Thin algorithm/AI capability catalogs (classpath YAML) — 薄算法/AI 能力目录（classpath YAML）。
+     */
+    @Bean
+    CapabilityCatalog capabilityCatalog() {
+        return new CapabilityCatalog();
+    }
+
+    @Bean
+    CapabilityRunner capabilityRunner(CapabilityCatalog capabilityCatalog) {
+        return new CapabilityRunner(capabilityCatalog);
+    }
+
+    /**
+     * Run declared form domainAction through Service / Config / entity / capability catalogs — 经服务 / 配置 / 实体 / 能力目录执行表单领域动作。
      */
     @Bean
     FormDomainActionRunner formDomainActionRunner(
-            ServiceCatalog serviceCatalog, ConfigCatalog configCatalog, ServiceNoteStore serviceNoteStore) {
-        return new FormDomainActionRunner(serviceCatalog, configCatalog, serviceNoteStore);
+            ServiceCatalog serviceCatalog,
+            ConfigCatalog configCatalog,
+            EffectiveDeclarationService effectiveDeclarationService,
+            GenericEntityStore genericEntityStore,
+            CapabilityRunner capabilityRunner) {
+        return new FormDomainActionRunner(
+                serviceCatalog,
+                configCatalog,
+                effectiveDeclarationService,
+                genericEntityStore,
+                capabilityRunner);
     }
 
     /**
@@ -422,6 +463,83 @@ public class PlatformWiring {
     /**
      * Accepted form submissions in table form_submission — 已接受的表单提交在 form_submission 表里。
      */
+
+    /**
+     * Read-only org_unit tree and memberships — 只读组织树与成员关系。
+     */
+    @Bean
+    JdbcOrgDirectory jdbcOrgDirectory(JdbcTemplate jdbc) {
+        return new JdbcOrgDirectory(jdbc);
+    }
+
+    /**
+     * Tenant-scoped declaration draft revisions — 租户隔离的声明草稿修订。
+     */
+    @Bean
+    JdbcDeclarationStore jdbcDeclarationStore(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcDeclarationStore(jdbc, clock);
+    }
+
+    /**
+     * Declaration schema migration queue store — 声明 schema 迁移队列存取。
+     */
+    @Bean
+    JdbcDeclarationMigrationStore jdbcDeclarationMigrationStore(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcDeclarationMigrationStore(jdbc, clock);
+    }
+
+    /**
+     * Apply REVIEWED entity DDL (fail-closed) — 执行 REVIEWED 实体 DDL（失败关闭）。
+     */
+    @Bean
+    DeclarationMigrationApplyService declarationMigrationApplyService(
+            JdbcDeclarationMigrationStore jdbcDeclarationMigrationStore,
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate) {
+        return new DeclarationMigrationApplyService(
+                jdbcDeclarationMigrationStore, jdbc, transactionTemplate);
+    }
+
+    /**
+     * In-platform declaration git working tree (local commit only) — 平台内声明 git 工作树（仅本地提交）。
+     */
+    @Bean
+    InternalDeclarationGit internalDeclarationGit() {
+        return new InternalDeclarationGit();
+    }
+
+    /**
+     * Promote drafts into internal git + PROMOTED + audit row — 草稿晋升进内部 git 并翻 PROMOTED、写审计。
+     */
+    @Bean
+    DeclarationPromoteService declarationPromoteService(
+            JdbcDeclarationStore jdbcDeclarationStore,
+            JdbcDeclarationMigrationStore jdbcDeclarationMigrationStore,
+            InternalDeclarationGit internalDeclarationGit,
+            TransactionTemplate transactionTemplate,
+            @Value("${platform.declaration.git.dir:./data/declaration-git}") String gitDir) {
+        return new DeclarationPromoteService(
+                jdbcDeclarationStore,
+                jdbcDeclarationMigrationStore,
+                internalDeclarationGit,
+                Path.of(gitDir),
+                transactionTemplate);
+    }
+
+    /**
+     * Tenant draft overlay over classpath catalogs — 租户草稿覆盖 classpath 目录。
+     */
+    @Bean
+    EffectiveDeclarationService effectiveDeclarationService(
+            JdbcDeclarationStore jdbcDeclarationStore,
+            EntityCatalog entityCatalog,
+            FormCatalog formCatalog,
+            PageCatalog pageCatalog) {
+        return new EffectiveDeclarationService(
+                jdbcDeclarationStore, entityCatalog, formCatalog, pageCatalog);
+    }
+
+
     @Bean
     FormSubmissionStore formSubmissionStore(JdbcTemplate jdbc, Clock clock, ObjectMapper objectMapper) {
         return new JdbcFormSubmissionStore(jdbc, clock, objectMapper);

@@ -23,16 +23,19 @@ actions:
         required: true
       - name: configValue
         required: true
-  - key: entity.serviceNote.save
-    titleEn: Save service note
-    titleZh: 保存服务备注
+  - key: entity.record.upsert
+    titleEn: Upsert entity record
+    titleZh: 写入实体记录
+    fields: []
+  - key: capability.algo.hashFingerprint
+    titleEn: Hash fingerprint (algorithm stub)
+    titleZh: 哈希指纹（算法桩）
     fields:
-      - name: noteId
+      - name: inputText
         required: true
-      - name: title
+  - key: capability.ai.summarizePreview
+    titleEn: Summarize preview (AI stub)
+    titleZh: 摘要预览（AI 桩）
+    fields:
+      - name: inputText
         required: true
-      - name: body
-        required: false
-      - name: priority
-        required: false
-

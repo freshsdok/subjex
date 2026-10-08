@@ -113,9 +113,20 @@ All of these are on platform-app (`http://127.0.0.1:8080`) and ask for the opera
 
 JSON API and its OpenAPI description (local profile) / JSON 接口及其 OpenAPI 说明（local profile）：
 
+Prefer opaque Bearer tokens. HTTP Basic (`curl -u`) is a **local/script opt-in** and will be **disabled outside `local` by default** later (implementation may follow; re-enable explicitly for scripts if needed).
+
+优先不透明 Bearer。HTTP Basic（`curl -u`）视为**本地/脚本可选**；稍后非 `local` 将**默认关闭**（实现可跟进；脚本需显式打开）。
+
 ```shell
-curl -u platform-operator:change-me http://127.0.0.1:8080/api/v1/me
-curl -u platform-operator:change-me http://127.0.0.1:8080/api/v1/openapi.json
+# Login → Bearer (preferred) / 登录拿 Bearer（优先）
+TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"loginName":"platform-operator","password":"change-me"}' | jq -r .accessToken)
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/me
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/openapi.json
+
+# Local/script only (Basic still works under local for now) / 仅本地脚本（local 下 Basic 暂仍可用）
+# curl -u platform-operator:change-me http://127.0.0.1:8080/api/v1/me
 ```
 
 ## 6. Operator credentials are local only / 操作员口令只用于本地
@@ -125,7 +136,10 @@ The default operator is `platform-operator` / `change-me`. It is written into th
 默认操作员是 `platform-operator` / `change-me`，只在 `SPRING_PROFILES_ACTIVE=local` 下写入表里，让本机第一次就能启动。不要在别处使用这个 profile 或这个口令。进程能被别人访问之前，在两个进程上都设置 `PLATFORM_OPERATOR_NAME` 和 `PLATFORM_OPERATOR_PASSWORD`。开发机以外，以表行开通操作员，见 [`operator-permissions.md`](operator-permissions.md)。
 
 ```shell
-curl -u platform-operator:change-me http://127.0.0.1:8080/admin/health
+# Prefer Bearer from /api/v1/auth/login (see §5). Basic: local/script opt-in only.
+# 优先用 §5 的 Bearer。Basic 仅本地/脚本可选。
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/admin/health
+# curl -u platform-operator:change-me http://127.0.0.1:8080/admin/health
 ```
 
 ## 7. Containers (optional) / 容器（可选）

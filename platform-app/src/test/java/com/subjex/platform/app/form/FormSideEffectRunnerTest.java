@@ -86,8 +86,9 @@ class FormSideEffectRunnerTest {
                 "registry.write",
                 false,
                 DomainActionKey.REGISTRY_REGISTER,
+                null,
                 "Demo",
-                List.of(new FormField("serviceName", FieldKind.TEXT, true, null, null, 64)),
+                List.of(new FormField("serviceName", FieldKind.TEXT, true, null, null, 64, List.of())),
                 List.of(effects));
     }
 

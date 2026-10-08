@@ -1,5 +1,10 @@
 package com.subjex.platform.app.web;
 
+import com.subjex.platform.app.declaration.DeclarationAlreadyPromoted;
+import com.subjex.platform.app.declaration.DeclarationMigrationApplyFailed;
+import com.subjex.platform.app.declaration.DeclarationMigrationNotReady;
+import com.subjex.platform.app.declaration.DeclarationPromoteBlockedByMigration;
+import com.subjex.platform.app.declaration.DeclarationOverlayConflict;
 import com.subjex.platform.app.form.FormProblemDocument;
 import com.subjex.platform.app.form.FormValidationException;
 import com.subjex.platform.app.security.DeclarationPermissionDeniedException;
@@ -40,6 +45,28 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler({IdempotencyConflict.class, SubmitLockHeld.class})
     ResponseEntity<Void> conflict() {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+
+    @ExceptionHandler(DeclarationOverlayConflict.class)
+    ResponseEntity<Map<String, String>> declarationOverlayConflict(DeclarationOverlayConflict ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(DeclarationAlreadyPromoted.class)
+    ResponseEntity<Map<String, String>> declarationAlreadyPromoted(DeclarationAlreadyPromoted ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler({DeclarationMigrationNotReady.class, DeclarationPromoteBlockedByMigration.class})
+    ResponseEntity<Map<String, String>> declarationMigrationConflict(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(DeclarationMigrationApplyFailed.class)
+    ResponseEntity<Map<String, String>> declarationMigrationApplyFailed(DeclarationMigrationApplyFailed ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("reason", ex.getMessage()));
     }
 
     @ExceptionHandler(FormValidationException.class)
