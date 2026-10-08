@@ -31,7 +31,7 @@ Reading an old submission: use the form YAML (or git tag/commit) whose `version`
 When entity fields change:
 
 1. Bump `version` in the entity YAML.
-2. Regenerate the draft under `entity-declare/.../db/migration-draft/` (see stage 1 notes in the roadmap). New file name `V{version}__{table}.sql`.
+2. Regenerate the draft under `entity-declare/.../db/migration-draft/` (see stage 1 notes in the roadmap). New file name `V{version}__{table}.sql`. Promote into `platform-app/.../db/migration/` when ready (sample: `V11__service_note.sql`).
 3. A human reviews the draft, edits if needed, and only then copies it into `platform-app` `db/migration/` if the table should exist in the shared platform DB.
 4. Prefer additive SQL (`ADD COLUMN`). Do **not** auto-drop columns. Rollback = redeploy the prior declaration (and prior applied migration only if you wrote a compensating migration by hand).
 

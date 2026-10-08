@@ -11,10 +11,10 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * ServiceNoteEntityEndpoint — 服务备注实体只读接口：列表供声明式页面 list/detail 使用。
  * <p>
- * Backed by the step-4 in-memory {@link ServiceNoteStore}. Step 3 swaps the store for JDBC + Flyway;
- * this path and JSON shape stay. Needs {@code page.read} at the security layer.
- * 由步骤 4 内存 {@link ServiceNoteStore} 支撑。步骤 3 换成 JDBC+Flyway 时本路径与 JSON 形状保持。
- * 安全层需要 {@code page.read}。
+ * Backed by JDBC {@link ServiceNoteStore} (Flyway V11 {@code service_note}). Path and JSON shape
+ * match the {@code service-note} flow ({@code itemsKey: notes}). Needs {@code page.read}.
+ * 由 JDBC {@link ServiceNoteStore}（Flyway V11）支撑。路径与 JSON 形状对齐 {@code service-note} 流程。
+ * 需要 {@code page.read}。
  */
 @RestController
 public class ServiceNoteEntityEndpoint {

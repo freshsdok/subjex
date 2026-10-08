@@ -1,6 +1,8 @@
 -- Draft from entity service-note — 由实体 service-note 生成的草稿
--- Human-editable. Not applied by platform-app Flyway until moved into its migrations.
--- 可人工编辑。在移入 platform-app 迁移目录之前不会被应用。
+-- Human-editable. Promoted into platform-app Flyway as V11__service_note.sql (post-stage step 3).
+-- 可人工编辑。已迁入 platform-app Flyway：V11__service_note.sql（阶段后第 3 项）。
+-- Keep regenerating here; copy/adapt into platform-app/db/migration when the table changes.
+-- 继续在此重生；表变更时再复制/改编进 platform-app/db/migration。
 -- Shared by MySQL 8.4 and PostgreSQL 16 style (no vendor-only types).
 -- MySQL 8.4 与 PostgreSQL 16 共用风格（无厂商专有类型）。
 

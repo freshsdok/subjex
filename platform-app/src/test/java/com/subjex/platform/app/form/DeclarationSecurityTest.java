@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,7 +22,7 @@ import com.subjex.platform.contract.extension.PlatformExtension;
 import com.subjex.platform.contract.task.TaskMessagePort;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.config.ConfigCatalog;
-import com.subjex.platform.app.entity.InMemoryServiceNoteStore;
+import com.subjex.entity.generated.ServiceNoteStore;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
@@ -123,7 +124,7 @@ class DeclarationSecurityTest {
 
         @Bean
         FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-            return new FormDomainActionRunner(serviceCatalog, configCatalog, new InMemoryServiceNoteStore());
+            return new FormDomainActionRunner(serviceCatalog, configCatalog, mock(ServiceNoteStore.class));
         }
 
         @Bean

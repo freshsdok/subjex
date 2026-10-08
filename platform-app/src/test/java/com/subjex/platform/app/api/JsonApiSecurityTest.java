@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,7 +26,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.form.FormCatalog;
-import com.subjex.platform.app.entity.InMemoryServiceNoteStore;
+import com.subjex.entity.generated.ServiceNoteStore;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
@@ -434,7 +435,7 @@ class JsonApiSecurityTest {
 
         @Bean
         FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-            return new FormDomainActionRunner(serviceCatalog, configCatalog, new InMemoryServiceNoteStore());
+            return new FormDomainActionRunner(serviceCatalog, configCatalog, mock(ServiceNoteStore.class));
         }
 
         @Bean

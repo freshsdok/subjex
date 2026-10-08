@@ -42,14 +42,14 @@ Do not start stage *N+1* until stage *N* is committed and usable for the next sl
 - Module: `entity-declare` (thin renderer + generators; no Spring).
 - Sample: `entities/service-note.entity.yaml` → checked-in drafts under `db/migration-draft/` and `com.subjex.entity.generated`.
 - Spec keys: `entityKey`, `tableName`, required `version` (≥ 1), `fields[]` with `name` / `kind` (`text`|`integer`) / `required` / optional `maxLength`.
-- First field is the primary key. SQL drafts are **not** applied by `platform-app` Flyway until a human moves them.
-- 第一个字段视为主键。SQL 草稿在人工移入 `platform-app` 迁移目录前不会被应用。
+- First field is the primary key. SQL drafts are **not** applied by `platform-app` Flyway until a human moves them (sample `service_note` promoted as V11).
+- 第一个字段视为主键。SQL 草稿在人工移入 `platform-app` 迁移目录前不会被应用（样例 `service_note` 已作为 V11 迁入）。
 
 ### Product decision — entity host wiring / 产品决策：实体接入宿主
 
-**`entity-declare` is not a permanent draft-only module.** Stage 1 delivered checked-in drafts on purpose. Post-stage #4 already depends on the generated types + port from `platform-app` via an in-memory `ServiceNoteStore` and a list API so the sample flow works. Post-stage #3 still owns moving the SQL draft into Flyway and swapping the bean for JDBC.
+**`entity-declare` is not a permanent draft-only module.** Stage 1 delivered checked-in drafts on purpose. Post-stage #3 moved `V1__service_note.sql` into `platform-app` Flyway as `V11__service_note.sql` and wired `JdbcServiceNoteStore` (JdbcTemplate) as the `ServiceNoteStore` bean. The module itself stays Spring-free; regenerate drafts here, promote SQL into Flyway when the table changes.
 
-**`entity-declare` 不是永久只出草稿的模块。** 第 1 阶段故意只检入草稿。阶段后第 4 项已在 `platform-app` 依赖生成类型与端口，用内存 `ServiceNoteStore` 与列表 API 跑通样例流程。阶段后第 3 项仍负责把 SQL 草稿迁入 Flyway，并把 Bean 换成 JDBC。
+**`entity-declare` 不是永久只出草稿的模块。** 第 1 阶段故意只检入草稿。阶段后第 3 项已将 `V1__service_note.sql` 迁入 `platform-app` Flyway（`V11__service_note.sql`），并以 `JdbcServiceNoteStore`（JdbcTemplate）作为 `ServiceNoteStore` Bean。模块本身保持无 Spring；在此重生草稿，表变更时再迁入 Flyway。
 
 Regenerate drafts / 重新生成草稿:
 
@@ -120,7 +120,8 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - G. [done] Stage 6: structured form submit success/problem payloads; console debug/result panel on forms and page submit; OpenAPI aligned; tests; local commits only (no push). All six deepening stages complete locally.
 - H. [done] Product lock: entity-declare will be wired into `platform-app` (not permanent draft-only); documented here + README + pre-release note. Local commit only (no push).
 - I. [done] Domain action declarative: catalog + `domainAction` on forms; `FormDomainActionRunner` replaces formKey if-branches; tests + docs; local commit only (no push).
-- J. [done] Sample flow entity→page→form: `service-note` flow + form + `entity.serviceNote.save`; in-memory `ServiceNoteStore` + `GET /api/v1/entities/service-note/notes`; console `/pages/service-note`; tests + docs; local commit only (no push). Step 3 (Flyway JDBC) still planned.
+- J. [done] Sample flow entity→page→form: `service-note` flow + form + `entity.serviceNote.save`; list API + console `/pages/service-note`; tests + docs; local commit only (no push).
+- K. [done] Entity → platform-app (step 3): Flyway `V11__service_note.sql`; `JdbcServiceNoteStore` replaces in-memory bean; same `GET /api/v1/entities/service-note/notes` JSON; tests + docs; local commit only (no push).
 
 ## Domain action notes (post-stage #2) / 领域动作说明（阶段后第 2 项）
 
@@ -134,11 +135,18 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 ## Sample flow notes (post-stage #4) / 贯通样例说明（阶段后第 4 项）
 
 - Flow: `page-declare` `flows/service-note.flow.yaml` — `entityKey: service-note`, `formKey: service-note`; list/detail → `GET /api/v1/entities/service-note/notes` (`itemsKey: notes`, `idField: noteId`); submit → form submissions then redirect to list.
-- Form: `form-render` `forms/service-note.form.yaml` — fields align with `entities/service-note.entity.yaml`; `domainAction: entity.serviceNote.save`; permission `page.read` (demo; tighten in step 3 if needed).
-- Runtime stub (not step 3): `InMemoryServiceNoteStore` implements generated `ServiceNoteStore`; seeded with one demo row; `FormDomainActionRunner` saves on submit. **No Flyway migrate into `platform-app` yet.**
-- Console click-through: `/pages` → **Service notes / 服务备注** → list (seeded row) → **New** → fill noteId/title → submit → back on list → open detail.
-- Handoff to step 3: move `entity-declare/.../migration-draft/V1__service_note.sql` into `platform-app` Flyway; implement JDBC `ServiceNoteStore` bean; drop or gate the in-memory bean; keep the same API path and JSON shape so the flow YAML stays valid.
-- 流程绑实体与表单；列表/详情读实体桩 API；提交经领域动作写入内存桩。步骤 3 换 JDBC+Flyway，路径与 JSON 形状保持。控制台从 `/pages/service-note` 走通列表→新建→详情。
+- Form: `form-render` `forms/service-note.form.yaml` — fields align with `entities/service-note.entity.yaml`; `domainAction: entity.serviceNote.save`; permission `page.read`.
+- Runtime (after step 3): `JdbcServiceNoteStore` on Flyway V11 `service_note`; empty table until operators submit; `FormDomainActionRunner` upserts on submit. Same API path/JSON as the in-memory stub.
+- Console click-through: `/pages` → **Service notes / 服务备注** → list (may be empty) → **New** → fill noteId/title → submit → back on list → open detail.
+- 流程绑实体与表单；列表/详情读实体 API；提交经领域动作写入 JDBC。控制台从 `/pages/service-note` 走通列表→新建→详情。
+
+## Entity host notes (post-stage #3) / 实体接入说明（阶段后第 3 项）
+
+- Flyway: `platform-app/.../db/migration/V11__service_note.sql` (promoted from `entity-declare/.../migration-draft/V1__service_note.sql`).
+- Bean: `com.subjex.platform.app.entity.JdbcServiceNoteStore` implements generated `ServiceNoteStore`; wired in `PlatformWiring`. `entity-declare` stays Spring-free (draft JDBC stub remains a checklist only).
+- API unchanged: `GET /api/v1/entities/service-note/notes` → `{ "notes": [ { noteId, title, body, priority } ] }`.
+- List order: `ORDER BY note_id` (stable; draft has no `updated_at`). Empty table is valid.
+- 迁移 V11；宿主 JDBC Bean；API 形状不变；空表可用。
 
 ## Post-stage next work / 阶段后下一步
 
@@ -150,8 +158,8 @@ Ordered follow-ups after stages 0–6 (do in this sequence unless the owner renu
 | --- | --- | --- | --- |
 | 1 | Entity host product lock / 实体接入产品锁定 | Document that `entity-declare` drafts will enter `platform-app` later — not permanent draft-only. | done (this note) |
 | 2 | Domain action declarative / 领域动作声明化 | Replace `FormSubmissionEndpoint` `formKey` if-branches with enumerable `domainAction` + catalog so new forms need less Java. | done |
-| 3 | Entity → platform-app / 实体接入宿主 | Move `service-note` migration into platform Flyway; replace in-memory store with JDBC; keep `/api/v1/entities/service-note/notes` shape. | planned (next) |
+| 3 | Entity → platform-app / 实体接入宿主 | Move `service-note` migration into platform Flyway; replace in-memory store with JDBC; keep `/api/v1/entities/service-note/notes` shape. | done |
 | 4 | Sample flow spanning entity→page→form / 贯通样例 | One flow that ties an entity, page, and form end-to-end. | done |
 
-Owner order for the current pass: **1 → 2 → 4 → 3** (lock → domainAction → flow sample → entity migrate).
-当前回合负责人顺序：**1 → 2 → 4 → 3**。
+Owner order for the current pass: **1 → 2 → 4 → 3** (lock → domainAction → flow sample → entity migrate) — **all done locally**.
+当前回合负责人顺序：**1 → 2 → 4 → 3** — **本机已全部完成**。

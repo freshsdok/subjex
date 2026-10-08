@@ -12,7 +12,7 @@ import com.subjex.platform.app.discovery.TcpAddressProbe;
 import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.entity.generated.ServiceNoteStore;
-import com.subjex.platform.app.entity.InMemoryServiceNoteStore;
+import com.subjex.platform.app.entity.JdbcServiceNoteStore;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
@@ -392,11 +392,11 @@ public class PlatformWiring {
 
 
     /**
-     * Step-4 in-memory service-note store (replaced by JDBC in step 3) — 步骤 4 内存服务备注存储（步骤 3 换 JDBC）。
+     * Durable service-note store (Flyway V11 {@code service_note}) — 持久化服务备注存储（Flyway V11）。
      */
     @Bean
-    ServiceNoteStore serviceNoteStore() {
-        return new InMemoryServiceNoteStore();
+    ServiceNoteStore serviceNoteStore(JdbcTemplate jdbc) {
+        return new JdbcServiceNoteStore(jdbc);
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.subjex.platform.app.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,7 +18,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.form.FormCatalog;
-import com.subjex.platform.app.entity.InMemoryServiceNoteStore;
+import com.subjex.entity.generated.ServiceNoteStore;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
@@ -180,7 +181,7 @@ class OpenApiDocumentTest {
 
         @Bean
         FormDomainActionRunner formDomainActionRunner(ServiceCatalog serviceCatalog, ConfigCatalog configCatalog) {
-            return new FormDomainActionRunner(serviceCatalog, configCatalog, new InMemoryServiceNoteStore());
+            return new FormDomainActionRunner(serviceCatalog, configCatalog, mock(ServiceNoteStore.class));
         }
 
         @Bean

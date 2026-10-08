@@ -14,10 +14,10 @@ import java.util.Objects;
  * FormDomainActionRunner — 表单领域动作执行器：按声明的 {@code domainAction} 调用已有目录 / 实体桩，不再按 formKey 分支。
  * <p>
  * Allowed keys come from the checked-in catalog. New forms that reuse an existing key need no Java change;
- * a new key still needs one enum + switch arm. {@code entity.serviceNote.save} writes the step-4 in-memory
- * (or later JDBC) {@link ServiceNoteStore}.
+ * a new key still needs one enum + switch arm. {@code entity.serviceNote.save} writes the JDBC
+ * {@link ServiceNoteStore} (Flyway V11).
  * 允许的键来自检入目录。复用已有键的新表单不必改 Java；新增键仍需枚举与分支。
- * {@code entity.serviceNote.save} 写入步骤 4 内存（或之后 JDBC）{@link ServiceNoteStore}。
+ * {@code entity.serviceNote.save} 写入 JDBC {@link ServiceNoteStore}（Flyway V11）。
  */
 public final class FormDomainActionRunner {
 

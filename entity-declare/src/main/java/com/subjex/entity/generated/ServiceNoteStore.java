@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * ServiceNoteStore — 实体 service-note 的 CRUD 端口桩（无 ORM）。
+ * ServiceNoteStore — 实体 service-note 的 CRUD 端口（无 ORM）。
  * <p>
- * Draft only. Not wired into {@code platform-app} yet.
- * 仅草稿。尚未接入 {@code platform-app}。
+ * Implemented in {@code platform-app} by JDBC after Flyway V11 ({@code service_note}).
+ * 由 {@code platform-app} 在 Flyway V11 后以 JDBC 实现。
  */
 public interface ServiceNoteStore {
 

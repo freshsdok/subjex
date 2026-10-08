@@ -7,9 +7,11 @@ import java.util.Optional;
 /**
  * JdbcServiceNoteStore — JDBC 草图：针对表 {@code service_note} 的薄 CRUD（无 ORM）。
  * <p>
- * Draft only. Replace the unsupported stubs with {@code JdbcTemplate} (or plain JDBC)
- * when wiring into {@code platform-app}. Bilingual comments match platform style.
- * 仅草稿。接入 {@code platform-app} 时用 {@code JdbcTemplate}（或纯 JDBC）替换未实现方法。
+ * Draft only (no Spring in this module). Host implementation:
+ * {@code com.subjex.platform.app.entity.JdbcServiceNoteStore} with {@code JdbcTemplate}
+ * after Flyway {@code V11__service_note.sql}. SQL constants below remain the draft checklist.
+ * 仅草稿（本模块无 Spring）。宿主实现：{@code platform-app} 的 {@code JdbcServiceNoteStore}
+ *（Flyway V11）。下方 SQL 常量仍作草稿核对清单。
  */
 public final class JdbcServiceNoteStore implements ServiceNoteStore {
 
