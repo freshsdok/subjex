@@ -4,6 +4,9 @@ import com.subjex.form.render.FieldKind;
 import com.subjex.form.render.FormField;
 import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.api.JsonApi;
+import com.subjex.platform.app.declaration.DeclarationKind;
+import com.subjex.platform.app.declaration.EffectiveDeclarationService;
+import com.subjex.platform.app.declaration.TenantDeclarationContext;
 import com.subjex.platform.app.form.FormSubmissionStore.FormSubmissionRow;
 import com.subjex.platform.app.security.AccessAction;
 import com.subjex.platform.app.security.AccessResource;
@@ -25,18 +28,20 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 /**
  * FormSubmissionEndpoint — 表单提交接口：按字段定义校验取值，落到对应的平台动作，执行声明副作用，并写入带声明版本的提交历史。
  * <p>
  * Each form's declared {@code permission} is checked (fail-closed). {@code tenantScoped} forms also need a tenant.
  * Domain actions come from the form's declared {@code domainAction} (catalog key), not from {@code formKey}
- * if-branches. Audit / task / extension side effects come from the checked-in {@code effects} list on the
- * form YAML, not hardcoded beside those actions.
+ * if-branches. Audit / task side effects come from the checked-in {@code effects} list on the form YAML
+ * (tenant drafts whitelist {@code audit.write}|{@code task.enqueue}; classpath may still use extension.invoke).
  * Success returns submission id, declaration version, timestamps, and effect outcomes for the console debug panel.
- * Field violations return structured {@code fieldErrors}; missing declared permission is 403 with the permission name.
+ * With non-blank {@code X-Tenant-Id}, resolves the form via {@link EffectiveDeclarationService} (DRAFT &gt; PROMOTED &gt; classpath), not classpath-only {@link FormCatalog#require}. Field violations return structured {@code fieldErrors}; missing declared permission is 403 with the permission name.
  * 每张表单按声明的 {@code permission} 检查（失败关闭）；{@code tenantScoped} 时还要租户。
- * 领域动作来自表单声明的 {@code domainAction}（目录键），不再按 formKey 分支。审计 / 任务 / 扩展副作用来自 YAML 的 {@code effects} 目录声明，不再写死在动作旁。
+ * 领域动作来自表单声明的 {@code domainAction}（目录键）。审计 / 任务副作用来自 YAML {@code effects}（租户草稿白名单；classpath 仍可 extension.invoke）。
  * 成功响应含提交编号、声明版本、时间戳与副作用摘要，供控制台调试面板；字段违规返回结构化 fieldErrors；缺权限 403 带权限名。
  */
 @RestController
@@ -48,6 +53,7 @@ public class FormSubmissionEndpoint {
     private static final int HISTORY_LIMIT = 50;
 
     private final FormCatalog forms;
+    private final EffectiveDeclarationService effective;
     private final FormSubmissionStore submissions;
     private final FormDomainActionRunner domainActions;
     private final FormSideEffectRunner sideEffects;
@@ -56,12 +62,14 @@ public class FormSubmissionEndpoint {
 
     public FormSubmissionEndpoint(
             FormCatalog forms,
+            EffectiveDeclarationService effective,
             FormSubmissionStore submissions,
             FormDomainActionRunner domainActions,
             FormSideEffectRunner sideEffects,
             TenantGuard tenantGuard,
             OperatorTenantAccess tenantAccess) {
-        this.forms = forms;
+        this.forms = Objects.requireNonNull(forms, "forms");
+        this.effective = Objects.requireNonNull(effective, "effective");
         this.submissions = submissions;
         this.domainActions = domainActions;
         this.sideEffects = sideEffects;
@@ -75,7 +83,7 @@ public class FormSubmissionEndpoint {
             @RequestBody(required = false) FormSubmissionDocument document,
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
-        RenderedForm form = forms.require(formKey);
+        RenderedForm form = resolveForm(formKey, tenantId);
         DeclarationAccess.require(
                 operator,
                 form.permission(),
@@ -85,12 +93,15 @@ public class FormSubmissionEndpoint {
                 tenantAccess,
                 AccessResource.of("form", formKey),
                 AccessAction.of("submit"));
+        requireGrantForNonScopedOverlay(operator, form, tenantId);
         Map<String, Object> rawValues = document == null || document.values() == null
                 ? Map.of()
                 : document.values();
         Map<String, Object> accepted = validate(form, rawValues);
         String resultSummary = domainActions.apply(form, accepted, tenantId, operator);
-        List<EffectOutcomeDocument> effectOutcomes = sideEffects.run(form, accepted, operator, tenantId);
+        String resolutionSource = resolveSource(formKey, tenantId);
+        List<EffectOutcomeDocument> effectOutcomes =
+                sideEffects.run(form, accepted, operator, tenantId, resolutionSource);
         FormSubmissionRow row = submissions.save(
                 formKey,
                 form.version(),
@@ -112,7 +123,7 @@ public class FormSubmissionEndpoint {
             @PathVariable("formKey") String formKey,
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
-        RenderedForm form = forms.require(formKey);
+        RenderedForm form = resolveForm(formKey, tenantId);
         DeclarationAccess.require(
                 operator,
                 form.permission(),
@@ -122,6 +133,7 @@ public class FormSubmissionEndpoint {
                 tenantAccess,
                 AccessResource.of("form", formKey),
                 AccessAction.of("read"));
+        requireGrantForNonScopedOverlay(operator, form, tenantId);
         List<FormSubmissionHistoryDocument> rows = submissions.listByFormKey(formKey, HISTORY_LIMIT).stream()
                 .map(row -> new FormSubmissionHistoryDocument(
                         row.submissionId(),
@@ -134,6 +146,33 @@ public class FormSubmissionEndpoint {
                         row.submittedAt()))
                 .toList();
         return new FormSubmissionListDocument(rows);
+    }
+
+    private String resolveSource(String formKey, String tenantId) {
+        if (TenantDeclarationContext.overlayRequested(tenantId)) {
+            return effective.resolutionSource(tenantId.trim(), DeclarationKind.FORM, formKey);
+        }
+        return EffectiveDeclarationService.SOURCE_CLASSPATH;
+    }
+
+    private RenderedForm resolveForm(String formKey, String tenantId) {
+        if (TenantDeclarationContext.overlayRequested(tenantId)) {
+            return effective
+                    .effectiveForm(tenantId.trim(), formKey)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        }
+        return forms.require(formKey);
+    }
+
+    /**
+     * After permission gate: non-scoped overlay still needs tenant grant —
+     * 权限门禁之后：非租户隔离的覆盖仍要租户授权。
+     */
+    private void requireGrantForNonScopedOverlay(
+            OperatorPrincipal operator, RenderedForm form, String tenantId) {
+        if (TenantDeclarationContext.overlayRequested(tenantId) && !form.tenantScoped()) {
+            tenantAccess.requireGranted(operator, tenantId.trim());
+        }
     }
 
     /**
@@ -167,7 +206,7 @@ public class FormSubmissionEndpoint {
 
     private static Object coerce(FormField field, Object raw) {
         return switch (field.kind()) {
-            case TEXT, DATE -> coerceTextLike(field, raw);
+            case TEXT, DATE, USER_REF -> coerceTextLike(field, raw);
             case ENUM -> {
                 String text = coerceTextLike(field, raw);
                 if (!field.enumValues().contains(text)) {

@@ -71,9 +71,13 @@ export function DeclaredSubmitForm({
   async function confirmSubmit() {
     setStep("submitting");
     const payload = buildFormPayload(fields, values);
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (tenantId && tenantId.trim() !== "") {
+      headers["X-Tenant-Id"] = tenantId.trim();
+    }
     const reply = await fetch(`/api/platform/${submitApiPath}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify({ values: payload }),
     }).catch(() => null);
     if (reply?.status === 401) {

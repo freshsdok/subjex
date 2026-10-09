@@ -393,6 +393,38 @@ Do in order unless the owner renumbers. **First wave still Z1–Z4** (dual-track
 | later | Full AI catalog / 完整 AI 目录 | Broader gateway-backed capabilities; confirm-before-write. | after first wave |
 
 
+### Runtime gate RT-1 / 运行时闸门 RT-1
+
+**[done]** Promoted tenant-only entities (no classpath sample) resolve on JDBC when migration is APPLIED; forms/pages index+submit use effective overlay; console `/pages/*` sends `subjex_declaration_tenant` as `X-Tenant-Id`. RT-2 wizard [done]; auto migration enqueue RT-4 [done]; auto page scaffold RT-5 [done].
+
+**[done]** 无 classpath 的已晋升租户实体在迁移 APPLIED 后可走 JDBC；表单/页面目录与提交走生效覆盖；控制台页面带声明租户头。RT-2 向导 [done]；自动迁表入队 RT-4 [done]；晋升自动出页 RT-5 [done]。
+
+
+### Console wizard RT-2 / 控制台新建业务表 RT-2
+
+**[done]** `/declarations` primary CTA **新建业务表** creates three drafts (entity+form+flow) for one key; repair-ticket field defaults; classpath samples labeled 样例/regression; form `userRef` FieldKind. Auto migration enqueue = RT-4 [done]; promote auto-page RT-5 [done]; permission invent-block = RT-3 [done].
+
+**[done]** 声明页主入口「新建业务表」一次创建三份草稿；报修单默认字段；classpath 样例标回归；表单支持 userRef。自动迁表入队 = RT-4 [done]；晋升自动出页 RT-5 [done]；权限只选 = RT-3 [done]。
+
+### Auto-enqueue RT-4 / 草稿加列自动入队 RT-4
+
+**[done]** Entity draft `PUT` auto-enqueues PENDING `CREATE TABLE` (new) or `ALTER TABLE … ADD COLUMN` (vs PROMOTED / classpath / empty). Idempotent per revision+SQL; fail-closed on type/table/PK change; no auto-APPLY / DROP / RENAME. Docs + H2 tests. Local commit only.
+
+**[done]** 实体草稿保存自动入队 PENDING 建表/加列；幂等；危险变更失败关闭；不自动执行/删列/改名。文档与 H2 测例。仅本地提交。
+
+### Runtime pages RT-5 / 晋升后运行时页面 RT-5
+
+**[done]** After FLOW promote, runtime list/new/detail resolve from promoted flow YAML (fixed `/pages/{key}` paths + four blocks for tenantScoped). No separate page YAML write; `DeclarationRuntimePages.ensureAfterFlowPromote` on promote; pages index/detail via effective overlay. Tests + docs. Local commit only.
+
+**[done]** 流程晋升后 list/new/detail 从已晋升 flow 派生（固定路径；租户隔离四积木）。不另写 page YAML；晋升 ensure；目录/详情走生效覆盖。测例与文档。仅本地提交。
+
+
+### Pick-only perms + versioned audit + wizard-first RT-3/6/7 / 权限只选·版本审计·向导优先 RT-3/6/7
+
+**[done]** Tenant draft save/promote: `permission` ∈ `OperatorPermission` (400 if invented); form effects whitelist `audit.write`|`task.enqueue` only. Form submit `audit.write` writes tenant + actor + entityKey + declarationVersion + resolutionSource (V19). Console permission select; demote raw entity/form/single-kind CTAs behind advanced; document path 新建业务表 → migrate → promote → pages. Local commit only.
+
+**[done]** 租户草稿保存/晋升权限只选；表单副作用白名单；审计带声明版本关联；控制台权限下拉并收窄高级入口；路径文档化。仅本地提交。
+
 ### Z1 sample strategy & HTTP Basic / Z1 样例策略与 HTTP Basic
 
 **Decided / 已拍板：Z1 generic engine samples** (owner confirmed) — the generic entity engine **first eats a new sample entity and/or parallel read-adapts `service_note`**. **Cutover [done]:** bespoke `JdbcServiceNoteStore` write path **removed**; form writes use `entity.record.upsert` → `GenericEntityStore`. `/notes` list shim kept for console `itemsKey` compatibility.

@@ -6,6 +6,10 @@ import {
   updateOperatorSessionTokens,
 } from "@/server/operator-session";
 import { platformApiBase } from "@/server/upstream";
+import {
+  declarationTenantCookieName,
+  parseDeclarationTenantCookie,
+} from "@/lib/declaration-draft";
 
 type TokenReply = {
   accessToken?: unknown;
@@ -66,6 +70,14 @@ async function forwardToPlatform(
       accept: "application/json",
     };
     if (requestBody !== undefined) forwardedHeaders["content-type"] = "application/json";
+    // Prefer client X-Tenant-Id; else declaration tenant cookie (pages/forms runtime).
+    // 优先请求头；否则用声明租户 cookie（页面/表单运行时）。
+    const tenantFromRequest = request.headers.get("X-Tenant-Id")?.trim() ?? "";
+    const tenantFromCookie = parseDeclarationTenantCookie(
+      cookieJar.get(declarationTenantCookieName)?.value,
+    );
+    const tenantId = tenantFromRequest || tenantFromCookie;
+    if (tenantId) forwardedHeaders["X-Tenant-Id"] = tenantId;
     return fetch(`${platformApiBase}/api/v1/${platformPath}${query}`, {
       method: request.method,
       headers: forwardedHeaders,

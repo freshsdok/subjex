@@ -26,6 +26,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
+import com.subjex.platform.app.declaration.JdbcDeclarationMigrationStore;
 import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.entity.declare.EntityCatalog;
@@ -305,6 +306,8 @@ class JsonApiSecurityTest {
                 .andExpect(jsonPath("$.fieldErrors[0].code").value("required"));
         verify(serviceCatalog, never()).register(any());
         verify(operatorActionAudit, never()).record(any(), eq(OperatorActionAudit.REGISTRY_REGISTER), anyString(), any());
+        verify(operatorActionAudit, never())
+                .recordFormEffect(any(), anyString(), eq(OperatorActionAudit.REGISTRY_REGISTER), anyString(), any(), anyInt(), anyString(), any());
 
         when(formSubmissionStore.save(
                         eq("endpoint-publication"), anyInt(), anyString(), anyString(), any(), anyString()))
@@ -329,8 +332,16 @@ class JsonApiSecurityTest {
                 .andExpect(jsonPath("$.effects[0].outcome").value("ok"))
                 .andExpect(jsonPath("$.effects[1].key").value("task.enqueue"));
         verify(serviceCatalog).register(new ServiceEndpoint("billing", "10.0.0.8", 8080));
-        verify(operatorActionAudit).record(
-                any(), eq(OperatorActionAudit.REGISTRY_REGISTER), eq("billing"), eq(AuditOutcome.ALLOWED));
+        verify(operatorActionAudit)
+                .recordFormEffect(
+                        any(),
+                        eq("platform"),
+                        eq(OperatorActionAudit.REGISTRY_REGISTER),
+                        eq("billing"),
+                        org.mockito.ArgumentMatchers.isNull(),
+                        eq(2),
+                        eq("classpath"),
+                        eq(AuditOutcome.ALLOWED));
         verify(taskMessagePort).submit(any());
         verify(formSubmissionStore).save(
                 eq("endpoint-publication"),
@@ -421,8 +432,16 @@ class JsonApiSecurityTest {
                 .andExpect(jsonPath("$.effects[0].key").value("audit.write"))
                 .andExpect(jsonPath("$.effects[1].key").value("extension.invoke"));
         verify(configCatalog).override("subjex.greeting", "hi");
-        verify(operatorActionAudit).record(
-                any(), eq(OperatorActionAudit.CONFIG_OVERRIDE), eq("subjex.greeting"), eq(AuditOutcome.ALLOWED));
+        verify(operatorActionAudit)
+                .recordFormEffect(
+                        any(),
+                        eq("platform"),
+                        eq(OperatorActionAudit.CONFIG_OVERRIDE),
+                        eq("subjex.greeting"),
+                        org.mockito.ArgumentMatchers.isNull(),
+                        eq(2),
+                        eq("classpath"),
+                        eq(AuditOutcome.ALLOWED));
     }
 
     private static MockHttpServletRequestBuilder submit(String path, String body) {
@@ -458,6 +477,7 @@ class JsonApiSecurityTest {
             when(store.latest(any(), any(), any())).thenReturn(Optional.empty());
             return new EffectiveDeclarationService(
                     store,
+                    mock(JdbcDeclarationMigrationStore.class),
                     EntityCatalog.load(EntityCatalog.class.getClassLoader()),
                     formCatalog,
                     pageCatalog);

@@ -20,12 +20,10 @@ import java.util.UUID;
 /**
  * FormSideEffectRunner — 表单副作用执行器：提交校验与落库业务动作之后，按声明调用已有端口。
  * <p>
- * Allowed keys come from the checked-in catalog ({@code audit.write}, {@code task.enqueue},
- * {@code extension.invoke}). Unknown keys are refused (fail-closed). Effects run under the same
- * operator subject; tenant defaults to {@code platform} when the form is not tenant-scoped.
- * Each run returns a short outcome list for the submit response / console debug panel.
- * 允许的键来自检入目录。未知键拒绝（失败关闭）。副作用在同一操作员主体下执行；非租户隔离表单用 {@code platform}。
- * 每次执行返回简短结果列表，供提交响应与控制台调试面板。
+ * Catalog keys: {@code audit.write}, {@code task.enqueue}, {@code extension.invoke}. Tenant drafts
+ * may only declare the first two (RT-3); classpath samples may still use extension.invoke.
+ * {@code audit.write} records tenant, actor, entity key, and declaration version / resolution source (RT-6).
+ * 目录键含审计、任务入队与扩展调用；租户草稿仅前两项。审计写入带租户与声明版本关联。
  */
 public final class FormSideEffectRunner {
 
@@ -47,38 +45,52 @@ public final class FormSideEffectRunner {
      *
      * @param tenantId request tenant header, may be null when the form is not tenant-scoped
      *                 请求租户头；非租户隔离表单可为 null
+     * @param resolutionSource effective declaration source ({@code draft}|{@code promoted}|{@code classpath}),
+     *                         may be null when unknown / 生效声明来源，未知时可 null
      * @return one outcome per declared effect, in declaration order / 按声明顺序每项一条结果
      */
     public List<EffectOutcomeDocument> run(
             RenderedForm form,
             Map<String, Object> accepted,
             OperatorPrincipal operator,
-            String tenantId) {
+            String tenantId,
+            String resolutionSource) {
         Objects.requireNonNull(form, "form");
         Objects.requireNonNull(accepted, "accepted");
         Objects.requireNonNull(operator, "operator");
         String effectTenant = resolveTenant(form, tenantId);
         List<EffectOutcomeDocument> outcomes = new ArrayList<>();
         for (DeclaredEffect effect : form.effects()) {
-            invoke(effect, accepted, operator, effectTenant);
+            invoke(effect, form, accepted, operator, effectTenant, resolutionSource);
             outcomes.add(new EffectOutcomeDocument(effect.key().key(), OUTCOME_OK));
         }
         return List.copyOf(outcomes);
     }
 
     private void invoke(
-            DeclaredEffect effect, Map<String, Object> accepted, OperatorPrincipal operator, String tenantId) {
+            DeclaredEffect effect,
+            RenderedForm form,
+            Map<String, Object> accepted,
+            OperatorPrincipal operator,
+            String tenantId,
+            String resolutionSource) {
         SideEffectKey key = effect.key();
         Map<String, String> params = effect.params();
         switch (key) {
-            case AUDIT_WRITE -> writeAudit(params, accepted, operator);
+            case AUDIT_WRITE -> writeAudit(params, form, accepted, operator, tenantId, resolutionSource);
             case TASK_ENQUEUE -> enqueueTask(params, operator, tenantId);
             case EXTENSION_INVOKE -> invokeExtension(params);
             default -> throw new IllegalArgumentException("unknown effect key " + key.key());
         }
     }
 
-    private void writeAudit(Map<String, String> params, Map<String, Object> accepted, OperatorPrincipal operator) {
+    private void writeAudit(
+            Map<String, String> params,
+            RenderedForm form,
+            Map<String, Object> accepted,
+            OperatorPrincipal operator,
+            String tenantId,
+            String resolutionSource) {
         String actionName = requiredParam(params, "actionName");
         String targetField = params.get("actionTargetField");
         String actionTarget = "";
@@ -86,7 +98,15 @@ public final class FormSideEffectRunner {
             Object raw = accepted.get(targetField);
             actionTarget = raw == null ? "" : Objects.toString(raw, "");
         }
-        audit.record(operator, actionName, actionTarget, AuditOutcome.ALLOWED);
+        audit.recordFormEffect(
+                operator,
+                tenantId,
+                actionName,
+                actionTarget,
+                form.entityKey(),
+                form.version(),
+                resolutionSource,
+                AuditOutcome.ALLOWED);
     }
 
     private void enqueueTask(Map<String, String> params, OperatorPrincipal operator, String tenantId) {

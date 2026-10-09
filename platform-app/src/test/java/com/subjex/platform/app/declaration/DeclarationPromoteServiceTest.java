@@ -29,6 +29,56 @@ class DeclarationPromoteServiceTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-08T14:00:00Z"), ZoneOffset.UTC);
 
+    private static final String ENTITY_YAML_V1 =
+            """
+            entityKey: demo-ticket
+            tableName: demo_ticket
+            version: 1
+            permission: page.read
+            tenantScoped: false
+            fields:
+              - name: ticketId
+                kind: text
+                required: true
+                maxLength: 64
+            """;
+
+    private static final String ENTITY_YAML_V2 =
+            """
+            entityKey: demo-ticket
+            tableName: demo_ticket
+            version: 2
+            permission: page.read
+            tenantScoped: false
+            fields:
+              - name: ticketId
+                kind: text
+                required: true
+                maxLength: 64
+            """;
+
+    private static final String FORM_YAML =
+            """
+            formKey: demo-form
+            titleEn: Demo
+            titleZh: 演示
+            version: 1
+            permission: page.read
+            tenantScoped: false
+            domainAction: entity.record.upsert
+            entityKey: demo-ticket
+            fields:
+              - name: ticketId
+                kind: text
+                required: true
+                maxLength: 64
+            effects:
+              - key: audit.write
+                params:
+                  actionName: entity.record.upsert
+                  actionTargetField: ticketId
+            """;
+
     @TempDir
     Path tempGit;
 
@@ -40,7 +90,7 @@ class DeclarationPromoteServiceTest {
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
         DeclarationPromoteService service = newService(store, source);
 
-        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", "entityKey: demo-ticket\nversion: 1\n", "sub-a");
+        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", ENTITY_YAML_V1, "sub-a");
 
         DeclarationPromoteService.DeclarationPromoteResult first =
                 service.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", "sub-a");
@@ -51,7 +101,7 @@ class DeclarationPromoteServiceTest {
 
         Path yaml = tempGit.resolve("acme/entity/demo-ticket.yaml");
         assertTrue(Files.isRegularFile(yaml));
-        assertEquals("entityKey: demo-ticket\nversion: 1\n", Files.readString(yaml, StandardCharsets.UTF_8));
+        assertEquals(ENTITY_YAML_V1, Files.readString(yaml, StandardCharsets.UTF_8));
         assertEquals(
                 JdbcDeclarationStore.PROMOTED_STATE,
                 store.findRevision("acme", DeclarationKind.ENTITY, "demo-ticket", 1).orElseThrow().draftState());
@@ -68,7 +118,7 @@ class DeclarationPromoteServiceTest {
         // latest still returns newest revision regardless of PROMOTED
         assertEquals(1, store.latest("acme", DeclarationKind.ENTITY, "demo-ticket").orElseThrow().revision());
 
-        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", "entityKey: demo-ticket\nversion: 2\n", "sub-b");
+        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", ENTITY_YAML_V2, "sub-b");
         assertEquals(2, store.latest("acme", DeclarationKind.ENTITY, "demo-ticket").orElseThrow().revision());
         assertEquals(
                 JdbcDeclarationStore.DRAFT_STATE,
@@ -79,7 +129,7 @@ class DeclarationPromoteServiceTest {
         assertEquals(2, second.revision());
         assertFalse(second.gitCommitSha().isBlank());
         assertNotEquals(first.gitCommitSha(), second.gitCommitSha());
-        assertEquals("entityKey: demo-ticket\nversion: 2\n", Files.readString(yaml, StandardCharsets.UTF_8));
+        assertEquals(ENTITY_YAML_V2, Files.readString(yaml, StandardCharsets.UTF_8));
         assertEquals(
                 JdbcDeclarationStore.PROMOTED_STATE,
                 store.findRevision("acme", DeclarationKind.ENTITY, "demo-ticket", 2).orElseThrow().draftState());
@@ -125,7 +175,7 @@ class DeclarationPromoteServiceTest {
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
         DeclarationPromoteService service = newService(store, source);
-        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", "entityKey: demo-ticket\nversion: 1\n", "sub-a");
+        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", ENTITY_YAML_V1, "sub-a");
         service.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", "sub-a");
         assertThrows(
                 DeclarationAlreadyPromoted.class,
@@ -155,7 +205,7 @@ class DeclarationPromoteServiceTest {
                 new InternalDeclarationGit(),
                 tempGit,
                 new TransactionTemplate(new DataSourceTransactionManager(source)));
-        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", "entityKey: demo-ticket\nversion: 1\n", "sub-a");
+        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", ENTITY_YAML_V1, "sub-a");
         migrations.enqueue(
                 "acme",
                 DeclarationKind.ENTITY,
@@ -181,7 +231,7 @@ class DeclarationPromoteServiceTest {
                 new InternalDeclarationGit(),
                 tempGit,
                 new TransactionTemplate(new DataSourceTransactionManager(source)));
-        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", "entityKey: demo-ticket\nversion: 1\n", "sub-a");
+        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", ENTITY_YAML_V1, "sub-a");
         DeclarationMigration row = migrations.enqueue(
                 "acme",
                 DeclarationKind.ENTITY,
@@ -209,7 +259,7 @@ class DeclarationPromoteServiceTest {
                 new InternalDeclarationGit(),
                 tempGit,
                 new TransactionTemplate(new DataSourceTransactionManager(source)));
-        store.saveDraft("acme", DeclarationKind.FORM, "demo-form", "formKey: demo-form\nversion: 1\n", "sub-a");
+        store.saveDraft("acme", DeclarationKind.FORM, "demo-form", FORM_YAML, "sub-a");
         migrations.enqueue(
                 "acme",
                 DeclarationKind.FORM,
@@ -221,4 +271,101 @@ class DeclarationPromoteServiceTest {
                 service.promoteLatest("acme", DeclarationKind.FORM, "demo-form", "sub-a");
         assertEquals(1, result.revision());
     }
+
+    private static final String REPAIR_FLOW =
+            """
+            flowKey: repair-ticket
+            titleEn: Repair tickets
+            titleZh: 报修单
+            formKey: repair-ticket
+            entityKey: repair-ticket
+            version: 1
+            permission: page.read
+            tenantScoped: true
+            list:
+              path: /pages/repair-ticket
+              apiPath: /api/v1/entities/repair-ticket/records
+              itemsKey: records
+              blocks:
+                - ListTable
+            detail:
+              path: /pages/repair-ticket/{id}
+              apiPath: /api/v1/entities/repair-ticket/records
+              itemsKey: records
+              idField: ticketId
+              blocks:
+                - DetailReadonly
+            submit:
+              path: /pages/repair-ticket/new
+              apiPath: /api/v1/forms/repair-ticket/submissions
+              redirectTo: /pages/repair-ticket
+              blocks:
+                - FormFields
+                - SubmitBar
+            """;
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void flowPromoteEnsuresRuntimePagePaths(H2PlatformTables.Mode mode) throws Exception {
+        DataSource source = H2PlatformTables.migrated(mode);
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        DeclarationPromoteService service = newService(store, source);
+        store.saveDraft("acme", DeclarationKind.FLOW, "repair-ticket", REPAIR_FLOW, "sub-a");
+        DeclarationPromoteService.DeclarationPromoteResult result =
+                service.promoteLatest("acme", DeclarationKind.FLOW, "repair-ticket", "sub-a");
+        assertEquals(1, result.revision());
+        assertEquals(
+                JdbcDeclarationStore.PROMOTED_STATE,
+                store.findRevision("acme", DeclarationKind.FLOW, "repair-ticket", 1)
+                        .orElseThrow()
+                        .draftState());
+        Path yaml = tempGit.resolve("acme/flow/repair-ticket.yaml");
+        assertTrue(Files.isRegularFile(yaml));
+        DeclarationRuntimePages.Binding binding = DeclarationRuntimePages.ensureAfterFlowPromote(Files.readString(yaml));
+        assertEquals("/pages/repair-ticket", binding.listPath());
+        assertEquals("/pages/repair-ticket/new", binding.newPath());
+        assertEquals("/pages/repair-ticket/{id}", binding.detailPath());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void flowPromoteRejectsMissingBusinessBlocks(H2PlatformTables.Mode mode) {
+        DataSource source = H2PlatformTables.migrated(mode);
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        DeclarationPromoteService service = newService(store, source);
+        String noBlocks =
+                """
+                flowKey: repair-ticket
+                titleEn: Repair tickets
+                titleZh: 报修单
+                formKey: repair-ticket
+                entityKey: repair-ticket
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                list:
+                  path: /pages/repair-ticket
+                  apiPath: /api/v1/entities/repair-ticket/records
+                  itemsKey: records
+                detail:
+                  path: /pages/repair-ticket/{id}
+                  apiPath: /api/v1/entities/repair-ticket/records
+                  itemsKey: records
+                  idField: ticketId
+                submit:
+                  path: /pages/repair-ticket/new
+                  apiPath: /api/v1/forms/repair-ticket/submissions
+                  redirectTo: /pages/repair-ticket
+                """;
+        store.saveDraft("acme", DeclarationKind.FLOW, "repair-ticket", noBlocks, "sub-a");
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.promoteLatest("acme", DeclarationKind.FLOW, "repair-ticket", "sub-a"));
+        assertEquals(
+                JdbcDeclarationStore.DRAFT_STATE,
+                store.latest("acme", DeclarationKind.FLOW, "repair-ticket").orElseThrow().draftState());
+    }
+
 }

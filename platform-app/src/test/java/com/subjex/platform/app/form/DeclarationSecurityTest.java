@@ -27,6 +27,7 @@ import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.entity.declare.EntityCatalog;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
+import com.subjex.platform.app.declaration.JdbcDeclarationMigrationStore;
 import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.page.PageCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
@@ -150,6 +151,7 @@ class DeclarationSecurityTest {
             when(store.latest(any(), any(), any())).thenReturn(Optional.empty());
             return new EffectiveDeclarationService(
                     store,
+                    mock(JdbcDeclarationMigrationStore.class),
                     EntityCatalog.load(EntityCatalog.class.getClassLoader()),
                     formCatalog,
                     new PageCatalog());

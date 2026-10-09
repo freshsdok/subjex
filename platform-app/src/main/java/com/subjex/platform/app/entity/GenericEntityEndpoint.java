@@ -35,10 +35,10 @@ import org.springframework.web.server.ResponseStatusException;
  * {@code service-note/notes} list. When {@code tenantScoped: true}, requires {@code X-Tenant-Id}
  * (and operator–tenant grant) and isolates rows on physical {@code tenant_id}.
  * With non-blank {@code X-Tenant-Id}, resolves entity via {@link EffectiveDeclarationService#runtimeEntity}
- * (DB draft overlay when tableName+PK match classpath); otherwise classpath baseline.
+ * (classpath: draft overlay when tableName+PK match; no-classpath: PROMOTED + APPLIED migration only).
  * 路径在 {@code /api/v1/entities/{entityKey}/records}。不替换专用的 {@code service-note/notes} 列表。
  * {@code tenantScoped: true} 时要求租户头与授权，并按物理列 {@code tenant_id} 隔离。
- * 带租户头时经 runtimeEntity 覆盖（表名+主键须一致）。
+ * 带租户头时经 runtimeEntity（无 classpath 仅 PROMOTED+已 APPLIED 迁移）。
  */
 @RestController
 public class GenericEntityEndpoint {

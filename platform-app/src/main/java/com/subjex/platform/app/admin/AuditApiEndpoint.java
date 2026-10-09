@@ -50,7 +50,10 @@ public class AuditApiEndpoint {
                 row.actionTarget(),
                 row.outcome(),
                 outcome[0],
-                outcome[1]);
+                outcome[1],
+                row.entityKey(),
+                row.declarationVersion(),
+                row.resolutionSource());
     }
 
     /**
@@ -74,5 +77,8 @@ public class AuditApiEndpoint {
             String actionTarget,
             String outcome,
             String outcomeWordZh,
-            String outcomeWordEn) {}
+            String outcomeWordEn,
+            String entityKey,
+            Integer declarationVersion,
+            String resolutionSource) {}
 }

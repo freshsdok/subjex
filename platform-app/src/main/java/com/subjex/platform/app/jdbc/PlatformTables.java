@@ -75,6 +75,7 @@ public final class PlatformTables {
     }
 
     public static AuditRow mapAuditRow(ResultSet row) throws SQLException {
+        Integer declarationVersion = (Integer) row.getObject("declaration_version");
         return new AuditRow(
                 row.getString("audit_entry_id"),
                 instant(row, "occurred_at"),
@@ -83,7 +84,10 @@ public final class PlatformTables {
                 row.getString("login_name"),
                 row.getString("action_name"),
                 row.getString("action_target"),
-                row.getString("outcome"));
+                row.getString("outcome"),
+                row.getString("entity_key"),
+                declarationVersion,
+                row.getString("resolution_source"));
     }
 
     public static Timestamp timestamp(Instant instant) {

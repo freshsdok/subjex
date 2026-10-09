@@ -1,6 +1,8 @@
 // Form draft wizard helpers — 表单草稿向导：从 YAML 解析/写回（无 yaml 依赖；尽量保留 effects）。
 
-export const FORM_FIELD_KINDS = ["text", "integer", "boolean", "date", "enum"] as const;
+import { DEFAULT_DECLARATION_PERMISSION } from "@/lib/declaration-permission-catalog";
+
+export const FORM_FIELD_KINDS = ["text", "integer", "boolean", "date", "enum", "userRef"] as const;
 export type FormWizardFieldKind = (typeof FORM_FIELD_KINDS)[number];
 
 export type FormWizardField = {
@@ -122,7 +124,7 @@ export function emptyFormWizard(formKey = "example-key"): FormWizardState {
     titleEn: "Untitled",
     titleZh: "未命名",
     version: 1,
-    permission: "page.read",
+    permission: DEFAULT_DECLARATION_PERMISSION,
     tenantScoped: false,
     domainAction: "entity.record.upsert",
     entityKey: key,
@@ -349,7 +351,7 @@ export function applyFormWizardToYaml(_yaml: string, rawState: FormWizardState):
   const state = withDefaultEffectsIfEmpty(rawState);
   const formKey = state.formKey.trim() || "untitled";
   const version = state.version >= 1 ? Math.floor(state.version) : 1;
-  const permission = state.permission.trim() || "page.read";
+  const permission = state.permission.trim() || DEFAULT_DECLARATION_PERMISSION;
   const domainAction = state.domainAction.trim() || "entity.record.upsert";
   const fields =
     state.fields.length > 0 ? state.fields : emptyFormWizard(formKey).fields;

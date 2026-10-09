@@ -35,7 +35,7 @@ describe("form-field-input — 表单字段控件辅助", () => {
     expect(fieldKindLabel("boolean", phrases)).toBe("布尔");
     expect(fieldKindLabel("date", phrases)).toBe("日期");
     expect(fieldKindLabel("enum", phrases)).toBe("枚举");
-    expect(fieldKindLabel("userRef", phrases)).toBe("文本");
+    expect(fieldKindLabel("userRef", phrases)).toBe("选人");
   });
 
   it("defaults boolean empty to false — 布尔初始为 false", () => {

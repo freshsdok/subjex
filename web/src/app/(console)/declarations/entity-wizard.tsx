@@ -11,6 +11,7 @@ import {
   type EntityWizardField,
   type EntityWizardState,
 } from "@/lib/entity-wizard";
+import { DECLARATION_PERMISSION_CATALOG } from "@/lib/declaration-permission-catalog";
 
 type Props = {
   phrases: PhraseBook;
@@ -96,13 +97,23 @@ export function EntityWizard({ phrases, value, keyLocked, disabled, onChange, on
         </label>
         <label className="flex flex-col gap-1 text-xs">
           <span className="text-muted">{phrases.declarationsWizardPermission}</span>
-          <input
-            value={value.permission}
+          <select
+            value={
+              (DECLARATION_PERMISSION_CATALOG as readonly string[]).includes(value.permission)
+                ? value.permission
+                : DECLARATION_PERMISSION_CATALOG[0]
+            }
             disabled={disabled}
             onChange={(event) => onChange({ ...value, permission: event.target.value })}
             className="rounded-md border border-border bg-surface px-2 py-1 font-mono disabled:opacity-70"
             aria-label={phrases.declarationsWizardPermission}
-          />
+          >
+            {DECLARATION_PERMISSION_CATALOG.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="flex items-center gap-2 text-xs sm:col-span-2 lg:col-span-1">
           <input

@@ -56,7 +56,8 @@ public final class JdbcAdminReader {
         return jdbc.query(
                 """
                 SELECT e.audit_entry_id, e.occurred_at, e.tenant_id, e.actor_identity_id, a.login_name,
-                       e.action_name, e.action_target, e.outcome
+                       e.action_name, e.action_target, e.outcome,
+                       e.entity_key, e.declaration_version, e.resolution_source
                 FROM audit_entry e
                 LEFT JOIN subject_identity i ON i.identity_id = e.actor_identity_id
                 LEFT JOIN account a ON a.account_id = i.account_id

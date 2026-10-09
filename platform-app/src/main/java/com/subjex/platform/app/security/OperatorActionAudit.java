@@ -10,10 +10,11 @@ import java.util.UUID;
 /**
  * OperatorActionAudit — 操作员动作审计：把一次配置覆盖或服务登记记成一条审计条目。
  * <p>
- * The tenant is {@code platform}, the actor is the operator's identity, and the target is the key or service name.
+ * Default {@link #record} writes tenant {@code platform}. Form submit {@code audit.write} uses
+ * {@link #recordFormEffect} so the entry carries request tenant plus declaration linkage (RT-6).
  * It writes through the single {@link AuditPort}; there is no second audit channel.
- * 租户是 {@code platform}，操作者是操作员的身份，对象是配置键或服务名。
- * 它经唯一的 {@link AuditPort} 写入，没有第二条审计通道。
+ * 默认 {@link #record} 写租户 {@code platform}。表单提交审计走 {@link #recordFormEffect}，带请求租户与声明关联（RT-6）。
+ * 经唯一的 {@link AuditPort} 写入，没有第二条审计通道。
  */
 public final class OperatorActionAudit {
 
@@ -40,5 +41,49 @@ public final class OperatorActionAudit {
                 actionTarget,
                 outcome,
                 clock.instant()));
+    }
+
+    /**
+     * Form {@code audit.write}: tenant + actor + entity + declaration version / source when known —
+     * 表单审计：租户、操作者、实体键、声明版本与解析来源（可知时）。
+     */
+    public void recordFormEffect(
+            OperatorPrincipal operator,
+            String tenantId,
+            String actionName,
+            String actionTarget,
+            String entityKey,
+            int declarationVersion,
+            String resolutionSource,
+            AuditOutcome outcome) {
+        Objects.requireNonNull(operator, "operator");
+        Objects.requireNonNull(outcome, "outcome");
+        String tid = requireText(tenantId, "tenantId");
+        String action = requireText(actionName, "actionName");
+        auditPort.record(new AuditEntry(
+                UUID.randomUUID().toString(),
+                tid,
+                operator.identityId(),
+                action,
+                actionTarget == null ? "" : actionTarget,
+                outcome,
+                clock.instant(),
+                blankToNull(entityKey),
+                declarationVersion,
+                blankToNull(resolutionSource)));
+    }
+
+    private static String requireText(String value, String label) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(label + " required");
+        }
+        return value.trim();
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

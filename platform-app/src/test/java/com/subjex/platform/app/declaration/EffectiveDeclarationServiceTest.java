@@ -22,7 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * EffectiveDeclarationServiceTest — DRAFT > PROMOTED > classpath 热加载顺序；
- * runtimeEntity 安全覆盖（表名/主键一致才覆盖，否则 409）。
+ * runtimeEntity：classpath 安全覆盖；无 classpath 仅 PROMOTED+APPLIED 迁移。
  */
 class EffectiveDeclarationServiceTest {
 
@@ -63,9 +63,10 @@ class EffectiveDeclarationServiceTest {
     void draftOverlaysClasspathEntity(H2PlatformTables.Mode mode) {
         JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
         EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
         EffectiveDeclarationService effective =
-                new EffectiveDeclarationService(store, catalog, new FormCatalog(), new PageCatalog());
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
 
         RenderedEntity classpath = catalog.find("demo-ticket").orElseThrow();
         Integer classpathTitleMax = fieldMax(classpath, "title");
@@ -107,9 +108,10 @@ class EffectiveDeclarationServiceTest {
     void promotedHotReloadsThenDraftBeatsPromoted(H2PlatformTables.Mode mode) {
         JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
         EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
         EffectiveDeclarationService effective =
-                new EffectiveDeclarationService(store, catalog, new FormCatalog(), new PageCatalog());
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
 
         DeclarationRevision draft = store.saveDraft(
                 "acme",
@@ -160,9 +162,10 @@ class EffectiveDeclarationServiceTest {
     void runtimeEntityOverlaysWhenTableAndPkMatch(H2PlatformTables.Mode mode) {
         JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
         EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
         EffectiveDeclarationService effective =
-                new EffectiveDeclarationService(store, catalog, new FormCatalog(), new PageCatalog());
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
 
         // No tenant header → classpath — 无租户头 → classpath。
         assertEquals(200, fieldMax(effective.runtimeEntity(null, "demo-ticket").orElseThrow(), "title"));
@@ -200,9 +203,10 @@ class EffectiveDeclarationServiceTest {
     void runtimeEntityRejectsTableNameOrPkChange(H2PlatformTables.Mode mode) {
         JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
         EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
         EffectiveDeclarationService effective =
-                new EffectiveDeclarationService(store, catalog, new FormCatalog(), new PageCatalog());
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
 
         String badTable =
                 """
@@ -252,9 +256,10 @@ class EffectiveDeclarationServiceTest {
     void runtimeEntityIgnoresDraftOnlyKeys(H2PlatformTables.Mode mode) {
         JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
         EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
         EffectiveDeclarationService effective =
-                new EffectiveDeclarationService(store, catalog, new FormCatalog(), new PageCatalog());
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
 
         String draftOnly =
                 """
@@ -272,6 +277,210 @@ class EffectiveDeclarationServiceTest {
         store.saveDraft("acme", DeclarationKind.ENTITY, "draft-only-entity", draftOnly, "sub-editor");
         assertTrue(effective.effectiveEntity("acme", "draft-only-entity").isPresent());
         assertTrue(effective.runtimeEntity("acme", "draft-only-entity").isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void runtimeEntityAllowsPromotedNoClasspathWhenMigrationApplied(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
+        EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
+        EffectiveDeclarationService effective =
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
+
+        String yaml =
+                """
+                entityKey: repair-ticket
+                tableName: repair_ticket
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 120
+                """;
+        DeclarationRevision draft =
+                store.saveDraft("acme", DeclarationKind.ENTITY, "repair-ticket", yaml, "sub-editor");
+        DeclarationMigration job = migrations.enqueue(
+                "acme",
+                DeclarationKind.ENTITY,
+                "repair-ticket",
+                draft.revision(),
+                "CREATE TABLE repair_ticket (ticket_id VARCHAR(64) NOT NULL, title VARCHAR(120) NOT NULL, tenant_id VARCHAR(64) NOT NULL)",
+                "sub-editor");
+        migrations.markReviewed(job.migrationId());
+        migrations.markApplied(job.migrationId());
+        store.markPromoted("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision());
+        store.recordPromote("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision(), "sha-rt1", "sub-editor");
+
+        RenderedEntity runtime = effective.runtimeEntity("acme", "repair-ticket").orElseThrow();
+        assertEquals("repair-ticket", runtime.entityKey());
+        assertEquals("repair_ticket", runtime.tableName());
+        assertEquals(120, fieldMax(runtime, "title"));
+        assertTrue(catalog.find("repair-ticket").isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void runtimeEntityRejectsPromotedNoClasspathWithoutAppliedMigration(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
+        EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
+        EffectiveDeclarationService effective =
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
+
+        String yaml =
+                """
+                entityKey: repair-ticket
+                tableName: repair_ticket
+                version: 1
+                permission: page.read
+                tenantScoped: false
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                """;
+        DeclarationRevision draft =
+                store.saveDraft("acme", DeclarationKind.ENTITY, "repair-ticket", yaml, "sub-editor");
+        store.markPromoted("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision());
+        store.recordPromote("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision(), "sha-meta", "sub-editor");
+
+        // Promoted but no APPLIED migration → 409 fail-closed for JDBC.
+        assertThrows(
+                DeclarationPromoteBlockedByMigration.class,
+                () -> effective.runtimeEntity("acme", "repair-ticket"));
+
+        DeclarationMigration pending = migrations.enqueue(
+                "acme",
+                DeclarationKind.ENTITY,
+                "repair-ticket",
+                draft.revision(),
+                "CREATE TABLE repair_ticket (ticket_id VARCHAR(64) NOT NULL)",
+                "sub-editor");
+        assertThrows(
+                DeclarationPromoteBlockedByMigration.class,
+                () -> effective.runtimeEntity("acme", "repair-ticket"));
+
+        migrations.markReviewed(pending.migrationId());
+        assertThrows(
+                DeclarationPromoteBlockedByMigration.class,
+                () -> effective.runtimeEntity("acme", "repair-ticket"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void effectiveFormResolvesPromotedNoClasspath(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
+        EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
+        EffectiveDeclarationService effective =
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
+
+        String formYaml =
+                """
+                formKey: repair-ticket
+                titleEn: Repair ticket
+                titleZh: 报修单
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                domainAction: entity.record.upsert
+                entityKey: repair-ticket
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 120
+                """;
+        DeclarationRevision draft =
+                store.saveDraft("acme", DeclarationKind.FORM, "repair-ticket", formYaml, "sub-editor");
+        store.markPromoted("acme", DeclarationKind.FORM, "repair-ticket", draft.revision());
+        store.recordPromote("acme", DeclarationKind.FORM, "repair-ticket", draft.revision(), "sha-form", "sub-editor");
+
+        var form = effective.effectiveForm("acme", "repair-ticket").orElseThrow();
+        assertEquals("repair-ticket", form.formKey());
+        assertEquals(1, form.version());
+        assertEquals("报修单", form.titleZh());
+        assertEquals(
+                EffectiveDeclarationService.SOURCE_PROMOTED,
+                effective.resolutionSource("acme", DeclarationKind.FORM, "repair-ticket"));
+    }
+
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void effectiveRuntimePagesAfterFlowPromote(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
+        JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
+        EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
+        EffectiveDeclarationService effective =
+                new EffectiveDeclarationService(store, migrations, catalog, new FormCatalog(), new PageCatalog());
+
+        String flowYaml =
+                """
+                flowKey: repair-ticket
+                titleEn: Repair tickets
+                titleZh: 报修单
+                formKey: repair-ticket
+                entityKey: repair-ticket
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                list:
+                  path: /pages/repair-ticket
+                  apiPath: /api/v1/entities/repair-ticket/records
+                  itemsKey: records
+                  blocks:
+                    - ListTable
+                detail:
+                  path: /pages/repair-ticket/{id}
+                  apiPath: /api/v1/entities/repair-ticket/records
+                  itemsKey: records
+                  idField: ticketId
+                  blocks:
+                    - DetailReadonly
+                submit:
+                  path: /pages/repair-ticket/new
+                  apiPath: /api/v1/forms/repair-ticket/submissions
+                  redirectTo: /pages/repair-ticket
+                  blocks:
+                    - FormFields
+                    - SubmitBar
+                """;
+        assertTrue(effective.effectiveRuntimePages("acme", "repair-ticket").isEmpty());
+        assertTrue(new PageCatalog().find("repair-ticket").isEmpty());
+
+        DeclarationRevision draft =
+                store.saveDraft("acme", DeclarationKind.FLOW, "repair-ticket", flowYaml, "sub-editor");
+        store.markPromoted("acme", DeclarationKind.FLOW, "repair-ticket", draft.revision());
+        store.recordPromote("acme", DeclarationKind.FLOW, "repair-ticket", draft.revision(), "sha-rt5", "sub-editor");
+
+        DeclarationRuntimePages.Binding pages =
+                effective.effectiveRuntimePages("acme", "repair-ticket").orElseThrow();
+        assertEquals("repair-ticket", pages.flowKey());
+        assertEquals("/pages/repair-ticket", pages.listPath());
+        assertEquals("/pages/repair-ticket/new", pages.newPath());
+        assertEquals("/pages/repair-ticket/{id}", pages.detailPath());
+        assertEquals(
+                EffectiveDeclarationService.SOURCE_PROMOTED,
+                effective.resolutionSource("acme", DeclarationKind.FLOW, "repair-ticket"));
+        assertTrue(effective.tenantDeclarationKeys("acme", DeclarationKind.FLOW).contains("repair-ticket"));
     }
 
     private static Integer fieldMax(RenderedEntity entity, String name) {

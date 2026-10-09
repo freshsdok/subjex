@@ -331,4 +331,31 @@ class FormRendererTest {
         assertEquals(List.of("open", "closed"), form.fields().get(3).enumValues());
     }
 
+
+    @Test
+    void rendersUserRefField() {
+        String yaml = """
+                formKey: user-ref-sample
+                titleEn: User ref
+                titleZh: 选人样例
+                version: 1
+                permission: page.read
+                domainAction: entity.record.upsert
+                entityKey: user-ref-sample
+                fields:
+                  - name: id
+                    kind: text
+                    required: true
+                    maxLength: 32
+                  - name: assignee
+                    kind: userRef
+                    required: false
+                    maxLength: 64
+                """;
+        RenderedForm form = renderer.render(yaml);
+        assertEquals(FieldKind.USER_REF, form.fields().get(1).kind());
+        assertEquals(64, form.fields().get(1).maxLength());
+    }
+
+
 }

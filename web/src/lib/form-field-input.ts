@@ -36,6 +36,8 @@ export function fieldKindLabel(kind: string, phrases: PhraseBook): string {
       return phrases.fieldKindDate;
     case "enum":
       return phrases.fieldKindEnum;
+    case "userRef":
+      return phrases.fieldKindUserRef;
     default:
       return phrases.fieldKindText;
   }

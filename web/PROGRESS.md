@@ -326,3 +326,34 @@ Policy engine port AX-3 — 策略引擎端口（2026-10-09）:
 
 AX-3. [done] `PolicyEngine` + `PolicyPrincipal` / `PolicyResource` / `PolicyContext`; `SqlRbacPolicyEngine` delegates to `AccessChecker` (no Cedar/Casbin Maven deps); Org membership write scope is a real caller; docs map Cedar/Casbin subset; unit tests mirror AccessChecker deny reasons. Local commit only (no push). No jars / no custom DSL / no Spring matcher rewrite.
     策略端口对齐 Cedar/Casbin 子集形状；SQL 首适配；组织成员写已接线。仅本地提交。不引依赖 / 无自研 DSL / 不改 Spring matcher。
+
+
+Repair-ticket runtime RT-1 — 报修单运行时闸门（2026-10-09）:
+
+RT-1. [done] No-classpath PROMOTED entities on JDBC when migration APPLIED; FormSubmission + forms/pages index use effective tenant overlay; `/pages/*` + proxy send `subjex_declaration_tenant` as `X-Tenant-Id`. Local commit only (no push). Wizard / auto SQL / auto pages out of scope.
+    无 classpath 已晋升实体在迁移 APPLIED 后可运行；提交与目录走租户生效声明；页面与代理带声明租户头。仅本地提交。向导/自动 SQL/自动出页后置。
+
+
+Repair-ticket console wizard RT-2 — 报修单控制台唯一入口（2026-10-09）:
+
+RT-2. [done] `/declarations` **新建业务表** wizard creates entity+form+flow drafts for one key (repair-ticket defaults: title/location/urgency enum/assignee userRef; `page.read`; tenantScoped; audit.write only; flow blocks ListTable/FormFields/DetailReadonly/SubmitBar). Classpath samples badge「样例」; empty-state points to wizard. Form `FieldKind.USER_REF` + wizard kinds. Vitest business-table-wizard. Local commit only (no push). Auto migration enqueue = RT-4; promote auto-page / permission catalog = later RT.
+    控制台「新建业务表」一次写出三份草稿；样例标回归；表单支持 userRef。仅本地提交。自动迁表入队见 RT-4；晋升出页见 RT-5；权限目录后置。
+
+
+Repair-ticket auto-enqueue RT-4 — 报修单草稿加列自动入队（2026-10-09）:
+
+RT-4. [done] Entity draft PUT auto-enqueues PENDING `CREATE TABLE` (brand-new) or `ALTER TABLE … ADD COLUMN` (vs latest PROMOTED, else classpath sample, else empty). Idempotent per revision+SQL; fail-closed on kind/SQL type / tableName / PK change before draft insert; no auto-APPLY / DROP / RENAME. `EntityMigrationGenerator` queue helpers; `DeclarationMigrationAutoEnqueueService`; H2 + generator tests; docs. Local commit only (no push). Promote auto-page = RT-5 [done]; permission catalog = later RT.
+    实体草稿保存自动入队 PENDING 建表/加列；幂等；危险变更落库前失败关闭；不自动执行。生成器队列助手 + 服务 + 测例 + 文档。仅本地提交。晋升出页见 RT-5；权限目录后置。
+
+
+Repair-ticket runtime pages RT-5 — 晋升后运行时页面（2026-10-09）:
+
+RT-5. [done] After FLOW promote, pages catalog + list/new/detail paths resolve from effective flow (DRAFT > PROMOTED > classpath); `DeclarationRuntimePages.ensureAfterFlowPromote` fail-closes on path/four-block contract for tenantScoped; no separate page YAML materialization. H2 + MockMvc tests; docs. Local commit only (no push). RT-3/6/7 [done] below.
+    流程晋升后页面目录与三路径从生效 flow 出现；晋升校验固定路径与（租户隔离）四积木；不另写 page YAML。测例与文档。仅本地提交。见下方 RT-3/6/7。
+
+
+Repair-ticket pick-only + audit + wizard-first RT-3/6/7 — 权限只选、版本审计、向导优先（2026-10-09）:
+
+RT-3/6/7. [done] Draft save/promote: permission must be in `OperatorPermission` catalog (400 unknown); form effects whitelist `audit.write`|`task.enqueue` only (`extension.invoke` classpath-only). Form `audit.write` records tenant/actor/entityKey/declarationVersion/resolutionSource (Flyway V19). Console: permission `<select>` from catalog on business-table + entity/form wizards; demote single-kind template + entity/form wizards behind advanced disclosure; path hint wizard → migrate → promote → pages. Tests + docs. Local commit only (no push).
+    草稿保存/晋升：权限只选目录；表单副作用白名单；审计带租户与声明版本关联（V19）。控制台权限下拉；收窄单种/实体表单向导为高级；路径提示。测例与文档。仅本地提交。
+

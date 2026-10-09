@@ -12,10 +12,15 @@ import {
   declarationMigrateEnqueueBody,
   declarationPromoteRequestBody,
   declarationTenantCookieWrite,
+  isClasspathSampleKey,
   mergeDraftAndClasspathKeys,
   templateYamlFor,
   type DeclarationKind,
 } from "@/lib/declaration-draft";
+import {
+  buildBusinessTableDrafts,
+  type BusinessTableWizardState,
+} from "@/lib/business-table-wizard";
 import {
   applyFlowBlocksToYaml,
   emptyFlowPageBlocks,
@@ -34,6 +39,7 @@ import {
   parseFormWizardFromYaml,
   type FormWizardState,
 } from "@/lib/form-wizard";
+import { BusinessTableWizard } from "./business-table-wizard";
 import { EntityWizard } from "./entity-wizard";
 import { FlowBlockComposer } from "./flow-block-composer";
 import { FormWizard } from "./form-wizard";
@@ -138,6 +144,7 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
   const [editorStep, setEditorStep] = useState<EditorStep>("editing");
   const [editorProblem, setEditorProblem] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [businessTableNotice, setBusinessTableNotice] = useState<string | null>(null);
   const [draftState, setDraftState] = useState<string | null>(null);
   const [promoteHistory, setPromoteHistory] = useState<PromoteHistoryRow[] | null>(null);
   const [historyStatus, setHistoryStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -257,11 +264,15 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     [draftByKey, kind],
   );
 
-  async function openKey(key: string, seedYaml?: string) {
+  async function openKey(key: string, seedYaml?: string, kindOverride?: DeclarationKind) {
     const tid = tenantId.trim();
     if (!tid) {
       setEditorProblem(phrases.declarationsTenantRequired);
       return;
+    }
+    const activeKind = kindOverride ?? kind;
+    if (kindOverride && kindOverride !== kind) {
+      setKind(kindOverride);
     }
     setSelectedKey(key);
     setEditorStep("editing");
@@ -284,14 +295,14 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     const existing = draftByKey.get(key);
     if (existing?.yamlBody != null) {
       setYamlBody(existing.yamlBody);
-      syncWizardsFromYaml(existing.yamlBody, kind);
+      syncWizardsFromYaml(existing.yamlBody, activeKind);
       setLoadedRevision(existing.revision ?? null);
       setDraftState(existing.draftState ?? null);
       return;
     }
 
     const reply = await fetch(
-      `/api/platform/declarations/${encodeURIComponent(kind)}/${encodeURIComponent(key)}?tenantId=${encodeURIComponent(tid)}`,
+      `/api/platform/declarations/${encodeURIComponent(activeKind)}/${encodeURIComponent(key)}?tenantId=${encodeURIComponent(tid)}`,
       { cache: "no-store" },
     ).catch(() => null);
     if (reply?.status === 401) {
@@ -302,27 +313,72 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
       const body = (await reply.json()) as RevisionRow;
       const yaml = body.yamlBody ?? "";
       setYamlBody(yaml);
-      syncWizardsFromYaml(yaml, kind);
+      syncWizardsFromYaml(yaml, activeKind);
       setLoadedRevision(body.revision ?? null);
       setDraftState(body.draftState ?? null);
       return;
     }
     if (reply?.status === 404) {
-      const yaml = seedYaml ?? templateYamlFor(kind, key);
+      const yaml = seedYaml ?? templateYamlFor(activeKind, key);
       setYamlBody(yaml);
-      syncWizardsFromYaml(yaml, kind);
+      syncWizardsFromYaml(yaml, activeKind);
       setLoadedRevision(null);
       setDraftState(null);
       return;
     }
-    const yaml = seedYaml ?? templateYamlFor(kind, key);
+    const yaml = seedYaml ?? templateYamlFor(activeKind, key);
     setYamlBody(yaml);
-    syncWizardsFromYaml(yaml, kind);
+    syncWizardsFromYaml(yaml, activeKind);
     setLoadedRevision(null);
     setDraftState(null);
     if (reply && reply.status !== 404) {
       setEditorProblem(fillPhrase(phrases.declarationsLoadFailed, { status: reply.status }));
     }
+  }
+
+
+  async function createBusinessTableDrafts(state: BusinessTableWizardState) {
+    const tid = tenantId.trim();
+    if (!tid) {
+      throw new Error(phrases.declarationsTenantRequired);
+    }
+    const bundle = buildBusinessTableDrafts(state);
+    const puts: { kind: DeclarationKind; yaml: string }[] = [
+      { kind: "entity", yaml: bundle.entityYaml },
+      { kind: "form", yaml: bundle.formYaml },
+      { kind: "flow", yaml: bundle.flowYaml },
+    ];
+    for (const item of puts) {
+      const reply = await fetch(
+        `/api/platform/declarations/${encodeURIComponent(item.kind)}/${encodeURIComponent(bundle.key)}?tenantId=${encodeURIComponent(tid)}`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ yamlBody: item.yaml }),
+        },
+      ).catch(() => null);
+      if (reply?.status === 401) {
+        router.replace("/login");
+        throw new Error(phrases.declarationsBusinessTableSaveFailed);
+      }
+      if (!reply?.ok) {
+        throw new Error(
+          fillPhrase(phrases.declarationsBusinessTablePartialFailed, {
+            kind: item.kind,
+            key: bundle.key,
+            status: reply?.status ?? 0,
+          }),
+        );
+      }
+    }
+    await loadList();
+    await openKey(bundle.key, undefined, "entity");
+    setSavedMessage(
+      fillPhrase(phrases.declarationsBusinessTableSavedNotice, { key: bundle.key }),
+    );
+    setBusinessTableNotice(
+      fillPhrase(phrases.declarationsBusinessTableSavedNotice, { key: bundle.key }),
+    );
   }
 
   function startNewDraft() {
@@ -510,6 +566,7 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     setEditorStep("editing");
     setEditorProblem(null);
     setSavedMessage(null);
+    setBusinessTableNotice(null);
     setPromoteHistory(null);
     setHistoryStatus("idle");
     setMigrations(null);
@@ -860,24 +917,38 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                 />
               ) : null}
               {kind === "entity" ? (
-                <EntityWizard
-                  phrases={phrases}
-                  value={entityWizard}
-                  keyLocked={selectedKey != null}
-                  disabled={!canWrite}
-                  onChange={setEntityWizard}
-                  onApply={applyEntityWizard}
-                />
+                <details className="rounded-md border border-dashed border-border bg-background/60 px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-medium text-muted">
+                    {phrases.declarationsAdvancedEntityWizard}
+                  </summary>
+                  <div className="mt-2">
+                    <EntityWizard
+                      phrases={phrases}
+                      value={entityWizard}
+                      keyLocked={selectedKey != null}
+                      disabled={!canWrite}
+                      onChange={setEntityWizard}
+                      onApply={applyEntityWizard}
+                    />
+                  </div>
+                </details>
               ) : null}
               {kind === "form" ? (
-                <FormWizard
-                  phrases={phrases}
-                  value={formWizard}
-                  keyLocked={selectedKey != null}
-                  disabled={!canWrite}
-                  onChange={setFormWizard}
-                  onApply={applyFormWizard}
-                />
+                <details className="rounded-md border border-dashed border-border bg-background/60 px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-medium text-muted">
+                    {phrases.declarationsAdvancedFormWizard}
+                  </summary>
+                  <div className="mt-2">
+                    <FormWizard
+                      phrases={phrases}
+                      value={formWizard}
+                      keyLocked={selectedKey != null}
+                      disabled={!canWrite}
+                      onChange={setFormWizard}
+                      onApply={applyFormWizard}
+                    />
+                  </div>
+                </details>
               ) : null}
               {composerNotice ? (
                 <p role="status" className="text-xs text-green-700">
@@ -1275,6 +1346,20 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
         </div>
       ) : (
         <>
+          {canWrite ? (
+            <BusinessTableWizard
+              phrases={phrases}
+              disabled={!canWrite}
+              tenantId={tenantId}
+              onConfirm={createBusinessTableDrafts}
+            />
+          ) : null}
+          <p className="text-xs text-muted">{phrases.declarationsBusinessTablePathHint}</p>
+          {businessTableNotice ? (
+            <p role="status" className="text-xs text-green-700">
+              {businessTableNotice}
+            </p>
+          ) : null}
           {!tenantId.trim() ? (
             <p className="text-sm text-muted">{phrases.declarationsEmptyTenant}</p>
           ) : listStatus === "loading" ? (
@@ -1286,6 +1371,9 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
           ) : (
             <div>
               <h2 className="mb-2 text-sm font-semibold">{phrases.declarationsListTitle}</h2>
+              {!listRows.some((r) => r.hasDraft) ? (
+                <p className="mb-2 text-sm text-muted">{phrases.declarationsEmptyPointToWizard}</p>
+              ) : null}
               {listRows.length === 0 ? (
                 <p className="text-sm text-muted">{phrases.declarationsNoRows}</p>
               ) : (
@@ -1304,7 +1392,19 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                       const draft = draftByKey.get(row.key);
                       return (
                         <tr key={row.key} className="border-t border-border align-top">
-                          <td className="px-3 py-2 font-mono text-xs">{row.key}</td>
+                          <td className="px-3 py-2 font-mono text-xs">
+                            <span className="inline-flex flex-wrap items-center gap-1">
+                              {row.key}
+                              {!row.hasDraft && isClasspathSampleKey(kind, row.key) ? (
+                                <span
+                                  title={phrases.declarationsSampleHint}
+                                  className="rounded bg-background px-1 py-0.5 text-[10px] font-sans text-muted"
+                                >
+                                  {phrases.declarationsSampleBadge}
+                                </span>
+                              ) : null}
+                            </span>
+                          </td>
                           <td className="px-3 py-2 text-xs">
                             {row.hasDraft ? (draft?.revision ?? "—") : "—"}
                           </td>
@@ -1335,9 +1435,13 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
           )}
 
           {canWrite && tenantId.trim() ? (
-            <div className="rounded-lg border border-border bg-surface p-4">
-              <h2 className="mb-2 text-sm font-semibold">{phrases.declarationsNewTitle}</h2>
-              <div className="flex flex-wrap items-end gap-2">
+            <details className="rounded-lg border border-dashed border-border bg-surface/80 p-4">
+              <summary className="cursor-pointer text-sm font-medium text-muted">
+                {phrases.declarationsAdvancedSingleKindTitle}{" "}
+                <span className="font-normal">({kind})</span>
+              </summary>
+              <p className="mt-2 text-xs text-muted">{phrases.declarationsAdvancedSingleKindHint}</p>
+              <div className="mt-3 flex flex-wrap items-end gap-2">
                 <label className="flex flex-col gap-1 text-sm">
                   <span className="text-muted">{phrases.declarationsNewKeyLabel}</span>
                   <input
@@ -1350,7 +1454,7 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                 <button
                   type="button"
                   onClick={startNewDraft}
-                  className="rounded-md bg-accent px-2 py-1 text-xs text-white"
+                  className="rounded-md border border-border px-2 py-1 text-xs hover:bg-background"
                 >
                   {phrases.declarationsNewAction}
                 </button>
@@ -1360,7 +1464,7 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                   {editorProblem}
                 </p>
               ) : null}
-            </div>
+            </details>
           ) : null}
         </>
       )}

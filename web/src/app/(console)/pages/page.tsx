@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
-import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
+import { readDeclarationTenantId, readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 type PagesIndexDocument = {
   pages?: {
@@ -18,8 +18,9 @@ type PagesIndexDocument = {
 // Pages index — 页面目录：按检入的流程声明列出列表入口；标明权限，无权限则不给打开链接。
 export default async function PagesIndexPage() {
   const { language, phrases } = await currentLanguage();
+  const tenantId = await readDeclarationTenantId();
   const [indexRead, meRead] = await Promise.all([
-    readPlatform<PagesIndexDocument>("pages"),
+    readPlatform<PagesIndexDocument>("pages", { tenantId }),
     readPlatform<OperatorSelfDocument>("me"),
   ]);
   if (indexRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;

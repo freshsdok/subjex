@@ -14,6 +14,7 @@ import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.entity.declare.EntityCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.declaration.DeclarationMigrationApplyService;
+import com.subjex.platform.app.declaration.DeclarationMigrationAutoEnqueueService;
 import com.subjex.platform.app.declaration.DeclarationPromoteService;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.declaration.InternalDeclarationGit;
@@ -528,6 +529,19 @@ public class PlatformWiring {
     }
 
     /**
+     * Auto-enqueue ALTER ADD / CREATE on entity draft save (RT-4) —
+     * 实体草稿保存时自动入队 ALTER ADD / CREATE（RT-4）。
+     */
+    @Bean
+    DeclarationMigrationAutoEnqueueService declarationMigrationAutoEnqueueService(
+            JdbcDeclarationStore jdbcDeclarationStore,
+            JdbcDeclarationMigrationStore jdbcDeclarationMigrationStore,
+            EntityCatalog entityCatalog) {
+        return new DeclarationMigrationAutoEnqueueService(
+                jdbcDeclarationStore, jdbcDeclarationMigrationStore, entityCatalog);
+    }
+
+    /**
      * In-platform declaration git working tree (local commit only) — 平台内声明 git 工作树（仅本地提交）。
      */
     @Bean
@@ -559,11 +573,16 @@ public class PlatformWiring {
     @Bean
     EffectiveDeclarationService effectiveDeclarationService(
             JdbcDeclarationStore jdbcDeclarationStore,
+            JdbcDeclarationMigrationStore jdbcDeclarationMigrationStore,
             EntityCatalog entityCatalog,
             FormCatalog formCatalog,
             PageCatalog pageCatalog) {
         return new EffectiveDeclarationService(
-                jdbcDeclarationStore, entityCatalog, formCatalog, pageCatalog);
+                jdbcDeclarationStore,
+                jdbcDeclarationMigrationStore,
+                entityCatalog,
+                formCatalog,
+                pageCatalog);
     }
 
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import { platformPathFromApi } from "@/lib/page-flow";
-import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
+import { readDeclarationTenantId, readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { DeclaredSubmitForm } from "./submit-form";
 
 type PageFlowDocument = {
@@ -29,8 +29,9 @@ export default async function DeclaredSubmitPage({
 }) {
   const { flowKey } = await params;
   const { language, phrases } = await currentLanguage();
+  const tenantId = await readDeclarationTenantId();
   const [flowRead, meRead] = await Promise.all([
-    readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`),
+    readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`, { tenantId }),
     readPlatform<OperatorSelfDocument>("me"),
   ]);
   if (flowRead.status === 403) {
@@ -51,7 +52,9 @@ export default async function DeclaredSubmitPage({
       </section>
     );
   }
-  const formRead = await readPlatform<FormsDocument>(`forms/${encodeURIComponent(formKey)}`);
+  const formRead = await readPlatform<FormsDocument>(`forms/${encodeURIComponent(formKey)}`, {
+    tenantId,
+  });
   if (formRead.status === 403) {
     return <ForbiddenNotice phrases={phrases} permission="permission" />;
   }
@@ -79,7 +82,8 @@ export default async function DeclaredSubmitPage({
           {phrases.backToListAction}
         </Link>
       </p>
-      {/* No console tenant cookie yet — omit tenantId so pickers use text fallback. 尚无租户 cookie，不传 tenantId，选人/选部门退回文本。 */}
+      {/* Reuse subjex_declaration_tenant as runtime X-Tenant-Id for overlay + pickers.
+          复用声明租户 cookie 作运行时 X-Tenant-Id（覆盖与选人/选部门）。 */}
       <DeclaredSubmitForm
         formKey={formKey}
         formTitle={title ?? formKey}
@@ -89,6 +93,7 @@ export default async function DeclaredSubmitPage({
         canWrite={canWrite}
         writePermission={writePermission}
         phrases={phrases}
+        tenantId={tenantId || undefined}
       />
     </section>
   );

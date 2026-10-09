@@ -8,7 +8,7 @@ import {
   platformPathFromApi,
   recordDetailPlatformPath,
 } from "@/lib/page-flow";
-import { readPlatform } from "@/server/platform-reader";
+import { readDeclarationTenantId, readPlatform } from "@/server/platform-reader";
 
 type PageFlowDocument = {
   flowKey?: string;
@@ -26,7 +26,10 @@ export default async function DeclaredDetailPage({
 }) {
   const { flowKey, id } = await params;
   const { language, phrases } = await currentLanguage();
-  const flowRead = await readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`);
+  const tenantId = await readDeclarationTenantId();
+  const flowRead = await readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`, {
+    tenantId,
+  });
   if (flowRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   if (!flowRead.body?.detail?.apiPath || !flowRead.body.detail.idField) {
     return <LoadFailedNotice phrases={phrases} status={flowRead.status || 404} />;
@@ -37,6 +40,7 @@ export default async function DeclaredDetailPage({
   if (isGenericRecordsCollectionPath(detail.apiPath!)) {
     const oneRead = await readPlatform<Record<string, unknown>>(
       recordDetailPlatformPath(detail.apiPath!, id),
+      { tenantId },
     );
     if (
       oneRead.status === 200 &&
@@ -49,7 +53,9 @@ export default async function DeclaredDetailPage({
   }
 
   if (!row) {
-    const listRead = await readPlatform<unknown>(platformPathFromApi(detail.apiPath!));
+    const listRead = await readPlatform<unknown>(platformPathFromApi(detail.apiPath!), {
+      tenantId,
+    });
     if (listRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
     if (listRead.status >= 400) return <LoadFailedNotice phrases={phrases} status={listRead.status} />;
     const rows = itemsFromBody(listRead.body, detail.itemsKey);

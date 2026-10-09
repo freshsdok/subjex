@@ -5,12 +5,17 @@ export const declarationTenantCookieName = "subjex_declaration_tenant";
 export const DECLARATION_KINDS = ["entity", "form", "flow"] as const;
 export type DeclarationKind = (typeof DECLARATION_KINDS)[number];
 
-/** Known classpath sample keys by kind — 按种类的 classpath 样例键（无草稿时作提示）。 */
+/** Known classpath sample keys by kind — 回归样例键（非用户起点；列表标「样例」）。 */
 export const CLASSPATH_SAMPLE_KEYS: Record<DeclarationKind, readonly string[]> = {
   entity: ["demo-ticket", "service-note"],
   form: ["demo-ticket", "service-note", "endpoint-publication", "config-override"],
   flow: ["demo-ticket", "service-note", "endpoint-publication"],
 };
+
+/** Whether key is a known classpath regression sample — 是否为 classpath 回归样例键。 */
+export function isClasspathSampleKey(kind: DeclarationKind, key: string): boolean {
+  return (CLASSPATH_SAMPLE_KEYS[kind] as readonly string[]).includes(key);
+}
 
 const oneYearSeconds = 365 * 24 * 60 * 60;
 

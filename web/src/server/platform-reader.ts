@@ -9,6 +9,10 @@ import {
 } from "./operator-session";
 import { platformApiBase } from "./upstream";
 import type { components } from "@/api/schema";
+import {
+  declarationTenantCookieName,
+  parseDeclarationTenantCookie,
+} from "@/lib/declaration-draft";
 
 export type OperatorSelfDocument = components["schemas"]["OperatorSelfDocument"];
 
@@ -53,24 +57,38 @@ async function silentRefresh(
   return accessToken;
 }
 
+/** Read declaration tenant cookie (subjex_declaration_tenant) — 读声明租户 cookie。 */
+export async function readDeclarationTenantId(): Promise<string> {
+  const jar = await cookies();
+  return parseDeclarationTenantCookie(jar.get(declarationTenantCookieName)?.value);
+}
+
 // Server-side read of a platform JSON endpoint — 服务端直接读平台 JSON 接口；401 静默刷新一次。
-export async function readPlatform<Body>(platformPath: string): Promise<{ status: number; body?: Body }> {
+// Optional tenantId sends X-Tenant-Id (pages/* pass declaration tenant cookie).
+// 可选 tenantId 会带 X-Tenant-Id（页面目录用声明租户 cookie）。
+export async function readPlatform<Body>(
+  platformPath: string,
+  options?: { tenantId?: string | null },
+): Promise<{ status: number; body?: Body }> {
   const session = await requireOperatorSession();
-  let upstreamReply = await fetch(`${platformApiBase}/api/v1/${platformPath}`, {
-    headers: {
-      authorization: bearerAuthorizationHeader(session.accessToken),
+  const tenantId = (options?.tenantId ?? "").trim();
+  function headersFor(accessToken: string): Record<string, string> {
+    const headers: Record<string, string> = {
+      authorization: bearerAuthorizationHeader(accessToken),
       accept: "application/json",
-    },
+    };
+    if (tenantId) headers["X-Tenant-Id"] = tenantId;
+    return headers;
+  }
+  let upstreamReply = await fetch(`${platformApiBase}/api/v1/${platformPath}`, {
+    headers: headersFor(session.accessToken),
     cache: "no-store",
   });
   if (upstreamReply.status === 401) {
     const accessToken = await silentRefresh(session.sessionId, session.refreshToken);
     if (!accessToken) redirect("/login");
     upstreamReply = await fetch(`${platformApiBase}/api/v1/${platformPath}`, {
-      headers: {
-        authorization: bearerAuthorizationHeader(accessToken),
-        accept: "application/json",
-      },
+      headers: headersFor(accessToken),
       cache: "no-store",
     });
     if (upstreamReply.status === 401) redirect("/login");

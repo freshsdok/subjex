@@ -4,6 +4,7 @@ import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguratio
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR_PASSWORD;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER_PASSWORD;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -90,6 +91,9 @@ class DeclarationDraftSecurityTest {
 
     @MockitoBean
     private EffectiveDeclarationService effective;
+
+    @MockitoBean
+    private DeclarationMigrationAutoEnqueueService migrationAutoEnqueue;
 
     @BeforeEach
     void bareOperatorWithoutDeclarationPerms() {
@@ -201,6 +205,10 @@ class DeclarationDraftSecurityTest {
     void writerCanSaveValidYamlAndRejectsInvalid() throws Exception {
         when(store.saveDraft(eq("acme"), eq(DeclarationKind.ENTITY), eq("demo-ticket"), anyString(), anyString()))
                 .thenReturn(sampleRevision(1));
+        when(migrationAutoEnqueue.planForEntityYaml(eq("acme"), eq("demo-ticket"), anyString()))
+                .thenReturn(List.of());
+        when(migrationAutoEnqueue.enqueuePlanned(any(), any()))
+                .thenReturn(List.of());
 
         mockMvc.perform(put(DeclarationDraftEndpoint.PATH + "/entity/demo-ticket")
                         .param("tenantId", "acme")
@@ -226,6 +234,64 @@ class DeclarationDraftSecurityTest {
                         .content("{\"yamlBody\":\"not: valid: entity\\n\"}")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isBadRequest());
+    }
+
+
+    @Test
+    void unknownPermissionOnEntityDraftIs400() throws Exception {
+        String yaml =
+                """
+                entityKey: demo-ticket
+                tableName: demo_ticket
+                version: 2
+                permission: invented.perm
+                tenantScoped: false
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                """;
+        mockMvc.perform(put(DeclarationDraftEndpoint.PATH + "/entity/demo-ticket")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"yamlBody\":" + jsonString(yaml) + "}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value(org.hamcrest.Matchers.containsString("platform catalog")));
+        verifyNoInteractions(store);
+    }
+
+    @Test
+    void formEffectExtensionInvokeOnDraftIs400() throws Exception {
+        String yaml =
+                """
+                formKey: demo-ticket
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                domainAction: entity.record.upsert
+                entityKey: demo-ticket
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                effects:
+                  - key: extension.invoke
+                    params:
+                      extensionName: task-delivery
+                """;
+        mockMvc.perform(put(DeclarationDraftEndpoint.PATH + "/form/demo-ticket")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"yamlBody\":" + jsonString(yaml) + "}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value(org.hamcrest.Matchers.containsString("whitelist")));
+        verifyNoInteractions(store);
     }
 
     @Test

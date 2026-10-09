@@ -220,4 +220,42 @@ class EntityGeneratorTest {
         }
     }
 
+
+    @Test
+    void createTableStatementStartsWithoutComments() {
+        RenderedEntity entity = new EntityRenderer().render("""
+                entityKey: scoped-ticket
+                tableName: scoped_ticket
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 200
+                """);
+        String stmt = new EntityMigrationGenerator().createTableStatement(entity);
+        assertTrue(stmt.startsWith("CREATE TABLE scoped_ticket"));
+        assertFalse(stmt.startsWith("--"));
+        assertTrue(stmt.contains("tenant_id VARCHAR(64) NOT NULL"));
+    }
+
+    @Test
+    void addColumnStatementIncludesTypeAndNullability() {
+        EntityField optional = new EntityField("location", EntityFieldKind.TEXT, false, 200);
+        EntityField required = new EntityField("urgency", EntityFieldKind.TEXT, true, 32);
+        EntityMigrationGenerator gen = new EntityMigrationGenerator();
+        assertEquals(
+                "ALTER TABLE repair_ticket ADD COLUMN location VARCHAR(200)",
+                gen.addColumnStatement("repair_ticket", optional));
+        assertEquals(
+                "ALTER TABLE repair_ticket ADD COLUMN urgency VARCHAR(32) NOT NULL",
+                gen.addColumnStatement("repair_ticket", required));
+    }
+
 }

@@ -12,6 +12,7 @@ import com.subjex.form.render.FieldKind;
 import com.subjex.form.render.FormField;
 import com.subjex.form.render.RenderedForm;
 import com.subjex.form.render.SideEffectKey;
+import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorPrincipal;
@@ -26,7 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 /**
- * FormSideEffectRunnerTest — 表单副作用执行测试：声明的审计与任务经端口调用；未知扩展拒绝。
+ * FormSideEffectRunnerTest — 表单副作用执行测试：声明的审计与任务经端口调用；审计载荷含版本关联；未知扩展拒绝。
  */
 class FormSideEffectRunnerTest {
 
@@ -38,6 +39,7 @@ class FormSideEffectRunnerTest {
     @Test
     void runsAuditAndTaskWhenDeclared() {
         RenderedForm form = formWithEffects(
+                "demo-entity",
                 new DeclaredEffect(
                         SideEffectKey.AUDIT_WRITE,
                         Map.of("actionName", "registry.register", "actionTargetField", "serviceName")),
@@ -45,39 +47,93 @@ class FormSideEffectRunnerTest {
                         SideEffectKey.TASK_ENQUEUE,
                         Map.of("stepName", "endpoint-published", "taskKind", "DETERMINISTIC")));
         OperatorPrincipal operator = operator();
-        var outcomes = runner.run(form, Map.of("serviceName", "billing"), operator, null);
+        var outcomes =
+                runner.run(form, Map.of("serviceName", "billing"), operator, "acme", EffectiveDeclarationService.SOURCE_PROMOTED);
         assertEquals(2, outcomes.size());
         assertEquals("audit.write", outcomes.get(0).key());
         assertEquals("ok", outcomes.get(0).outcome());
         assertEquals("task.enqueue", outcomes.get(1).key());
 
-        verify(audit).record(operator, "registry.register", "billing", AuditOutcome.ALLOWED);
+        verify(audit)
+                .recordFormEffect(
+                        operator,
+                        "acme",
+                        "registry.register",
+                        "billing",
+                        "demo-entity",
+                        1,
+                        EffectiveDeclarationService.SOURCE_PROMOTED,
+                        AuditOutcome.ALLOWED);
         ArgumentCaptor<TaskCommand> command = ArgumentCaptor.forClass(TaskCommand.class);
         verify(tasks).submit(command.capture());
         TaskCommand submitted = command.getValue();
-        assertEquals("platform", submitted.tenantId());
+        assertEquals("acme", submitted.tenantId());
         assertEquals(TaskKind.DETERMINISTIC, submitted.taskKind());
         assertEquals("endpoint-published", submitted.stepName());
         assertEquals("identity-1", submitted.actorIdentityId());
     }
 
     @Test
+    void auditPayloadIncludesTenantActorEntityAndRevision() {
+        RenderedForm form = formWithEffects(
+                "repair-ticket",
+                new DeclaredEffect(
+                        SideEffectKey.AUDIT_WRITE,
+                        Map.of("actionName", "entity.record.upsert", "actionTargetField", "ticketId")));
+        OperatorPrincipal operator = operator();
+        runner.run(
+                form,
+                Map.of("ticketId", "T-1"),
+                operator,
+                "tenant-a",
+                EffectiveDeclarationService.SOURCE_DRAFT);
+
+        ArgumentCaptor<String> tenant = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> action = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> target = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> entity = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Integer> version = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<String> source = ArgumentCaptor.forClass(String.class);
+        verify(audit)
+                .recordFormEffect(
+                        org.mockito.ArgumentMatchers.eq(operator),
+                        tenant.capture(),
+                        action.capture(),
+                        target.capture(),
+                        entity.capture(),
+                        version.capture(),
+                        source.capture(),
+                        org.mockito.ArgumentMatchers.eq(AuditOutcome.ALLOWED));
+        assertEquals("tenant-a", tenant.getValue());
+        assertEquals("entity.record.upsert", action.getValue());
+        assertEquals("T-1", target.getValue());
+        assertEquals("repair-ticket", entity.getValue());
+        assertEquals(1, version.getValue());
+        assertEquals(EffectiveDeclarationService.SOURCE_DRAFT, source.getValue());
+        assertEquals("identity-1", operator.identityId());
+    }
+
+    @Test
     void invokesKnownExtension() {
-        RenderedForm form = formWithEffects(new DeclaredEffect(
-                SideEffectKey.EXTENSION_INVOKE, Map.of("extensionName", "task-delivery")));
-        runner.run(form, Map.of(), operator(), null);
+        RenderedForm form = formWithEffects(
+                null,
+                new DeclaredEffect(SideEffectKey.EXTENSION_INVOKE, Map.of("extensionName", "task-delivery")));
+        runner.run(form, Map.of(), operator(), null, EffectiveDeclarationService.SOURCE_CLASSPATH);
         verifyNoInteractions(audit);
         verifyNoInteractions(tasks);
     }
 
     @Test
     void unknownExtensionIsRejected() {
-        RenderedForm form = formWithEffects(new DeclaredEffect(
-                SideEffectKey.EXTENSION_INVOKE, Map.of("extensionName", "no-such-extension")));
-        assertThrows(IllegalArgumentException.class, () -> runner.run(form, Map.of(), operator(), null));
+        RenderedForm form = formWithEffects(
+                null,
+                new DeclaredEffect(SideEffectKey.EXTENSION_INVOKE, Map.of("extensionName", "no-such-extension")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> runner.run(form, Map.of(), operator(), null, EffectiveDeclarationService.SOURCE_CLASSPATH));
     }
 
-    private static RenderedForm formWithEffects(DeclaredEffect... effects) {
+    private static RenderedForm formWithEffects(String entityKey, DeclaredEffect... effects) {
         return new RenderedForm(
                 "demo",
                 "Demo",
@@ -86,7 +142,7 @@ class FormSideEffectRunnerTest {
                 "registry.write",
                 false,
                 DomainActionKey.REGISTRY_REGISTER,
-                null,
+                entityKey,
                 "Demo",
                 List.of(new FormField("serviceName", FieldKind.TEXT, true, null, null, 64, List.of())),
                 List.of(effects));

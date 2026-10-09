@@ -1,5 +1,7 @@
 // Entity draft wizard helpers — 实体草稿向导：从 YAML 解析/写回（无 yaml 依赖；首字段视为主键）。
 
+import { DEFAULT_DECLARATION_PERMISSION } from "@/lib/declaration-permission-catalog";
+
 export const ENTITY_FIELD_KINDS = [
   "text",
   "integer",
@@ -107,7 +109,7 @@ export function emptyEntityWizard(entityKey = "example-key"): EntityWizardState 
     entityKey: key,
     tableName: key.replace(/-/g, "_"),
     version: 1,
-    permission: "page.read",
+    permission: DEFAULT_DECLARATION_PERMISSION,
     tenantScoped: false,
     fields: [{ ...blankField("id"), required: true, maxLength: 64 }],
   };
@@ -241,7 +243,7 @@ export function applyEntityWizardToYaml(_yaml: string, state: EntityWizardState)
   const entityKey = state.entityKey.trim() || "untitled";
   const tableName = state.tableName.trim() || entityKey.replace(/-/g, "_");
   const version = state.version >= 1 ? Math.floor(state.version) : 1;
-  const permission = state.permission.trim() || "page.read";
+  const permission = state.permission.trim() || DEFAULT_DECLARATION_PERMISSION;
   const fields =
     state.fields.length > 0
       ? state.fields

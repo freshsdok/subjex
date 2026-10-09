@@ -2,6 +2,7 @@ package com.subjex.platform.app.form;
 
 import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.api.JsonApi;
+import com.subjex.platform.app.declaration.DeclarationKind;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.declaration.TenantDeclarationContext;
 import com.subjex.platform.app.security.AccessAction;
@@ -11,8 +12,9 @@ import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,12 +28,9 @@ import org.springframework.web.server.ResponseStatusException;
  * FormsApiEndpoint — 表单接口：目录索引列出每一份表单的键、标题、版本、权限、租户标志与领域动作；详情给出字段。
  * <p>
  * Index needs {@code page.read} at the security layer and exposes declaration flags for the console.
- * Detail checks the form's declared permission (fail-closed) and tenant when {@code tenantScoped}.
- * With non-blank {@code X-Tenant-Id}, detail uses DB draft overlay via {@link EffectiveDeclarationService}
- * when present; otherwise classpath {@link FormCatalog}.
- * 目录在安全层要 {@code page.read}，并暴露声明上的权限/租户标志供控制台显隐。
- * 详情按表单声明的权限检查（失败关闭）；{@code tenantScoped} 时再过租户门禁。
- * 带租户头时详情优先库内草稿覆盖，否则 classpath。
+ * With non-blank {@code X-Tenant-Id} (and tenant grant), index merges classpath with effective tenant
+ * declarations (DRAFT/PROMOTED keys). Detail uses the same overlay; otherwise classpath {@link FormCatalog}.
+ * 目录在安全层要 {@code page.read}；带租户头时合并租户生效声明。详情同样覆盖，否则 classpath。
  */
 @RestController
 public class FormsApiEndpoint {
@@ -56,19 +55,33 @@ public class FormsApiEndpoint {
     }
 
     @GetMapping(PATH)
-    public FormsIndexDocument index() {
-        List<FormIndexDocument> forms = catalog.list().stream()
-                .map(form -> new FormIndexDocument(
-                        form.formKey(),
-                        form.titleZh(),
-                        form.titleEn(),
-                        form.version(),
-                        form.permission(),
-                        form.tenantScoped(),
-                        form.domainAction().key(),
-                        form.entityKey()))
-                .toList();
-        return new FormsIndexDocument(forms);
+    public FormsIndexDocument index(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
+        Map<String, FormIndexDocument> byKey = new LinkedHashMap<>();
+        for (RenderedForm form : catalog.list()) {
+            byKey.put(form.formKey(), toIndex(form));
+        }
+        if (TenantDeclarationContext.overlayRequested(tenantId)) {
+            String tid = tenantId.trim();
+            tenantAccess.requireGranted(operator, tid);
+            for (String key : effective.tenantDeclarationKeys(tid, DeclarationKind.FORM)) {
+                effective.effectiveForm(tid, key).ifPresent(form -> byKey.put(form.formKey(), toIndex(form)));
+            }
+        }
+        return new FormsIndexDocument(List.copyOf(byKey.values()));
+    }
+
+    private static FormIndexDocument toIndex(RenderedForm form) {
+        return new FormIndexDocument(
+                form.formKey(),
+                form.titleZh(),
+                form.titleEn(),
+                form.version(),
+                form.permission(),
+                form.tenantScoped(),
+                form.domainAction().key(),
+                form.entityKey());
     }
 
     @GetMapping(PATH + "/{formKey}")
@@ -76,7 +89,7 @@ public class FormsApiEndpoint {
             @PathVariable("formKey") String formKey,
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
-        RenderedForm form = resolveForm(formKey, operator, tenantId);
+        RenderedForm form = resolveForm(formKey, tenantId);
         DeclarationAccess.require(
                 operator,
                 form.permission(),
@@ -86,10 +99,13 @@ public class FormsApiEndpoint {
                 tenantAccess,
                 AccessResource.of("form", formKey),
                 AccessAction.of("read"));
+        if (TenantDeclarationContext.overlayRequested(tenantId) && !form.tenantScoped()) {
+            tenantAccess.requireGranted(operator, tenantId.trim());
+        }
         List<FieldDocument> fields = form.fields().stream()
                 .map(field -> new FieldDocument(
                         field.name(),
-                        field.kind().name().toLowerCase(Locale.ROOT),
+                        field.kind().wireName(),
                         field.required(),
                         field.enumValues()))
                 .toList();
@@ -105,9 +121,8 @@ public class FormsApiEndpoint {
                 fields);
     }
 
-    private RenderedForm resolveForm(String formKey, OperatorPrincipal operator, String tenantId) {
+    private RenderedForm resolveForm(String formKey, String tenantId) {
         if (TenantDeclarationContext.overlayRequested(tenantId)) {
-            tenantAccess.requireGranted(operator, tenantId.trim());
             return effective
                     .effectiveForm(tenantId.trim(), formKey)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));

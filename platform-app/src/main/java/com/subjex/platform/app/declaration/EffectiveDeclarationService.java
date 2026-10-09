@@ -9,14 +9,16 @@ import com.subjex.page.declare.PageRenderer;
 import com.subjex.page.declare.RenderedFlow;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.platform.app.page.PageCatalog;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * EffectiveDeclarationService — 生效声明：租户 DRAFT / PROMOTED 覆盖 classpath。
  * <p>
- * Load order when a tenant is in play (explicit hot-reload):
+ * Load order when a tenant is in play (explicit hot-reload / {@code /effective}):
  * <ol>
  *   <li>open {@code DRAFT} ({@link JdbcDeclarationStore#latestDraft})</li>
  *   <li>else latest {@code PROMOTED} ({@link JdbcDeclarationStore#latestPromoted}) — hot-reload path</li>
@@ -24,11 +26,19 @@ import java.util.function.Function;
  * </ol>
  * Callers opt in via this service / {@code /effective}, or via runtime helpers when
  * {@link TenantDeclarationContext#overlayRequested(String)} (non-blank {@code X-Tenant-Id}).
- * JDBC entity paths use {@link #runtimeEntity(String, String)} (safe overlay: classpath must
- * exist and tableName + PK must match; otherwise 409 / missing).
- * 加载顺序（有租户时）：未晋升草稿 → 已晋升（热加载）→ classpath。调用方经本服务、{@code /effective}，
- * 或在带租户头时经运行时解析选用。实体 JDBC 路径用 {@link #runtimeEntity}（安全覆盖：须有 classpath
- * 且表名+主键一致）。
+ * <p>
+ * Pages: {@link #effectiveRuntimePages} / {@link #effectiveFlow} — no write-side page materialization;
+ * FLOW promote runs {@link DeclarationRuntimePages#ensureAfterFlowPromote(String)} for path/block contract.
+ * <p>
+ * JDBC entity paths use {@link #runtimeEntity(String, String)}:
+ * <ul>
+ *   <li>Classpath samples: DRAFT &gt; PROMOTED overlay only when {@code tableName} + PK match (else 409).</li>
+ *   <li>No-classpath (tenant-only) entities: {@code PROMOTED} only, and schema migration for that
+ *       revision must be settled with at least one {@code APPLIED} row (open PENDING/REVIEWED/FAILED →
+ *       409; no APPLIED → empty / 404). DRAFT must not drive JDBC for brand-new tables.</li>
+ * </ul>
+ * 加载顺序（有租户时）：未晋升草稿 → 已晋升（热加载）→ classpath。
+ * 实体 JDBC：classpath 样例仍可草稿覆盖（表名+主键一致）；无 classpath 的新实体仅 PROMOTED 且迁移已 APPLIED。
  */
 public final class EffectiveDeclarationService {
 
@@ -40,6 +50,7 @@ public final class EffectiveDeclarationService {
     public static final String SOURCE_CLASSPATH = "classpath";
 
     private final JdbcDeclarationStore store;
+    private final JdbcDeclarationMigrationStore migrationStore;
     private final EntityCatalog entityCatalog;
     private final FormCatalog formCatalog;
     private final PageCatalog pageCatalog;
@@ -48,9 +59,14 @@ public final class EffectiveDeclarationService {
     private final PageRenderer pageRenderer;
 
     public EffectiveDeclarationService(
-            JdbcDeclarationStore store, EntityCatalog entityCatalog, FormCatalog formCatalog, PageCatalog pageCatalog) {
+            JdbcDeclarationStore store,
+            JdbcDeclarationMigrationStore migrationStore,
+            EntityCatalog entityCatalog,
+            FormCatalog formCatalog,
+            PageCatalog pageCatalog) {
         this(
                 store,
+                migrationStore,
                 entityCatalog,
                 formCatalog,
                 pageCatalog,
@@ -61,6 +77,7 @@ public final class EffectiveDeclarationService {
 
     EffectiveDeclarationService(
             JdbcDeclarationStore store,
+            JdbcDeclarationMigrationStore migrationStore,
             EntityCatalog entityCatalog,
             FormCatalog formCatalog,
             PageCatalog pageCatalog,
@@ -68,6 +85,7 @@ public final class EffectiveDeclarationService {
             FormRenderer formRenderer,
             PageRenderer pageRenderer) {
         this.store = Objects.requireNonNull(store, "store");
+        this.migrationStore = Objects.requireNonNull(migrationStore, "migrationStore");
         this.entityCatalog = Objects.requireNonNull(entityCatalog, "entityCatalog");
         this.formCatalog = Objects.requireNonNull(formCatalog, "formCatalog");
         this.pageCatalog = Objects.requireNonNull(pageCatalog, "pageCatalog");
@@ -117,14 +135,35 @@ public final class EffectiveDeclarationService {
     }
 
     /**
+     * Runtime page paths from the effective flow (RT-5; no separate page YAML) —
+     * 从生效流程得到运行时页面路径（RT-5；无独立 page YAML）。Empty when no flow resolves.
+     */
+    public Optional<DeclarationRuntimePages.Binding> effectiveRuntimePages(String tenantId, String flowKey) {
+        return effectiveFlow(tenantId, flowKey).map(DeclarationRuntimePages::fromFlow);
+    }
+
+    /**
+     * Declaration keys present in the tenant store (latest revision per key) —
+     * 租户库内声明键（每键最新修订），供目录索引与 classpath 合并。
+     */
+    public List<String> tenantDeclarationKeys(String tenantId, DeclarationKind kind) {
+        return store.listLatest(tenantId, Objects.requireNonNull(kind, "kind")).stream()
+                .map(DeclarationRevision::declarationKey)
+                .toList();
+    }
+
+    /**
      * Entity metadata for JDBC / generic CRUD — 供 JDBC / 通用 CRUD 用的实体元数据。
      * <p>
-     * No tenant header → classpath only. With tenant + DRAFT or PROMOTED overlay: only when a
-     * classpath entity exists and {@code tableName} + primary-key name match; otherwise
-     * {@link DeclarationOverlayConflict} (409). Draft/promoted-only keys (no classpath) are not
-     * overlaid on the JDBC path (empty → 404).
-     * 无租户头 → 仅 classpath。有租户且有 DRAFT/PROMOTED：仅当 classpath 存在且表名+主键名一致时覆盖；
-     * 否则 {@link DeclarationOverlayConflict}（409）。仅库内无 classpath 的键不在 JDBC 路径覆盖（空 → 404）。
+     * No tenant header → classpath only. With tenant:
+     * <ul>
+     *   <li>Classpath entity: DRAFT else PROMOTED overlay when tableName + PK match; else
+     *       {@link DeclarationOverlayConflict} (409). Missing overlay → classpath.</li>
+     *   <li>No classpath: only latest {@code PROMOTED}; migrations for that revision must all be
+     *       {@code APPLIED} or {@code CANCELLED}, and at least one {@code APPLIED} (table exists).
+     *       Open migrations → {@link DeclarationPromoteBlockedByMigration} (409). DRAFT-only or no
+     *       APPLIED → empty (404).</li>
+     * </ul>
      */
     public Optional<RenderedEntity> runtimeEntity(String tenantHeader, String entityKey) {
         String key = requireKey(entityKey);
@@ -133,18 +172,29 @@ public final class EffectiveDeclarationService {
         }
         String tenant = tenantHeader.trim();
         Optional<RenderedEntity> classpath = entityCatalog.find(key);
+        if (classpath.isPresent()) {
+            return runtimeOverlayClasspath(tenant, key, classpath.get());
+        }
+        return runtimePromotedNoClasspath(tenant, key);
+    }
+
+    /**
+     * Whether an open entity DRAFT exists (not PROMOTED) — 是否存在未晋升的实体草稿（不含已晋升）。
+     */
+    public boolean hasEntityDraft(String tenantId, String entityKey) {
+        return store.latestDraft(tenantId, DeclarationKind.ENTITY, requireKey(entityKey)).isPresent();
+    }
+
+    private Optional<RenderedEntity> runtimeOverlayClasspath(
+            String tenant, String key, RenderedEntity base) {
         Optional<DeclarationRevision> overlay = store.latestDraft(tenant, DeclarationKind.ENTITY, key);
         if (overlay.isEmpty()) {
             overlay = store.latestPromoted(tenant, DeclarationKind.ENTITY, key);
         }
         if (overlay.isEmpty()) {
-            return classpath;
-        }
-        if (classpath.isEmpty()) {
-            return Optional.empty();
+            return Optional.of(base);
         }
         RenderedEntity overlaid = entityRenderer.render(overlay.get().yamlBody());
-        RenderedEntity base = classpath.get();
         if (!Objects.equals(base.tableName(), overlaid.tableName())
                 || !Objects.equals(base.primaryKey().name(), overlaid.primaryKey().name())) {
             throw new DeclarationOverlayConflict(
@@ -153,11 +203,47 @@ public final class EffectiveDeclarationService {
         return Optional.of(overlaid);
     }
 
+    private Optional<RenderedEntity> runtimePromotedNoClasspath(String tenant, String key) {
+        Optional<DeclarationRevision> promoted = store.latestPromoted(tenant, DeclarationKind.ENTITY, key);
+        if (promoted.isEmpty()) {
+            // DRAFT-only or missing — never drive JDBC for brand-new tables from DRAFT.
+            // 仅草稿或缺失 — 新表禁止用 DRAFT 驱动 JDBC。
+            return Optional.empty();
+        }
+        requirePromotedSchemaReady(tenant, key, promoted.get().revision());
+        return Optional.of(entityRenderer.render(promoted.get().yamlBody()));
+    }
+
     /**
-     * Whether an open entity DRAFT exists (not PROMOTED) — 是否存在未晋升的实体草稿（不含已晋升）。
+     * Same settle rule as promote bind, plus require at least one APPLIED (table present) —
+     * 与晋升绑定相同的结清规则，并要求至少一条 APPLIED（表已存在）。
      */
-    public boolean hasEntityDraft(String tenantId, String entityKey) {
-        return store.latestDraft(tenantId, DeclarationKind.ENTITY, requireKey(entityKey)).isPresent();
+    private void requirePromotedSchemaReady(String tenant, String key, int revision) {
+        List<DeclarationMigration> rows =
+                migrationStore.listForRevision(tenant, DeclarationKind.ENTITY, key, revision);
+        List<DeclarationMigration> blockers = rows.stream()
+                .filter(m -> !JdbcDeclarationMigrationStore.APPLIED.equals(m.status())
+                        && !JdbcDeclarationMigrationStore.CANCELLED.equals(m.status()))
+                .toList();
+        if (!blockers.isEmpty()) {
+            String statuses = blockers.stream()
+                    .map(m -> m.migrationId() + "=" + m.status())
+                    .collect(Collectors.joining(", "));
+            throw new DeclarationPromoteBlockedByMigration(
+                    "runtime entity blocked until migrations for revision "
+                            + revision
+                            + " are APPLIED or CANCELLED ("
+                            + statuses
+                            + "); apply schema before JDBC for no-classpath entities");
+        }
+        boolean anyApplied = rows.stream()
+                .anyMatch(m -> JdbcDeclarationMigrationStore.APPLIED.equals(m.status()));
+        if (!anyApplied) {
+            throw new DeclarationPromoteBlockedByMigration(
+                    "runtime entity requires at least one APPLIED migration for revision "
+                            + revision
+                            + " (no-classpath table); enqueue → review → apply before JDBC");
+        }
     }
 
     private <T> Optional<T> resolveOverlay(

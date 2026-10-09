@@ -10,7 +10,7 @@ import {
   platformPathWithListFilter,
 } from "@/lib/list-filter-query";
 import { itemsFromBody, platformPathFromApi } from "@/lib/page-flow";
-import { readPlatform } from "@/server/platform-reader";
+import { readDeclarationTenantId, readPlatform } from "@/server/platform-reader";
 
 type PageFlowDocument = {
   flowKey?: string;
@@ -36,7 +36,10 @@ export default async function DeclaredListPage({
   const { flowKey } = await params;
   const rawSearch = await searchParams;
   const { language, phrases } = await currentLanguage();
-  const flowRead = await readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`);
+  const tenantId = await readDeclarationTenantId();
+  const flowRead = await readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`, {
+    tenantId,
+  });
   if (flowRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   if (!flowRead.body?.list?.apiPath || !flowRead.body.detail?.idField) {
     return <LoadFailedNotice phrases={phrases} status={flowRead.status || 404} />;
@@ -47,7 +50,7 @@ export default async function DeclaredListPage({
   const filterParams = supportsFilter ? parseListFilterSearchParams(rawSearch) : {};
   const listBase = platformPathFromApi(apiPath);
   const listPath = supportsFilter ? platformPathWithListFilter(listBase, filterParams) : listBase;
-  const listRead = await readPlatform<unknown>(listPath);
+  const listRead = await readPlatform<unknown>(listPath, { tenantId });
   if (listRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   if (listRead.status >= 400) return <LoadFailedNotice phrases={phrases} status={listRead.status} />;
   const rows = itemsFromBody(listRead.body, flow.list?.itemsKey);

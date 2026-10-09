@@ -2,6 +2,7 @@ package com.subjex.platform.app.page;
 
 import com.subjex.page.declare.RenderedFlow;
 import com.subjex.platform.app.api.JsonApi;
+import com.subjex.platform.app.declaration.DeclarationKind;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.declaration.TenantDeclarationContext;
 import com.subjex.platform.app.security.AccessAction;
@@ -11,7 +12,9 @@ import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,13 +27,13 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * PagesApiEndpoint — 页面接口：目录索引列出每一份流程的键、标题、版本、权限与租户标志；详情给出三页描述。
  * <p>
- * Index needs {@code page.read} at the security layer and exposes declaration flags for the console.
- * Detail checks the flow's declared permission (fail-closed) and tenant when {@code tenantScoped}.
- * With non-blank {@code X-Tenant-Id}, detail uses DB draft overlay via {@link EffectiveDeclarationService}
- * when present; otherwise classpath {@link PageCatalog}.
- * 目录在安全层要 {@code page.read}，并暴露声明上的权限/租户标志供控制台显隐。
- * 详情按流程声明的权限检查（失败关闭）；{@code tenantScoped} 时再过租户门禁。
- * 带租户头时详情优先库内草稿覆盖，否则 classpath。
+ * Index needs {@code page.read}. With non-blank {@code X-Tenant-Id} (and grant), merges classpath
+ * with effective tenant flows (DRAFT &gt; PROMOTED &gt; classpath). Detail uses the same overlay;
+ * else classpath. RT-5: no separate page YAML — promoting a FLOW only ensures fixed
+ * {@code /pages/{key}} paths (see {@link com.subjex.platform.app.declaration.DeclarationRuntimePages});
+ * catalog entries appear from the promoted (or draft) flow at read time.
+ * 目录要 {@code page.read}；带租户头合并租户生效流程（草稿 &gt; 已晋升 &gt; classpath）。
+ * RT-5：不另写 page YAML；晋升 FLOW 只校验固定路径，目录在读时从生效 flow 出现。
  */
 @RestController
 public class PagesApiEndpoint {
@@ -55,19 +58,33 @@ public class PagesApiEndpoint {
     }
 
     @GetMapping(PATH)
-    public PagesIndexDocument index() {
-        List<PageIndexDocument> pages = catalog.list().stream()
-                .map(flow -> new PageIndexDocument(
-                        flow.flowKey(),
-                        flow.titleZh(),
-                        flow.titleEn(),
-                        flow.formKey(),
-                        flow.entityKey(),
-                        flow.version(),
-                        flow.permission(),
-                        flow.tenantScoped()))
-                .toList();
-        return new PagesIndexDocument(pages);
+    public PagesIndexDocument index(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
+        Map<String, PageIndexDocument> byKey = new LinkedHashMap<>();
+        for (RenderedFlow flow : catalog.list()) {
+            byKey.put(flow.flowKey(), toIndex(flow));
+        }
+        if (TenantDeclarationContext.overlayRequested(tenantId)) {
+            String tid = tenantId.trim();
+            tenantAccess.requireGranted(operator, tid);
+            for (String key : effective.tenantDeclarationKeys(tid, DeclarationKind.FLOW)) {
+                effective.effectiveFlow(tid, key).ifPresent(flow -> byKey.put(flow.flowKey(), toIndex(flow)));
+            }
+        }
+        return new PagesIndexDocument(List.copyOf(byKey.values()));
+    }
+
+    private static PageIndexDocument toIndex(RenderedFlow flow) {
+        return new PageIndexDocument(
+                flow.flowKey(),
+                flow.titleZh(),
+                flow.titleEn(),
+                flow.formKey(),
+                flow.entityKey(),
+                flow.version(),
+                flow.permission(),
+                flow.tenantScoped());
     }
 
     @GetMapping(PATH + "/{flowKey}")
@@ -75,7 +92,7 @@ public class PagesApiEndpoint {
             @PathVariable("flowKey") String flowKey,
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
-        RenderedFlow flow = resolveFlow(flowKey, operator, tenantId);
+        RenderedFlow flow = resolveFlow(flowKey, tenantId);
         DeclarationAccess.require(
                 operator,
                 flow.permission(),
@@ -85,6 +102,9 @@ public class PagesApiEndpoint {
                 tenantAccess,
                 AccessResource.of("flow", flowKey),
                 AccessAction.of("read"));
+        if (TenantDeclarationContext.overlayRequested(tenantId) && !flow.tenantScoped()) {
+            tenantAccess.requireGranted(operator, tenantId.trim());
+        }
         return new PageFlowDocument(
                 flow.flowKey(),
                 flow.titleZh(),
@@ -110,9 +130,8 @@ public class PagesApiEndpoint {
                         flow.submit().capabilityId()));
     }
 
-    private RenderedFlow resolveFlow(String flowKey, OperatorPrincipal operator, String tenantId) {
+    private RenderedFlow resolveFlow(String flowKey, String tenantId) {
         if (TenantDeclarationContext.overlayRequested(tenantId)) {
-            tenantAccess.requireGranted(operator, tenantId.trim());
             return effective
                     .effectiveFlow(tenantId.trim(), flowKey)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));

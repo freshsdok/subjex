@@ -10,6 +10,7 @@ import {
   declarationTenantCookieName,
   declarationTenantCookieWrite,
   isDeclarationKind,
+  isClasspathSampleKey,
   mergeDraftAndClasspathKeys,
   migrationBlocksPromote,
   normalizeDeclarationKind,
@@ -41,6 +42,8 @@ describe("declaration-draft — 声明草稿辅助", () => {
     expect(rows.find((r) => r.key === "demo-ticket")).toEqual({ key: "demo-ticket", hasDraft: true });
     expect(rows.find((r) => r.key === "service-note")).toEqual({ key: "service-note", hasDraft: false });
     expect(CLASSPATH_SAMPLE_KEYS.form).toContain("config-override");
+    expect(isClasspathSampleKey("entity", "demo-ticket")).toBe(true);
+    expect(isClasspathSampleKey("entity", "repair-ticket")).toBe(false);
   });
 
   it("builds cookie write and templates — 生成 cookie 与模板", () => {

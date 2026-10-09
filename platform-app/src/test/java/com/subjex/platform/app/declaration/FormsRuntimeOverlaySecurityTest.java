@@ -109,10 +109,18 @@ class FormsRuntimeOverlaySecurityTest {
         }
 
         @Bean
+        JdbcDeclarationMigrationStore jdbcDeclarationMigrationStore(JdbcTemplate jdbc) {
+            return new JdbcDeclarationMigrationStore(jdbc, CLOCK);
+        }
+
+        @Bean
         EffectiveDeclarationService effectiveDeclarationService(
-                JdbcDeclarationStore jdbcDeclarationStore, FormCatalog formCatalog) {
+                JdbcDeclarationStore jdbcDeclarationStore,
+                JdbcDeclarationMigrationStore jdbcDeclarationMigrationStore,
+                FormCatalog formCatalog) {
             return new EffectiveDeclarationService(
                     jdbcDeclarationStore,
+                    jdbcDeclarationMigrationStore,
                     EntityCatalog.load(EntityCatalog.class.getClassLoader()),
                     formCatalog,
                     new PageCatalog());

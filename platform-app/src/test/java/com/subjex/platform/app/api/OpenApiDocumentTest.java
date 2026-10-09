@@ -20,6 +20,7 @@ import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.ServiceListApiEndpoint;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
+import com.subjex.platform.app.declaration.JdbcDeclarationMigrationStore;
 import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.entity.declare.EntityCatalog;
@@ -194,6 +195,7 @@ class OpenApiDocumentTest {
             when(store.latest(any(), any(), any())).thenReturn(Optional.empty());
             return new EffectiveDeclarationService(
                     store,
+                    mock(JdbcDeclarationMigrationStore.class),
                     EntityCatalog.load(EntityCatalog.class.getClassLoader()),
                     formCatalog,
                     pageCatalog);

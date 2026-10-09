@@ -27,9 +27,13 @@ import org.springframework.web.server.ResponseStatusException;
  * <p>
  * Query {@code tenantId} required (400 if blank). Operator must hold a tenant grant.
  * GET needs {@code declaration.read}; PUT needs {@code declaration.write}. YAML validated
- * with EntityRenderer / FormRenderer / PageRenderer before save.
+ * with EntityRenderer / FormRenderer / PageRenderer before save, then RT-3 pick-only
+ * permission catalog + form effect whitelist ({@code audit.write}|{@code task.enqueue}).
+ * Entity PUT also auto-enqueues PENDING ALTER ADD / CREATE via
+ * {@link DeclarationMigrationAutoEnqueueService} (RT-4); still PENDING until review/apply.
  * 查询参数 {@code tenantId} 必填（空则 400）。操作员须有租户授权。
- * GET 要 {@code declaration.read}；PUT 要 {@code declaration.write}。保存前用对应渲染器校验 YAML。
+ * GET 要 {@code declaration.read}；PUT 要 {@code declaration.write}。保存前渲染校验 YAML，并做权限目录与表单副作用白名单（RT-3）。
+ * 实体 PUT 会自动入队 PENDING 加列/建表（RT-4）；仍须审阅后执行。
  */
 @RestController
 public class DeclarationDraftEndpoint {
@@ -39,15 +43,20 @@ public class DeclarationDraftEndpoint {
 
     private final JdbcDeclarationStore store;
     private final EffectiveDeclarationService effective;
+    private final DeclarationMigrationAutoEnqueueService migrationAutoEnqueue;
     private final OperatorTenantAccess tenantAccess;
     private final EntityRenderer entityRenderer = new EntityRenderer();
     private final FormRenderer formRenderer = new FormRenderer();
     private final PageRenderer pageRenderer = new PageRenderer();
 
     public DeclarationDraftEndpoint(
-            JdbcDeclarationStore store, EffectiveDeclarationService effective, OperatorTenantAccess tenantAccess) {
+            JdbcDeclarationStore store,
+            EffectiveDeclarationService effective,
+            DeclarationMigrationAutoEnqueueService migrationAutoEnqueue,
+            OperatorTenantAccess tenantAccess) {
         this.store = Objects.requireNonNull(store, "store");
         this.effective = Objects.requireNonNull(effective, "effective");
+        this.migrationAutoEnqueue = Objects.requireNonNull(migrationAutoEnqueue, "migrationAutoEnqueue");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
     }
 
@@ -146,7 +155,14 @@ public class DeclarationDraftEndpoint {
         }
         String yaml = body.yamlBody();
         validateYaml(k, key, yaml);
+        // Plan entity DDL before insert so unsafe type/table/PK changes fail closed without a draft row.
+        // 先规划实体 DDL，危险类型/表名/主键变更在落库前失败关闭。
+        List<String> planned = List.of();
+        if (k == DeclarationKind.ENTITY) {
+            planned = migrationAutoEnqueue.planForEntityYaml(tid, key, yaml);
+        }
         DeclarationRevision saved = store.saveDraft(tid, k, key, yaml, operator.subjectId());
+        migrationAutoEnqueue.enqueuePlanned(saved, planned);
         return document(saved);
     }
 
@@ -159,18 +175,21 @@ public class DeclarationDraftEndpoint {
                     if (!key.equals(entity.entityKey())) {
                         throw new IllegalArgumentException("entityKey must match path key");
                     }
+                    DeclarationDraftConstraints.requireEntity(entity);
                 }
                 case FORM -> {
                     RenderedForm form = formRenderer.render(yaml);
                     if (!key.equals(form.formKey())) {
                         throw new IllegalArgumentException("formKey must match path key");
                     }
+                    DeclarationDraftConstraints.requireForm(form);
                 }
                 case FLOW -> {
                     RenderedFlow flow = pageRenderer.render(yaml);
                     if (!key.equals(flow.flowKey())) {
                         throw new IllegalArgumentException("flowKey must match path key");
                     }
+                    DeclarationDraftConstraints.requireFlow(flow);
                 }
             }
         } catch (IllegalArgumentException ex) {

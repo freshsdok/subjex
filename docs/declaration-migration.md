@@ -98,3 +98,81 @@ Schema/field changes are **not** casual console DDL. Operators enqueue reviewed 
 
 **迁移队列基线齐**（MQ-1..3）：落库 + 执行绑定 + 控制台。
 
+
+## Runtime for promoted tenant-only entities (RT-1) / 无 classpath 已晋升实体的运行时（RT-1）
+
+Classpath samples (`demo-ticket`, `service-note`) keep DRAFT → PROMOTED → classpath overlay on JDBC when `tableName` + PK match.
+
+**New tenant entities with no classpath sample:** `EffectiveDeclarationService.runtimeEntity` serves JDBC/submit **only** from latest **PROMOTED**, and only when migrations for that revision are settled (**APPLIED** or **CANCELLED**) **and** at least one row is **APPLIED** (table exists). Open PENDING/REVIEWED/FAILED → **409**. DRAFT-only → empty (**404**). Form/page detail + submit with `X-Tenant-Id` use effective overlay (DRAFT > PROMOTED > classpath). Forms/pages **index** merges tenant keys when the header is present. Console `/pages/*` sends `subjex_declaration_tenant` as `X-Tenant-Id`.
+
+classpath 样例仍可草稿覆盖。**无 classpath 的租户新实体**：仅 **PROMOTED** 且同修订迁移已结清并至少一条 **APPLIED** 才进 JDBC；未结清 409；仅草稿 404。带租户头时表单/页面详情与提交走生效覆盖；目录合并租户键。控制台页面复用声明租户 cookie 作 `X-Tenant-Id`。
+
+
+## Auto-enqueue ALTER ADD on entity draft save (RT-4) / 实体草稿保存自动入队加列（RT-4）
+
+When `PUT /api/v1/declarations/entity/{key}` saves a draft, the platform compares the draft to the **baseline** schema and enqueues PENDING migration jobs automatically (operators still review → apply; nothing is auto-APPLIED).
+
+保存实体草稿时，相对**基线** schema 自动入队 PENDING 迁移（仍须审阅→执行；不会自动 APPLIED）。
+
+| Baseline / 基线 | When / 何时 | Enqueued SQL / 入队 SQL |
+| --- | --- | --- |
+| Latest `PROMOTED` | Tenant has a promoted revision | `ALTER TABLE … ADD COLUMN` per new field |
+| Classpath sample | No PROMOTED; key exists on classpath (`demo-ticket`, `service-note`) | Same ALTER ADD for fields not on sample |
+| Empty | Brand-new tenant-only entity | One `CREATE TABLE` (includes auto `tenant_id` when `tenantScoped`) |
+
+**Rules / 规则**
+
+- One queue row per statement (CREATE once, or one ALTER ADD per added field) — matches manual enqueue.
+- Idempotent: same revision + normalized `sqlText` will not insert another non-`CANCELLED` duplicate.
+- Does **not** invent DROP / RENAME / ALTER COLUMN. Field removals are ignored for auto-SQL.
+- Fail-closed before draft insert: `tableName` change, primary-key column change, or existing-field kind / SQL type change → `400`.
+- Manual console enqueue / review / apply unchanged. Form/flow drafts do not auto-enqueue.
+
+每语句一行队列；同修订同 SQL 幂等；不造 DROP/RENAME；危险变更落库前 400；手工入队仍可用；表单/流程不自动入队。
+
+
+## Runtime pages after flow promote (RT-5) / 流程晋升后运行时页面（RT-5）
+
+Pages are **derived from flow YAML** at read time — there is **no** separate page declaration kind and **no** write-side page YAML materialization on promote.
+
+页面在读时**从 flow YAML 派生**——**没有**独立 page 声明种类，晋升时也**不**另写 page YAML。
+
+| Step / 步骤 | Behavior / 行为 |
+| --- | --- |
+| Promote `flow` | {@code DeclarationRuntimePages.ensureAfterFlowPromote}: fail-closed unless `list`/`submit`/`detail` paths are `/pages/{key}`, `/pages/{key}/new`, `/pages/{key}/{id}`; when `tenantScoped: true`, also require blocks ListTable + FormFields + DetailReadonly + SubmitBar across the three pages |
+| GET `/api/v1/pages` (+ `X-Tenant-Id`) | Merges classpath with tenant keys; each key resolves via DRAFT &gt; PROMOTED &gt; classpath (`EffectiveDeclarationService.effectiveFlow`) |
+| GET `/api/v1/pages/{flowKey}` | Same overlay; unknown tenant-only key without draft/promoted → **404** |
+| Console | Dynamic routes `/pages/[flowKey]`, `/new`, `/[id]` already render the four blocks; cookie tenant → `X-Tenant-Id` (RT-1) |
+
+Entity JDBC still requires PROMOTED + APPLIED migrations (RT-1). Form/page **metadata** may show from DRAFT overlay; business-table **data** needs promote + applied schema.
+
+实体 JDBC 仍须 PROMOTED + 迁移 APPLIED。表单/页面**元数据**可走草稿覆盖；业务表**数据**仍须晋升与已执行迁移。
+
+
+## Pick-only permissions + effect whitelist (RT-3) / 权限只选与副作用白名单（RT-3）
+
+On tenant draft **save** and **promote**, YAML is rendered then constrained:
+
+| Check / 校验 | Rule / 规则 |
+| --- | --- |
+| `permission` | Must be a name from `OperatorPermission` (e.g. `page.read`); inventing codes → **400** |
+| Form `effects` | Only `audit.write` and `task.enqueue`; `extension.invoke` remains classpath-sample only → **400** on tenant draft |
+
+Console business-table / entity / form wizards use a `<select>` over the same catalog (no free text).
+
+保存与晋升时权限须在平台目录；租户草稿表单副作用仅审计与任务入队。控制台权限为下拉选择。
+
+
+## Versioned audit on form audit.write (RT-6) / 表单审计版本关联（RT-6）
+
+`audit.write` side effects call `OperatorActionAudit.recordFormEffect`, writing `audit_entry` with request **tenant**, **actor**, optional **entity_key**, **declaration_version** (form YAML version), and **resolution_source** (`draft`|`promoted`|`classpath`). Flyway **V19** adds the linkage columns.
+
+表单 `audit.write` 写入租户、操作者、实体键、声明版本与解析来源（V19 列）。
+
+
+## Console-only business-table path (RT-7) / 控制台业务表路径（RT-7）
+
+Non-dev path: **新建业务表** → entity migration queue (review/apply) → promote entity/form/flow → `/pages/{key}`. Single-kind “create from template” and entity/form structured wizards are **advanced** (collapsed); classpath samples = regression only.
+
+非开发路径：新建业务表 → 迁移队列 → 晋升 → 页面。单种模板与实体/表单向导为高级入口；样例仅回归。
+
