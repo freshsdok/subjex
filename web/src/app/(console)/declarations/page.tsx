@@ -12,7 +12,15 @@ type TenantsDocument = {
   tenants?: Array<{ tenantId?: string; tenantName?: string; tenantState?: string }>;
 };
 
-// Declarations page — 声明草稿页：declaration.read 可进；write 才可保存。
+/**
+ * Declarations page — entry for YAML drafts console.
+ * Gates: {@code declaration.read} to enter; {@code declaration.write} to save;
+ * {@code declaration.promote} / {@code declaration.migrate} passed as flags for buttons.
+ * Deep link state: tenant cookie {@code subjex_declaration_tenant}.
+ * <p>
+ * 声明页：declaration.read 可进；write 才可保存；promote/migrate 控制按钮。
+ * 深链状态：租户 cookie。
+ */
 export default async function DeclarationsPage() {
   const { language, phrases } = await currentLanguage();
   const { body: me } = await readPlatform<OperatorSelfDocument>("me");

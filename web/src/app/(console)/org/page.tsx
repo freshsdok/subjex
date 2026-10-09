@@ -9,7 +9,13 @@ type TenantsDocument = {
   tenants?: Array<{ tenantId?: string; tenantName?: string; tenantState?: string }>;
 };
 
-// Org page — 组织页：org.read 可进；org.write 才可改单元与成员。
+/**
+ * Org page — Organization ontology console (O5 paths under /api/v1/organizations).
+ * Gates: {@code org.read} enter; {@code org.write} enable forms. Deep link tenant cookie
+ * {@code subjex_org_tenant}. Read-only banner explains why writes are disabled.
+ * <p>
+ * 组织页：org.read 可进；org.write 才可改。租户 cookie 深链；只读横幅说明为何禁用写入。
+ */
 export default async function OrgPage() {
   const { phrases } = await currentLanguage();
   const { body: me } = await readPlatform<OperatorSelfDocument>("me");

@@ -14,8 +14,13 @@ function resolveNamespace(raw: string | undefined): string {
   return trimmed === "" ? DEFAULT_NAMESPACE : trimmed;
 }
 
-// Config page — 配置页：命名空间选择（至少 default）；有 config.write 才出现修改列。
-// Config-5d: namespace UX + honesty notice.
+/**
+ * Config page — namespace picker (at least {@code default}) + override cells.
+ * Deep link: {@code /config?namespace=...}. Why no edit column: missing {@code config.write}
+ * (read-only notice). Config-5d honesty notice + 5c If-Match on save.
+ * <p>
+ * 配置页：命名空间选择；深链 ?namespace=。无 config.write 不出现修改列（只读说明）。
+ */
 export default async function ConfigPage({
   searchParams,
 }: {

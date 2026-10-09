@@ -1,4 +1,12 @@
 import { describe, expect, it } from "vitest";
+
+/**
+ * org-console Vitest — purpose: tenant cookie deep-link + id normalize + ACTIVE/DISABLED toggle.
+ * Gates: reject blank/whitespace/slash ids; optional parent blank → root; disabled state detect.
+ * <p>
+ * 目的：组织租户 cookie 深链、ID 规范化、启用/禁用切换。门禁：非法 ID 拒绝；空父=根。
+ */
+
 import {
   isOrgDisabledState,
   normalizeOptionalParentId,

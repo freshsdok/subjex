@@ -8,7 +8,12 @@ type CapabilitiesDocument = {
   capabilities?: CapabilityRow[];
 };
 
-// Capabilities page — 能力页：page.read 可看目录并试跑桩（不经真网关、不写库）。
+/**
+ * Capabilities page — catalog + try-run stubs (no real gateway / no DB write by default).
+ * Gate: {@code page.read}. Deep link: {@code /capabilities}.
+ * <p>
+ * 能力页：目录 + 试跑桩（默认不经真网关、不写库）。门禁 page.read。
+ */
 export default async function CapabilitiesPage() {
   const { language, phrases } = await currentLanguage();
   const { body: me } = await readPlatform<OperatorSelfDocument>("me");

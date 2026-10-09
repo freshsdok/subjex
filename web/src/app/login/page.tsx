@@ -3,7 +3,12 @@ import { AppearanceSwitcher } from "@/components/appearance-switcher";
 import { currentLanguage } from "@/i18n/server-language";
 import { SignInForm } from "./sign-in-form";
 
-// Login page — 登录页：口令表单；OIDC 启用时另有企业登录入口。
+/**
+ * Login page — password form; OIDC button when enabled. Language switcher before auth.
+ * Deep link entry for console (post-auth → /). Failures stay on this page with reason copy.
+ * <p>
+ * 登录页：口令表单；OIDC 启用时有企业入口。登录前可选语言。失败留在本页并说明原因。
+ */
 export default async function LoginPage() {
   const { language, phrases } = await currentLanguage();
   return (

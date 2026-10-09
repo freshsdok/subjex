@@ -1,4 +1,9 @@
-// Declaration draft helpers — 声明草稿辅助：租户 cookie、种类校验、classpath 样例键。
+/**
+ * Declaration draft helpers — tenant cookie deep-link, kind validation, classpath sample keys,
+ * promote/migrate offer gates (why buttons hide), migration status→action, path checklist chips.
+ * 声明草稿辅助：租户 cookie 深链、种类校验、样例键、晋升/迁移展示门禁（为何隐藏按钮）、
+ * 迁移状态→动作、路径清单芯片。
+ */
 
 export const declarationTenantCookieName = "subjex_declaration_tenant";
 
@@ -132,7 +137,11 @@ export function mergeDraftAndClasspathKeys(
   return rows;
 }
 
-/** Whether the console may show Promote for the open revision — 是否可对当前打开修订显示晋升。 */
+/**
+ * Whether the console may show Promote for the open revision.
+ * Why false: missing {@code declaration.promote}, blank tenant, no selected key, or no loaded revision.
+ * 是否可对当前打开修订显示晋升。为 false：缺权限、无租户、无键、或未加载修订。
+ */
 export function canOfferDeclarationPromote(opts: {
   canPromote: boolean;
   tenantId: string;
@@ -167,7 +176,11 @@ export const DECLARATION_MIGRATION_STATUSES = [
 ] as const;
 export type DeclarationMigrationStatus = (typeof DECLARATION_MIGRATION_STATUSES)[number];
 
-/** Whether the console may show migration queue actions — 是否可展示迁移队列操作（仅 entity）。 */
+/**
+ * Whether the console may show migration queue actions (entity only).
+ * Why false: missing {@code declaration.migrate}, kind !== entity, blank tenant/key.
+ * 是否可展示迁移队列（仅实体）。为 false：缺权限、非实体、无租户/键。
+ */
 export function canOfferDeclarationMigrate(opts: {
   canMigrate: boolean;
   kind: DeclarationKind;
@@ -237,8 +250,9 @@ export type MigrationPathChip = {
 };
 
 /**
- * Lightweight path checklist for entity migrate→promote.
- * 实体迁移路径轻量清单：按当前修订上的队列状态推导。
+ * Lightweight path checklist chips for entity migrate→promote (user-facing progress).
+ * States: done / current / todo / blocked (FAILED or open jobs block promote).
+ * 实体迁移→晋升路径芯片。状态：完成/当前/待办/阻断（FAILED 或未结任务挡晋升）。
  */
 export function migrationPathChecklist(opts: {
   hasDraft: boolean;

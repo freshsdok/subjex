@@ -1,6 +1,9 @@
 import type { LanguageCode } from "@/i18n/phrases";
 
-// Capabilities console helpers — 能力控制台辅助：按语言取标题/摘要、试跑路径。
+/**
+ * Capabilities console helpers — bilingual title/summary + deep-link paths under /api/platform.
+ * 能力控制台辅助：双语标题/摘要 + /api/platform 深链路径。
+ */
 
 export type CapabilityRow = {
   id: string;

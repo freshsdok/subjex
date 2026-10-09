@@ -4,8 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 
-// Override steps — 修改步骤：查看 → 编辑 → 核对改动 → 保存。多一步核对，避免误改线上配置。
-// Config-5c/5d: If-Match from revision; PUT carries namespace.
+/**
+ * Config override cell — viewing → editing → reviewing → saving (extra review avoids mis-edit).
+ * Why disabled mid-flight: busy saving; blank/unchanged draft refused before review.
+ * Config-5c: If-Match from revision; PUT carries namespace (5d).
+ * <p>
+ * 配置覆盖格：查看→编辑→核对→保存。保存中禁用；空白/未改拒绝进入核对。If-Match 防并发。
+ */
 type OverrideStep = "viewing" | "editing" | "reviewing" | "saving";
 
 export function ConfigOverrideCell({

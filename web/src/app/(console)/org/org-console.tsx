@@ -30,6 +30,7 @@ type MembershipRow = {
   membershipState?: string;
 };
 
+/** Two-step write confirm state machine — 写入两步确认状态机。 */
 type FormStep = "editing" | "reviewing" | "saving";
 
 type Props = {
@@ -39,7 +40,13 @@ type Props = {
   initialTenantId: string;
 };
 
-// Org console — O5：选租户、列 Organization/Membership；走 /api/v1/organizations；有 org.write 时两步确认写入。
+/**
+ * Org console — pick tenant, list Organization/Membership via /api/v1/organizations.
+ * Why disabled: {@code canWrite=false} hides/locks mutating controls (need org.write).
+ * Writes use FormStep editing→reviewing→saving (confirm before PUT).
+ * <p>
+ * 组织控制台：选租户、列组织/成员。无 org.write 时禁用写控件；写入两步确认。
+ */
 export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }: Props) {
   const router = useRouter();
   const [tenantId, setTenantId] = useState(initialTenantId);

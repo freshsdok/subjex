@@ -3,7 +3,12 @@
 import { useRouter } from "next/navigation";
 import type { PhraseBook } from "@/i18n/phrases";
 
-/** Namespaces the console can select today — MVP always includes default. */
+/**
+ * Namespace picker — MVP always includes {@code default}.
+ * Deep link: changing select pushes {@code /config} or {@code /config?namespace=...}.
+ * <p>
+ * 命名空间选择：MVP 必含 default。切换时深链到 /config 或带 ?namespace=。
+ */
 export const CONFIG_NAMESPACE_OPTIONS = ["default"] as const;
 
 export function ConfigNamespacePicker({

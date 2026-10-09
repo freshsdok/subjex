@@ -1,5 +1,24 @@
 "use client";
 
+/**
+ * Declarations console — user path for tenant YAML drafts (entity / form / flow).
+ * <p>
+ * State machines (UI only; no API side effects until confirm):
+ * <ul>
+ *   <li>{@code EditorStep}: editing → reviewing → saving; promote: reviewing-promote → promoting</li>
+ *   <li>{@code MigrateStep}: idle → review-* → enqueueing|reviewing|applying|guiding|cancelling</li>
+ * </ul>
+ * Why disabled: no {@code declaration.write} greys YAML/wizards; Promote hidden unless
+ * {@code canOfferDeclarationPromote}; Migrate only for entity + {@code declaration.migrate}.
+ * Deep links: tenant cookie {@code subjex_declaration_tenant}; sample keys are classpath hints
+ * (not the default start). Path chips: draft → PENDING → REVIEWED → APPLIED → promote.
+ * <p>
+ * 声明控制台：租户 YAML 草稿用户路径（实体/表单/流程）。
+ * 状态机：编辑审阅保存；晋升两步确认；迁移入队/审阅/执行/取消。
+ * 为何禁用：无 declaration.write 则 YAML/向导置灰；晋升/迁移按钮由 canOffer* 门禁。
+ * 深链：租户 cookie；样例键仅 classpath 提示。路径芯片：草稿→入队→审阅→执行→晋升。
+ */
+
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fillPhrase, type LanguageCode, type PhraseBook } from "@/i18n/phrases";
@@ -74,6 +93,7 @@ type EffectiveSummary = {
   fromDraft?: boolean;
 };
 
+/** Draft editor state machine — 草稿编辑状态机（确认前不落库）。 */
 type EditorStep = "editing" | "reviewing" | "saving" | "reviewing-promote" | "promoting";
 
 type PromoteHistoryRow = {
@@ -115,6 +135,7 @@ type MigrateAuditRow = {
   outcomeWordEn?: string;
 };
 
+/** Migration queue state machine — 迁移队列状态机（每步需确认；entity only）。 */
 type MigrateStep =
   | { phase: "idle" }
   | { phase: "review-enqueue" }
@@ -964,12 +985,16 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     setMigrateProblem(null);
   }
 
+  // Why Promote hidden: missing declaration.promote, blank tenant, no key, or no loaded revision —
+  // 晋升隐藏原因：缺 declaration.promote、无租户、无键、或未加载修订。
   const showPromote = canOfferDeclarationPromote({
     canPromote,
     tenantId,
     selectedKey,
     loadedRevision,
   });
+  // Why Migrate hidden: not entity, missing declaration.migrate, blank tenant/key —
+  // 迁移隐藏原因：非实体、缺 declaration.migrate、无租户/键。
   const showMigrate = canOfferDeclarationMigrate({
     canMigrate,
     kind,
@@ -1210,6 +1235,7 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                     syncWizardsFromYaml(next, kind);
                   }}
                   rows={18}
+                  /* Why disabled: read-only without declaration.write — 无 declaration.write 只读置灰。 */
                   disabled={!canWrite}
                   className="w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-xs leading-5 disabled:opacity-70"
                   aria-label={phrases.declarationsYamlLabel}

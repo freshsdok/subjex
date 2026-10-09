@@ -1,9 +1,21 @@
 import type { PhraseBook } from "@/i18n/phrases";
 
-// Console sections — 控制台栏目：路径、导航文案键、查看所需权限（null 表示登录即可）。
+/**
+ * Console sections — nav catalog for the left rail.
+ * <p>
+ * {@code href} is the in-app deep link (Next App Router path). {@code requiredPermission}
+ * gates visibility as clickable vs greyed: null = any signed-in operator; otherwise the
+ * operator must hold that named permission (layout shows locked hint = why disabled).
+ * Order is the user-facing tour: overview → ops surfaces → declarations → org → capabilities.
+ * <p>
+ * 控制台栏目：左侧导航目录。href 为站内深链；requiredPermission 为查看门禁（null=登录即可）。
+ * 无权限时不隐藏，置灰并用 title 写明缺什么权限（为何禁用）。
+ */
 export interface ConsoleSection {
+  /** In-app path (deep link) — 站内路径（深链）。 */
   href: string;
   labelKey: keyof PhraseBook;
+  /** Permission to click; null = login only — 点击所需权限；null 表示登录即可。 */
   requiredPermission: string | null;
 }
 

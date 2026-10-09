@@ -1,4 +1,12 @@
 import { describe, expect, it } from "vitest";
+
+/**
+ * capabilities-console Vitest — purpose: bilingual title/summary + /api/platform deep-link paths.
+ * Gates: known kinds ALGORITHM|AI; run/write-ticket/write-back path encoding.
+ * <p>
+ * 目的：双语标题/摘要与能力深链。门禁：已知 kind；路径编码正确。
+ */
+
 import {
   capabilityRunPath,
   capabilitySummary,

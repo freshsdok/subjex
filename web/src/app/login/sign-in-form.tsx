@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * Sign-in form — password (+ optional MFA) and OIDC start.
+ * User path: submit → /api/session cookie → redirect /; MFA challenge stays on this page.
+ * Deep links: {@code ?oidc=unlinked|denied|disabled|...} surfaces SSO errors after callback.
+ * Why SSO hidden: /api/session/oidc/status not enabled (probe failure keeps password path).
+ * <p>
+ * 登录表单：口令（+ 可选 MFA）与 OIDC。成功写会话 cookie 后进概览；MFA 挑战留在本页。
+ * 深链：?oidc= 展示回调错误。SSO 隐藏：状态未启用（探测失败仍可用口令）。
+ */
+
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import type { PhraseBook } from "@/i18n/phrases";

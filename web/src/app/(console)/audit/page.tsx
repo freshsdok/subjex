@@ -5,7 +5,13 @@ import { readPlatform } from "@/server/platform-reader";
 
 type AuditDocument = components["schemas"]["AuditDocument"];
 
-// Audit page — 审计页：按时间倒序展示，动作和结果用当前语言的词，原始动作名放在悬停提示里便于排查。
+/**
+ * Audit page — newest-first list; action/outcome words follow console language;
+ * raw {@code actionName} in title for operators debugging. Gate: {@code admin.read}.
+ * Deep link from overview “view all” → {@code /audit}.
+ * <p>
+ * 审计页：时间倒序；动作/结果跟当前语言；原始动作名悬停排查。门禁 admin.read。概览深链 /audit。
+ */
 export default async function AuditPage() {
   const { language, phrases } = await currentLanguage();
   const { status, body } = await readPlatform<AuditDocument>("audit");

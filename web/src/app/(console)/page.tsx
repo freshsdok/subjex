@@ -52,7 +52,13 @@ function SectionProblem({ phrases, status, permission }: { phrases: PhraseBook; 
   );
 }
 
-// Overview page — 概览页：服务健康、最近审计、部署提示分区并排，最后是“我能做什么”。
+/**
+ * Overview page — health / deploy / recent audit tiles with deep links to detail pages
+ * ({@code /services}, {@code /deploy}, {@code /audit}). Each tile fails alone (403 = missing
+ * permission named in copy). Ends with “what I can do” = granted permission chips.
+ * <p>
+ * 概览页：健康/部署/最近审计分区，带深链到详情页；单区分区失败不影响其他；末尾列出已授予权限。
+ */
 export default async function OverviewPage() {
   const { language, phrases } = await currentLanguage();
   const [operatorRead, servicesRead, auditRead, deployRead] = await Promise.all([

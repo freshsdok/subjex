@@ -1,4 +1,13 @@
 import { describe, expect, it } from "vitest";
+
+/**
+ * declaration-draft Vitest — purpose: draft helpers + migrate/promote offer gates + path chips.
+ * Gates: cookie parse; canOffer* why-false (permission/tenant/key/kind); status→Review/Apply/Cancel;
+ * migrationPathChecklist blocked when FAILED/open jobs; classpath sample merge.
+ * <p>
+ * 目的：草稿辅助 + 迁移/晋升展示门禁 + 路径芯片。门禁：cookie；canOffer* 为 false 原因；状态机按钮；失败阻断晋升。
+ */
+
 import {
   CLASSPATH_SAMPLE_KEYS,
   canApplyMigration,

@@ -8,7 +8,14 @@ import { currentLanguage } from "@/i18n/server-language";
 import { consoleSections } from "./console-sections";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
-// Console shell — 控制台外框：顶栏显示当前操作员和退出，左侧导航；未登录会被跳到 /login。
+/**
+ * Console shell — top bar (operator + sign-out) + left nav from {@link consoleSections}.
+ * Unauthenticated requests are redirected to /login (middleware / session).
+ * Locked nav stays visible but greyed with missing permission in title (why disabled).
+ * <p>
+ * 控制台外框：顶栏操作员/退出 + 左侧栏目。未登录跳 /login。
+ * 无权限栏目不隐藏，置灰并用 title 写明缺权限（为何禁用）。
+ */
 // ReactNode keeps typecheck independent of Next-generated LayoutProps / `.next/types`.
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
   const { language, phrases } = await currentLanguage();

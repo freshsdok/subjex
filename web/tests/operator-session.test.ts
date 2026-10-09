@@ -1,4 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * operator-session Vitest — purpose: console session cookie helpers for login/sign-out path.
+ * Gates: missing/invalid cookie → unauthenticated (fail-closed); parse round-trip.
+ * <p>
+ * 目的：登录/退出会话 cookie 辅助。门禁：缺失/非法 cookie → 未认证（失败关闭）。
+ */
+
 import {
   clearMemoryOperatorSessionsForTests,
   closeOperatorSession,

@@ -19,6 +19,7 @@ type Props = {
   capabilities: CapabilityRow[];
 };
 
+/** Try-run / AI write-back state machine — 试跑与 AI 写回确认状态机。 */
 type RunStep = "idle" | "running" | "issuing" | "confirming";
 
 type WriteTicket = {
@@ -30,7 +31,13 @@ type WriteTicket = {
   expiresAt: string;
 };
 
-// Capabilities console — 能力控制台：目录表 + 试跑预览；AI 可签发写回确认票并确认写回（默认 noop）。
+/**
+ * Capabilities console — catalog table + try-run preview.
+ * AI path: issue write ticket → confirm write-back (default noop). Busy steps disable Run.
+ * Deep-link helpers: {@link capabilityRunPath} / write-ticket / write-back under /api/platform.
+ * <p>
+ * 能力控制台：目录 + 试跑预览。AI：签发写回票→确认写回（默认 noop）。忙碌时禁用试跑。
+ */
 export function CapabilitiesConsole({ phrases, language, capabilities }: Props) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>(capabilities[0]?.id ?? "");

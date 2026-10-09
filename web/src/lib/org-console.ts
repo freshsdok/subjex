@@ -1,4 +1,7 @@
-// Org console helpers — 组织控制台辅助：租户 cookie、状态文案、ID 校验。
+/**
+ * Org console helpers — tenant cookie deep-link, ACTIVE/DISABLED toggle, id normalize gates.
+ * 组织控制台辅助：租户 cookie 深链、启用/禁用切换、ID 规范化门禁。
+ */
 
 export const orgTenantCookieName = "subjex_org_tenant";
 
