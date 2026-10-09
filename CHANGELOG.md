@@ -11,6 +11,9 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
+- **O1 Model Freeze (docs only):** six-concept ontology Subject / Organization / Tenant / Membership / OrganizationRelation / TenantOrganization — ADR `docs/adr/0001-o1-organization-ontology.md` + `docs/ontology/*`; ten review answers; migration map forbids cross-tenant auto-merge; **no Flyway**. Legacy `org_unit` marked tenant-scoped thin model until O7.
+  **O1 模型冻结（仅文档）：** 六概念本体 + ADR/ontology 包；十问书面回答；迁移映射禁止跨租户自动合并；**无 Flyway**。旧 `org_unit` 标为租户内薄模型至 O7。
+
 - **Production gaps P1–P7 (local):** image-scan CI + reproducible Dockerfiles; management-port probes + NetworkPolicy sample; rotatable secrets / reject `change-me` outside local; single-replica gate; tenant daily/storage quotas (429); backup/restore procedure + `DRILL-PENDING`; dual-operator declaration promote + rollback (no auto DROP). Release checklist: `docs/release/v0.1.0-alpha.1-checklist.md`. **Tag blocked** until backup drill PASS.
   生产缺口 P1–P7（本地）：镜像扫描、探针/网络策略、密钥轮换、单副本门禁、租户配额、备份演练待过、双人晋升与回滚。发版检查表见上。**备份演练 PASS 前不得打 tag。**
 

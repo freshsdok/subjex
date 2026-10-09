@@ -34,5 +34,8 @@ subjex 是发布前的框架骨架。完成 [`docs/release/v0.1.0-alpha.1-checkl
 8. **Images are built in CI and scanned (P1); public push optional.** Three Dockerfiles build as non-root uid 10001; Trivy HIGH/CRITICAL gates the alpha tag. Reports: CI artifacts `trivy-*-v0.1.0-alpha.1`. See `docs/release/image-scan.md`.
    镜像在 CI 构建并扫描（P1）；公开推送可选。三 Dockerfile 非 root uid 10001；Trivy 高危门禁 alpha tag。报告见 CI 产物与 `docs/release/image-scan.md`。
 
+9. **Organization ontology (O1 freeze) — relationship ≠ authorization.** Long-term model is Subject / Organization / Tenant / Membership / OrganizationRelation / TenantOrganization ([`docs/ontology/README.md`](docs/ontology/README.md)). Runtime still uses tenant-scoped legacy `org_unit` / `org_membership` until O7. Missing org scope on org-scoped checks must stay **fail-closed** (never auto-unrestricted). TenantOrganization and Membership do not grant named permissions. Do not invent `organizationUnitRef` / `tenantOrgUnitRef`.
+   **组织本体（O1 冻结）——关系≠授权。** 长期模型见 ontology 包；运行时仍用旧 `org_unit` 至 O7。组织范围缺失须 **fail-closed**。TenantOrganization / Membership 不授予具名权限。不发明 organizationUnitRef / tenantOrgUnitRef。
+
 The full assessment these items come from is `docs/pre-release-assessment.md`.
 以上条目来自 `docs/pre-release-assessment.md`。

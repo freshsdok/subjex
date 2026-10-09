@@ -92,3 +92,11 @@
 | `33f2de1` | `feat(outbox): background relay for PENDING rows` |
 | `67c17bb` | `feat(outbox): HMAC auth and TLS; drop password from frame` |
 | （本文件所在提交） | `docs: outbox relay and transport security` |
+
+## O1 — Ontology model freeze（2026-10-09）
+
+- 文档包：`docs/adr/0001-o1-organization-ontology.md` + `docs/ontology/*`
+- 冻结六概念；十问已书面回答；**无 Flyway**；旧 `org_unit` 标为租户内薄模型（兼容至 O7）
+- 交叉引用：`ARCHITECTURE.md` §18、`docs/lowcode-roadmap.md`、`SECURITY.md` #9
+- 提交：本地 `docs(ontology): O1 model freeze Subject Organization Tenant`（未 push）
+

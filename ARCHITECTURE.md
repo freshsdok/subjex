@@ -216,8 +216,8 @@ Node 6 delivered the multi-form catalog, submission store, second business form,
 
 Product direction: with declarations as the single source of truth, structured console authoring builds baseline system capability. Seven dimensions, people/org base (dim 0), **decided** dual-track promote, non-goals, and Z0–Z6 slices: [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) § Zero-code model.
 
-- **底座 / Base：** 租户隔离；租户内 `org_unit`；人员按**权限分层**（非主拆两套登录账号）；平台超管为**独立角色名**（如 `platform.super-admin`），与其他账号/角色隔离；IdP/OIDC 为主；组织只约束权限范围。
-- **Base：** Tenant isolation; in-tenant `org_unit`; people split by **permission tiers** (not separate login account types as the primary axis); platform **super-admin** is its **own role name** (e.g. `platform.super-admin`), isolated from all other accounts/roles; IdP/OIDC primary; org supplies scope only.
+- **底座 / Base：** 租户隔离；**O1 冻结**六概念（Subject / Organization / Tenant / Membership / OrganizationRelation / TenantOrganization）——见 [`docs/ontology/README.md`](docs/ontology/README.md) 与 ADR [`docs/adr/0001-o1-organization-ontology.md`](docs/adr/0001-o1-organization-ontology.md)。运行时仍用旧 `org_unit`（**租户内薄组织 / legacy thin model**，兼容至 O7）；暂停对其结构性扩展。人员按**权限分层**；平台超管独立角色名；IdP/OIDC 为主；组织只约束权限范围（关系≠授权）。
+- **Base：** Tenant isolation; **O1 freeze** six concepts (see ontology pack + ADR 0001). Runtime still on legacy `org_unit` (**tenant-scoped thin model** until O7); pause structural expansion. People by **permission tiers**; super-admin own role name; IdP/OIDC primary; org supplies scope only (relationship ≠ authorization).
 - **上下文权限 / Context AuthZ：** **AX-1+AX-2+AX-3 已落地**——可解释 `AccessDecision`；组织范围仅「本部门及下级」；`PolicyEngine` 端口（Cedar/Casbin 子集形状），首适配 `SqlRbacPolicyEngine`→`AccessChecker`；无自研 DSL、不加角色名、不上 Zanzibar；完整 Cedar/Casbin 依赖后置换入。
 - **Context AuthZ：** **AX-1+AX-2+AX-3 landed** — explainable `AccessDecision`; org scope self+descendants; `PolicyEngine` port (Cedar/Casbin subset shape), first adapter `SqlRbacPolicyEngine`→`AccessChecker`; no custom DSL, no new role names, no Zanzibar; full Cedar/Casbin jars later swap-ins.
 - **七维 / Seven dims：** 数据 · **页面（结构化构建器 + 常用组件积木）** · 流程 · 权限/租户 · 动作/副作用 · 算法目录 · AI 目录（经 `model-gateway`，关键写回需确认）。
@@ -232,8 +232,8 @@ Product direction: with declarations as the single source of truth, structured c
 - **Schema：** **Decided** — field/schema changes follow **strict DB management** (controlled migrations) via dual-track promote; **no** casual online DDL.
 - **热加载与迁移绑定 / Hot-reload bind：** **已拍板**——已晋升**声明元数据**可热加载（实现：库内 `PROMOTED` 覆盖 classpath，非重建 jar）；**改表**走**迁移队列**，迁移完成后才切换声明，二者绑定。
 - **Hot-reload bind：** **Decided** — promoted declaration **metadata** may hot-reload (impl: DB `PROMOTED` overlay over classpath, not jar rebuild); **schema/table** changes use a **migration queue** and declaration switches only after migration completes — **bound together**.
-- **首波页面积木 / First-wave page blocks：** **已拍板**——通用窗体组件、ListTable、FormFields（按实体）、DetailReadonly、Section/Tabs、SubmitBar、UserPicker/OrgPicker 占位、流程分拣器。
-- **First-wave page blocks：** **Decided** — generic form components, ListTable, FormFields (from entity), DetailReadonly, Section/Tabs, SubmitBar, UserPicker/OrgPicker placeholders, flow sorter/router.
+- **首波页面积木 / First-wave page blocks：** **已拍板**——通用窗体组件、ListTable、FormFields（按实体）、DetailReadonly、Section/Tabs、SubmitBar、选人占位（O1 起收敛为 **SubjectPicker / OrganizationPicker**；旧 UserPicker/OrgPicker 名过渡）、流程分拣器。
+- **First-wave page blocks：** **Decided** — generic form components, ListTable, FormFields, DetailReadonly, Section/Tabs, SubmitBar, pickers converging to **SubjectPicker / OrganizationPicker** (legacy UserPicker/OrgPicker names transitional), flow sorter/router.
 - **Z1 样例 / Z1 samples：** **已拍板**——通用引擎先吃**新样例**和/或**并行只读适配 `service_note`**；旧 JDBC 可暂留再删。
 - **Z1 samples：** **Decided** — generic engine first eats a **new sample** and/or **parallel read-adapts `service_note`**; old JDBC may remain then delete.
 - **HTTP Basic：** **已拍板**——更安全默认（非 `local` 关闭）；与 Z1 改 curl/文档；实现可稍后。
@@ -246,6 +246,8 @@ Product direction: with declarations as the single source of truth, structured c
 - **Thin-org-1：** Flyway V13 `org_unit`/`org_membership`; `org.read`; reserved `platform.super-admin` (zero ordinary permissions this slice; no subject assigned); JDBC read directory.
 - **Thin-org-2：** 只读 `GET /api/v1/org/units|memberships`（`org.read`）；无写接口/控制台/SCIM；超管仍未分配。薄组织基线齐，下一片 Z2。
 - **Thin-org-2：** Read-only `GET /api/v1/org/units|memberships` (`org.read`); no writes/console/SCIM; super-admin still unused. Thin-org baseline complete → Z2 next.
+- **O1 Model Freeze：** 文档冻结六概念；旧 `org_unit`/`org_membership` 标为历史薄模型；O1 通过前不写新表 Flyway。详见 `docs/ontology/`。
+- **O1 Model Freeze：** Docs freeze six concepts; legacy thin `org_unit`/`org_membership`; no new-table Flyway until O1 review PASS. See `docs/ontology/`.
 - **Z2-3：** 详情优先 `GET /records/{id}`；选人/选部门接薄组织只读（无租户文本回退）；表单 JSON `entityKey`。**Z2 基线齐** → 下一片 Z3。
 - **Z2-3：** Detail prefers `GET /records/{id}`; thin live User/Org pickers (text fallback); forms JSON `entityKey`. **Z2 baseline landed** → Z3 next.
 - **Z3-1：** Flyway V14 `declaration_revision`（租户草稿修订，YAML 文本）；`declaration.read`/`write`；`JdbcDeclarationStore`。尚无 HTTP / 目录覆盖 / 晋升（Z3-2 / Z5）。
