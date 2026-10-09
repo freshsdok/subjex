@@ -7,12 +7,13 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * OutboxRelay — 出箱后台重投：按固定间隔拉取 PENDING 行并继续投递，直到成功或进死信。
+ * OutboxRelay — 出箱后台重投：按固定间隔拉取 PENDING 行，经所选 {@link com.subjex.platform.contract.delivery.DeliveryPort} 继续投递。
  * <p>
  * Submit still tries once after commit. This worker covers rows that stayed PENDING (consumer down,
- * reject, network blip). Selection and attempt accounting live on {@link TaskMessagePort#relayPending(int)}.
- * 提交后仍同步试一次。本工人负责仍停在 PENDING 的行（消费者宕机、拒绝、网络抖动）。
- * 选行与尝试次数记在 {@link TaskMessagePort#relayPending(int)}。
+ * reject, network blip). Selection and attempt accounting live on {@link TaskMessagePort#relayPending(int)},
+ * which calls the single configured {@code DeliveryPort} (socket demo or optional Kafka adapter).
+ * 提交后仍同步试一次。本工人负责仍停在 PENDING 的行。选行与尝试次数记在 {@link TaskMessagePort#relayPending(int)}，
+ * 经配置的唯一 {@code DeliveryPort}（套接字演示或可选 Kafka 适配器）投递。
  */
 @Component
 public final class OutboxRelay {

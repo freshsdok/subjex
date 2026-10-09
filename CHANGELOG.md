@@ -11,6 +11,12 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
+- **Outbox `DeliveryPort` (OB-1):** transport as a port; default `platform.delivery.transport=socket` keeps `OutboxSocketPublisher` → sample-consumer. Socket demoted to local/quickstart demo (single address, ≤4000 body, shared HMAC — not multi-consumer). Circuit breaker wraps only the selected transport.
+  出箱 `DeliveryPort`（OB-1）：传输端口化；默认 socket 演示路径保留；熔断只包所选传输。
+
+- **Outbox Kafka adapter (OB-2):** optional module `subjex-outbox-kafka` (not on default platform-app classpath). `transport=kafka` requires bootstrap servers + topic (fail-fast); non-`local` forbids plaintext (TLS or SASL). Key `tenantId:eventId`; headers `traceparent` / `event-name` / `declaration-version`; body = existing event_body. No ack frame — broker offsets. Own circuit breaker instance.
+  出箱 Kafka 适配器（OB-2）：可选模块，默认不进 classpath；缺主机/主题拒启；非 local 禁明文；键与头约定如上；独立熔断实例。
+
 - **Sample flow entity→page→form (post-stage #4)**: `service-note` flow + form + optional flow `entityKey`; in-memory `ServiceNoteStore` + `GET /api/v1/entities/service-note/notes`; domain action `entity.serviceNote.save`. Flyway host wiring remains step 3. See `docs/lowcode-roadmap.md`.
   贯通样例（阶段后第 4 项）：服务备注流程/表单/实体键；内存实体列表 API 与领域动作；Flyway 接入仍属步骤 3。
 

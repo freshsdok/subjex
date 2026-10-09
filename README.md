@@ -16,7 +16,7 @@ Semantic modular platform: subject identity, tenant isolation, and a single task
 
 **低代码 / 零代码：** **已交付**的是仓库内声明式工具链（表单、页面/流程、权限、副作用、领域动作、实体草稿接入宿主），**不是** Retool 类自由画布产品。**目标**是人员/组织底座上的七维零代码（结构化控制台配置器 + **已拍板双轨**：草稿 → 晋升回 Git YAML）。详见 [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md)（零代码模型）与 `ARCHITECTURE.md` 第 18 节。
 
-Processes / 进程：`platform-app` (host), `sample-consumer` (receives one cross-process event), `entry-gateway` (HTTP forwarder + coarse rate limit), and the separate Next.js operator console in `web/`. `model-gateway` is an optional library, not on the startup path.
+Processes / 进程：`platform-app` (host), `sample-consumer` (receives one cross-process event), `entry-gateway` (HTTP forwarder + coarse rate limit), and the separate Next.js operator console in `web/`. `model-gateway` is an optional library, not on the startup path. `subjex-outbox-kafka` is an optional outbox `DeliveryPort` adapter (`platform.delivery.transport=kafka`); default remains socket demo.
 
 Start here / 从这里开始: [`docs/quickstart.md`](docs/quickstart.md) builds the project, starts `platform-app` and `sample-consumer` locally, and lists the pages to open. The default operator login is for local use only.
 
@@ -131,6 +131,12 @@ Local stack: `deploy/compose/docker-compose.yml` starts PostgreSQL 16, Redis 7, 
 `model-gateway` is not a dependency of `platform-app`. It registers a model provider and records one invocation: provider id, model id, and input digest. There is no vendor SDK and no database.
 
 `model-gateway` 不是 `platform-app` 的依赖。它登记模型提供者，并记录一次调用：提供者标识、模型标识、输入摘要。没有厂商 SDK，也没有数据库。
+
+## Optional outbox Kafka adapter / 可选出箱 Kafka 适配器
+
+`subjex-outbox-kafka` is not a dependency of `platform-app`. Put the jar on the classpath and set `platform.delivery.transport=kafka` plus `platform.delivery.kafka.bootstrap-servers` and `platform.delivery.kafka.topic`. Message key is `tenantId:eventId`; headers carry `traceparent`, `event-name`, `declaration-version`; body is the existing outbox `event_body`. Outside `local`, plaintext is forbidden (TLS or SASL). Default build/start keeps `transport=socket` without Kafka on the classpath.
+
+`subjex-outbox-kafka` 不是 `platform-app` 的依赖。把 jar 放进 classpath，设 `platform.delivery.transport=kafka` 以及 bootstrap-servers 与 topic。键为 `tenantId:eventId`；头带 traceparent / 事件名 / 声明版本；正文仍是出箱 `event_body`。非 `local` 禁止明文。默认构建仍用 socket，classpath 不必有 Kafka。
 
 ## Images and CI / 镜像与持续集成
 

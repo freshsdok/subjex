@@ -1,5 +1,6 @@
 package com.subjex.platform.app.delivery;
 
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -51,7 +52,7 @@ class OutboxRelayTest {
         insertPending(jdbc, "event-relay-1", "{\"eventId\":\"event-relay-1\"}");
 
         try (Peer peer = new Peer(true)) {
-            JdbcTaskMessagePort port = port(jdbc, source, peer.port(), new SamplePathCircuitBreaker(3), clock);
+            JdbcTaskMessagePort port = port(jdbc, source, peer.port(), new DeliveryCircuitBreaker(3), clock);
             assertEquals(1, port.relayPending(10));
             assertEquals(OutboxState.PUBLISHED.name(), stateOf(jdbc, "event-relay-1"));
         }
@@ -60,8 +61,8 @@ class OutboxRelayTest {
         try (Peer peer = new Peer(false)) {
             // Cooldown long enough that half-open does not interfere within this test.
             // 冷却足够长，本测试内半开不会插手。
-            SamplePathCircuitBreaker breaker =
-                    new SamplePathCircuitBreaker(99, Duration.ofHours(1), clock);
+            DeliveryCircuitBreaker breaker =
+                    new DeliveryCircuitBreaker(99, Duration.ofHours(1), clock);
             JdbcTaskMessagePort port = port(jdbc, source, peer.port(), breaker, clock);
             assertEquals(0, port.relayPending(10));
             assertEquals(0, port.relayPending(10));
@@ -80,7 +81,7 @@ class OutboxRelayTest {
         Clock clock = Clock.systemUTC();
         insertPending(jdbc, "event-held", "{\"eventId\":\"event-held\"}");
 
-        SamplePathCircuitBreaker breaker = new SamplePathCircuitBreaker(1, Duration.ofHours(1), clock);
+        DeliveryCircuitBreaker breaker = new DeliveryCircuitBreaker(1, Duration.ofHours(1), clock);
         breaker.recordFailure();
         assertTrue(breaker.isOpen());
 
@@ -96,7 +97,7 @@ class OutboxRelayTest {
     }
 
     private static JdbcTaskMessagePort port(
-            JdbcTemplate jdbc, DataSource source, int port, SamplePathCircuitBreaker breaker, Clock clock) {
+            JdbcTemplate jdbc, DataSource source, int port, DeliveryCircuitBreaker breaker, Clock clock) {
         TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(source));
         OpenTelemetry telemetry = telemetry();
         OutboxSocketPublisher publisher = new OutboxSocketPublisher(

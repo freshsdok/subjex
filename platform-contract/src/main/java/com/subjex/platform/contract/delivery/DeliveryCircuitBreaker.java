@@ -1,4 +1,4 @@
-package com.subjex.platform.app.delivery;
+package com.subjex.platform.contract.delivery;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -6,15 +6,15 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * SamplePathCircuitBreaker — 示例路径熔断器：连续失败达到阈值后暂时不再调用 sample-consumer。
+ * DeliveryCircuitBreaker — 出箱投递熔断器：连续失败达到阈值后暂时不再调用所选传输。
  * <p>
- * The breaker guards only the sample delivery path. A success clears the streak. Once open, calls are
- * refused until {@code openCooldown} elapses, then one probe is allowed (half-open). That lets the
- * background outbox relay recover after a transient consumer outage instead of leaving rows PENDING forever.
- * 熔断器只看守示例投递路径。一次成功会清掉连续失败。打开之后在冷却期内拒呼，冷却结束后允许一次探测（半开），
- * 这样后台出箱重投能在消费者短暂不可用后恢复，而不是永远停在 PENDING。
+ * The breaker wraps <strong>only the selected</strong> {@link DeliveryPort}.
+ * A Kafka failure must not open the socket path (and the reverse), because one process only wires one transport.
+ * A success clears the streak. Once open, calls are refused until {@code openCooldown} elapses, then one probe
+ * is allowed (half-open) so background relay can recover after a transient outage.
+ * 熔断器只包所选传输。一次成功清掉连续失败；打开后冷却期内拒呼，结束后允许一次半开探测。
  */
-public final class SamplePathCircuitBreaker {
+public final class DeliveryCircuitBreaker {
 
     private final int failureThreshold;
     private final Duration openCooldown;
@@ -23,11 +23,11 @@ public final class SamplePathCircuitBreaker {
     private boolean open;
     private Instant openedAt;
 
-    public SamplePathCircuitBreaker(int failureThreshold) {
+    public DeliveryCircuitBreaker(int failureThreshold) {
         this(failureThreshold, Duration.ofSeconds(30), Clock.systemUTC());
     }
 
-    public SamplePathCircuitBreaker(int failureThreshold, Duration openCooldown, Clock clock) {
+    public DeliveryCircuitBreaker(int failureThreshold, Duration openCooldown, Clock clock) {
         if (failureThreshold < 1) {
             throw new IllegalArgumentException("failure threshold must be at least 1");
         }

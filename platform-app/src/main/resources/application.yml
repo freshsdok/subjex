@@ -88,6 +88,9 @@ platform:
         host: ${PLATFORM_APP_HOST:127.0.0.1}
         port: ${PLATFORM_APP_PORT:8080}
   delivery:
+    # Single-select transport: socket (demo, default) | kafka (optional module).
+    # 传输单选：socket（演示，默认）| kafka（可选模块）。
+    transport: ${PLATFORM_DELIVERY_TRANSPORT:socket}
     consumer-host: ${SAMPLE_CONSUMER_HOST:127.0.0.1}
     consumer-port: ${SAMPLE_CONSUMER_PORT:19081}
     # Shared HMAC secret (≥32). Not an operator password. / 共享 HMAC 密钥（≥32），不是操作员口令。
@@ -103,6 +106,17 @@ platform:
       truststore-password: ${OUTBOX_TLS_TRUSTSTORE_PASSWORD:}
     # Laptop/tests only — never in k8s. / 仅本机/测试，勿用于 k8s。
     allow-insecure: ${OUTBOX_ALLOW_INSECURE:false}
+    # Optional Kafka adapter (module subjex-outbox-kafka on classpath; transport=kafka).
+    # 可选 Kafka 适配器（classpath 含 subjex-outbox-kafka 且 transport=kafka）。
+    declaration-version: ${OUTBOX_DECLARATION_VERSION:1}
+    kafka:
+      bootstrap-servers: ${OUTBOX_KAFKA_BOOTSTRAP_SERVERS:}
+      topic: ${OUTBOX_KAFKA_TOPIC:}
+      security:
+        protocol: ${OUTBOX_KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      sasl:
+        mechanism: ${OUTBOX_KAFKA_SASL_MECHANISM:}
+        jaas-config: ${OUTBOX_KAFKA_SASL_JAAS_CONFIG:}
   tracing:
     # Empty keeps the discarding exporter / 空则继续用丢弃导出器
     otlp-endpoint: ${PLATFORM_OTLP_ENDPOINT:${OTEL_EXPORTER_OTLP_ENDPOINT:}}

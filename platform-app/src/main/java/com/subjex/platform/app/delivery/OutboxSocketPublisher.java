@@ -1,5 +1,8 @@
 package com.subjex.platform.app.delivery;
 
+import com.subjex.platform.contract.delivery.DeliveryAttempt;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryPort;
 import com.subjex.platform.contract.delivery.OutboxHmac;
 import com.subjex.platform.contract.delivery.OutboxSocketFrame;
 import com.subjex.platform.contract.task.DeliveryResult;
@@ -20,22 +23,21 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 
 /**
- * OutboxSocketPublisher — 出箱套接字发布者：把 JDBC 出箱行推到 sample-consumer 的产品路径。
+ * OutboxSocketPublisher — 出箱套接字投递：{@link DeliveryPort} 的 socket 实现（本机/快速开始演示）。
  * <p>
- * The bytes on the socket are {@link OutboxEvent#eventBody()}. Auth is HMAC-SHA256 with a shared secret
- * (not an operator password). Optional TLS wraps the socket when an {@link SSLContext} is provided.
- * Failure on this path opens {@link SamplePathCircuitBreaker}. The current span is written as traceparent.
- * 套接字上的字节是 {@link OutboxEvent#eventBody()}。认证是共享密钥 HMAC-SHA256（不是操作员口令）。
- * 提供 {@link SSLContext} 时套接字走 TLS。这条路径失败会打开 {@link SamplePathCircuitBreaker}。
- * 当前跨度写成 traceparent。
+ * Pushes JDBC outbox rows to sample-consumer over {@code SUBJEX-OUTBOX 2}. Single address, body ≤ 4000 bytes,
+ * shared HMAC — not a multi-consumer bus. Optional TLS when an {@link SSLContext} is provided. Failures open
+ * only this publisher's {@link DeliveryCircuitBreaker}. The current span is written as traceparent.
+ * 把 JDBC 出箱行经 {@code SUBJEX-OUTBOX 2} 推给 sample-consumer。单地址、正文 ≤4000 字节、共享 HMAC——
+ * 不是多消费方总线。提供 {@link SSLContext} 时走 TLS。失败只打开本实现的熔断器。当前跨度写成 traceparent。
  */
-public final class OutboxSocketPublisher {
+public final class OutboxSocketPublisher implements DeliveryPort {
 
     private final String consumerHost;
     private final int consumerPort;
     private final String hmacSecret;
     private final SSLContext sslContext;
-    private final SamplePathCircuitBreaker breaker;
+    private final DeliveryCircuitBreaker breaker;
     private final OpenTelemetry openTelemetry;
     private final Clock clock;
 
@@ -44,7 +46,7 @@ public final class OutboxSocketPublisher {
             int consumerPort,
             String hmacSecret,
             SSLContext sslContext,
-            SamplePathCircuitBreaker breaker,
+            DeliveryCircuitBreaker breaker,
             OpenTelemetry openTelemetry,
             Clock clock) {
         if (consumerHost == null || consumerHost.isBlank()) {
@@ -58,7 +60,7 @@ public final class OutboxSocketPublisher {
         this.consumerPort = consumerPort;
         this.hmacSecret = hmacSecret;
         this.sslContext = sslContext;
-        this.breaker = breaker;
+        this.breaker = Objects.requireNonNull(breaker, "breaker");
         this.openTelemetry = openTelemetry;
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -69,7 +71,8 @@ public final class OutboxSocketPublisher {
      * @param failureRequested when true, the sample consumer rejects after taking the notice
      *                         为 true 时，示例消费者收下通知后拒绝
      */
-    public SocketDelivery deliver(OutboxEvent event, boolean failureRequested) {
+    @Override
+    public DeliveryAttempt deliver(OutboxEvent event, boolean failureRequested) {
         if (event == null || event.eventName() == null || event.eventBody() == null) {
             throw new IllegalArgumentException("outbox event is missing");
         }
@@ -78,20 +81,20 @@ public final class OutboxSocketPublisher {
         try (Scope ignored = span.makeCurrent()) {
             String traceId = span.getSpanContext().getTraceId();
             if (!breaker.allowCall()) {
-                return new SocketDelivery(DeliveryResult.pending("breaker-open"), traceId);
+                return new DeliveryAttempt(DeliveryResult.pending("breaker-open"), traceId);
             }
             try {
                 boolean accepted = push(event, failureRequested);
                 if (accepted) {
                     breaker.recordSuccess();
-                    return new SocketDelivery(DeliveryResult.published(), traceId);
+                    return new DeliveryAttempt(DeliveryResult.published(), traceId);
                 }
                 breaker.recordFailure();
-                return new SocketDelivery(DeliveryResult.pending("sample-consumer rejected"), traceId);
+                return new DeliveryAttempt(DeliveryResult.pending("sample-consumer rejected"), traceId);
             } catch (Exception ex) {
                 breaker.recordFailure();
                 span.recordException(ex);
-                return new SocketDelivery(DeliveryResult.pending(clip(ex.getMessage())), traceId);
+                return new DeliveryAttempt(DeliveryResult.pending(clip(ex.getMessage())), traceId);
             }
         } finally {
             span.end();

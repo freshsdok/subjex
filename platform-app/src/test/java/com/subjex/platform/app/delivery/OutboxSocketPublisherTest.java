@@ -1,11 +1,13 @@
 package com.subjex.platform.app.delivery;
 
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.platform.app.trace.DiscardingSpanExporter;
+import com.subjex.platform.contract.delivery.DeliveryAttempt;
 import com.subjex.platform.contract.delivery.OutboxSocketFrame;
 import com.subjex.platform.contract.task.OutboxState;
 import com.subjex.platform.contract.task.TaskRecordedNotice;
@@ -36,12 +38,12 @@ class OutboxSocketPublisherTest {
             OutboxEvent event = event("{\"eventId\":\"event-1\"}");
             assertEquals(OutboxState.PENDING, publisher.deliver(event, false).result().eventState());
             assertEquals(OutboxState.PENDING, publisher.deliver(event, false).result().eventState());
-            SocketDelivery third = publisher.deliver(event, false);
+            DeliveryAttempt third = publisher.deliver(event, false);
             assertEquals(OutboxState.PENDING, third.result().eventState());
             assertTrue(third.result().failureReason().contains("rejected"));
             assertEquals(3, peer.received.size());
 
-            SocketDelivery blocked = publisher.deliver(event, false);
+            DeliveryAttempt blocked = publisher.deliver(event, false);
             assertEquals("breaker-open", blocked.result().failureReason());
             assertEquals(3, peer.received.size());
         }
@@ -52,7 +54,7 @@ class OutboxSocketPublisherTest {
         String body = "{\"eventId\":\"event-1\",\"tenantId\":\"tenant-north\"}";
         try (Peer peer = new Peer(true)) {
             OutboxSocketPublisher publisher = publisher(peer.port());
-            SocketDelivery delivery = publisher.deliver(event(body), false);
+            DeliveryAttempt delivery = publisher.deliver(event(body), false);
             assertEquals(OutboxState.PUBLISHED, delivery.result().eventState());
             OutboxSocketFrame.Notice notice = peer.received.poll(3, TimeUnit.SECONDS);
             assertNotNull(notice);
@@ -78,7 +80,7 @@ class OutboxSocketPublisherTest {
                 port,
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 null,
-                new SamplePathCircuitBreaker(3),
+                new DeliveryCircuitBreaker(3),
                 telemetry,
                 java.time.Clock.systemUTC());
     }

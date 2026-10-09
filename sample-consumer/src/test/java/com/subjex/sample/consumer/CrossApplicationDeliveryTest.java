@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
-import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
-import com.subjex.platform.app.delivery.SocketDelivery;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryAttempt;
 import com.subjex.platform.app.trace.DiscardingSpanExporter;
 import com.subjex.platform.contract.task.OutboxEvent;
 import com.subjex.platform.contract.task.OutboxState;
@@ -61,10 +61,10 @@ class CrossApplicationDeliveryTest {
 
     @Test
     void consumerReceivesTheOutboxBodyOnTheSameTrace() throws Exception {
-        OutboxSocketPublisher publisher = publisher(new SamplePathCircuitBreaker(3));
+        OutboxSocketPublisher publisher = publisher(new DeliveryCircuitBreaker(3));
         TaskRecordedNotice notice = new TaskRecordedNotice(
                 "event-cross-1", "tenant-north", "task-cross-1", "admit-subject");
-        SocketDelivery delivery = publisher.deliver(event(notice), false);
+        DeliveryAttempt delivery = publisher.deliver(event(notice), false);
 
         assertEquals(OutboxState.PUBLISHED, delivery.result().eventState());
         assertEquals(notice, receipts.lastNotice());
@@ -75,7 +75,7 @@ class CrossApplicationDeliveryTest {
 
     @Test
     void consumerFailureTripsThePublisherBreaker() throws Exception {
-        OutboxSocketPublisher publisher = publisher(new SamplePathCircuitBreaker(3));
+        OutboxSocketPublisher publisher = publisher(new DeliveryCircuitBreaker(3));
         TaskRecordedNotice notice = new TaskRecordedNotice(
                 "event-cross-2", "tenant-north", "task-cross-2", "admit-subject");
         OutboxEvent event = event(notice);
@@ -85,7 +85,7 @@ class CrossApplicationDeliveryTest {
         publisher.deliver(event, true);
         assertEquals(before + 3, receipts.count());
 
-        SocketDelivery blocked = publisher.deliver(event, true);
+        DeliveryAttempt blocked = publisher.deliver(event, true);
         assertEquals("breaker-open", blocked.result().failureReason());
         assertEquals(before + 3, receipts.count());
     }
@@ -104,7 +104,7 @@ class CrossApplicationDeliveryTest {
                 null);
     }
 
-    private OutboxSocketPublisher publisher(SamplePathCircuitBreaker breaker) {
+    private OutboxSocketPublisher publisher(DeliveryCircuitBreaker breaker) {
         SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
                 .setSampler(Sampler.alwaysOn())
                 .addSpanProcessor(SimpleSpanProcessor.create(new DiscardingSpanExporter()))

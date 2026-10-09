@@ -24,6 +24,7 @@
         <module>platform-app</module>
         <module>sample-consumer</module>
         <module>model-gateway</module>
+        <module>subjex-outbox-kafka</module>
         <module>form-render</module>
         <module>entity-declare</module>
         <module>page-declare</module>
@@ -49,6 +50,11 @@
             <dependency>
                 <groupId>com.subjex</groupId>
                 <artifactId>platform-app</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.subjex</groupId>
+                <artifactId>subjex-outbox-kafka</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

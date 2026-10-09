@@ -11,8 +11,8 @@ package com.subjex.platform.contract.task;
 public interface TaskMessagePort {
 
     /**
-     * Persist the task and the outbox row, then push that row over the outbox socket.
-     * 写下任务和出箱行，再把这一行从出箱套接字推出去。
+     * Persist the task and the outbox row, then push that row through the selected DeliveryPort.
+     * 写下任务和出箱行，再经所选 DeliveryPort 推出去。
      */
     TaskRecord submit(TaskCommand command);
 

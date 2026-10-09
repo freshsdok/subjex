@@ -357,3 +357,16 @@ Repair-ticket pick-only + audit + wizard-first RT-3/6/7 — 权限只选、版�
 RT-3/6/7. [done] Draft save/promote: permission must be in `OperatorPermission` catalog (400 unknown); form effects whitelist `audit.write`|`task.enqueue` only (`extension.invoke` classpath-only). Form `audit.write` records tenant/actor/entityKey/declarationVersion/resolutionSource (Flyway V19). Console: permission `<select>` from catalog on business-table + entity/form wizards; demote single-kind template + entity/form wizards behind advanced disclosure; path hint wizard → migrate → promote → pages. Tests + docs. Local commit only (no push).
     草稿保存/晋升：权限只选目录；表单副作用白名单；审计带租户与声明版本关联（V19）。控制台权限下拉；收窄单种/实体表单向导为高级；路径提示。测例与文档。仅本地提交。
 
+
+RT wave on github/main — 报修单控制台闭环已推送（2026-10-09）:
+
+RT-push. [done] Squashed RT-1…RT-7 onto `github/main` as `a680231` (parent `32eca66` AX squash; tree `58eba251` = local `d90d2f5`). Fast-forward only, never force. Local RT commits remain as history.
+    已 squash 推到 GitHub main；本地 RT 提交链保留作历史。
+
+Outbox bus adapter — 出箱标准总线出口适配器（2026-10-09）:
+
+OB-1. [done] `DeliveryPort` / `DeliveryAttempt` / `DeliveryTransport` in contract; `OutboxSocketPublisher` implements port; `JdbcTaskMessagePort` + relay use port; `platform.delivery.transport=socket` default; `DeliveryCircuitBreaker` wraps selected transport only; socket demoted to demo in docs. Local commit only.
+    传输端口化；默认 socket；文档标明演示限制。仅本地提交。
+
+OB-2. [done] Module `subjex-outbox-kafka`: KafkaDeliveryPublisher + auto-config when transport=kafka; fail-fast host/topic; TLS/SASL gate; MockProducer tests; DeliveryCircuitBreaker in contract. platform-app does not depend on the module. Local commit only.
+    Kafka 可选模块与安全门、单测；platform-app 默认不依赖。仅本地提交。

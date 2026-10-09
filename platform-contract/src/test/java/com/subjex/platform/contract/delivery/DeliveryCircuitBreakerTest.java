@@ -1,4 +1,4 @@
-package com.subjex.platform.app.delivery;
+package com.subjex.platform.contract.delivery;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,11 +9,11 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
-class SamplePathCircuitBreakerTest {
+class DeliveryCircuitBreakerTest {
 
     @Test
     void consecutiveFailuresOpenTheBreakerAndSuccessClearsTheStreak() {
-        SamplePathCircuitBreaker breaker = new SamplePathCircuitBreaker(3);
+        DeliveryCircuitBreaker breaker = new DeliveryCircuitBreaker(3);
         assertTrue(breaker.allowCall());
         breaker.recordFailure();
         breaker.recordFailure();
@@ -29,8 +29,8 @@ class SamplePathCircuitBreakerTest {
     @Test
     void halfOpenAllowsAProbeAfterCooldown() {
         MovableClock clock = new MovableClock(Instant.parse("2026-10-05T00:00:00Z"));
-        SamplePathCircuitBreaker breaker =
-                new SamplePathCircuitBreaker(2, Duration.ofSeconds(10), clock);
+        DeliveryCircuitBreaker breaker =
+                new DeliveryCircuitBreaker(2, Duration.ofSeconds(10), clock);
         breaker.recordFailure();
         breaker.recordFailure();
         assertTrue(breaker.isTripped());
@@ -49,8 +49,8 @@ class SamplePathCircuitBreakerTest {
     @Test
     void halfOpenFailureExtendsTheOpenWindow() {
         MovableClock clock = new MovableClock(Instant.parse("2026-10-05T00:00:00Z"));
-        SamplePathCircuitBreaker breaker =
-                new SamplePathCircuitBreaker(1, Duration.ofSeconds(5), clock);
+        DeliveryCircuitBreaker breaker =
+                new DeliveryCircuitBreaker(1, Duration.ofSeconds(5), clock);
         breaker.recordFailure();
         assertFalse(breaker.allowCall());
 

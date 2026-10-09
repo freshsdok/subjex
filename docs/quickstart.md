@@ -91,6 +91,14 @@ java -jar sample-consumer/target/sample-consumer-0.1.0-SNAPSHOT-exec.jar
 
 It listens for outbox frames on TCP `19081` (HMAC-authenticated; plaintext allowed only under `local`), serves probes on HTTP `8081`, registers itself on platform-app, and reads its config from platform-app. When platform-app is unreachable it falls back to `PLATFORM_APP_HOST` / `PLATFORM_APP_PORT` and its own `application.yml`.
 
+**Demo limits / 演示限制：** socket outbox is single-address, body ≤ 4000 bytes, shared HMAC — not a multi-consumer bus. Default `platform.delivery.transport=socket`. Optional Kafka adapter is a separate module (`subjex-outbox-kafka`), not on the default classpath.
+
+套接字出箱是演示：单地址、正文 ≤4000、共享 HMAC，不是多消费方总线。默认 `transport=socket`；Kafka 适配器在独立模块，默认不进 classpath。
+
+To try Kafka (adapter only; sample-consumer not required): add `subjex-outbox-kafka` to the runtime classpath, set `PLATFORM_DELIVERY_TRANSPORT=kafka`, `OUTBOX_KAFKA_BOOTSTRAP_SERVERS`, `OUTBOX_KAFKA_TOPIC`. Outside `local` set `OUTBOX_KAFKA_SECURITY_PROTOCOL` to `SSL` / `SASL_SSL` / `SASL_PLAINTEXT`. Outbox table and relay stay the same.
+
+试用 Kafka（仅适配器，不必启 sample-consumer）：运行 classpath 加入 `subjex-outbox-kafka`，设置上述环境变量；非 local 须 TLS 或 SASL。出箱表与重投不变。
+
 它在 TCP `19081` 接收出箱帧，在 HTTP `8081` 提供探针，到 platform-app 登记自己，并从 platform-app 读配置。platform-app 连不上时，回退到 `PLATFORM_APP_HOST` / `PLATFORM_APP_PORT` 和自己的 `application.yml`。
 
 ## 5. Pages to open / 打开哪些页面

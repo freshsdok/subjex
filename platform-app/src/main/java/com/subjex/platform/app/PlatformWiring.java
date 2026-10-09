@@ -2,14 +2,16 @@ package com.subjex.platform.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.connection.ConfiguredConnection;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
+import com.subjex.platform.contract.delivery.DeliveryPort;
+import com.subjex.platform.contract.delivery.DeliveryTransport;
 import com.subjex.platform.contract.delivery.OutboxTls;
 import com.subjex.platform.contract.delivery.OutboxTransportPolicy;
 import com.subjex.platform.app.discovery.AddressProbe;
 import com.subjex.platform.app.discovery.PlatformSelfRegistrar;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.discovery.TcpAddressProbe;
-import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.entity.declare.EntityCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
@@ -85,8 +87,10 @@ import java.time.Duration;
 import java.util.List;
 import javax.net.ssl.SSLContext;
 import javax.sql.DataSource;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -363,13 +367,18 @@ public class PlatformWiring {
     }
 
     @Bean
-    SamplePathCircuitBreaker samplePathCircuitBreaker(
+    DeliveryCircuitBreaker deliveryCircuitBreaker(
             @Value("${platform.delivery.breaker-failure-threshold:3}") int failureThreshold) {
-        return new SamplePathCircuitBreaker(failureThreshold);
+        return new DeliveryCircuitBreaker(failureThreshold);
     }
 
+    /**
+     * Socket demo transport (default). Not a multi-consumer bus — see ARCHITECTURE / SECURITY.
+     * 套接字演示传输（默认）。不是多消费方总线。
+     */
     @Bean
-    OutboxSocketPublisher outboxSocketPublisher(
+    @ConditionalOnProperty(name = "platform.delivery.transport", havingValue = "socket", matchIfMissing = true)
+    DeliveryPort socketDeliveryPort(
             @Value("${platform.delivery.consumer-host}") String consumerHost,
             @Value("${platform.delivery.consumer-port}") int consumerPort,
             @Value("${platform.delivery.hmac-secret}") String hmacSecret,
@@ -378,7 +387,7 @@ public class PlatformWiring {
             @Value("${platform.delivery.tls.truststore-password:}") String truststorePassword,
             @Value("${platform.delivery.allow-insecure:false}") boolean allowInsecure,
             Environment environment,
-            SamplePathCircuitBreaker breaker,
+            DeliveryCircuitBreaker breaker,
             OpenTelemetry openTelemetry,
             Clock clock) {
         OutboxTransportPolicy.requireReady(hmacSecret, tlsEnabled, allowInsecure, environment.getActiveProfiles());
@@ -402,12 +411,25 @@ public class PlatformWiring {
             IdempotencyPort idempotencyPort,
             AuditPort auditPort,
             DistributedLockPort lock,
-            OutboxSocketPublisher publisher,
+            ObjectProvider<DeliveryPort> deliveryPort,
+            @Value("${platform.delivery.transport:socket}") String transportRaw,
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
             Clock clock) {
+        DeliveryPort port = deliveryPort.getIfAvailable();
+        if (port == null) {
+            DeliveryTransport transport = DeliveryTransport.parse(transportRaw);
+            if (transport == DeliveryTransport.KAFKA) {
+                throw new IllegalStateException(
+                        "platform.delivery.transport=kafka but no DeliveryPort bean — "
+                                + "add subjex-outbox-kafka to the classpath (not on the default platform-app startup path)");
+            }
+            throw new IllegalStateException(
+                    "platform.delivery.transport=" + transportRaw.trim()
+                            + " but no DeliveryPort bean is registered");
+        }
         return new JdbcTaskMessagePort(
-                jdbc, transaction, idempotencyPort, auditPort, lock, publisher, openTelemetry, objectMapper, clock);
+                jdbc, transaction, idempotencyPort, auditPort, lock, port, openTelemetry, objectMapper, clock);
     }
 
     @Bean

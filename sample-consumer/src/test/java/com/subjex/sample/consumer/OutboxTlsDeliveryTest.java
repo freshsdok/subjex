@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
-import com.subjex.platform.app.delivery.SamplePathCircuitBreaker;
-import com.subjex.platform.app.delivery.SocketDelivery;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryAttempt;
 import com.subjex.platform.app.trace.DiscardingSpanExporter;
 import com.subjex.platform.contract.delivery.OutboxTls;
 import com.subjex.platform.contract.task.OutboxEvent;
@@ -49,7 +49,7 @@ class OutboxTlsDeliveryTest {
                     listener.port(),
                     SECRET,
                     clientSsl,
-                    new SamplePathCircuitBreaker(3),
+                    new DeliveryCircuitBreaker(3),
                     telemetry,
                     Clock.systemUTC());
             TaskRecordedNotice notice =
@@ -65,7 +65,7 @@ class OutboxTlsDeliveryTest {
                     null,
                     Instant.EPOCH,
                     null);
-            SocketDelivery delivery = publisher.deliver(event, false);
+            DeliveryAttempt delivery = publisher.deliver(event, false);
             assertEquals(OutboxState.PUBLISHED, delivery.result().eventState());
             assertEquals(notice, receipts.lastNotice());
         } finally {

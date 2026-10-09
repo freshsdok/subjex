@@ -2,8 +2,8 @@ package com.subjex.platform.app.jdbc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.subjex.platform.app.delivery.OutboxSocketPublisher;
-import com.subjex.platform.app.delivery.SocketDelivery;
+import com.subjex.platform.contract.delivery.DeliveryAttempt;
+import com.subjex.platform.contract.delivery.DeliveryPort;
 import com.subjex.platform.app.task.IdempotencyConflict;
 import com.subjex.platform.app.task.SubmitLockHeld;
 import com.subjex.platform.contract.audit.AuditEntry;
@@ -49,9 +49,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * JdbcTaskMessagePort — JDBC 任务消息端口：{@link TaskMessagePort} 的唯一实现。
  * <p>
  * The task row and the outbox row are written with SQL in one transaction. Delivery then pushes that
- * stored row through {@link OutboxSocketPublisher}. {@link #relayPending(int)} retries PENDING rows under a
+ * stored row through the selected {@link DeliveryPort}. {@link #relayPending(int)} retries PENDING rows under a
  * distributed lock. There is no entity model on this path.
- * 任务行和出箱行在同一个事务里用 SQL 写入。随后 {@link OutboxSocketPublisher} 推送这条已落库的行。
+ * 任务行和出箱行在同一个事务里用 SQL 写入。随后经所选 {@link DeliveryPort} 推送这条已落库的行。
  * {@link #relayPending(int)} 在分布式锁下重投 PENDING 行。这条路径上没有实体模型。
  */
 public final class JdbcTaskMessagePort implements TaskMessagePort {
@@ -61,7 +61,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
     private final IdempotencyPort idempotencyPort;
     private final AuditPort auditPort;
     private final DistributedLockPort lock;
-    private final OutboxSocketPublisher publisher;
+    private final DeliveryPort deliveryPort;
     private final OpenTelemetry openTelemetry;
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -73,7 +73,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
             IdempotencyPort idempotencyPort,
             AuditPort auditPort,
             DistributedLockPort lock,
-            OutboxSocketPublisher publisher,
+            DeliveryPort deliveryPort,
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
             Clock clock) {
@@ -82,7 +82,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
         this.idempotencyPort = idempotencyPort;
         this.auditPort = auditPort;
         this.lock = lock;
-        this.publisher = publisher;
+        this.deliveryPort = deliveryPort;
         this.openTelemetry = openTelemetry;
         this.objectMapper = objectMapper;
         this.clock = clock;
@@ -108,7 +108,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
                     return inserted.task();
                 }
                 OutboxEvent stored = loadOutbox(inserted.notice().eventId());
-                SocketDelivery delivery = publisher.deliver(stored, false);
+                DeliveryAttempt delivery = deliveryPort.deliver(stored, false);
                 transaction.executeWithoutResult(status -> recordDelivery(stored.eventId(), delivery.result()));
                 return loadTask(inserted.task().taskId());
             } finally {
@@ -186,7 +186,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
             List<OutboxEvent> pending = listPending(batchSize);
             int published = 0;
             for (OutboxEvent stored : pending) {
-                SocketDelivery delivery = publisher.deliver(stored, false);
+                DeliveryAttempt delivery = deliveryPort.deliver(stored, false);
                 if ("breaker-open".equals(delivery.result().failureReason())) {
                     // Do not burn attempt_count while the breaker refuses calls.
                     // 熔断拒呼时不消耗 attempt_count。
