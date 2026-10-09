@@ -42,8 +42,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * DeclarationPromoteSecurityTest — 晋升接口：401/403、declaration.promote、租户授权、404/409、审计。
+ * DeclarationPromoteSecurityTest — purpose: promote/rollback HTTP AuthZ + dual-operator (P7).
+ * Gates: declaration.promote required; second operator; unfinished migrations block (fail-closed).
+ * <p>
+ * 目的：晋升/回滚 HTTP 鉴权与双人确认（P7）。门禁：需 declaration.promote；第二操作员；未结迁移阻断。
  */
 @WebMvcTest(controllers = DeclarationPromoteEndpoint.class)
 @Import({

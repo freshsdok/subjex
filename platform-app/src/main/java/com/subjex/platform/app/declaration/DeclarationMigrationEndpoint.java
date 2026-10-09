@@ -52,6 +52,7 @@ public class DeclarationMigrationEndpoint {
         this.audit = Objects.requireNonNull(audit, "audit");
     }
 
+    /** List migration queue for kind/key — 列出某 kind/key 的迁移队列。 */
     @GetMapping(PATH + "/{kind}/{key}/migrations")
     public MigrationsDocument list(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -65,6 +66,7 @@ public class DeclarationMigrationEndpoint {
         return new MigrationsDocument(migrations);
     }
 
+    /** Enqueue PENDING DDL (entity only) — 入队 PENDING DDL（仅实体）。 */
     @PostMapping(PATH + "/{kind}/{key}/migrations")
     public MigrationDocument enqueue(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -99,6 +101,7 @@ public class DeclarationMigrationEndpoint {
         return document(row);
     }
 
+    /** Mark PENDING -> REVIEWED — 将 PENDING 标为 REVIEWED。 */
     @PostMapping(PATH + "/{kind}/{key}/migrations/{id}/review")
     public MigrationDocument review(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -123,6 +126,7 @@ public class DeclarationMigrationEndpoint {
     }
 
 
+    /** Apply REVIEWED DDL via fail-closed whitelist — 执行 REVIEWED DDL（白名单失败关闭）。 */
     @PostMapping(PATH + "/{kind}/{key}/migrations/{id}/apply")
     public MigrationDocument apply(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -147,6 +151,7 @@ public class DeclarationMigrationEndpoint {
     }
 
 
+    /** Cancel open migration job — 取消未完成迁移任务。 */
     @PostMapping(PATH + "/{kind}/{key}/migrations/{id}/cancel")
     public MigrationDocument cancel(
             @AuthenticationPrincipal OperatorPrincipal operator,

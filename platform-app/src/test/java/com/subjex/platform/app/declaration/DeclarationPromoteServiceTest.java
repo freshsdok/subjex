@@ -22,8 +22,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+
 /**
- * DeclarationPromoteServiceTest — 内部 git 晋升：写文件、commit sha、翻 PROMOTED、拒路径穿越。
+ * DeclarationPromoteServiceTest — purpose: promote into internal git + PROMOTED flip.
+ * Gates: already-promoted 409; entity migrations must be APPLIED/CANCELLED; dual approval consumed.
+ * <p>
+ * 目的：晋升进内部 git 并翻 PROMOTED。门禁：已晋升 409；实体迁移须结清；双人确认已消费。
  */
 class DeclarationPromoteServiceTest {
 

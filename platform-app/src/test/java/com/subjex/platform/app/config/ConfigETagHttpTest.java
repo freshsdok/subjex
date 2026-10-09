@@ -32,8 +32,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+
 /**
- * ConfigETagHttpTest — ETag / If-None-Match / If-Match（Config-5c）窄测。
+ * ConfigETagHttpTest — purpose/gate Config-5c: If-Match 412 / If-None-Match 304 on config HTTP.
+ * Concurrent override without matching ETag fail-closed.
+ * <p>
+ * 目的/门禁 Config-5c：If-Match 412、If-None-Match 304；ETag 不匹配的并发覆盖失败关闭。
  */
 @WebMvcTest(controllers = {ConfigEntriesEndpoint.class, ConfigApiEndpoint.class})
 @Import({

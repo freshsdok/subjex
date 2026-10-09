@@ -30,8 +30,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * FormsRuntimeOverlaySecurityTest — 带 {@code X-Tenant-Id} 时表单详情走库内草稿覆盖；无头仍 classpath。
+ * FormsRuntimeOverlaySecurityTest — purpose: forms runtime overlay with tenant draft/promoted YAML.
+ * Gates: AuthZ on form submit/read; overlay conflict (table/PK change) -> 409 fail-closed.
+ * <p>
+ * 目的：表单运行时用租户草稿/已晋升覆盖。门禁：提交/读鉴权；表名/主键冲突 409 失败关闭。
  */
 @WebMvcTest(controllers = FormsApiEndpoint.class)
 @Import({

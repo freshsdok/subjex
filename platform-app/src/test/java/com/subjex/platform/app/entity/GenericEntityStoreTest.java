@@ -19,8 +19,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+
 /**
- * GenericEntityStoreTest — 通用实体存储：demo-ticket 与 service-note 可保存、查找、列表、删除与 upsert；校验拒绝未知键。
+ * GenericEntityStoreTest — purpose: metadata-driven JDBC upsert/list/delete for RenderedEntity.
+ * Gates: tenantScoped stamps/filters tenant_id; PK path; validation fail-closed on bad types.
+ * <p>
+ * 目的：按 RenderedEntity 元数据 JDBC upsert/列表/删除。门禁：租户隔离盖章/过滤；类型校验失败关闭。
  */
 class GenericEntityStoreTest {
 

@@ -41,8 +41,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * DeclarationDraftSecurityTest — 声明草稿接口：401/403/400、declaration.read|write、租户授权、YAML 校验。
+ * DeclarationDraftSecurityTest — purpose: draft HTTP AuthZ (read/write + tenant grant).
+ * Gates: missing declaration.read/write -> 403; blank tenantId -> 400; grant required (fail-closed).
+ * <p>
+ * 目的：草稿 HTTP 鉴权。门禁：缺 declaration.read/write -> 403；空 tenantId -> 400；须租户授权。
  */
 @WebMvcTest(controllers = DeclarationDraftEndpoint.class)
 @Import({

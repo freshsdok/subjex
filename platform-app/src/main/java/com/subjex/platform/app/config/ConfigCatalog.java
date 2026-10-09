@@ -35,6 +35,7 @@ public final class ConfigCatalog implements ConfigCenterPort {
         this.overrides = Objects.requireNonNull(overrides, "overrides");
     }
 
+    /** Implements {@link com.subjex.platform.contract.config.ConfigCenterPort#list} — 实现配置中心列表。 */
     @Override
     public List<ConfigEntry> list(String namespace) {
         String ns = ConfigNamespaces.require(namespace);
@@ -58,6 +59,7 @@ public final class ConfigCatalog implements ConfigCenterPort {
         return get(key);
     }
 
+    /** Effective entry (override wins) — 生效条目（覆盖层优先）。 */
     @Override
     public Optional<ConfigEntry> get(String namespace, String key) {
         String ns = ConfigNamespaces.require(namespace);
@@ -80,11 +82,13 @@ public final class ConfigCatalog implements ConfigCenterPort {
         put(key, value);
     }
 
+    /** Put in default namespace — 写入默认命名空间。 */
     @Override
     public ConfigEntry put(String key, String value) {
         return put(ConfigNamespaces.DEFAULT, key, value);
     }
 
+    /** Put override; bumps revision (Config-5b) — 写入覆盖并递增修订号（Config-5b）。 */
     @Override
     public ConfigEntry put(String namespace, String key, String value) {
         String ns = ConfigNamespaces.require(namespace);

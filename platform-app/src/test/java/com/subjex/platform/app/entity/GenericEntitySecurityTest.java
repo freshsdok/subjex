@@ -35,8 +35,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * GenericEntitySecurityTest — 通用实体 REST：tenantScoped 缺头 4xx；有授权与头时 200。
+ * GenericEntitySecurityTest — purpose: generic entity CRUD AuthZ via declaration permissions.
+ * Gates: missing permission 403; tenantScoped requires X-Tenant-Id + grant; runtimeEntity overlay rules.
+ * <p>
+ * 目的：通用实体 CRUD 经声明权限鉴权。门禁：缺权限 403；租户隔离须头+授权；runtimeEntity 覆盖规则。
  */
 @WebMvcTest(controllers = GenericEntityEndpoint.class)
 @Import({

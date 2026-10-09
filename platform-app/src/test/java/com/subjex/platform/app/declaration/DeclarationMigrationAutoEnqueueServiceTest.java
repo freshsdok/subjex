@@ -14,8 +14,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+
 /**
- * DeclarationMigrationAutoEnqueueServiceTest — RT-4：新实体 CREATE、加列 ALTER ADD、幂等、classpath 样例。
+ * DeclarationMigrationAutoEnqueueServiceTest — purpose: auto-enqueue ALTER ADD / CREATE after entity draft save.
+ * Gates: idempotent per revision+sql; refuse unsafe type/table/PK change before insert (fail-closed).
+ * <p>
+ * 目的：实体草稿保存后自动入队 ALTER ADD / CREATE。门禁：同修订同 SQL 幂等；危险变更落库前失败关闭。
  */
 class DeclarationMigrationAutoEnqueueServiceTest {
 

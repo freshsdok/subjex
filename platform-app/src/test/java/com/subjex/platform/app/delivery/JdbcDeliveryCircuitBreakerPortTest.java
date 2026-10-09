@@ -13,11 +13,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+
 /**
- * JdbcDeliveryCircuitBreakerPortTest — JDBC 共享熔断：两份实例共用一库时共享开合状态。
+ * JdbcDeliveryCircuitBreakerPortTest — purpose: shared JDBC delivery circuit breaker.
+ * Gates: threshold opens breaker (fail-closed deliver); success resets; cooldown half-open.
  * <p>
- * Proves Scale-4c shared open state on H2 (PostgreSQL and MySQL modes) with real Flyway scripts.
- * 在 H2 的两种兼容模式上用真实 Flyway 脚本证明 Scale-4c 共享开合。
+ * 目的：共享 JDBC 投递熔断。门禁：达阈打开（失败关闭不再投递）；成功复位；冷却半开。
  */
 class JdbcDeliveryCircuitBreakerPortTest {
 

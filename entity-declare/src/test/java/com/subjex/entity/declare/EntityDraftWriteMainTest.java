@@ -8,8 +8,12 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+
 /**
- * EntityDraftWriteMainTest — CLI 写出测试：YAML → SQL 草稿与 Java 桩写到目标路径。
+ * EntityDraftWriteMainTest — purpose: CLI writes Flyway SQL draft + CRUD stubs from entity YAML.
+ * Gates: invalid YAML refuse; output paths deterministic for checked-in drafts.
+ * <p>
+ * 目的：CLI 从实体 YAML 写出 Flyway SQL 草稿与 CRUD 桩。门禁：非法 YAML 拒绝；输出路径确定。
  */
 class EntityDraftWriteMainTest {
 

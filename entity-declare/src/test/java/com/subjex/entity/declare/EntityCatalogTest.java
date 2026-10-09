@@ -8,8 +8,12 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
+
 /**
- * EntityCatalogTest — 实体目录测试：加载 classpath 样例；subjectRef/organizationRef 解析；拒绝旧别名与未知 kind。
+ * EntityCatalogTest — purpose: load classpath entity YAML catalog; resolve refs; reject bad kinds.
+ * Gates: subjectRef/organizationRef resolve; unknown field kind / old aliases fail-closed.
+ * <p>
+ * 目的：加载 classpath 实体目录；解析引用；拒绝非法 kind。门禁：未知字段种类/旧别名失败关闭。
  */
 class EntityCatalogTest {
 

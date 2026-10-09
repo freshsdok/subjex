@@ -8,6 +8,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
+
+
+/**
+ * EntityRendererTest — purpose: render/validate declarative entity YAML to RenderedEntity.
+ * Gates: required fields; primary key; reject unknown kinds / blank keys (fail-closed).
+ * <p>
+ * 目的：声明式实体 YAML 渲染校验为 RenderedEntity。门禁：必填/主键；未知 kind/空白键失败关闭。
+ */
 class EntityRendererTest {
 
     private final EntityRenderer renderer = new EntityRenderer();

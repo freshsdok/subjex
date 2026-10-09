@@ -12,8 +12,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+
 /**
- * JdbcDeclarationStoreTest — 声明草稿：修订递增、latest、listLatest、租户隔离。
+ * JdbcDeclarationStoreTest — purpose: declaration draft revision JDBC store.
+ * Gates: save/latest/history/promote mark; tenant isolation (dual H2 MODE).
+ * <p>
+ * 目的：声明草稿修订 JDBC。门禁：保存/最新/历史/晋升标记；租户隔离。
  */
 class JdbcDeclarationStoreTest {
 

@@ -31,6 +31,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+
+/**
+ * ConfigListPageTest — purpose: read-only HTML config list page renders keys/values/origins.
+ * Gates: authenticated access per config.read; values show effective layer.
+ * <p>
+ * 目的：只读配置名单页渲染键/值/来源。门禁：需 config.read；展示生效层。
+ */
 @WebMvcTest(controllers = {ConfigEntriesEndpoint.class, ConfigListPage.class})
 @Import({
     PlatformSecurityConfiguration.class,

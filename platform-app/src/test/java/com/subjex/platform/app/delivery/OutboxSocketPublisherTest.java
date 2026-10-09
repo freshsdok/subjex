@@ -29,6 +29,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
+
+
+/**
+ * OutboxSocketPublisherTest — purpose: socket DeliveryPort frame/HMAC/TLS path to sample-consumer.
+ * Gates: HMAC required; oversized body refuse; breaker open -> PENDING (fail-closed).
+ * <p>
+ * 目的：套接字 DeliveryPort 帧/HMAC/TLS。门禁：须 HMAC；超大正文拒绝；熔断打开 -> PENDING。
+ */
 class OutboxSocketPublisherTest {
 
     @Test

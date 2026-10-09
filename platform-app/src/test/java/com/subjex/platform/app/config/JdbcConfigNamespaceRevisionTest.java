@@ -18,8 +18,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+
 /**
- * JdbcConfigNamespaceRevisionTest — 命名空间隔离与 put 递增修订号（Config-5b）。
+ * JdbcConfigNamespaceRevisionTest — purpose/gate Config-5b: namespaced overrides bump revision.
+ * Gates: put increments revision; list/get see override over base (dual H2 MODE).
+ * <p>
+ * 目的/门禁 Config-5b：命名空间覆盖递增修订号；列表/读取覆盖压过底层。
  */
 class JdbcConfigNamespaceRevisionTest {
 

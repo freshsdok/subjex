@@ -68,6 +68,7 @@ public class GenericEntityEndpoint {
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
     }
 
+    /** List records via runtimeEntity + DeclarationAccess — 经 runtimeEntity + DeclarationAccess 列记录。 */
     @GetMapping(RECORDS_PATH)
     public RecordsDocument list(
             @PathVariable("entityKey") String entityKey,
@@ -92,6 +93,7 @@ public class GenericEntityEndpoint {
         return new RecordsDocument(records);
     }
 
+    /** Get one record; missing -> 404 — 读单条；缺失 404。 */
     @GetMapping(RECORD_PATH)
     public Map<String, Object> get(
             @PathVariable("entityKey") String entityKey,
@@ -104,6 +106,7 @@ public class GenericEntityEndpoint {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
+    /** Upsert record; tenantScoped stamps tenant_id — 写入记录；租户隔离时盖章 tenant_id。 */
     @PutMapping(RECORD_PATH)
     public ResponseEntity<Void> put(
             @PathVariable("entityKey") String entityKey,
@@ -124,6 +127,7 @@ public class GenericEntityEndpoint {
         return ResponseEntity.noContent().build();
     }
 
+    /** Delete record; fail-closed AuthZ via declaration permissions — 删除记录；声明权限失败关闭。 */
     @DeleteMapping(RECORD_PATH)
     public ResponseEntity<Void> delete(
             @PathVariable("entityKey") String entityKey,

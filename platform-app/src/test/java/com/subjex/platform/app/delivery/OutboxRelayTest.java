@@ -38,9 +38,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+
 /**
- * Outbox relay retries PENDING rows after the sync submit attempt failed.
- * 出箱重投在同步提交失败后继续投递 PENDING 行。
+ * OutboxRelayTest — purpose: poll PENDING outbox and push via DeliveryPort.
+ * Gates: success marks published; failure keeps PENDING for retry; breaker open skips (fail-closed).
+ * <p>
+ * 目的：拉取 PENDING 出箱经 DeliveryPort 推送。门禁：成功已发布；失败仍 PENDING；熔断打开则跳过。
  */
 class OutboxRelayTest {
 

@@ -42,8 +42,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * DeclarationMigrationSecurityTest — 迁移队列接口：401/403、declaration.migrate、入队/审阅/执行。
+ * DeclarationMigrationSecurityTest — purpose: migration queue HTTP AuthZ (list/enqueue/review/apply).
+ * Gates: declaration.migrate for writes; declaration.read for list; apply only REVIEWED (fail-closed).
+ * <p>
+ * 目的：迁移队列 HTTP 鉴权。门禁：写需 declaration.migrate；列表需 declaration.read；仅 REVIEWED 可执行。
  */
 @WebMvcTest(controllers = DeclarationMigrationEndpoint.class)
 @Import({

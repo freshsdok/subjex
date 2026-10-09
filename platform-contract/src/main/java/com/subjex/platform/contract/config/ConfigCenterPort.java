@@ -16,19 +16,23 @@ public interface ConfigCenterPort {
         return list(ConfigNamespaces.DEFAULT);
     }
 
-    /** Watched keys (default ns only) plus stored overrides in the namespace. */
+    /** Watched keys plus stored overrides in the namespace — 命名空间内关注键 + 已存覆盖。 */
     List<ConfigEntry> list(String namespace);
 
     default Optional<ConfigEntry> get(String key) {
         return get(ConfigNamespaces.DEFAULT, key);
     }
 
+    /** Effective entry for namespace+key if known — 命名空间+键的生效条目（若有）。 */
     Optional<ConfigEntry> get(String namespace, String key);
 
     default ConfigEntry put(String key, String value) {
         return put(ConfigNamespaces.DEFAULT, key, value);
     }
 
-    /** Store an override; returned entry has origin OVERRIDE and the new revision. */
+    /**
+     * Store an override; returned entry has origin OVERRIDE and the new revision -
+     * 写入覆盖；返回条目来源为 OVERRIDE 且带新修订号。
+     */
     ConfigEntry put(String namespace, String key, String value);
 }

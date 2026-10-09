@@ -36,6 +36,7 @@ public class ConfigApiEndpoint {
         this.audit = audit;
     }
 
+    /** List config entries for namespace — 按命名空间列出配置条目。 */
     @GetMapping(PATH)
     public ConfigDocument config(
             @RequestParam(value = "namespace", required = false) String namespace) {
@@ -46,6 +47,10 @@ public class ConfigApiEndpoint {
         return new ConfigDocument(ns, entries);
     }
 
+    /**
+     * PUT override with optional If-Match (412 on mismatch) - Config-5c fail-closed concurrency -
+     * 覆盖写入；可选 If-Match（不匹配 412）— Config-5c 并发失败关闭。
+     */
     @PutMapping(PATH + "/{key}")
     public ResponseEntity<ConfigEntryDocument> override(
             @PathVariable("key") String key,

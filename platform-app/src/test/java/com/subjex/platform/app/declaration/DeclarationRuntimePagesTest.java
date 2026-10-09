@@ -7,8 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.subjex.page.declare.PageRenderer;
 import org.junit.jupiter.api.Test;
 
+
 /**
- * DeclarationRuntimePagesTest — 固定路径与租户隔离四积木契约。
+ * DeclarationRuntimePagesTest — purpose: flow promote derives list/new/detail bindings (no page YAML).
+ * Gates: path contract /pages/{key}; tenantScoped flows need four business-table blocks (fail-closed).
+ * <p>
+ * 目的：流程晋升派生 list/new/detail 绑定（不另写 page YAML）。门禁：路径契约；租户隔离须四积木。
  */
 class DeclarationRuntimePagesTest {
 

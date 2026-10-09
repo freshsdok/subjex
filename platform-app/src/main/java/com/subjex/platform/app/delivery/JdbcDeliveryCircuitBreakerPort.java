@@ -50,6 +50,7 @@ public final class JdbcDeliveryCircuitBreakerPort implements DeliveryCircuitBrea
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    /** True when closed/half-open allows a call — 闭合/半开允许调用时为 true。 */
     @Override
     public boolean allowCall() {
         ensureRow();
@@ -61,6 +62,7 @@ public final class JdbcDeliveryCircuitBreakerPort implements DeliveryCircuitBrea
         return !clock.instant().isBefore(readyAt);
     }
 
+    /** Reset failures / close breaker — 复位失败计数并闭合熔断。 */
     @Override
     public void recordSuccess() {
         ensureRow();
@@ -73,6 +75,7 @@ public final class JdbcDeliveryCircuitBreakerPort implements DeliveryCircuitBrea
                 destinationKey);
     }
 
+    /** Count failure; open when threshold hit — 记失败；达阈则打开。 */
     @Override
     public void recordFailure() {
         ensureRow();
@@ -92,6 +95,7 @@ public final class JdbcDeliveryCircuitBreakerPort implements DeliveryCircuitBrea
                 destinationKey);
     }
 
+    /** Whether breaker is open (fail-closed: no deliver) — 是否打开（失败关闭：不再投递）。 */
     @Override
     public boolean isOpen() {
         Instant openedAt = loadOpenedAt();
@@ -102,6 +106,7 @@ public final class JdbcDeliveryCircuitBreakerPort implements DeliveryCircuitBrea
         return clock.instant().isBefore(readyAt);
     }
 
+    /** Alias of open for metrics — 打开别名（指标用）。 */
     @Override
     public boolean isTripped() {
         return loadOpenedAt() != null;

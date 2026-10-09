@@ -20,9 +20,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+
 /**
- * EffectiveDeclarationServiceTest — DRAFT > PROMOTED > classpath 热加载顺序；
- * runtimeEntity：classpath 安全覆盖；无 classpath 仅 PROMOTED+APPLIED 迁移。
+ * EffectiveDeclarationServiceTest — purpose: DRAFT > PROMOTED > classpath resolution; runtimeEntity gates.
+ * Gates: classpath overlay only when tableName+PK match; no-classpath needs PROMOTED + APPLIED migration
+ * (open PENDING/REVIEWED/FAILED -> 409; DRAFT must not drive brand-new JDBC tables).
+ * <p>
+ * 目的：生效声明加载顺序与 runtimeEntity 门禁。无 classpath 仅 PROMOTED+已 APPLIED；草稿不得驱动新表 JDBC。
  */
 class EffectiveDeclarationServiceTest {
 

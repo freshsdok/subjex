@@ -14,6 +14,10 @@ public final class OutboxTransportPolicy {
     private OutboxTransportPolicy() {
     }
 
+    /**
+     * Fail-closed: non-local without TLS/HMAC refuses startup -
+     * 失败关闭：非 local 未配 TLS/HMAC 则拒绝启动。
+     */
     public static void requireReady(String hmacSecret, boolean tlsEnabled, boolean allowInsecure, String[] activeProfiles) {
         OutboxHmac.requireSecret(hmacSecret);
         if (tlsEnabled) {

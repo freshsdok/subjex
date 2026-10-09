@@ -31,6 +31,10 @@ public final class OutboxRelay {
         this.batchSize = batchSize;
     }
 
+    /**
+     * Poll PENDING outbox rows and push via {@link DeliveryPort}; record outcome on caller store -
+     * 拉取 PENDING 出箱行经 DeliveryPort 推送；结果由调用方存储记账。
+     */
     @Scheduled(fixedDelayString = "${platform.delivery.relay-interval-ms:2000}")
     public void relay() {
         taskMessagePort.relayPending(batchSize);

@@ -20,8 +20,12 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
+
 /**
- * DeclarationDraftConstraintsTest — RT-3：权限目录只选不造；表单副作用白名单。
+ * DeclarationDraftConstraintsTest — purpose: RT-3 draft save gates (permission catalog + form effect whitelist).
+ * Gates: unknown permission reject; effect outside audit.write|task.enqueue reject (fail-closed).
+ * <p>
+ * 目的：RT-3 草稿保存门禁（权限目录 + 表单副作用白名单）。门禁：未知权限拒绝；副作用越白名单失败关闭。
  */
 class DeclarationDraftConstraintsTest {
 

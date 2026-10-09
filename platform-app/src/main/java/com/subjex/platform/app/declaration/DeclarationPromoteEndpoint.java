@@ -49,6 +49,7 @@ public class DeclarationPromoteEndpoint {
         this.audit = Objects.requireNonNull(audit, "audit");
     }
 
+    /** First operator requests promote approval (P7) — 第一操作员请求晋升确认（P7）。 */
     @PostMapping(PATH + "/{kind}/{key}/promote/approvals")
     public ApprovalDocument requestApproval(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -86,6 +87,10 @@ public class DeclarationPromoteEndpoint {
                 row.createdAt());
     }
 
+    /**
+     * Second operator promotes after consumed approval; migrations must be settled -
+     * 第二操作员在已消费确认后晋升；迁移须已结清。
+     */
     @PostMapping(PATH + "/{kind}/{key}/promote")
     public PromoteDocument promote(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -122,6 +127,7 @@ public class DeclarationPromoteEndpoint {
                 JdbcDeclarationStore.PROMOTED_STATE);
     }
 
+    /** Rollback to previous PROMOTED (never auto-DROP) — 回滚到上一份已晋升（绝不自动 DROP）。 */
     @PostMapping(PATH + "/{kind}/{key}/rollback")
     public PromoteDocument rollback(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -143,6 +149,7 @@ public class DeclarationPromoteEndpoint {
                 JdbcDeclarationStore.PROMOTED_STATE);
     }
 
+    /** Promote audit history — 晋升审计历史。 */
     @GetMapping(PATH + "/{kind}/{key}/promotes")
     public PromotesDocument listPromotes(
             @AuthenticationPrincipal OperatorPrincipal operator,

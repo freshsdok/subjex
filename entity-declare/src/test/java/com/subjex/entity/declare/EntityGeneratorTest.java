@@ -10,8 +10,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
+
 /**
- * EntityGeneratorTest — 生成器测试：SQL / Java 草稿包含期望的列名与类型名。
+ * EntityGeneratorTest — purpose: EntityMigrationGenerator / CRUD stub generator outputs.
+ * Gates: CREATE TABLE + tenant_id when scoped; ADD COLUMN statements; stub names match entityKey.
+ * <p>
+ * 目的：迁移/CRUD 桩生成器输出。门禁：隔离时含 tenant_id；ADD COLUMN；桩名匹配 entityKey。
  */
 class EntityGeneratorTest {
 

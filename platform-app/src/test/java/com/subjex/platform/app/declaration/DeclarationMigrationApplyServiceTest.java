@@ -16,8 +16,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+
 /**
- * DeclarationMigrationApplyServiceTest — 执行 REVIEWED DDL：H2 CREATE/ALTER、拒 DROP、拒 PENDING。
+ * DeclarationMigrationApplyServiceTest — purpose: REVIEWED entity DDL apply whitelist.
+ * Gates: non-REVIEWED refuse; unsafe SQL refuse; success marks APPLIED; failure marks FAILED (fail-closed).
+ * <p>
+ * 目的：REVIEWED 实体 DDL 执行白名单。门禁：非 REVIEWED 拒绝；不安全 SQL 拒绝；成功 APPLIED；失败 FAILED。
  */
 class DeclarationMigrationApplyServiceTest {
 

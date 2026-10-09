@@ -10,7 +10,7 @@ import com.subjex.platform.contract.task.OutboxEvent;
  * Failure returns a PENDING {@link com.subjex.platform.contract.task.DeliveryResult} so existing retry
  * keeps the row. {@code failureRequested} is a demo/test hook for the socket path; other transports ignore it.
  * 一个进程只选一种传输。实现不要改出箱行状态；由调用方记账。失败返回 PENDING，交给现有重投。
- * {@code failureRequested} 仅套接字演示/测试用。
+ * {@code failureRequested} 仅套接字演示/测试用。熔断打开时实现应拒绝调用（失败关闭，不投递）。
  */
 public interface DeliveryPort {
 

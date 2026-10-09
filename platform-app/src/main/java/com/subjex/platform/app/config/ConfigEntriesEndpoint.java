@@ -38,6 +38,7 @@ public class ConfigEntriesEndpoint {
         this.audit = audit;
     }
 
+    /** Cross-process GET with If-None-Match -> 304 — 跨进程读取；If-None-Match 命中则 304。 */
     @GetMapping
     public ResponseEntity<EntryDocument> read(
             @RequestParam("key") String key,
@@ -63,6 +64,7 @@ public class ConfigEntriesEndpoint {
                         found.revision()));
     }
 
+    /** Cross-process POST override; If-Match mismatch -> 412 — 跨进程覆盖；If-Match 不匹配则 412。 */
     @PostMapping
     public ResponseEntity<Void> override(
             @RequestBody OverrideDocument document,

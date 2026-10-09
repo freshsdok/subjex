@@ -15,8 +15,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+
 /**
- * JdbcDeclarationMigrationStoreTest — 迁移队列：入队 PENDING、审阅、标记结果、租户隔离。
+ * JdbcDeclarationMigrationStoreTest — purpose: migration queue JDBC state transitions.
+ * Gates: enqueue PENDING; review/apply/fail/cancel transitions; dual H2 MODE.
+ * <p>
+ * 目的：迁移队列 JDBC 状态流转。门禁：入队 PENDING；审阅/执行/失败/取消；双 H2 模式。
  */
 class JdbcDeclarationMigrationStoreTest {
 

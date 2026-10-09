@@ -60,6 +60,7 @@ public class DeclarationDraftEndpoint {
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
     }
 
+    /** List latest drafts for tenant (+ optional kind filter) — 列出租户最新草稿（可选 kind 过滤）。 */
     @GetMapping(PATH)
     public RevisionsDocument list(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -72,6 +73,7 @@ public class DeclarationDraftEndpoint {
         return new RevisionsDocument(revisions);
     }
 
+    /** Latest open draft (404 if none) — 最新未晋升草稿（无则 404）。 */
     @GetMapping(PATH + "/{kind}/{key}")
     public RevisionDocument latest(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -85,6 +87,7 @@ public class DeclarationDraftEndpoint {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
+    /** Promoted history newest-first — 已晋升历史，新在前。 */
     @GetMapping(PATH + "/{kind}/{key}/revisions")
     public RevisionsDocument history(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -98,6 +101,7 @@ public class DeclarationDraftEndpoint {
         return new RevisionsDocument(revisions);
     }
 
+    /** Effective summary (draft|promoted|classpath) — 生效摘要（草稿|已晋升|classpath）。 */
     @GetMapping(PATH + "/{kind}/{key}/effective")
     public EffectiveDocument effective(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -141,6 +145,10 @@ public class DeclarationDraftEndpoint {
         };
     }
 
+    /**
+     * Save draft YAML; entity path auto-enqueues PENDING migrations (fail-closed validation) -
+     * 保存草稿 YAML；实体路径自动入队 PENDING 迁移（校验失败关闭）。
+     */
     @PutMapping(PATH + "/{kind}/{key}")
     public RevisionDocument save(
             @AuthenticationPrincipal OperatorPrincipal operator,
