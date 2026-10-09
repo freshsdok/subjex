@@ -45,6 +45,7 @@ public final class OutboxSocketListener implements SmartLifecycle {
 
     private final int listenPort;
     private final String hmacSecret;
+    private final String hmacSecretPrevious;
     private final SSLContext sslContext;
     private final OpenTelemetry openTelemetry;
     private final ObjectMapper objectMapper;
@@ -57,6 +58,7 @@ public final class OutboxSocketListener implements SmartLifecycle {
     public OutboxSocketListener(
             int listenPort,
             String hmacSecret,
+            String hmacSecretPrevious,
             SSLContext sslContext,
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
@@ -68,6 +70,7 @@ public final class OutboxSocketListener implements SmartLifecycle {
         OutboxHmac.requireSecret(hmacSecret);
         this.listenPort = listenPort;
         this.hmacSecret = hmacSecret;
+        this.hmacSecretPrevious = hmacSecretPrevious == null ? "" : hmacSecretPrevious.trim();
         this.sslContext = sslContext;
         this.openTelemetry = openTelemetry;
         this.objectMapper = objectMapper;
@@ -181,8 +184,9 @@ public final class OutboxSocketListener implements SmartLifecycle {
     }
 
     private boolean authorized(OutboxSocketFrame.Notice frame) {
-        return OutboxHmac.verify(
+        return OutboxHmac.verifyAny(
                 hmacSecret,
+                hmacSecretPrevious,
                 frame.eventName(),
                 frame.traceparent(),
                 frame.failureRequested(),

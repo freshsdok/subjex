@@ -370,3 +370,8 @@ OB-1. [done] `DeliveryPort` / `DeliveryAttempt` / `DeliveryTransport` in contrac
 
 OB-2. [done] Module `subjex-outbox-kafka`: KafkaDeliveryPublisher + auto-config when transport=kafka; fail-fast host/topic; TLS/SASL gate; MockProducer tests; DeliveryCircuitBreaker in contract. platform-app does not depend on the module. Local commit only.
     Kafka 可选模块与安全门、单测；platform-app 默认不依赖。仅本地提交。
+
+## Production gaps P1–P7 (2026-10-09 Asia/Shanghai) / 生产缺口
+
+Local commits only (not pushed). Checklist: `docs/release/v0.1.0-alpha.1-checklist.md`. Tag blocked by `docs/release/drills/DRILL-PENDING.md`.
+仅本地提交。检查表见上；`DRILL-PENDING` 阻断 tag。

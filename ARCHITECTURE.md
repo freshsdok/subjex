@@ -152,22 +152,21 @@ Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; t
 - Client id: remote address by default; `X-Forwarded-For` is read (right to left, skipping trusted hops) only when the peer is in `gateway.trusted-proxies`. Known limit: counters are per gateway process.
 - ArchUnit: each process module keeps only the boundary rules its test classpath can match (`failOnEmptyShould` stays on).
 
-## 14. 节点五：可观测与多副本 / Node 5
+## 14. 节点五：可观测与单副本门禁 / Node 5
 
-- Prometheus：`platform-app`、`entry-gateway`、`sample-consumer` 暴露 `/actuator/prometheus`（Micrometer）。存活/就绪仍匿名；指标端点同样匿名，靠网络隔离，不在进程内再做一套认证。
-- 追踪：默认仍是丢弃导出器（生成 trace id，跨进程靠 `traceparent`）。配置了 `PLATFORM_OTLP_ENDPOINT`（或 `OTEL_EXPORTER_OTLP_ENDPOINT`）时改为 OTLP/HTTP 导出；没有采集器时行为与节点一至四相同。
-- 多副本：`deploy/k8s/platform-app.yaml` 副本数为 2；`deploy/compose` 起两个 `platform-app` 实例，入口网关通过 Compose DNS 轮询上游。登记/配置/锁已在共享库，副本之间不靠进程内存。
-- 压测：`deploy/load/smoke-load.sh` 经网关打一串只读请求，打印状态码分布；不是基准测试，只证明多副本+网关可承受短突发。
-- 控制台会话（TD-1）：操作员会话从 Next.js 进程内存迁到 Redis，多副本控制台才共享登录态。网关限流仍是进程内粗限流（多网关副本各算各的），节点五不引入 Redis 限流。会话值含加密的 access/refresh 令牌（`accessTokenEnc` / `refreshTokenEnc`）；从不存 Basic（`SECURITY.md`）。另有操作员管理与 `operator_tenant_grant`（见 `docs/operator-permissions.md`）。
-- 不做：HPA、完整 Grafana 看板、采样策略调优、跨区域。
+- Prometheus：各进程在**管理端口**暴露 `/actuator/prometheus`（见 P2）；存活/就绪匿名且应限制在集群网段。
+- 追踪：默认丢弃导出器；配置 `PLATFORM_OTLP_ENDPOINT` 时改为 OTLP/HTTP。
+- **单副本门禁（P4）：** `deploy/k8s/platform-app.yaml` 默认 `replicas: 1`；compose 默认一个 `platform-app`。出箱熔断与限流是**进程内**状态——**不做**分布式熔断。同时跑两个副本只作为已知限制，不作为对外能力。
+- 压测：`deploy/load/smoke-load.sh` 经网关打只读请求；不是基准测试。
+- 控制台会话（TD-1）：Redis 共享登录态（多控制台副本时）。网关限流仍进程内。会话只存加密 access/refresh（`SECURITY.md`）。
+- 不做：HPA、分布式熔断、完整 Grafana、跨区域。
 
-### English summary — Node 5: observability and two replicas
+### English summary — Node 5: observability and single-replica gate
 
-- Prometheus scrape on `/actuator/prometheus` for the three processes.
-- Optional OTLP/HTTP when an endpoint env is set; otherwise keep the discarding exporter.
-- Two `platform-app` replicas in k8s and compose; gateway uses DNS round-robin.
-- Short smoke load script through the gateway.
-- Console sessions move to Redis (TD-1) with encrypted Basic at rest (memory path matches). Operator management + operator–tenant grants added later; see `docs/operator-permissions.md`. Gateway rate limits stay in-process.
+- Prometheus on the management port (P2); probes anonymous but cluster-CIDR only.
+- Optional OTLP/HTTP when configured.
+- **P4:** default one `platform-app` replica. Breaker + rate-limit are in-process; dual replica is a known limit, not a product claim. No distributed breaker.
+- Smoke load via gateway; Redis console sessions; gateway rate limits stay in-process.
 
 ## 15. 节点六：低代码加深 / Node 6
 

@@ -24,7 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * fail-closes unless list/new/detail paths match {@code /pages/{key}} (and tenantScoped flows
  * carry the four business-table blocks). Pages are not written as separate YAML — runtime reads
  * the promoted flow via {@link EffectiveDeclarationService#effectiveFlow}.
- * Re-promoting an already {@code PROMOTED} revision fails with {@link DeclarationAlreadyPromoted}
+ * Requires a consumed dual-operator approval (P7). Re-promoting an already {@code PROMOTED} revision fails with {@link DeclarationAlreadyPromoted}
  * (HTTP 409). HTTP is {@link DeclarationPromoteEndpoint}.
  * 加载修订，经 git 写 YAML，插入晋升审计并翻 PROMOTED。不 push。
  * 实体：同修订迁移须全部 APPLIED 或 CANCELLED（无行则允许）。表单不绑迁移。
@@ -36,6 +36,7 @@ public final class DeclarationPromoteService {
     private final JdbcDeclarationMigrationStore migrationStore;
     private final InternalDeclarationGit git;
     private final Path gitDir;
+    private final JdbcDeclarationPromoteApprovalStore approvals;
     private final TransactionTemplate transactions;
     private final EntityRenderer entityRenderer = new EntityRenderer();
     private final FormRenderer formRenderer = new FormRenderer();
@@ -44,11 +45,13 @@ public final class DeclarationPromoteService {
     public DeclarationPromoteService(
             JdbcDeclarationStore store,
             JdbcDeclarationMigrationStore migrationStore,
+            JdbcDeclarationPromoteApprovalStore approvals,
             InternalDeclarationGit git,
             Path gitDir,
             TransactionTemplate transactions) {
         this.store = Objects.requireNonNull(store, "store");
         this.migrationStore = Objects.requireNonNull(migrationStore, "migrationStore");
+        this.approvals = Objects.requireNonNull(approvals, "approvals");
         this.git = Objects.requireNonNull(git, "git");
         this.gitDir = Objects.requireNonNull(gitDir, "gitDir");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
@@ -56,11 +59,11 @@ public final class DeclarationPromoteService {
 
     /** Promote the latest revision for the key — 晋升该键的最新修订。 */
     public DeclarationPromoteResult promoteLatest(
-            String tenantId, DeclarationKind kind, String declarationKey, String subjectId) {
+            String tenantId, DeclarationKind kind, String declarationKey, String subjectId, String approvalId) {
         DeclarationRevision revision = store.latest(tenantId, kind, declarationKey)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "no declaration revision for " + kind.wireName() + "/" + declarationKey));
-        return promoteRevision(revision, subjectId);
+        return promoteRevision(revision, subjectId, approvalId);
     }
 
     /** Promote an explicit revision number — 晋升指定修订号。 */
@@ -69,15 +72,17 @@ public final class DeclarationPromoteService {
             DeclarationKind kind,
             String declarationKey,
             int revisionNumber,
-            String subjectId) {
+            String subjectId,
+            String approvalId) {
         DeclarationRevision revision = store.findRevision(tenantId, kind, declarationKey, revisionNumber)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "declaration revision not found: " + kind.wireName() + "/" + declarationKey
                                 + "@r" + revisionNumber));
-        return promoteRevision(revision, subjectId);
+        return promoteRevision(revision, subjectId, approvalId);
     }
 
-    private DeclarationPromoteResult promoteRevision(DeclarationRevision revision, String subjectId) {
+    private DeclarationPromoteResult promoteRevision(
+            DeclarationRevision revision, String subjectId, String approvalId) {
         String sid = requireSubjectId(subjectId);
         if (JdbcDeclarationStore.PROMOTED_STATE.equals(revision.draftState())) {
             throw new DeclarationAlreadyPromoted(
@@ -94,6 +99,23 @@ public final class DeclarationPromoteService {
         // 流程晋升：从 YAML 绑定运行时页面（不另写 page 声明）。
         if (revision.kind() == DeclarationKind.FLOW) {
             DeclarationRuntimePages.ensureAfterFlowPromote(revision.yamlBody());
+        }
+        if (approvalId == null || approvalId.isBlank()) {
+            throw new DeclarationPromoteNeedsSecondOperator(
+                    "approvalId required: request dual-operator approval before promote");
+        }
+        DeclarationPromoteApproval consumed = approvals.consume(approvalId.trim(), sid);
+        if (!consumed.tenantId().equals(revision.tenantId())
+                || consumed.kind() != revision.kind()
+                || !consumed.declarationKey().equals(revision.declarationKey())
+                || consumed.revision() != revision.revision()) {
+            throw new IllegalArgumentException(
+                    "approval does not match revision "
+                            + revision.kind().wireName()
+                            + "/"
+                            + revision.declarationKey()
+                            + "@r"
+                            + revision.revision());
         }
         // Git write outside the DB transaction (filesystem); DB rows in one transaction after success.
         // git 写在库事务外；成功后再在同一事务里写审计行并翻状态。
@@ -125,6 +147,46 @@ public final class DeclarationPromoteService {
         return Objects.requireNonNull(result, "promote transaction returned null");
     }
 
+
+
+    /**
+     * Roll back effective tip to the previous {@code PROMOTED} revision (never DROP columns) —
+     * 回滚到上一份已晋升声明（绝不自动删列）。
+     */
+    public DeclarationPromoteResult rollback(
+            String tenantId, DeclarationKind kind, String declarationKey, String subjectId) {
+        String sid = requireSubjectId(subjectId);
+        String tid = Objects.requireNonNull(tenantId, "tenantId").trim();
+        DeclarationKind k = Objects.requireNonNull(kind, "kind");
+        String key = Objects.requireNonNull(declarationKey, "declarationKey").trim();
+        var promotes = store.listPromotes(tid, k, key);
+        if (promotes.size() < 2) {
+            throw new DeclarationRollbackUnavailable(
+                    "no previous PROMOTED declaration to roll back to for " + k.wireName() + "/" + key);
+        }
+        DeclarationPromote current = promotes.get(0);
+        DeclarationPromote previous = promotes.get(1);
+        DeclarationRevision previousRevision = store.findRevision(tid, k, key, previous.revision())
+                .orElseThrow(() -> new DeclarationRollbackUnavailable(
+                        "previous promoted revision missing: " + previous.revision()));
+        // Keep SUPERSEDED tip out of latestPromoted; rewrite git to previous YAML.
+        // 尖端标 SUPERSEDED；git 写回上一份 YAML。
+        String sha = git.promote(
+                gitDir,
+                tid,
+                k,
+                key,
+                previousRevision.revision(),
+                previousRevision.yamlBody(),
+                sid);
+        store.markSuperseded(tid, k, key, current.revision());
+        // previous stays PROMOTED; if it was somehow not, mark it
+        if (!JdbcDeclarationStore.PROMOTED_STATE.equals(previousRevision.draftState())
+                && !JdbcDeclarationStore.SUPERSEDED_STATE.equals(previousRevision.draftState())) {
+            // leave as-is; latestPromoted looks for PROMOTED only
+        }
+        return new DeclarationPromoteResult(tid, k, key, previousRevision.revision(), sha);
+    }
 
     /**
      * Re-validate permission catalog + form effect whitelist on promote (RT-3) —

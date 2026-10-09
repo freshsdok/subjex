@@ -88,7 +88,7 @@ class DeclarationPromoteServiceTest {
         DataSource source = H2PlatformTables.migrated(mode);
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
-        DeclarationPromoteService service = newService(store, source);
+        PromoteFixture service = newService(store, source);
 
         store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", ENTITY_YAML_V1, "sub-a");
 
@@ -161,7 +161,7 @@ class DeclarationPromoteServiceTest {
         DataSource source = H2PlatformTables.migrated(mode);
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
-        DeclarationPromoteService service = newService(store, source);
+        PromoteFixture service = newService(store, source);
         assertThrows(
                 IllegalArgumentException.class,
                 () -> service.promoteLatest("acme", DeclarationKind.ENTITY, "missing", "sub-a"));
@@ -174,7 +174,7 @@ class DeclarationPromoteServiceTest {
         DataSource source = H2PlatformTables.migrated(mode);
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
-        DeclarationPromoteService service = newService(store, source);
+        PromoteFixture service = newService(store, source);
         store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", ENTITY_YAML_V1, "sub-a");
         service.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", "sub-a");
         assertThrows(
@@ -182,14 +182,38 @@ class DeclarationPromoteServiceTest {
                 () -> service.promoteRevision("acme", DeclarationKind.ENTITY, "demo-ticket", 1, "sub-a"));
     }
 
-    private DeclarationPromoteService newService(JdbcDeclarationStore store, DataSource source) {
+    private record PromoteFixture(DeclarationPromoteService service, JdbcTemplate jdbc, JdbcDeclarationStore store) {
+        DeclarationPromoteService.DeclarationPromoteResult promoteLatest(
+                String tenant, DeclarationKind kind, String key, String promoter) {
+            var latest = store.latest(tenant, kind, key);
+            if (latest.isEmpty()) {
+                return service.promoteLatest(tenant, kind, key, promoter, "missing-approval");
+            }
+            String approvalId = new JdbcDeclarationPromoteApprovalStore(jdbc, CLOCK)
+                    .request(tenant, kind, key, latest.get().revision(), "sub-req")
+                    .approvalId();
+            return service.promoteLatest(tenant, kind, key, promoter, approvalId);
+        }
+
+        DeclarationPromoteService.DeclarationPromoteResult promoteRevision(
+                String tenant, DeclarationKind kind, String key, int rev, String promoter) {
+            String approvalId = new JdbcDeclarationPromoteApprovalStore(jdbc, CLOCK)
+                    .request(tenant, kind, key, rev, "sub-req")
+                    .approvalId();
+            return service.promoteRevision(tenant, kind, key, rev, promoter, approvalId);
+        }
+    }
+
+    private PromoteFixture newService(JdbcDeclarationStore store, DataSource source) {
         JdbcTemplate jdbc = new JdbcTemplate(source);
-        return new DeclarationPromoteService(
+        DeclarationPromoteService service = new DeclarationPromoteService(
                 store,
                 new JdbcDeclarationMigrationStore(jdbc, CLOCK),
+                new JdbcDeclarationPromoteApprovalStore(jdbc, CLOCK),
                 new InternalDeclarationGit(),
                 tempGit,
                 new TransactionTemplate(new DataSourceTransactionManager(source)));
+        return new PromoteFixture(service, jdbc, store);
     }
 
     @ParameterizedTest
@@ -199,9 +223,11 @@ class DeclarationPromoteServiceTest {
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
         JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
+        JdbcDeclarationPromoteApprovalStore approvals = new JdbcDeclarationPromoteApprovalStore(jdbc, CLOCK);
         DeclarationPromoteService service = new DeclarationPromoteService(
                 store,
                 migrations,
+                approvals,
                 new InternalDeclarationGit(),
                 tempGit,
                 new TransactionTemplate(new DataSourceTransactionManager(source)));
@@ -215,7 +241,7 @@ class DeclarationPromoteServiceTest {
                 "sub-a");
         assertThrows(
                 DeclarationPromoteBlockedByMigration.class,
-                () -> service.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", "sub-a"));
+                () -> service.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", "sub-a", approvals.request("acme", DeclarationKind.ENTITY, "demo-ticket", store.latest("acme", DeclarationKind.ENTITY, "demo-ticket").orElseThrow().revision(), "sub-req").approvalId()));
     }
 
     @ParameterizedTest
@@ -225,9 +251,11 @@ class DeclarationPromoteServiceTest {
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
         JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
+        JdbcDeclarationPromoteApprovalStore approvals = new JdbcDeclarationPromoteApprovalStore(jdbc, CLOCK);
         DeclarationPromoteService service = new DeclarationPromoteService(
                 store,
                 migrations,
+                approvals,
                 new InternalDeclarationGit(),
                 tempGit,
                 new TransactionTemplate(new DataSourceTransactionManager(source)));
@@ -242,7 +270,7 @@ class DeclarationPromoteServiceTest {
         migrations.markReviewed(row.migrationId());
         migrations.markApplied(row.migrationId());
         DeclarationPromoteService.DeclarationPromoteResult result =
-                service.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", "sub-a");
+                service.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", "sub-a", approvals.request("acme", DeclarationKind.ENTITY, "demo-ticket", store.latest("acme", DeclarationKind.ENTITY, "demo-ticket").orElseThrow().revision(), "sub-req").approvalId());
         assertEquals(1, result.revision());
     }
 
@@ -253,9 +281,11 @@ class DeclarationPromoteServiceTest {
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
         JdbcDeclarationMigrationStore migrations = new JdbcDeclarationMigrationStore(jdbc, CLOCK);
+        JdbcDeclarationPromoteApprovalStore approvals = new JdbcDeclarationPromoteApprovalStore(jdbc, CLOCK);
         DeclarationPromoteService service = new DeclarationPromoteService(
                 store,
                 migrations,
+                approvals,
                 new InternalDeclarationGit(),
                 tempGit,
                 new TransactionTemplate(new DataSourceTransactionManager(source)));
@@ -268,7 +298,7 @@ class DeclarationPromoteServiceTest {
                 "ALTER TABLE anything ADD COLUMN x INT",
                 "sub-a");
         DeclarationPromoteService.DeclarationPromoteResult result =
-                service.promoteLatest("acme", DeclarationKind.FORM, "demo-form", "sub-a");
+                service.promoteLatest("acme", DeclarationKind.FORM, "demo-form", "sub-a", approvals.request("acme", DeclarationKind.FORM, "demo-form", store.latest("acme", DeclarationKind.FORM, "demo-form").orElseThrow().revision(), "sub-req").approvalId());
         assertEquals(1, result.revision());
     }
 
@@ -310,7 +340,7 @@ class DeclarationPromoteServiceTest {
         DataSource source = H2PlatformTables.migrated(mode);
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
-        DeclarationPromoteService service = newService(store, source);
+        PromoteFixture service = newService(store, source);
         store.saveDraft("acme", DeclarationKind.FLOW, "repair-ticket", REPAIR_FLOW, "sub-a");
         DeclarationPromoteService.DeclarationPromoteResult result =
                 service.promoteLatest("acme", DeclarationKind.FLOW, "repair-ticket", "sub-a");
@@ -334,7 +364,7 @@ class DeclarationPromoteServiceTest {
         DataSource source = H2PlatformTables.migrated(mode);
         JdbcTemplate jdbc = new JdbcTemplate(source);
         JdbcDeclarationStore store = new JdbcDeclarationStore(jdbc, CLOCK);
-        DeclarationPromoteService service = newService(store, source);
+        PromoteFixture service = newService(store, source);
         String noBlocks =
                 """
                 flowKey: repair-ticket

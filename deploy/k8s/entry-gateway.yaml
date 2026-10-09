@@ -29,6 +29,8 @@ spec:
           ports:
             - name: http
               containerPort: 8088
+            - name: management
+              containerPort: 8090
           env:
             - name: GATEWAY_UPSTREAM
               value: http://platform-app:8080
@@ -36,6 +38,8 @@ spec:
               value: "120"
             - name: GATEWAY_RATE_LIMIT_WINDOW_SECONDS
               value: "60"
+            - name: MANAGEMENT_SERVER_PORT
+              value: "8090"
             # Unset = ignore X-Forwarded-For. Behind an ingress/LB, list its pod or node CIDR here.
             # 不设 = 忽略 X-Forwarded-For。在 ingress/LB 后面时填它的 IP/CIDR。
             # - name: GATEWAY_TRUSTED_PROXIES
@@ -43,7 +47,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: http
+              port: management
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 3
@@ -51,7 +55,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: http
+              port: management
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3

@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
+import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.contract.ratelimit.RateLimitPort;
 import com.subjex.platform.contract.task.TaskKind;
 import com.subjex.platform.contract.task.TaskMessagePort;
@@ -37,6 +38,9 @@ class TaskSubmissionSecurityTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private TenantQuotaService tenantQuotaService;
 
     @MockitoBean
     private TaskMessagePort taskMessagePort;

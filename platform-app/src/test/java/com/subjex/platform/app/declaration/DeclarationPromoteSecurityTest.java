@@ -22,6 +22,7 @@ import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
+
 import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
@@ -72,6 +73,9 @@ class DeclarationPromoteSecurityTest {
 
     @MockitoBean
     private DeclarationPromoteService promoteService;
+
+    @MockitoBean
+    private JdbcDeclarationPromoteApprovalStore approvals;
 
     @MockitoBean
     private JdbcDeclarationStore store;
@@ -135,10 +139,10 @@ class DeclarationPromoteSecurityTest {
         mockMvc.perform(post(PATH + "/promote")
                         .param("tenantId", "acme")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}")
+                        .content("{\"approvalId\":\"apr-1\"}")
                         .with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isForbidden());
-        verify(promoteService, never()).promoteLatest(anyString(), any(), anyString(), anyString());
+        verify(promoteService, never()).promoteLatest(anyString(), any(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -155,23 +159,23 @@ class DeclarationPromoteSecurityTest {
         mockMvc.perform(post(PATH + "/promote")
                         .param("tenantId", "acme")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}")
+                        .content("{\"approvalId\":\"apr-1\"}")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isNotFound());
-        verify(promoteService, never()).promoteLatest(anyString(), any(), anyString(), anyString());
+        verify(promoteService, never()).promoteLatest(anyString(), any(), anyString(), anyString(), anyString());
     }
 
     @Test
     void alreadyPromotedIs409() throws Exception {
         when(store.latest("acme", DeclarationKind.ENTITY, "demo-ticket"))
                 .thenReturn(Optional.of(sampleRevision(1, JdbcDeclarationStore.PROMOTED_STATE)));
-        when(promoteService.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", LocalOperatorSeeder.SUBJECT_ID))
+        when(promoteService.promoteLatest(eq("acme"), eq(DeclarationKind.ENTITY), eq("demo-ticket"), eq(LocalOperatorSeeder.SUBJECT_ID), anyString()))
                 .thenThrow(new DeclarationAlreadyPromoted("declaration already promoted: entity/demo-ticket@r1"));
 
         mockMvc.perform(post(PATH + "/promote")
                         .param("tenantId", "acme")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}")
+                        .content("{\"approvalId\":\"apr-1\"}")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.reason").value("declaration already promoted: entity/demo-ticket@r1"));
@@ -182,14 +186,14 @@ class DeclarationPromoteSecurityTest {
     void promoterCanPromoteLatestAndAudits() throws Exception {
         when(store.latest("acme", DeclarationKind.ENTITY, "demo-ticket"))
                 .thenReturn(Optional.of(sampleRevision(2, JdbcDeclarationStore.DRAFT_STATE)));
-        when(promoteService.promoteLatest("acme", DeclarationKind.ENTITY, "demo-ticket", LocalOperatorSeeder.SUBJECT_ID))
+        when(promoteService.promoteLatest(eq("acme"), eq(DeclarationKind.ENTITY), eq("demo-ticket"), eq(LocalOperatorSeeder.SUBJECT_ID), anyString()))
                 .thenReturn(new DeclarationPromoteService.DeclarationPromoteResult(
                         "acme", DeclarationKind.ENTITY, "demo-ticket", 2, "deadbeef"));
 
         mockMvc.perform(post(PATH + "/promote")
                         .param("tenantId", "acme")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}")
+                        .content("{\"approvalId\":\"apr-1\"}")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tenantId").value("acme"))
@@ -216,22 +220,23 @@ class DeclarationPromoteSecurityTest {
                         eq(DeclarationKind.ENTITY),
                         eq("demo-ticket"),
                         eq(1),
-                        eq(LocalOperatorSeeder.SUBJECT_ID)))
+                        eq(LocalOperatorSeeder.SUBJECT_ID),
+                        anyString()))
                 .thenReturn(new DeclarationPromoteService.DeclarationPromoteResult(
                         "acme", DeclarationKind.ENTITY, "demo-ticket", 1, "cafebabe"));
 
         mockMvc.perform(post(PATH + "/promote")
                         .param("tenantId", "acme")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"revision\":1}")
+                        .content("{\"revision\":1,\"approvalId\":\"apr-1\"}")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.revision").value(1))
                 .andExpect(jsonPath("$.gitCommitSha").value("cafebabe"));
 
         verify(promoteService)
-                .promoteRevision("acme", DeclarationKind.ENTITY, "demo-ticket", 1, LocalOperatorSeeder.SUBJECT_ID);
-        verify(promoteService, never()).promoteLatest(anyString(), any(), anyString(), anyString());
+                .promoteRevision(eq("acme"), eq(DeclarationKind.ENTITY), eq("demo-ticket"), eq(1), eq(LocalOperatorSeeder.SUBJECT_ID), anyString());
+        verify(promoteService, never()).promoteLatest(anyString(), any(), anyString(), anyString(), anyString());
         verify(audit)
                 .record(any(), eq("declaration.promote"), eq("entity/demo-ticket@1"), eq(AuditOutcome.ALLOWED));
     }

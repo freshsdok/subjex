@@ -30,6 +30,7 @@ import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
+import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.FormsApiEndpoint;
 import com.subjex.platform.app.security.OperatorActionAudit;
@@ -114,6 +115,9 @@ class OpenApiDocumentTest {
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
     private RequestMappingHandlerMapping handlerMapping;
+
+    @MockitoBean
+    private TenantQuotaService tenantQuotaService;
 
     @MockitoBean
     private ServiceCatalog serviceCatalog;

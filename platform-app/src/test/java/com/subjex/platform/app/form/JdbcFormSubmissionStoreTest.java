@@ -52,6 +52,7 @@ class JdbcFormSubmissionStoreTest {
         FormSubmissionRow first = store.save(
                 "endpoint-publication",
                 1,
+                "tenant-a",
                 "identity-a",
                 "operator-a",
                 Map.of("serviceName", "billing", "host", "10.0.0.8", "port", 8080),
@@ -60,11 +61,12 @@ class JdbcFormSubmissionStoreTest {
         FormSubmissionRow second = store.save(
                 "endpoint-publication",
                 2,
+                "tenant-a",
                 "identity-b",
                 "operator-b",
                 Map.of("serviceName", "ledger", "host", "10.0.0.9", "port", 9090),
                 "ledger@10.0.0.9:9090");
-        store.save("other-form", 1, "identity-c", "operator-c", Map.of("x", "y"), "other");
+        store.save("other-form", 1, "tenant-b", "identity-c", "operator-c", Map.of("x", "y"), "other");
 
         List<FormSubmissionRow> rows = store.listByFormKey("endpoint-publication", 10);
         assertEquals(2, rows.size());

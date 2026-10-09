@@ -44,7 +44,9 @@ public class PlatformSecurityConfiguration {
                 // 未开 httpBasic/formLogin 时 Spring 对匿名默认 403；API 客户端统一回 401。
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/prometheus").permitAll()
+                        // Health may appear on the business port only if management.server.port is unset; prometheus is on the management port (P2).
+                        // 未设 management.server.port 时探针可能仍在业务口；prometheus 走管理端口（P2）。
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         // Token issue / rotate / revoke — no prior auth (password or refresh in body).
                         // 签发 / 轮换 / 吊销 — 事先无需认证（口令或刷新令牌在正文里）。
                         .requestMatchers(HttpMethod.POST,
@@ -100,7 +102,10 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.ORG_WRITE.permissionName())
                         // Declaration promote: POST needs declaration.promote; GET history uses declaration.read below.
                         // 声明晋升：POST 要 declaration.promote；GET 历史走下方 declaration.read。
-                        .requestMatchers(HttpMethod.POST, "/api/v1/declarations/*/*/promote")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/declarations/*/*/promote",
+                                "/api/v1/declarations/*/*/promote/approvals",
+                                "/api/v1/declarations/*/*/rollback")
                                 .hasAuthority(OperatorPermission.DECLARATION_PROMOTE.permissionName())
                         // Declaration migration queue: enqueue/review/apply need declaration.migrate; GET list uses declaration.read.
                         // 声明迁移队列：入队/审阅/执行要 declaration.migrate；GET 列表走 declaration.read。

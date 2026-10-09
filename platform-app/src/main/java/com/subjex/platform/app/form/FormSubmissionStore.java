@@ -22,6 +22,7 @@ public interface FormSubmissionStore {
     FormSubmissionRow save(
             String formKey,
             int declarationVersion,
+            String tenantId,
             String actorIdentityId,
             String loginName,
             Map<String, Object> values,
@@ -39,6 +40,7 @@ public interface FormSubmissionStore {
             String submissionId,
             String formKey,
             int declarationVersion,
+            String tenantId,
             String actorIdentityId,
             String loginName,
             String valuesJson,

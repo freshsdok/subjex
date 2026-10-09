@@ -45,3 +45,55 @@ jobs:
         run: npm test
       - name: build
         run: npm run build
+
+  # P1: build three images + Trivy HIGH/CRITICAL; block on unfixed CRITICAL or non-root failure.
+  # P1：构建三镜像并用 Trivy 扫高危；未修复 CRITICAL 或非 root 失败则阻断（发版门禁用）。
+  image-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: platform-app
+            dockerfile: platform-app/Dockerfile
+            image: subjex/platform-app:0.1.0-SNAPSHOT
+          - name: entry-gateway
+            dockerfile: entry-gateway/Dockerfile
+            image: subjex/entry-gateway:0.1.0-SNAPSHOT
+          - name: sample-consumer
+            dockerfile: sample-consumer/Dockerfile
+            image: subjex/sample-consumer:0.1.0-SNAPSHOT
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f ${{ matrix.dockerfile }} -t ${{ matrix.image }} .
+      - name: Assert non-root USER
+        run: |
+          set -euo pipefail
+          user="$(docker image inspect ${{ matrix.image }} --format '{{.Config.User}}')"
+          echo "Config.User=$user"
+          test -n "$user"
+          test "$user" != "0" -a "$user" != "root" -a "$user" != "0:0"
+          case "$user" in
+            10001|10001:10001) ;;
+            *) echo "expected uid 10001, got $user"; exit 1 ;;
+          esac
+      - name: Trivy scan (HIGH,CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ matrix.image }}
+          format: table
+          output: trivy-${{ matrix.name }}.txt
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: os,library
+      - name: Upload scan report (retain for v0.1.0-alpha.1)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.name }}-v0.1.0-alpha.1
+          path: trivy-${{ matrix.name }}.txt
+          retention-days: 90

@@ -31,6 +31,8 @@ spec:
           ports:
             - name: http
               containerPort: 8081
+            - name: management
+              containerPort: 8091
             - name: delivery
               containerPort: 19081
           env:
@@ -54,10 +56,12 @@ spec:
               value: platform-app
             - name: PLATFORM_APP_PORT
               value: "8080"
+            - name: MANAGEMENT_SERVER_PORT
+              value: "8091"
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: http
+              port: management
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 3
@@ -65,7 +69,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: http
+              port: management
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3

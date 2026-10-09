@@ -1,0 +1,141 @@
+# Sample NetworkPolicy — not applied by tests. Adjust CIDRs to your cluster.
+# 网络策略样例——测试不会应用。请按集群改 CIDR。
+# Goals / 目标:
+# - Business HTTP only via entry-gateway (not direct Ingress to platform-app / consumer)
+#   业务 HTTP 只经 entry-gateway（不要把 Ingress 直挂 platform-app / consumer）
+# - Outbox TCP only platform-app → sample-consumer:19081
+#   出箱 TCP 仅 platform-app → sample-consumer:19081
+# - Probes (kubelet) stay on pod network; not exposed through Ingress
+#   探针留在集群内网；不要经 Ingress 暴露
+# - Prometheus scrape on management port only (see management.server.port)
+#   Prometheus 只刮独立管理端口
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: platform-app-ingress
+  labels:
+    app: platform-app
+spec:
+  podSelector:
+    matchLabels:
+      app: platform-app
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Business API from gateway only / 业务 API 只允许网关
+    - from:
+        - podSelector:
+            matchLabels:
+              app: entry-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Kubelet probes (cluster pod/node CIDR — replace) / kubelet 探针（替换为集群 CIDR）
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Metrics on management port from in-cluster scrapers only / 指标仅集群内刮取
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 8089
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sample-consumer
+      ports:
+        - protocol: TCP
+          port: 19081
+    # DNS + DB (widen as needed) / DNS 与数据库（按需放宽）
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 3306
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: entry-gateway-ingress
+  labels:
+    app: entry-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: entry-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # North-south from ingress controller / LB CIDR — replace
+    # 南北向来自 Ingress/LB 的 CIDR——请替换
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 8088
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 8088
+          # probes on same port; still cluster-internal via this policy
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: platform-app
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sample-consumer-ingress
+  labels:
+    app: sample-consumer
+spec:
+  podSelector:
+    matchLabels:
+      app: sample-consumer
+  policyTypes:
+    - Ingress
+  ingress:
+    # Outbox delivery only from platform-app / 出箱只收 platform-app
+    - from:
+        - podSelector:
+            matchLabels:
+              app: platform-app
+      ports:
+        - protocol: TCP
+          port: 19081
+    # Probes + metrics (cluster CIDR) — not via Ingress
+    # 探针与指标（集群 CIDR）——不经 Ingress
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8091

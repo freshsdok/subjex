@@ -34,6 +34,7 @@ import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
@@ -86,6 +87,9 @@ class DeclarationSecurityTest {
     private FormSubmissionStore formSubmissionStore;
 
     @MockitoBean
+    private TenantQuotaService tenantQuotaService;
+
+    @MockitoBean
     private TaskMessagePort taskMessagePort;
 
     @Test
@@ -110,7 +114,7 @@ class DeclarationSecurityTest {
                 .andExpect(jsonPath("$.resourceId").value("tenant-note"))
                 .andExpect(jsonPath("$.action").value("submit"))
                 .andExpect(jsonPath("$.allowed").value(false));
-        verify(formSubmissionStore, never()).save(anyString(), anyInt(), anyString(), anyString(), any(), anyString());
+        verify(formSubmissionStore, never()).save(anyString(), anyInt(), anyString(), anyString(), anyString(), any(), anyString());
     }
 
     @Test

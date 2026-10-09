@@ -34,6 +34,7 @@ public final class JdbcFormSubmissionStore implements FormSubmissionStore {
     public FormSubmissionRow save(
             String formKey,
             int declarationVersion,
+            String tenantId,
             String actorIdentityId,
             String loginName,
             Map<String, Object> values,
@@ -42,6 +43,9 @@ public final class JdbcFormSubmissionStore implements FormSubmissionStore {
         if (declarationVersion < 1) {
             throw new IllegalArgumentException("declarationVersion must be at least 1");
         }
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId required");
+        }
         Objects.requireNonNull(actorIdentityId, "actorIdentityId");
         Objects.requireNonNull(loginName, "loginName");
         Objects.requireNonNull(values, "values");
@@ -49,16 +53,18 @@ public final class JdbcFormSubmissionStore implements FormSubmissionStore {
         String submissionId = UUID.randomUUID().toString();
         String valuesJson = writeJson(values);
         var submittedAt = clock.instant();
+        String tid = tenantId.trim();
         jdbc.update(
                 """
                 INSERT INTO form_submission
-                  (submission_id, form_key, declaration_version, actor_identity_id, login_name,
+                  (submission_id, form_key, declaration_version, tenant_id, actor_identity_id, login_name,
                    values_json, result_summary, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 submissionId,
                 formKey,
                 declarationVersion,
+                tid,
                 actorIdentityId,
                 loginName,
                 valuesJson,
@@ -68,6 +74,7 @@ public final class JdbcFormSubmissionStore implements FormSubmissionStore {
                 submissionId,
                 formKey,
                 declarationVersion,
+                tid,
                 actorIdentityId,
                 loginName,
                 valuesJson,
@@ -83,7 +90,7 @@ public final class JdbcFormSubmissionStore implements FormSubmissionStore {
         }
         return jdbc.query(
                 """
-                SELECT submission_id, form_key, declaration_version, actor_identity_id, login_name,
+                SELECT submission_id, form_key, declaration_version, tenant_id, actor_identity_id, login_name,
                        values_json, result_summary, submitted_at
                 FROM form_submission
                 WHERE form_key = ?
@@ -94,6 +101,7 @@ public final class JdbcFormSubmissionStore implements FormSubmissionStore {
                         row.getString("submission_id"),
                         row.getString("form_key"),
                         row.getInt("declaration_version"),
+                        row.getString("tenant_id"),
                         row.getString("actor_identity_id"),
                         row.getString("login_name"),
                         row.getString("values_json"),

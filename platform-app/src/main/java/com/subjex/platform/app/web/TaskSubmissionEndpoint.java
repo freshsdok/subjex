@@ -1,7 +1,9 @@
 package com.subjex.platform.app.web;
 
+import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.app.task.RateLimitExceeded;
+import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.contract.ratelimit.RateLimitPort;
 import com.subjex.platform.contract.task.TaskCommand;
 import com.subjex.platform.contract.task.TaskMessagePort;
@@ -9,6 +11,7 @@ import com.subjex.platform.contract.task.TaskRecord;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,8 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * TaskSubmissionEndpoint — 任务提交端点：租户作用域里进入唯一任务端口的 HTTP 面。
  * <p>
- * The read-only admin console is a different path. This endpoint submits, retries, and confirms.
- * 只读管理台是另一条路径。这个端点负责提交、重试和确认。
+ * Applies tenant quota hard caps (P5) before rate-limit on submit.
+ * 提交时在限流前先过租户配额硬顶（P5）。
  */
 @RestController
 public class TaskSubmissionEndpoint {
@@ -27,22 +30,31 @@ public class TaskSubmissionEndpoint {
     private final TenantGuard tenantGuard;
     private final RateLimitPort rateLimitPort;
     private final TaskMessagePort taskMessagePort;
+    private final TenantQuotaService tenantQuota;
 
     public TaskSubmissionEndpoint(
-            TenantGuard tenantGuard, RateLimitPort rateLimitPort, TaskMessagePort taskMessagePort) {
+            TenantGuard tenantGuard,
+            RateLimitPort rateLimitPort,
+            TaskMessagePort taskMessagePort,
+            TenantQuotaService tenantQuota) {
         this.tenantGuard = tenantGuard;
         this.rateLimitPort = rateLimitPort;
         this.taskMessagePort = taskMessagePort;
+        this.tenantQuota = tenantQuota;
     }
 
     @PostMapping("/tasks")
     public ResponseEntity<TaskRecord> submit(
+            @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId,
             @RequestHeader(value = "X-Idempotency-Token", required = false) String idempotencyToken,
             @RequestBody TaskSubmission submission) {
         tenantGuard.requireTenant(tenantId);
         if (idempotencyToken == null || idempotencyToken.isBlank()) {
             throw new IllegalArgumentException("idempotency token is missing");
+        }
+        if (operator != null) {
+            tenantQuota.requireWithinQuota(operator, tenantId);
         }
         permit(tenantId, "submit-task");
         TaskRecord task = taskMessagePort.submit(new TaskCommand(

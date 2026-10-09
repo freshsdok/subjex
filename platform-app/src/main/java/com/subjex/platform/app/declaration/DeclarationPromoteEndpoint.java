@@ -19,33 +19,71 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * DeclarationPromoteEndpoint — 声明晋升 HTTP：POST 晋升进内部 git、GET 晋升历史；操作员审计。
+ * DeclarationPromoteEndpoint — 声明晋升 HTTP：双人确认后晋升、回滚上一份已晋升、历史（P7）。
  * <p>
- * Local commit only (no GitHub push). POST needs {@code declaration.promote}; GET needs
- * {@code declaration.read}. Tenant grant required. Re-promote of {@code PROMOTED} → 409.
- * 仅本地提交（不 push GitHub）。POST 要 {@code declaration.promote}；GET 要 {@code declaration.read}。
- * 须租户授权。已 {@code PROMOTED} 再晋升 → 409。
+ * POST approve → POST promote (different operator) → optional POST rollback.
+ * Rollback never auto-DROP columns; unfinished migrations still block via {@link DeclarationPromoteBlockedByMigration}.
+ * 先确认再晋升（须另一操作员）；回滚不自动删列；未完成迁移仍阻断晋升。
  */
 @RestController
 public class DeclarationPromoteEndpoint {
 
-    /** Same JSON base as drafts — 与草稿同一 JSON 根。 */
     public static final String PATH = JsonApi.BASE + "/declarations";
 
     private final DeclarationPromoteService promoteService;
     private final JdbcDeclarationStore store;
+    private final JdbcDeclarationPromoteApprovalStore approvals;
     private final OperatorTenantAccess tenantAccess;
     private final OperatorActionAudit audit;
 
     public DeclarationPromoteEndpoint(
             DeclarationPromoteService promoteService,
             JdbcDeclarationStore store,
+            JdbcDeclarationPromoteApprovalStore approvals,
             OperatorTenantAccess tenantAccess,
             OperatorActionAudit audit) {
         this.promoteService = Objects.requireNonNull(promoteService, "promoteService");
         this.store = Objects.requireNonNull(store, "store");
+        this.approvals = Objects.requireNonNull(approvals, "approvals");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
         this.audit = Objects.requireNonNull(audit, "audit");
+    }
+
+    @PostMapping(PATH + "/{kind}/{key}/promote/approvals")
+    public ApprovalDocument requestApproval(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("kind") String kind,
+            @PathVariable("key") String key,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody(required = false) PromoteRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        DeclarationKind k = DeclarationKind.fromWire(kind);
+        int revisionNumber;
+        if (body == null || body.revision() == null) {
+            revisionNumber = store.latest(tid, k, key)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND))
+                    .revision();
+        } else {
+            store.findRevision(tid, k, key, body.revision())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+            revisionNumber = body.revision();
+        }
+        DeclarationPromoteApproval row =
+                approvals.request(tid, k, key, revisionNumber, operator.subjectId());
+        audit.record(
+                operator,
+                "declaration.promote.approve",
+                k.wireName() + "/" + key + "@" + revisionNumber,
+                AuditOutcome.ALLOWED);
+        return new ApprovalDocument(
+                row.approvalId(),
+                row.tenantId(),
+                row.kind().wireName(),
+                row.declarationKey(),
+                row.revision(),
+                row.requestedBySubjectId(),
+                row.approvalState(),
+                row.createdAt());
     }
 
     @PostMapping(PATH + "/{kind}/{key}/promote")
@@ -57,19 +95,45 @@ public class DeclarationPromoteEndpoint {
             @RequestBody(required = false) PromoteRequest body) {
         String tid = requireTenant(operator, tenantId);
         DeclarationKind k = DeclarationKind.fromWire(kind);
-        Integer revisionNumber = body == null ? null : body.revision();
+        if (body == null || body.approvalId() == null || body.approvalId().isBlank()) {
+            throw new DeclarationPromoteNeedsSecondOperator(
+                    "approvalId required: POST .../promote/approvals first, then a second operator promotes");
+        }
+        Integer revisionNumber = body.revision();
         DeclarationPromoteService.DeclarationPromoteResult result;
         if (revisionNumber == null) {
             store.latest(tid, k, key)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-            result = promoteService.promoteLatest(tid, k, key, operator.subjectId());
+            result = promoteService.promoteLatest(tid, k, key, operator.subjectId(), body.approvalId());
         } else {
             store.findRevision(tid, k, key, revisionNumber)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-            result = promoteService.promoteRevision(tid, k, key, revisionNumber, operator.subjectId());
+            result = promoteService.promoteRevision(
+                    tid, k, key, revisionNumber, operator.subjectId(), body.approvalId());
         }
         String target = result.kind().wireName() + "/" + result.declarationKey() + "@" + result.revision();
         audit.record(operator, "declaration.promote", target, AuditOutcome.ALLOWED);
+        return new PromoteDocument(
+                result.tenantId(),
+                result.kind().wireName(),
+                result.declarationKey(),
+                result.revision(),
+                result.gitCommitSha(),
+                JdbcDeclarationStore.PROMOTED_STATE);
+    }
+
+    @PostMapping(PATH + "/{kind}/{key}/rollback")
+    public PromoteDocument rollback(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("kind") String kind,
+            @PathVariable("key") String key,
+            @RequestParam(value = "tenantId", required = false) String tenantId) {
+        String tid = requireTenant(operator, tenantId);
+        DeclarationKind k = DeclarationKind.fromWire(kind);
+        DeclarationPromoteService.DeclarationPromoteResult result =
+                promoteService.rollback(tid, k, key, operator.subjectId());
+        String target = result.kind().wireName() + "/" + result.declarationKey() + "@" + result.revision();
+        audit.record(operator, "declaration.rollback", target, AuditOutcome.ALLOWED);
         return new PromoteDocument(
                 result.tenantId(),
                 result.kind().wireName(),
@@ -112,10 +176,19 @@ public class DeclarationPromoteEndpoint {
                 row.promotedBySubjectId());
     }
 
-    /** Optional promote body — 可选晋升正文（省略则晋升最新修订）。 */
-    public record PromoteRequest(Integer revision) {}
+    /** Promote / approval body — 晋升或确认正文。 */
+    public record PromoteRequest(Integer revision, String approvalId) {}
 
-    /** PromoteDocument — 一次晋升结果。 */
+    public record ApprovalDocument(
+            String approvalId,
+            String tenantId,
+            String declarationKind,
+            String declarationKey,
+            int revision,
+            String requestedBySubjectId,
+            String approvalState,
+            Instant createdAt) {}
+
     public record PromoteDocument(
             String tenantId,
             String declarationKind,
@@ -124,10 +197,8 @@ public class DeclarationPromoteEndpoint {
             String gitCommitSha,
             String draftState) {}
 
-    /** PromotesDocument — 晋升历史列表。 */
     public record PromotesDocument(List<PromoteHistoryDocument> promotes) {}
 
-    /** PromoteHistoryDocument — 一条晋升历史。 */
     public record PromoteHistoryDocument(
             String tenantId,
             String declarationKind,

@@ -29,3 +29,8 @@ The human page is `GET /deploy` on platform-app. It reads these files. It does n
 给人看的页面是 platform-app 上的 `GET /deploy`。它读这些文件，不应用它们。
 ---
 entry-gateway.yaml — HTTP entry gateway (not applied by tests).
+
+## Management port and NetworkPolicy / 管理端口与网络策略（P2）
+
+Probes and Prometheus use `management.server.port` (not the business port). Sample isolation: `networkpolicy-sample.yaml`.
+探针与 Prometheus 走管理端口（非业务口）。隔离样例见 `networkpolicy-sample.yaml`。

@@ -28,6 +28,7 @@ platform:
   delivery:
     listen-port: ${SAMPLE_DELIVERY_PORT:19081}
     hmac-secret: ${OUTBOX_HMAC_SECRET:}
+    hmac-secret-previous: ${OUTBOX_HMAC_SECRET_PREVIOUS:}
     tls:
       enabled: ${OUTBOX_TLS_ENABLED:false}
       keystore-path: ${OUTBOX_TLS_KEYSTORE_PATH:}
@@ -35,6 +36,10 @@ platform:
     allow-insecure: ${OUTBOX_ALLOW_INSECURE:false}
 
 management:
+  # Separate management port: prometheus not on the business port (P2).
+  # 独立管理端口：prometheus 不与业务端口同挂（P2）。
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8091}
   endpoints:
     web:
       exposure:

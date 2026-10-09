@@ -13,6 +13,7 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.time.Instant;
@@ -59,6 +60,7 @@ public class FormSubmissionEndpoint {
     private final FormSideEffectRunner sideEffects;
     private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
+    private final TenantQuotaService tenantQuota;
 
     public FormSubmissionEndpoint(
             FormCatalog forms,
@@ -67,7 +69,8 @@ public class FormSubmissionEndpoint {
             FormDomainActionRunner domainActions,
             FormSideEffectRunner sideEffects,
             TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess) {
+            OperatorTenantAccess tenantAccess,
+            TenantQuotaService tenantQuota) {
         this.forms = Objects.requireNonNull(forms, "forms");
         this.effective = Objects.requireNonNull(effective, "effective");
         this.submissions = submissions;
@@ -75,6 +78,7 @@ public class FormSubmissionEndpoint {
         this.sideEffects = sideEffects;
         this.tenantGuard = tenantGuard;
         this.tenantAccess = tenantAccess;
+        this.tenantQuota = Objects.requireNonNull(tenantQuota, "tenantQuota");
     }
 
     @PostMapping(PATH)
@@ -94,6 +98,8 @@ public class FormSubmissionEndpoint {
                 AccessResource.of("form", formKey),
                 AccessAction.of("submit"));
         requireGrantForNonScopedOverlay(operator, form, tenantId);
+        String quotaTenant = (tenantId == null || tenantId.isBlank()) ? "platform" : tenantId.trim();
+        tenantQuota.requireWithinQuota(operator, quotaTenant);
         Map<String, Object> rawValues = document == null || document.values() == null
                 ? Map.of()
                 : document.values();
@@ -105,6 +111,7 @@ public class FormSubmissionEndpoint {
         FormSubmissionRow row = submissions.save(
                 formKey,
                 form.version(),
+                quotaTenant,
                 operator.identityId(),
                 operator.getUsername(),
                 accepted,

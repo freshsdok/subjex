@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.contract.config.ConfigSource;
 import com.subjex.platform.contract.delivery.OutboxTls;
 import com.subjex.platform.contract.delivery.OutboxTransportPolicy;
+import com.subjex.platform.contract.delivery.SecretPlaceholderGuard;
 import com.subjex.platform.contract.config.HttpConfigSource;
 import com.subjex.platform.contract.config.LocalApplicationConfig;
 import com.subjex.platform.contract.config.OverridingConfigSource;
@@ -114,6 +115,7 @@ public class ConsumerWiring {
     OutboxSocketListener outboxSocketListener(
             @Value("${platform.delivery.listen-port:0}") int listenPort,
             @Value("${platform.delivery.hmac-secret}") String hmacSecret,
+            @Value("${platform.delivery.hmac-secret-previous:}") String hmacSecretPrevious,
             @Value("${platform.delivery.tls.enabled:false}") boolean tlsEnabled,
             @Value("${platform.delivery.tls.keystore-path:}") String keystorePath,
             @Value("${platform.delivery.tls.keystore-password:}") String keystorePassword,
@@ -123,6 +125,10 @@ public class ConsumerWiring {
             ObjectMapper objectMapper,
             TaskRecordedReceipts receipts,
             Clock clock) {
+        SecretPlaceholderGuard.refusePlaceholdersOutsideLocal(
+                environment.getActiveProfiles(), "OUTBOX_HMAC_SECRET", hmacSecret, true);
+        SecretPlaceholderGuard.refusePlaceholdersOutsideLocal(
+                environment.getActiveProfiles(), "OUTBOX_HMAC_SECRET_PREVIOUS", hmacSecretPrevious, false);
         OutboxTransportPolicy.requireReady(hmacSecret, tlsEnabled, allowInsecure, environment.getActiveProfiles());
         SSLContext ssl = null;
         if (tlsEnabled) {
@@ -134,6 +140,6 @@ public class ConsumerWiring {
                     keystorePassword == null ? new char[0] : keystorePassword.toCharArray());
         }
         return new OutboxSocketListener(
-                listenPort, hmacSecret, ssl, openTelemetry, objectMapper, receipts, clock);
+                listenPort, hmacSecret, hmacSecretPrevious, ssl, openTelemetry, objectMapper, receipts, clock);
     }
 }

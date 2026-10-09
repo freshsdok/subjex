@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
+import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.app.web.TaskSubmissionEndpoint;
 import com.subjex.platform.contract.ratelimit.RateLimitPort;
 import com.subjex.platform.contract.task.TaskKind;
@@ -52,6 +53,9 @@ class OperatorTenantAuthorizationTest {
 
     @Autowired
     private OperatorTenantAccess tenantAccess;
+
+    @MockitoBean
+    private TenantQuotaService tenantQuotaService;
 
     @MockitoBean
     private TaskMessagePort taskMessagePort;

@@ -8,7 +8,9 @@ metadata:
   labels:
     app: platform-app
 spec:
-  replicas: 2
+  # P4: single-replica gate — breaker/rate-limit are in-process (not a product claim for N>1).
+  # P4：单副本门禁——熔断/限流为进程内状态（多副本不作为对外能力）。
+  replicas: 1
   selector:
     matchLabels:
       app: platform-app
@@ -31,6 +33,8 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            - name: management
+              containerPort: 8089
           env:
             - name: PLATFORM_CONNECTION_VENDOR
               value: postgresql
@@ -63,12 +67,14 @@ spec:
                   name: outbox-delivery
                   key: truststore-password
             # Empty keeps discarding exporter / 空则继续丢弃跨度
+            - name: MANAGEMENT_SERVER_PORT
+              value: "8089"
             - name: PLATFORM_OTLP_ENDPOINT
               value: ""
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: http
+              port: management
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 3
@@ -76,7 +82,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: http
+              port: management
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
@@ -111,3 +117,6 @@ spec:
     - name: http
       port: 8080
       targetPort: http
+    - name: management
+      port: 8089
+      targetPort: management

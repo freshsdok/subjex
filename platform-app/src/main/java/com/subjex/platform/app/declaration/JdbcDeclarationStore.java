@@ -22,6 +22,9 @@ public final class JdbcDeclarationStore {
 
     public static final String PROMOTED_STATE = "PROMOTED";
 
+    /** Rolled back from being the effective tip — 已从生效尖端回滚。 */
+    public static final String SUPERSEDED_STATE = "SUPERSEDED";
+
     private static final RowMapper<DeclarationRevision> ROW = (row, n) -> new DeclarationRevision(
             row.getString("tenant_id"),
             DeclarationKind.fromWire(row.getString("declaration_kind")),
@@ -301,6 +304,38 @@ public final class JdbcDeclarationStore {
                 tid,
                 k.wireName(),
                 key);
+    }
+
+
+    /**
+     * Mark one {@code PROMOTED} revision {@code SUPERSEDED} (rollback tip) —
+     * 将一条 {@code PROMOTED} 标为 {@code SUPERSEDED}（回滚尖端）。
+     */
+    public void markSuperseded(String tenantId, DeclarationKind kind, String declarationKey, int revision) {
+        String tid = requireTenantId(tenantId);
+        DeclarationKind k = Objects.requireNonNull(kind, "kind");
+        String key = requireKey(declarationKey);
+        if (revision < 1) {
+            throw new IllegalArgumentException("revision must be >= 1");
+        }
+        int updated = jdbc.update(
+                """
+                UPDATE declaration_revision
+                SET draft_state = ?
+                WHERE tenant_id = ? AND declaration_kind = ? AND declaration_key = ? AND revision = ?
+                  AND draft_state = ?
+                """,
+                SUPERSEDED_STATE,
+                tid,
+                k.wireName(),
+                key,
+                revision,
+                PROMOTED_STATE);
+        if (updated != 1) {
+            throw new IllegalArgumentException(
+                    "declaration revision not found for supersede: "
+                            + k.wireName() + "/" + key + "@r" + revision);
+        }
     }
 
     private int nextRevision(String tenantId, DeclarationKind kind, String key) {

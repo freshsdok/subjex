@@ -21,6 +21,7 @@ import com.subjex.platform.app.declaration.DeclarationPromoteService;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.declaration.InternalDeclarationGit;
 import com.subjex.platform.app.declaration.JdbcDeclarationMigrationStore;
+import com.subjex.platform.app.declaration.JdbcDeclarationPromoteApprovalStore;
 import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.platform.app.page.PageCatalog;
@@ -46,6 +47,8 @@ import com.subjex.platform.app.security.JdbcOperatorTokenStore;
 import com.subjex.platform.app.security.JdbcOperatorLoginLockout;
 import com.subjex.platform.app.security.JdbcOperatorMfaStore;
 import com.subjex.platform.app.security.AesGcmSecretCipher;
+import com.subjex.platform.app.tenant.TenantQuotaService;
+import com.subjex.platform.contract.delivery.SecretPlaceholderGuard;
 import com.subjex.platform.app.security.OidcProperties;
 import com.subjex.platform.app.security.JdbcOidcLoginStore;
 import com.subjex.platform.app.security.JdbcOperatorIdpLinkStore;
@@ -254,16 +257,27 @@ public class PlatformWiring {
 
     @Bean
     AesGcmSecretCipher mfaSecretCipher(
-            @Value("${platform.mfa.encryption-key:}") String encryptionKey) {
+            @Value("${platform.mfa.encryption-key:}") String encryptionKey,
+            @Value("${platform.mfa.encryption-key-previous:}") String previousEncryptionKey,
+            Environment environment) {
         String key = encryptionKey == null ? "" : encryptionKey.trim();
-        if (key.isEmpty()) {
-            // Ephemeral key: enroll/verify fail across restarts until PLATFORM_MFA_ENCRYPTION_KEY is set.
-            // 临时密钥：未配置时进程内可用，重启后无法解密已存密钥；生产必须配置。
-            byte[] bytes = new byte[32];
-            new java.security.SecureRandom().nextBytes(bytes);
-            key = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String previous = previousEncryptionKey == null ? "" : previousEncryptionKey.trim();
+        String[] profiles = environment.getActiveProfiles();
+        if (SecretPlaceholderGuard.isLocalProfile(profiles)) {
+            if (key.isEmpty()) {
+                // Ephemeral key: enroll/verify fail across restarts until PLATFORM_MFA_ENCRYPTION_KEY is set.
+                // 临时密钥：未配置时进程内可用，重启后无法解密已存密钥；生产必须配置。
+                byte[] bytes = new byte[32];
+                new java.security.SecureRandom().nextBytes(bytes);
+                key = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+            }
+        } else {
+            SecretPlaceholderGuard.refusePlaceholdersOutsideLocal(
+                    profiles, "PLATFORM_MFA_ENCRYPTION_KEY", key, true);
+            SecretPlaceholderGuard.refusePlaceholdersOutsideLocal(
+                    profiles, "PLATFORM_MFA_ENCRYPTION_KEY_PREVIOUS", previous, false);
         }
-        return new AesGcmSecretCipher(key);
+        return previous.isEmpty() ? new AesGcmSecretCipher(key) : new AesGcmSecretCipher(key, previous);
     }
 
     @Bean
@@ -367,6 +381,16 @@ public class PlatformWiring {
     }
 
     @Bean
+    TenantQuotaService tenantQuotaService(
+            JdbcTemplate jdbc,
+            Clock clock,
+            OperatorActionAudit operatorActionAudit,
+            @Value("${platform.tenant-quota.daily-submit-limit:10000}") int dailySubmitLimit,
+            @Value("${platform.tenant-quota.storage-row-limit:100000}") int storageRowLimit) {
+        return new TenantQuotaService(jdbc, clock, operatorActionAudit, dailySubmitLimit, storageRowLimit);
+    }
+
+    @Bean
     DeliveryCircuitBreaker deliveryCircuitBreaker(
             @Value("${platform.delivery.breaker-failure-threshold:3}") int failureThreshold) {
         return new DeliveryCircuitBreaker(failureThreshold);
@@ -390,6 +414,13 @@ public class PlatformWiring {
             DeliveryCircuitBreaker breaker,
             OpenTelemetry openTelemetry,
             Clock clock) {
+        SecretPlaceholderGuard.refusePlaceholdersOutsideLocal(
+                environment.getActiveProfiles(), "OUTBOX_HMAC_SECRET", hmacSecret, true);
+        SecretPlaceholderGuard.refusePlaceholdersOutsideLocal(
+                environment.getActiveProfiles(),
+                "OUTBOX_HMAC_SECRET_PREVIOUS",
+                environment.getProperty("platform.delivery.hmac-secret-previous", ""),
+                false);
         OutboxTransportPolicy.requireReady(hmacSecret, tlsEnabled, allowInsecure, environment.getActiveProfiles());
         SSLContext ssl = null;
         if (tlsEnabled) {
@@ -530,6 +561,11 @@ public class PlatformWiring {
         return new JdbcDeclarationStore(jdbc, clock);
     }
 
+    @Bean
+    JdbcDeclarationPromoteApprovalStore jdbcDeclarationPromoteApprovalStore(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcDeclarationPromoteApprovalStore(jdbc, clock);
+    }
+
     /**
      * Declaration schema migration queue store — 声明 schema 迁移队列存取。
      */
@@ -578,12 +614,14 @@ public class PlatformWiring {
     DeclarationPromoteService declarationPromoteService(
             JdbcDeclarationStore jdbcDeclarationStore,
             JdbcDeclarationMigrationStore jdbcDeclarationMigrationStore,
+            JdbcDeclarationPromoteApprovalStore jdbcDeclarationPromoteApprovalStore,
             InternalDeclarationGit internalDeclarationGit,
             TransactionTemplate transactionTemplate,
             @Value("${platform.declaration.git.dir:./data/declaration-git}") String gitDir) {
         return new DeclarationPromoteService(
                 jdbcDeclarationStore,
                 jdbcDeclarationMigrationStore,
+                jdbcDeclarationPromoteApprovalStore,
                 internalDeclarationGit,
                 Path.of(gitDir),
                 transactionTemplate);

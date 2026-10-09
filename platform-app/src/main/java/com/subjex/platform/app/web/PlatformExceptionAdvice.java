@@ -5,6 +5,8 @@ import com.subjex.platform.app.declaration.DeclarationAlreadyPromoted;
 import com.subjex.platform.app.declaration.DeclarationMigrationApplyFailed;
 import com.subjex.platform.app.declaration.DeclarationMigrationNotReady;
 import com.subjex.platform.app.declaration.DeclarationPromoteBlockedByMigration;
+import com.subjex.platform.app.declaration.DeclarationPromoteNeedsSecondOperator;
+import com.subjex.platform.app.declaration.DeclarationRollbackUnavailable;
 import com.subjex.platform.app.declaration.DeclarationOverlayConflict;
 import com.subjex.platform.app.form.FormProblemDocument;
 import com.subjex.platform.app.form.FormValidationException;
@@ -18,6 +20,7 @@ import com.subjex.platform.app.security.OperatorTenantNotGrantedException;
 import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.app.task.IdempotencyConflict;
 import com.subjex.platform.app.task.RateLimitExceeded;
+import com.subjex.platform.app.tenant.TenantQuotaExceeded;
 import com.subjex.platform.app.task.SubmitLockHeld;
 import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.contract.tenant.TenantMissingException;
@@ -58,6 +61,12 @@ public class PlatformExceptionAdvice {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
     }
 
+    @ExceptionHandler(TenantQuotaExceeded.class)
+    ResponseEntity<Map<String, String>> tenantQuota(TenantQuotaExceeded ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("reason", ex.reason()));
+    }
+
     @ExceptionHandler({IdempotencyConflict.class, SubmitLockHeld.class})
     ResponseEntity<Void> conflict() {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
@@ -71,6 +80,16 @@ public class PlatformExceptionAdvice {
 
     @ExceptionHandler(DeclarationAlreadyPromoted.class)
     ResponseEntity<Map<String, String>> declarationAlreadyPromoted(DeclarationAlreadyPromoted ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(DeclarationPromoteNeedsSecondOperator.class)
+    ResponseEntity<Map<String, String>> promoteNeedsSecond(DeclarationPromoteNeedsSecondOperator ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(DeclarationRollbackUnavailable.class)
+    ResponseEntity<Map<String, String>> rollbackUnavailable(DeclarationRollbackUnavailable ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("reason", ex.getMessage()));
     }
 

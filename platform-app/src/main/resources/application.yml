@@ -50,6 +50,8 @@ platform:
     challenge-ttl: PT5M
     issuer: subjex
     encryption-key: ${PLATFORM_MFA_ENCRYPTION_KEY:}
+    # Optional previous key during rotation overlap / 轮换重叠期可选旧密钥
+    encryption-key-previous: ${PLATFORM_MFA_ENCRYPTION_KEY_PREVIOUS:}
   # LOCAL ONLY: used only when SPRING_PROFILES_ACTIVE=local seeds the local operator.
   # 仅限本地：只有 SPRING_PROFILES_ACTIVE=local 写入本地操作员时才用。
   # OIDC RP (Slice E). Off by default; deny unlinked IdP users (no auto-provision).
@@ -95,6 +97,8 @@ platform:
     consumer-port: ${SAMPLE_CONSUMER_PORT:19081}
     # Shared HMAC secret (≥32). Not an operator password. / 共享 HMAC 密钥（≥32），不是操作员口令。
     hmac-secret: ${OUTBOX_HMAC_SECRET:}
+    # Optional previous HMAC during rotation overlap / 轮换重叠期可选旧 HMAC
+    hmac-secret-previous: ${OUTBOX_HMAC_SECRET_PREVIOUS:}
     breaker-failure-threshold: 3
     # Background relay for PENDING outbox rows / PENDING 出箱行的后台重投
     relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:2000}
@@ -122,6 +126,11 @@ platform:
     otlp-endpoint: ${PLATFORM_OTLP_ENDPOINT:${OTEL_EXPORTER_OTLP_ENDPOINT:}}
   rate-limit:
     permits: 60
+  # Tenant hard caps (P5). Over → 429 + audit. No billing.
+  # 租户硬顶（P5）。超限 → 429 + 审计。不计费。
+  tenant-quota:
+    daily-submit-limit: ${PLATFORM_TENANT_DAILY_SUBMIT_LIMIT:10000}
+    storage-row-limit: ${PLATFORM_TENANT_STORAGE_ROW_LIMIT:100000}
   storage:
     directory: ${PLATFORM_STORAGE_DIRECTORY:object-store}
   # Internal (in-platform) git working tree for declaration promote (Z5). Non-bare; local commit only — not GitHub.
@@ -131,6 +140,10 @@ platform:
       dir: ${DECLARATION_GIT_DIR:./data/declaration-git}
 
 management:
+  # Separate management port: prometheus not on the business port (P2).
+  # 独立管理端口：prometheus 不与业务端口同挂（P2）。
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8089}
   endpoints:
     web:
       exposure:

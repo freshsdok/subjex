@@ -75,6 +75,43 @@ public final class OutboxHmac {
                 signature.getBytes(StandardCharsets.UTF_8));
     }
 
+
+    /**
+     * Verify with current secret, then optional previous (rotation overlap) —
+     * 先用当前密钥校验，再试可选旧密钥（轮换重叠期）。
+     */
+    public static boolean verifyAny(
+            String secret,
+            String previousSecret,
+            String eventName,
+            String traceparent,
+            boolean failureRequested,
+            long authTimestampMillis,
+            String eventBody,
+            String signature,
+            Clock clock) {
+        if (verify(secret, eventName, traceparent, failureRequested, authTimestampMillis, eventBody, signature, clock)) {
+            return true;
+        }
+        if (previousSecret == null || previousSecret.isBlank() || previousSecret.equals(secret)) {
+            return false;
+        }
+        try {
+            requireSecret(previousSecret);
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+        return verify(
+                previousSecret,
+                eventName,
+                traceparent,
+                failureRequested,
+                authTimestampMillis,
+                eventBody,
+                signature,
+                clock);
+    }
+
     static String canonical(
             String eventName,
             String traceparent,

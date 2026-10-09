@@ -55,6 +55,19 @@ function sessionRedisUrl(): string | undefined {
  * AES-256 key derived from OPERATOR_SESSION_SECRET (required when Redis sessions are used).
  * 多副本 / Redis 会话时必须配置 OPERATOR_SESSION_SECRET（至少 32 字符）。
  */
+function refuseChangeMePlaceholder(secret: string, name: string): void {
+  // Non-local / production must not use laptop placeholders (P3).
+  // 非本地/生产禁止 change-me 占位（P3）。
+  const nodeEnv = process.env.NODE_ENV?.trim();
+  if (nodeEnv === "development" || process.env.SUBJEX_ALLOW_LOCAL_SECRETS === "true") {
+    return;
+  }
+  const lower = secret.toLowerCase();
+  if (lower.includes("change-me") || lower.includes("changeme")) {
+    throw new Error(name + " must not use a change-me placeholder outside local/dev");
+  }
+}
+
 export function resolveOperatorSessionEncryptionKey(): Buffer {
   const secret = process.env.OPERATOR_SESSION_SECRET?.trim();
   if (!secret || secret.length < MIN_OPERATOR_SESSION_SECRET_LENGTH) {
@@ -62,6 +75,20 @@ export function resolveOperatorSessionEncryptionKey(): Buffer {
       "OPERATOR_SESSION_SECRET must be set to at least 32 characters when SESSION_REDIS_URL (or REDIS_URL) is configured",
     );
   }
+  refuseChangeMePlaceholder(secret, "OPERATOR_SESSION_SECRET");
+  return createHash("sha256").update(secret, "utf8").digest();
+}
+
+/** Optional previous key digest for rotation overlap decrypt / 轮换重叠期旧密钥摘要。 */
+export function resolveOperatorSessionPreviousEncryptionKey(): Buffer | undefined {
+  const secret = process.env.OPERATOR_SESSION_SECRET_PREVIOUS?.trim();
+  if (!secret) {
+    return undefined;
+  }
+  if (secret.length < MIN_OPERATOR_SESSION_SECRET_LENGTH) {
+    throw new Error("OPERATOR_SESSION_SECRET_PREVIOUS must be at least 32 characters when set");
+  }
+  refuseChangeMePlaceholder(secret, "OPERATOR_SESSION_SECRET_PREVIOUS");
   return createHash("sha256").update(secret, "utf8").digest();
 }
 
@@ -76,6 +103,7 @@ function resolveSessionStoreKey(redisConfigured: boolean): Buffer {
   }
   const secret = process.env.OPERATOR_SESSION_SECRET?.trim();
   if (secret && secret.length >= MIN_OPERATOR_SESSION_SECRET_LENGTH) {
+    refuseChangeMePlaceholder(secret, "OPERATOR_SESSION_SECRET");
     return createHash("sha256").update(secret, "utf8").digest();
   }
   if (!sessionHolder.subjexEphemeralSessionKey) {
@@ -93,8 +121,7 @@ export function encryptSessionSecret(plaintext: string, key: Buffer): string {
   return TOKEN_ENC_PREFIX + Buffer.concat([iv, tag, encrypted]).toString("base64url");
 }
 
-/** Decrypt a token previously written by encryptSessionSecret. */
-export function decryptSessionSecret(blob: string, key: Buffer): string {
+function decryptWithKey(blob: string, key: Buffer): string {
   if (!blob.startsWith(TOKEN_ENC_PREFIX)) {
     throw new Error("unsupported token encryption version");
   }
@@ -108,6 +135,18 @@ export function decryptSessionSecret(blob: string, key: Buffer): string {
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+}
+
+/** Decrypt a token previously written by encryptSessionSecret (tries previous key on failure). */
+export function decryptSessionSecret(blob: string, key: Buffer, previousKey?: Buffer): string {
+  try {
+    return decryptWithKey(blob, key);
+  } catch (first) {
+    if (!previousKey) {
+      throw first;
+    }
+    return decryptWithKey(blob, previousKey);
+  }
 }
 
 /** @deprecated Use encryptSessionSecret — kept name alias for clarity in older tests. */
@@ -135,10 +174,11 @@ function toOperatorSession(stored: StoredOperatorSession, key: Buffer): Operator
   if (stored.expiresAtMillis <= Date.now()) {
     return undefined;
   }
+  const previous = resolveOperatorSessionPreviousEncryptionKey();
   return {
     loginName: stored.loginName,
-    accessToken: decryptSessionSecret(stored.accessTokenEnc, key),
-    refreshToken: decryptSessionSecret(stored.refreshTokenEnc, key),
+    accessToken: decryptSessionSecret(stored.accessTokenEnc, key, previous),
+    refreshToken: decryptSessionSecret(stored.refreshTokenEnc, key, previous),
     accessExpiresAtMillis: stored.accessExpiresAtMillis,
     expiresAtMillis: stored.expiresAtMillis,
   };

@@ -37,6 +37,7 @@ import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionEndpoint;
 import com.subjex.platform.app.form.FormSubmissionStore;
+import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.app.form.FormsApiEndpoint;
 import com.subjex.platform.contract.extension.PlatformExtension;
 import com.subjex.platform.contract.task.TaskMessagePort;
@@ -135,6 +136,9 @@ class JsonApiSecurityTest {
 
     @MockitoBean
     private FormSubmissionStore formSubmissionStore;
+
+    @MockitoBean
+    private TenantQuotaService tenantQuotaService;
 
     @MockitoBean
     private TaskMessagePort taskMessagePort;
@@ -310,15 +314,16 @@ class JsonApiSecurityTest {
                 .recordFormEffect(any(), anyString(), eq(OperatorActionAudit.REGISTRY_REGISTER), anyString(), any(), anyInt(), anyString(), any());
 
         when(formSubmissionStore.save(
-                        eq("endpoint-publication"), anyInt(), anyString(), anyString(), any(), anyString()))
+                        eq("endpoint-publication"), anyInt(), anyString(), anyString(), anyString(), any(), anyString()))
                 .thenAnswer(invocation -> new FormSubmissionStore.FormSubmissionRow(
                         "sub-1",
                         invocation.getArgument(0),
                         invocation.getArgument(1),
                         invocation.getArgument(2),
                         invocation.getArgument(3),
+                        invocation.getArgument(4),
                         "{\"serviceName\":\"billing\"}",
-                        invocation.getArgument(5),
+                        invocation.getArgument(6),
                         java.time.Instant.parse("2026-10-05T07:00:00Z")));
 
         mockMvc.perform(submit(path, body).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
@@ -346,6 +351,7 @@ class JsonApiSecurityTest {
         verify(formSubmissionStore).save(
                 eq("endpoint-publication"),
                 eq(2),
+                anyString(),
                 anyString(),
                 eq(OPERATOR),
                 any(),
@@ -412,15 +418,16 @@ class JsonApiSecurityTest {
                 .andExpect(jsonPath("$.permission").value("config.write"));
 
         when(formSubmissionStore.save(
-                        eq("config-override"), anyInt(), anyString(), anyString(), any(), anyString()))
+                        eq("config-override"), anyInt(), anyString(), anyString(), anyString(), any(), anyString()))
                 .thenAnswer(invocation -> new FormSubmissionStore.FormSubmissionRow(
                         "sub-cfg-1",
                         invocation.getArgument(0),
                         invocation.getArgument(1),
                         invocation.getArgument(2),
                         invocation.getArgument(3),
+                        invocation.getArgument(4),
                         "{\"configKey\":\"subjex.greeting\"}",
-                        invocation.getArgument(5),
+                        invocation.getArgument(6),
                         java.time.Instant.parse("2026-10-05T07:00:00Z")));
 
         mockMvc.perform(submit(path, body).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
