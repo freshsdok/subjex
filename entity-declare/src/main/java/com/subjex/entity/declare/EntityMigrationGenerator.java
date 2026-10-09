@@ -4,7 +4,9 @@ package com.subjex.entity.declare;
  * EntityMigrationGenerator — 实体迁移生成器：按已渲染实体写出一份 Flyway 风格的 CREATE TABLE 草稿。
  * <p>
  * The caller checks the result into a draft folder. It is not applied by {@code platform-app} Flyway.
+ * Does not yet auto-append {@code tenant_id} when {@code tenantScoped}; authors must add that column for scoped tables.
  * 调用方把结果检入草稿目录。{@code platform-app} 的 Flyway 不会应用它。
+ * 尚不在 {@code tenantScoped} 时自动追加 {@code tenant_id}；隔离表须人工加列。
  */
 public final class EntityMigrationGenerator {
 

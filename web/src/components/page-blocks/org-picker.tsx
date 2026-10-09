@@ -12,6 +12,7 @@ export function OrgPicker({
   value,
   onChange,
   tenantId,
+  disabled = false,
 }: {
   name: string;
   label: string;
@@ -19,6 +20,7 @@ export function OrgPicker({
   onChange: (next: string) => void;
   tenantId?: string;
   phrases: PhraseBook;
+  disabled?: boolean;
 }) {
   const [units, setUnits] = useState<OrgUnitOption[] | null>(null);
   const [liveFailed, setLiveFailed] = useState(false);
@@ -61,6 +63,7 @@ export function OrgPicker({
         <select
           name={name}
           value={value}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
           aria-label={name}
           className="rounded-md border border-border bg-background px-2 py-1"
@@ -87,6 +90,7 @@ export function OrgPicker({
         name={name}
         type="text"
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         aria-label={name}
         placeholder={name}

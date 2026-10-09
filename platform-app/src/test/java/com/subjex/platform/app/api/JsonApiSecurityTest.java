@@ -44,6 +44,7 @@ import com.subjex.platform.app.page.PagesApiEndpoint;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.language.LanguageApiEndpoint;
 import com.subjex.platform.app.security.OperatorActionAudit;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
 import com.subjex.platform.app.security.OperatorSelfEndpoint;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
@@ -459,13 +460,17 @@ class JsonApiSecurityTest {
         FormDomainActionRunner formDomainActionRunner(
                 ServiceCatalog serviceCatalog,
                 ConfigCatalog configCatalog,
-                EffectiveDeclarationService effectiveDeclarationService) {
+                EffectiveDeclarationService effectiveDeclarationService,
+                TenantGuard tenantGuard,
+                OperatorTenantAccess operatorTenantAccess) {
             return new FormDomainActionRunner(
                     serviceCatalog,
                     configCatalog,
                     effectiveDeclarationService,
                     mock(GenericEntityStore.class),
-                    new CapabilityRunner(new CapabilityCatalog()));
+                    new CapabilityRunner(new CapabilityCatalog()),
+                    tenantGuard,
+                    operatorTenantAccess);
         }
 
         @Bean

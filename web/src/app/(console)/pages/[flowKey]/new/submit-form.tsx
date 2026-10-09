@@ -3,14 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { FormDebugPanel } from "@/components/form-debug-panel";
-import { OrgPicker, SubmitBar, UserPicker } from "@/components/page-blocks";
+import { FormFields, SubmitBar } from "@/components/page-blocks";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 import { parseSubmitReply, type FormDebugState } from "@/lib/form-debug";
 import {
   buildFormPayload,
   emptyFieldValues,
-  fieldControlKind,
-  fieldKindLabel,
   isRequiredFieldMissing,
   type FormFieldInput,
 } from "@/lib/form-field-input";
@@ -121,94 +119,13 @@ export function DeclaredSubmitForm({
           </ul>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {fields.map((field) => {
-            const kindLabel = fieldKindLabel(field.kind, phrases);
-            const labelText = `${field.name} (${kindLabel}${field.required ? ` · ${phrases.requiredMark}` : ""})`;
-            if (field.name === "orgUnit") {
-              return (
-                <OrgPicker
-                  key={field.name}
-                  name={field.name}
-                  label={labelText}
-                  value={values[field.name] ?? ""}
-                  onChange={(next) => updateField(field.name, next)}
-                  tenantId={tenantId}
-                  phrases={phrases}
-                />
-              );
-            }
-            if (field.name === "assignee") {
-              return (
-                <UserPicker
-                  key={field.name}
-                  name={field.name}
-                  label={labelText}
-                  value={values[field.name] ?? ""}
-                  onChange={(next) => updateField(field.name, next)}
-                  tenantId={tenantId}
-                  phrases={phrases}
-                />
-              );
-            }
-            const control = fieldControlKind(field);
-            const label = (
-              <>
-                <code>{field.name}</code>
-                <span className="ml-2 text-xs text-muted">
-                  {kindLabel}
-                  {field.required ? ` · ${phrases.requiredMark}` : ""}
-                </span>
-              </>
-            );
-            if (control === "checkbox") {
-              return (
-                <label key={field.name} className="flex items-center gap-2 text-sm">
-                  <input
-                    name={field.name}
-                    type="checkbox"
-                    checked={(values[field.name] ?? "false") === "true"}
-                    onChange={(event) => updateField(field.name, event.target.checked ? "true" : "false")}
-                    className="rounded border border-border"
-                  />
-                  <span>{label}</span>
-                </label>
-              );
-            }
-            if (control === "select") {
-              return (
-                <label key={field.name} className="flex flex-col gap-1 text-sm">
-                  <span>{label}</span>
-                  <select
-                    name={field.name}
-                    value={values[field.name] ?? ""}
-                    onChange={(event) => updateField(field.name, event.target.value)}
-                    className="rounded-md border border-border bg-background px-2 py-1"
-                  >
-                    <option value="">—</option>
-                    {(field.enumValues ?? []).map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              );
-            }
-            return (
-              <label key={field.name} className="flex flex-col gap-1 text-sm">
-                <span>{label}</span>
-                <input
-                  name={field.name}
-                  type={control === "date" ? "date" : control === "number" ? "number" : "text"}
-                  value={values[field.name] ?? ""}
-                  onChange={(event) => updateField(field.name, event.target.value)}
-                  className="rounded-md border border-border bg-background px-2 py-1"
-                />
-              </label>
-            );
-          })}
-        </div>
+        <FormFields
+          fields={fields}
+          values={values}
+          onChange={updateField}
+          phrases={phrases}
+          tenantId={tenantId}
+        />
       )}
 
       <FormDebugPanel

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DetailReadonly } from "@/components/page-blocks";
+import { DetailReadonly, Section, Tabs } from "@/components/page-blocks";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import {
@@ -14,10 +14,11 @@ type PageFlowDocument = {
   flowKey?: string;
   titleZh?: string;
   titleEn?: string;
-  detail?: { apiPath?: string; itemsKey?: string | null; idField?: string };
+  detail?: { apiPath?: string; itemsKey?: string | null; idField?: string; blocks?: string[] };
 };
 
 // Declared detail page — 声明式详情页：优先 GET /records/{id}，否则列表里按 idField 挑一项。
+// detail.blocks: Tabs → Fields/Raw shell; Section → card wrap. Omitted → prior layout.
 export default async function DeclaredDetailPage({
   params,
 }: {
@@ -57,6 +58,32 @@ export default async function DeclaredDetailPage({
 
   if (!row) return <LoadFailedNotice phrases={phrases} status={404} />;
   const title = language === "zh" ? flowRead.body.titleZh : flowRead.body.titleEn;
+  const blocks = detail.blocks ?? [];
+  const showTabs = blocks.includes("Tabs");
+  const showSection = blocks.includes("Section");
+
+  const fieldsView = <DetailReadonly record={row} />;
+  const detailBody = showTabs ? (
+    <Tabs
+      emptyNote={phrases.tabsEmptyNote}
+      ariaLabel={phrases.detailSectionTitle}
+      tabs={[
+        { id: "fields", label: phrases.detailTabFields, content: fieldsView },
+        {
+          id: "raw",
+          label: phrases.detailTabRaw,
+          content: (
+            <pre className="max-w-2xl overflow-auto rounded-lg border border-border bg-background p-4 font-mono text-xs">
+              {JSON.stringify(row, null, 2)}
+            </pre>
+          ),
+        },
+      ]}
+    />
+  ) : (
+    fieldsView
+  );
+
   return (
     <section>
       <PageHeading title={title ?? flowKey} hint={phrases.pagesDetailHint} />
@@ -65,7 +92,11 @@ export default async function DeclaredDetailPage({
           {phrases.backToListAction}
         </Link>
       </p>
-      <DetailReadonly record={row} />
+      {showSection ? (
+        <Section title={phrases.detailSectionTitle}>{detailBody}</Section>
+      ) : (
+        detailBody
+      )}
     </section>
   );
 }

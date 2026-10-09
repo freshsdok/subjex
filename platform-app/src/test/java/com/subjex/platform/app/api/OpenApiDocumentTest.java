@@ -32,6 +32,7 @@ import com.subjex.platform.app.form.FormSubmissionEndpoint;
 import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.FormsApiEndpoint;
 import com.subjex.platform.app.security.OperatorActionAudit;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.contract.extension.PlatformExtension;
 import com.subjex.platform.contract.task.TaskMessagePort;
 import com.subjex.platform.app.page.PageCatalog;
@@ -202,13 +203,17 @@ class OpenApiDocumentTest {
         FormDomainActionRunner formDomainActionRunner(
                 ServiceCatalog serviceCatalog,
                 ConfigCatalog configCatalog,
-                EffectiveDeclarationService effectiveDeclarationService) {
+                EffectiveDeclarationService effectiveDeclarationService,
+                TenantGuard tenantGuard,
+                OperatorTenantAccess operatorTenantAccess) {
             return new FormDomainActionRunner(
                     serviceCatalog,
                     configCatalog,
                     effectiveDeclarationService,
                     mock(GenericEntityStore.class),
-                    new CapabilityRunner(new CapabilityCatalog()));
+                    new CapabilityRunner(new CapabilityCatalog()),
+                    tenantGuard,
+                    operatorTenantAccess);
         }
 
         @Bean

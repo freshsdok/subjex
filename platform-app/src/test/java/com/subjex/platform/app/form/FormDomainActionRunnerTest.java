@@ -5,12 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.subjex.entity.declare.EntityCatalog;
+import com.subjex.entity.declare.EntityRenderer;
 import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.form.render.DomainActionKey;
 import com.subjex.form.render.FieldKind;
@@ -22,10 +24,16 @@ import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.security.OperatorPrincipal;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.contract.discovery.ServiceEndpoint;
+import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
+import com.subjex.platform.contract.tenant.TenantGuard;
+import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -40,10 +48,17 @@ class FormDomainActionRunnerTest {
     private final EntityCatalog entities = EntityCatalog.load(EntityCatalog.class.getClassLoader());
     private final EffectiveDeclarationService effective = mock(EffectiveDeclarationService.class);
     private final GenericEntityStore genericEntities = mock(GenericEntityStore.class);
+    private final TenantGuard tenantGuard = new DenyWhenTenantMissing();
+    private final OperatorTenantAccess tenantAccess = mock(OperatorTenantAccess.class);
     private final FormDomainActionRunner runner =
             new FormDomainActionRunner(
-                    services, config, effective, genericEntities,
-                    new CapabilityRunner(new CapabilityCatalog()));
+                    services,
+                    config,
+                    effective,
+                    genericEntities,
+                    new CapabilityRunner(new CapabilityCatalog()),
+                    tenantGuard,
+                    tenantAccess);
 
     @BeforeEach
     void stubRuntimeEntity() {
@@ -82,7 +97,7 @@ class FormDomainActionRunnerTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> values = ArgumentCaptor.forClass(Map.class);
         ArgumentCaptor<RenderedEntity> entity = ArgumentCaptor.forClass(RenderedEntity.class);
-        verify(genericEntities).save(entity.capture(), values.capture());
+        verify(genericEntities).save(entity.capture(), values.capture(), isNull());
         assertEquals("service-note", entity.getValue().entityKey());
         assertEquals("n1", values.getValue().get("noteId"));
         assertEquals("Hello", values.getValue().get("title"));
@@ -110,7 +125,7 @@ class FormDomainActionRunnerTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> values = ArgumentCaptor.forClass(Map.class);
         ArgumentCaptor<RenderedEntity> entity = ArgumentCaptor.forClass(RenderedEntity.class);
-        verify(genericEntities).save(entity.capture(), values.capture());
+        verify(genericEntities).save(entity.capture(), values.capture(), isNull());
         assertEquals("demo-ticket", entity.getValue().entityKey());
         assertEquals("t1", values.getValue().get("ticketId"));
         assertEquals("Open", values.getValue().get("title"));
@@ -127,6 +142,57 @@ class FormDomainActionRunnerTest {
                 () -> runner.apply(form, Map.of("ticketId", "t1", "title", "x", "status", "new")));
     }
 
+    @Test
+    void upsertsTenantScopedEntityWithHeader() {
+        RenderedEntity scoped = new EntityRenderer().render("""
+                entityKey: scoped-note
+                tableName: scoped_note
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                fields:
+                  - name: id
+                    kind: text
+                    required: true
+                    maxLength: 32
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 64
+                """);
+        when(effective.runtimeEntity(eq("acme"), eq("scoped-note"))).thenReturn(Optional.of(scoped));
+        RenderedForm form = form("scoped-note", DomainActionKey.ENTITY_RECORD_UPSERT, "scoped-note");
+        OperatorPrincipal operator = new OperatorPrincipal(
+                "op", "hash", "id-1", "sub-1", Set.of("page.read"), true);
+        String summary = runner.apply(form, Map.of("id", "1", "title", "Hi"), "acme", operator);
+        assertEquals("scoped-note:1", summary);
+        verify(tenantAccess).requireGranted(operator, "acme");
+        verify(genericEntities).save(eq(scoped), any(), eq("acme"));
+    }
+
+    @Test
+    void upsertTenantScopedWithoutHeaderFailsClosed() {
+        RenderedEntity scoped = new EntityRenderer().render("""
+                entityKey: scoped-note
+                tableName: scoped_note
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                fields:
+                  - name: id
+                    kind: text
+                    required: true
+                    maxLength: 32
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 64
+                """);
+        when(effective.runtimeEntity(isNull(), eq("scoped-note"))).thenReturn(Optional.of(scoped));
+        RenderedForm form = form("scoped-note", DomainActionKey.ENTITY_RECORD_UPSERT, "scoped-note");
+        assertThrows(TenantMissingException.class, () -> runner.apply(form, Map.of("id", "1", "title", "Hi")));
+        verify(genericEntities, never()).save(any(), any(), any());
+    }
 
     @Test
     void runsAlgoHashFingerprintCapability() {
@@ -142,7 +208,7 @@ class FormDomainActionRunnerTest {
         String summary = runner.apply(form, Map.of("inputText", "ticket body"));
         assertTrue(summary.contains("model-gateway stub preview"));
         assertTrue(summary.contains("ticket body"));
-        verify(genericEntities, never()).save(any(), any());
+        verify(genericEntities, never()).save(any(), any(), any());
     }
 
     private static RenderedForm form(String formKey, DomainActionKey action, String entityKey) {

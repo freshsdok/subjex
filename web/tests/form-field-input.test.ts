@@ -6,6 +6,7 @@ import {
   emptyFieldValues,
   fieldControlKind,
   fieldKindLabel,
+  fieldPickerRole,
   isRequiredFieldMissing,
   type FormFieldInput,
 } from "@/lib/form-field-input";
@@ -107,5 +108,13 @@ describe("form-field-input — 表单字段控件辅助", () => {
     expect(isRequiredFieldMissing({ name: "t", kind: "text", required: false }, "")).toBe(false);
     expect(isRequiredFieldMissing({ name: "ok", kind: "boolean", required: true }, "false")).toBe(false);
     expect(isRequiredFieldMissing({ name: "ok", kind: "boolean", required: true }, "")).toBe(true);
+  });
+
+  it("picks user/org pickers by kind or name — 按 kind 或字段名选选人/选部门", () => {
+    expect(fieldPickerRole({ name: "assignee", kind: "text", required: false })).toBe("user");
+    expect(fieldPickerRole({ name: "owner", kind: "userRef", required: false })).toBe("user");
+    expect(fieldPickerRole({ name: "orgUnit", kind: "text", required: false })).toBe("org");
+    expect(fieldPickerRole({ name: "dept", kind: "orgRef", required: false })).toBe("org");
+    expect(fieldPickerRole({ name: "title", kind: "text", required: false })).toBeNull();
   });
 });

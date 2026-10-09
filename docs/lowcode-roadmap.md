@@ -134,7 +134,7 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - O. [done] People model lock: **permission tiers** (not separate login account types as primary split); **platform super-admin isolated** from all other accounts; `ARCHITECTURE.md` §18; local commit only (no push).
 - P. [done] UX/runtime locks: **page builder/configurator** first (most-used components as visual blocks; not free canvas); **algo/AI thin** in first wave (catalog + 1–2 stubs); **strict DB management** for field/schema changes (controlled migrations / no casual online DDL; align dual-track promote); permission tiers + isolated super-admin already locked; `ARCHITECTURE.md` §18; local commit only (no push).
 - Q. [done] Dual-track ops locks: promote via **internal git** (self-hosted / in-platform; **not** GitHub-dependent); declaration drafts **tenant-scoped**; platform **super-admin** own role name (e.g. `platform.super-admin`); `ARCHITECTURE.md` §18; local commit only (no push).
-- R. [done] Runtime/ops locks: **promoted declaration metadata may hot-reload**; **schema/table changes** go through **migration queue** and declaration switches only after migration completes (**bound together**); first-wave **page blocks** listed (generic form components, ListTable, FormFields, DetailReadonly, Section/Tabs, SubmitBar, UserPicker/OrgPicker placeholders, flow sorter/router); Z1 engine = **new sample and/or parallel read-adapt `service_note`** (old JDBC may remain then delete); **HTTP Basic** safer default (off outside `local`) — curl/docs with Z1, implementation may follow; `ARCHITECTURE.md` §18; local commit only (no push).
+- R. [done] Runtime/ops locks: **promoted declaration metadata may hot-reload**; **schema/table changes** go through **migration queue** and declaration switches only after migration completes (**bound together**); first-wave **page blocks** listed (generic form components, ListTable, FormFields, DetailReadonly, Section/Tabs, SubmitBar, UserPicker/OrgPicker placeholders, flow sorter/router); Z1 engine = **new sample and/or parallel read-adapt `service_note`** (old JDBC may remain then delete); **HTTP Basic** safer default (off outside `local`) — curl/docs with Z1; **Basic-1 implemented**; `ARCHITECTURE.md` §18; local commit only (no push).
 - S. [done] Z1-1: EntityCatalog + userRef/orgRef + demo-ticket YAML/V12; local commit only.
 - T. [done] Z1-2: generic JDBC CRUD + REST /records by entityKey (demo-ticket); local commit only.
 - U. [done] Z1-3: parallel generic read for service_note + Basic safer-default docs; local commit only.
@@ -161,6 +161,12 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - AP. [done] MQ-1: `declaration_migration` queue (V16) + `declaration.migrate` + store/HTTP enqueue·list·review; **no apply**; local commit only.
 - AQ. [done] MQ-2: apply REVIEWED entity DDL (fail-closed) + entity promote bind to APPLIED/CANCELLED; local commit only.
 - AR. [done] MQ-3: console migration queue on `/declarations` (entity); local commit only. **Migration-queue baseline landed.**
+- AS. [done] HR-1: promoted metadata hot-reload (DRAFT > PROMOTED > classpath) + `/effective.source`; local commit only.
+- AT. [done] TS-1: tenantScoped generic CRUD (`tenant_id` isolation) + entity.record.upsert gate; local commit only.
+- AU. [done] Basic-1: HTTP Basic off outside `local` (`platform.auth.http-basic-enabled`); local commit only.
+- AV. [done] Blocks-1: FormFields + FlowSorter runtime (DeclaredSubmitForm + explicit list.blocks); local commit only.
+- AW. [done] Lockout-1: login failure lockout (5 / 15m, 429 `login-lockout`); local commit only.
+- AX. [done] Blocks-2: Section + Tabs runtime (detail Fields/Raw + list Section wrap); local commit only.
 
 
 ## Thin algo/AI progress / 薄算法·AI 进度
@@ -362,7 +368,7 @@ Do in order unless the owner renumbers. **First wave still Z1–Z4** (dual-track
 | # | Slice / 切片 | Intent / 意图 | Wave / 波次 |
 | --- | --- | --- | --- |
 | Z0 | Docs / 文档 | Zero-code model + **dual-track decided** in roadmap + `ARCHITECTURE.md`. | done (docs) |
-| Z1 | Generic entity CRUD / 通用实体 CRUD | Metadata-driven table + REST by `entityKey`; **new sample and/or parallel read-adapt `service_note`** (old JDBC may remain then delete) — **new entity → zero Java**. Reserve `userRef`/`orgRef` kinds. Schema/field evolution only via **migration queue** bound to declaration cutover (hot-reload metadata only after migration completes). Prefer HTTP Basic **off** outside `local` (docs with Z1; impl may follow). | **R1 #1 / baseline landed** (Z1-1..3; bespoke write **removed**, generic owns service-note writes) |
+| Z1 | Generic entity CRUD / 通用实体 CRUD | Metadata-driven table + REST by `entityKey`; **new sample and/or parallel read-adapt `service_note`** (old JDBC may remain then delete) — **new entity → zero Java**. Reserve `userRef`/`orgRef` kinds. Schema/field evolution only via **migration queue** bound to declaration cutover (hot-reload metadata only after migration completes). HTTP Basic **off** outside `local` (**Basic-1 done**). | **R1 #1 / baseline landed** (Z1-1..3; bespoke write **removed**, generic owns service-note writes) |
 | thin org | Thin people/org base / 薄人员组织底座 | `org_unit` tree + membership + **read-only** APIs; wire **permission tiers** (console vs business work); **`platform.super-admin` (own role name)** out of ordinary grants; **no** mandatory second account type; **no** SCIM / complex dual-role yet. | **R1 #2 / baseline landed** (Thin-org-1..2) |
 | Z2 | Generic flow pages / 通用流程页 | list/detail/new/edit fully declaration-driven; first-wave blocks: **generic form components**, **ListTable**, **FormFields**, **DetailReadonly**, **Section/Tabs**, **SubmitBar**, **UserPicker/OrgPicker** (thin live), **flow sorter/router** — **new business page → zero bespoke front-end**. | **R1 #3 / baseline landed** (Z2-1..3; detail GET + thin pickers + forms entityKey) |
 | Z3 | Declaration store / 声明存储 | `declaration_revision` (or equivalent) + **tenant-scoped** drafts; load order: DB overlay over classpath. May overlap Z1 **after** Z1 baseline lands. | **R1 #4 / baseline landed** (Z3-1..3) |
@@ -380,9 +386,9 @@ Do in order unless the owner renumbers. **First wave still Z1–Z4** (dual-track
 
 **已拍板：Z1 通用引擎样例**（负责人确认）——通用实体引擎**先吃新样例实体，和/或并行只读适配 `service_note`**。**旧专用 JDBC** 可暂留，待通用路径覆盖后再删。不以大爆炸切换阻塞 Z1。
 
-**Decided / 已拍板：HTTP Basic safer default** (owner confirmed) — prefer **safer default**: HTTP Basic **off outside `local`** (console already on Bearer). Update **curl examples and docs with Z1**; **implementation may follow later** (explicit opt-in to re-enable Basic for scripts).
+**Decided / 已拍板：HTTP Basic safer default** (owner confirmed) — **Basic-1 done**: HTTP Basic **off outside `local`** (`platform.auth.http-basic-enabled` default false; `local` / `PLATFORM_AUTH_HTTP_BASIC_ENABLED=true` opt-in). Console on Bearer.
 
-**已拍板：HTTP Basic 更安全默认**（负责人确认）——非 `local` 默认**关闭** HTTP Basic（控制台已走 Bearer）。**与 Z1 同期改 curl/文档**；**实现可稍后**（脚本需显式打开兼容）。
+**已拍板：HTTP Basic 更安全默认**（负责人确认）——**Basic-1 已落地**：非 `local` 默认**关闭**；`local` 或环境变量显式打开；控制台走 Bearer。
 
 ### Relation to shipped stages 0–6 / 与已交付 0–6 的关系
 

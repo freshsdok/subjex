@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
  * Login validates username/password once. If TOTP is enrolled, returns a short-lived {@code mfaToken}
  * instead of access/refresh; {@code POST .../mfa/verify} completes the flow. Refresh rotates; reuse of
  * an old refresh revokes the family. Logout revokes the refresh family.
+ * Failed password (or MFA) attempts feed {@link JdbcOperatorLoginLockout}; active lockout returns 429.
  * 登录核对一次口令。若已登记 TOTP 则先发短时 mfaToken；校验后再签发访问/刷新。刷新轮换；重用旧刷新吊销整族。
+ * 口令（及 MFA）失败计入锁定；仍在锁定窗口内返回 429。
  */
 @RestController
 public class OperatorAuthEndpoint {
@@ -29,6 +31,7 @@ public class OperatorAuthEndpoint {
     private final PasswordEncoder passwordEncoder;
     private final JdbcOperatorTokenStore tokenStore;
     private final JdbcOperatorMfaStore mfaStore;
+    private final JdbcOperatorLoginLockout loginLockout;
     private final OperatorActionAudit audit;
 
     public OperatorAuthEndpoint(
@@ -36,11 +39,13 @@ public class OperatorAuthEndpoint {
             PasswordEncoder passwordEncoder,
             JdbcOperatorTokenStore tokenStore,
             JdbcOperatorMfaStore mfaStore,
+            JdbcOperatorLoginLockout loginLockout,
             OperatorActionAudit audit) {
         this.directory = directory;
         this.passwordEncoder = passwordEncoder;
         this.tokenStore = tokenStore;
         this.mfaStore = mfaStore;
+        this.loginLockout = loginLockout;
         this.audit = audit;
     }
 
@@ -51,15 +56,25 @@ public class OperatorAuthEndpoint {
         if (loginName.isEmpty() || password == null || password.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        try {
+            loginLockout.assertNotLocked(loginName);
+        } catch (LoginLockoutException ex) {
+            auditLockoutRefusal(loginName);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("reason", "login-lockout"));
+        }
         OperatorPrincipal operator;
         try {
             operator = (OperatorPrincipal) directory.loadUserByUsername(loginName);
         } catch (UsernameNotFoundException ex) {
+            loginLockout.recordFailure(loginName);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (!operator.isEnabled() || !passwordEncoder.matches(password, operator.getPassword())) {
+            loginLockout.recordFailure(loginName);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        loginLockout.clear(loginName);
         if (mfaStore.isEnrolled(operator.subjectId())) {
             JdbcOperatorMfaStore.IssuedChallenge challenge = mfaStore.issueChallenge(operator);
             audit.record(operator, "operator.auth.login.mfa-challenge", operator.getUsername(), AuditOutcome.ALLOWED);
@@ -82,19 +97,30 @@ public class OperatorAuthEndpoint {
         String code = body == null ? null : body.code();
         try {
             OperatorPrincipal operator = mfaStore.verifyChallenge(mfaToken, code);
+            loginLockout.clear(operator.getUsername());
             JdbcOperatorTokenStore.IssuedTokens issued =
                     tokenStore.issue(operator, request.getHeader("User-Agent"), clientIp(request));
             audit.record(operator, "operator.auth.login", operator.getUsername(), AuditOutcome.ALLOWED);
             return ResponseEntity.ok(toResponse(issued));
         } catch (InvalidOperatorTokenException ex) {
-            mfaStore.loginNameForChallenge(mfaToken).ifPresent(login -> {
+            var loginOpt = mfaStore.loginNameForChallenge(mfaToken);
+            if (loginOpt.isPresent()) {
+                String login = loginOpt.get();
+                try {
+                    loginLockout.assertNotLocked(login);
+                } catch (LoginLockoutException lockEx) {
+                    auditLockoutRefusal(login);
+                    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                            .body(Map.of("reason", "login-lockout"));
+                }
+                loginLockout.recordFailure(login);
                 try {
                     OperatorPrincipal actor = (OperatorPrincipal) directory.loadUserByUsername(login);
                     audit.record(actor, "operator.mfa.verify", login, AuditOutcome.REFUSED);
                 } catch (UsernameNotFoundException ignored) {
                     // Challenge may already be gone; skip audit.
                 }
-            });
+            }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("reason", "invalid-mfa"));
         }
     }
@@ -117,6 +143,16 @@ public class OperatorAuthEndpoint {
             tokenStore.revokeByRefreshToken(body.refreshToken());
         }
         return ResponseEntity.noContent().build();
+    }
+
+    private void auditLockoutRefusal(String loginName) {
+        try {
+            OperatorPrincipal actor = (OperatorPrincipal) directory.loadUserByUsername(loginName);
+            audit.record(actor, "operator.auth.login", loginName + ":lockout", AuditOutcome.REFUSED);
+        } catch (UsernameNotFoundException ignored) {
+            // Unknown login keys can still lock; no actor to audit.
+            // 未知登录名也可锁定；无操作员主体可写审计。
+        }
     }
 
     private static TokenResponse toResponse(JdbcOperatorTokenStore.IssuedTokens issued) {

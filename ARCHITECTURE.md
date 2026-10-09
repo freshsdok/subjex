@@ -229,8 +229,8 @@ Product direction: with declarations as the single source of truth, structured c
 - **Z6：** 实体种类 boolean/enum/date/entityRef；列表筛选/排序 API + 声明列表薄筛选 UI；表单种类与向导；页面表单控件（布尔/日期/枚举）+ API 暴露 enumValues。
 - **Schema：** **已拍板**——字段/schema 变更走**严格数据库管理**（版本化受控迁移），经双轨晋升落地；**禁止**控制台随意在线 DDL。
 - **Schema：** **Decided** — field/schema changes follow **strict DB management** (controlled migrations) via dual-track promote; **no** casual online DDL.
-- **热加载与迁移绑定 / Hot-reload bind：** **已拍板**——已晋升**声明元数据**可热加载；**改表**走**迁移队列**，迁移完成后才切换声明，二者绑定。
-- **Hot-reload bind：** **Decided** — promoted declaration **metadata** may hot-reload; **schema/table** changes use a **migration queue** and declaration switches only after migration completes — **bound together**.
+- **热加载与迁移绑定 / Hot-reload bind：** **已拍板**——已晋升**声明元数据**可热加载（实现：库内 `PROMOTED` 覆盖 classpath，非重建 jar）；**改表**走**迁移队列**，迁移完成后才切换声明，二者绑定。
+- **Hot-reload bind：** **Decided** — promoted declaration **metadata** may hot-reload (impl: DB `PROMOTED` overlay over classpath, not jar rebuild); **schema/table** changes use a **migration queue** and declaration switches only after migration completes — **bound together**.
 - **首波页面积木 / First-wave page blocks：** **已拍板**——通用窗体组件、ListTable、FormFields（按实体）、DetailReadonly、Section/Tabs、SubmitBar、UserPicker/OrgPicker 占位、流程分拣器。
 - **First-wave page blocks：** **Decided** — generic form components, ListTable, FormFields (from entity), DetailReadonly, Section/Tabs, SubmitBar, UserPicker/OrgPicker placeholders, flow sorter/router.
 - **Z1 样例 / Z1 samples：** **已拍板**——通用引擎先吃**新样例**和/或**并行只读适配 `service_note`**；旧 JDBC 可暂留再删。

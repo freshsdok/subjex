@@ -97,6 +97,8 @@ public class DeclarationDraftEndpoint {
             @RequestParam(value = "tenantId", required = false) String tenantId) {
         String tid = requireTenant(operator, tenantId);
         DeclarationKind k = DeclarationKind.fromWire(kind);
+        String source = effective.resolutionSource(tid, k, key);
+        boolean fromDraft = EffectiveDeclarationService.SOURCE_DRAFT.equals(source);
         return switch (k) {
             case ENTITY -> effective
                     .effectiveEntity(tid, key)
@@ -105,26 +107,27 @@ public class DeclarationDraftEndpoint {
                             e.entityKey(),
                             e.version(),
                             e.fields().stream().map(f -> f.name()).toList(),
-                            effective.hasEntityDraft(tid, key)))
+                            fromDraft,
+                            source))
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
             case FORM -> {
                 RenderedForm form = effective
                         .effectiveForm(tid, key)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-                boolean fromDraft = store.latest(tid, DeclarationKind.FORM, key).isPresent();
                 yield new EffectiveDocument(
                         k.wireName(),
                         form.formKey(),
                         form.version(),
                         form.fields().stream().map(f -> f.name()).toList(),
-                        fromDraft);
+                        fromDraft,
+                        source);
             }
             case FLOW -> {
                 RenderedFlow flow = effective
                         .effectiveFlow(tid, key)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-                boolean fromDraft = store.latest(tid, DeclarationKind.FLOW, key).isPresent();
-                yield new EffectiveDocument(k.wireName(), flow.flowKey(), flow.version(), List.of(), fromDraft);
+                yield new EffectiveDocument(
+                        k.wireName(), flow.flowKey(), flow.version(), List.of(), fromDraft, source);
             }
         };
     }
@@ -224,8 +227,14 @@ public class DeclarationDraftEndpoint {
     public record SaveDraftRequest(String yamlBody) {}
 
     /**
-     * EffectiveDocument — 生效声明摘要：种类、键、版本、字段名、是否来自草稿。
+     * EffectiveDocument — 生效声明摘要：种类、键、版本、字段名、是否来自未晋升草稿、解析来源
+     * ({@code draft}|{@code promoted}|{@code classpath})。
      */
     public record EffectiveDocument(
-            String declarationKind, String key, int version, List<String> fieldNames, boolean fromDraft) {}
+            String declarationKind,
+            String key,
+            int version,
+            List<String> fieldNames,
+            boolean fromDraft,
+            String source) {}
 }

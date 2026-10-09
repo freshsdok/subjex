@@ -28,6 +28,10 @@ Reading an old submission: use the form YAML (or git tag/commit) whose `version`
 
 ## Entity YAML → migration drafts / 实体 YAML → 迁移草稿
 
+When `tenantScoped: true`, the physical table **must** include `tenant_id VARCHAR(64) NOT NULL` (index/PK as the author chooses). Generic CRUD stamps and filters that column; the migration generator does not yet auto-add it.
+`tenantScoped: true` 时表必须含 `tenant_id VARCHAR(64) NOT NULL`（索引/主键自定）。通用 CRUD 盖章与过滤该列；迁移生成器尚未自动加列。
+
+
 When entity fields change:
 
 1. Bump `version` in the entity YAML.

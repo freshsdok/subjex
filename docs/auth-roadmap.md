@@ -1,7 +1,7 @@
 # Auth roadmap — console operators, tenants, tokens, SSO, MFA
 
-Status: Slices **A–E done** (operators, tenants, opaque Bearer + rotating refresh, TOTP MFA, OIDC RP); follow-ups remain (2026-10-08).
-状态：切片 **A–E 已完成**（操作员、租户、不透明 Bearer + 轮换刷新、TOTP MFA、OIDC 依赖方）；后续项仍在（2026-10-08）。
+Status: Slices **A–E done**; **Basic-1** done; **Lockout-1** (per-login failure lockout) done (2026-10-09).
+状态：切片 **A–E 已完成**；**Basic-1** 已完成；**Lockout-1**（按登录名失败锁定）已完成（2026-10-09）。
 
 Audience: operators of the reserved tenant `platform` (console + `/api/v1`), not end-user/customer identity.
 范围：保留租户 `platform` 的操作员（控制台与 `/api/v1`），不是业务终端用户身份。
@@ -16,13 +16,13 @@ Related: `docs/operator-permissions.md`, `SECURITY.md`, `ARCHITECTURE.md`, `web/
 
 | Area | What exists | Gaps |
 | --- | --- | --- |
-| Wire auth | Opaque Bearer (primary) + HTTP Basic (scripts); `SessionCreationPolicy.STATELESS`; `POST /api/v1/auth/{login,refresh,logout,mfa/verify}`; MFA enroll under `/api/v1/auth/mfa/**`; OIDC `GET/POST /api/v1/auth/oidc/{status,start,callback}` | Login lockout still future |
+| Wire auth | Opaque Bearer (primary); HTTP Basic via `platform.auth.http-basic-enabled` (default **false**, **true** under `local` / `PLATFORM_AUTH_HTTP_BASIC_ENABLED`); `SessionCreationPolicy.STATELESS`; `POST /api/v1/auth/{login,refresh,logout,mfa/verify}`; MFA enroll under `/api/v1/auth/mfa/**`; OIDC `GET/POST /api/v1/auth/oidc/{status,start,callback}`; login lockout (`platform.auth.lockout-max-failures` / `lockout-duration`, default 5 / PT15M → **429** `login-lockout`) | — |
 | Identity store | `account` → `subject_identity` (tenant `platform`) → `subject`; `operator_credential` bcrypt; `operator_mfa_totp` + `operator_mfa_recovery` (Slice D); `operator_idp_link` (Slice E) | — |
 | Permissions | Named authorities: `admin.read`, `page.read`, `config.read/write`, `registry.read/write`, `task.write`, `operator.manage` via `subject_role` → `role_permission` | No online role editor (by design: declaration/SQL) |
 | Tenant grants | `operator_tenant_grant` (`*` = all); `TenantEnforcementFilter` after `TenantGuard` — **fail-closed**; console grant editor (Slice A) | — |
 | Operator admin API | `GET/POST /api/v1/operators`, `POST .../me/password`, `POST .../{login}/password\|disable\|enable`, `GET/PUT .../{login}/tenants` | Complete for slice-1 UI |
 | Bootstrap | `local` seeder + one-shot `--platform.operator.bootstrap=true` (off by default); grants `*` | Still the only non-UI provision path outside APIs |
-| Hardening called out in `SECURITY.md` | TLS termination expected in front; opaque tokens (C); TOTP MFA (D); OIDC RP (E) | **No** lockout yet |
+| Hardening called out in `SECURITY.md` | TLS termination expected in front; opaque tokens (C); TOTP MFA (D); OIDC RP (E); login lockout (Lockout-1) | — |
 | OpenAPI / probes | `/api/v1/openapi.json` authenticated; liveness/readiness/prometheus anonymous | — |
 
 Opaque Bearer + rotating refresh (Slice C), TOTP MFA (Slice D), and OIDC RP + IdP link (Slice E) landed. Access tokens remain opaque (no JWT). Sample-consumer uses its own Basic gate; entry-gateway forwards `Authorization` unchanged and does not authenticate.
@@ -62,7 +62,7 @@ Opaque Bearer + rotating refresh (Slice C), TOTP MFA (Slice D), and OIDC RP + Id
 4. **MFA**: TOTP (RFC 6238) for password login; recovery codes; audit enroll/disable.
 5. **SSO**: OIDC Authorization Code + PKCE against an external IdP (Keycloak / Entra / etc.); platform remains the authorization source of truth (roles + grants in DB).
 6. **CSRF**: console cookie session stays SameSite=Strict; state-changing console routes keep same origin; platform APIs stay Bearer (no cookie CSRF surface on Java).
-7. **Deprecate Basic** for interactive console; keep Basic optional for break-glass / scripts until a documented cutoff, then disable by default outside `local`.
+7. **Deprecate Basic** for interactive console; Basic optional for break-glass / scripts — **Basic-1 done**: off by default outside `local` (`platform.auth.http-basic-enabled` / `PLATFORM_AUTH_HTTP_BASIC_ENABLED`).
 
 ---
 
@@ -183,7 +183,7 @@ If calendar pressure forces a cut: ship **A + C** before B; tenant UI can wait b
 | --- | --- |
 | Online permission/role editor | Architecture: permissions stay in SQL/declarations |
 | JWT access tokens / remote introspection | Opaque enough while AuthZ lives in platform-app |
-| Login rate-limit / lockout | Still needed; small follow-up after C (or tiny slice C′): per-login counters in DB/Redis |
+| Login IP / global rate-limit | Per-login lockout done (Lockout-1); broader IP/global throttle still optional |
 | WebAuthn, passkeys | After TOTP |
 | Console CSRF tokens | SameSite=Strict cookie + same-origin proxy is enough for now |
 | End-user (non-operator) identity | Out of platform-operator scope |
@@ -203,7 +203,7 @@ Ask the user only if they disagree with these defaults:
 
 1. **OIDC first-login policy:** deny unlinked IdP users (recommended) vs auto-provision read-only operator.
 2. **MFA enforcement:** optional for all vs required for `platform-operator` when `platform.mfa.required=true`.
-3. **Basic cutoff:** keep Basic indefinitely for scripts vs default-off outside `local` after Slice C + one release.
+3. **Basic cutoff:** ~~keep Basic indefinitely vs default-off outside `local`~~ — **decided & implemented (Basic-1):** default-off outside `local`; opt-in via env for scripts.
 
 ---
 
@@ -214,7 +214,9 @@ Ask the user only if they disagree with these defaults:
 - [x] C Login/refresh tokens; console drops Basic-at-rest
 - [x] D TOTP MFA + recovery codes
 - [x] E OIDC RP + IdP link table
-- [ ] Follow-up: login lockout / rate limit
+- [x] Basic-1 HTTP Basic off outside `local` (`platform.auth.http-basic-enabled`)
+- [x] Lockout-1: per-login failure lockout (`operator_login_lockout`, 429 `login-lockout`)
+- [ ] Follow-up: broader IP/global login rate-limit (optional)
 - [ ] Docs: SECURITY.md + operator-permissions.md + OpenAPI after each slice
 
 

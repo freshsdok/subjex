@@ -43,8 +43,9 @@ export function fieldKindLabel(kind: string, phrases: PhraseBook): string {
 
 /**
  * Maps field kind (+ enumValues) to a console control.
- * Enum without values falls back to text. userRef/orgRef stay text (pickers are page blocks).
- * 按种类映射控件；无 enumValues 的 enum 退回文本；userRef/orgRef 仍用文本。
+ * Enum without values falls back to text. userRef/orgRef map to text here;
+ * FormFields uses fieldPickerRole for UserPicker/OrgPicker.
+ * 按种类映射控件；无 enumValues 的 enum 退回文本；选人/选部门由 fieldPickerRole 决定。
  */
 export function fieldControlKind(field: FormFieldInput): FieldControlKind {
   switch (field.kind) {
@@ -116,3 +117,18 @@ export function isRequiredFieldMissing(field: FormFieldInput, raw: string | unde
   }
   return (raw ?? "").trim() === "";
 }
+
+/** Which page-block picker to use — 用哪个选人/选部门积木（kind 或约定字段名）。 */
+export type FieldPickerRole = "user" | "org" | null;
+
+/**
+ * Prefer userRef/orgRef kinds; also special-case assignee / orgUnit field names
+ * (demo-ticket form YAML) so DeclaredSubmitForm and FormFields stay aligned.
+ * 优先 kind；并兼容 assignee / orgUnit 字段名，与提交表单一致。
+ */
+export function fieldPickerRole(field: FormFieldInput): FieldPickerRole {
+  if (field.kind === "userRef" || field.name === "assignee") return "user";
+  if (field.kind === "orgRef" || field.name === "orgUnit") return "org";
+  return null;
+}
+

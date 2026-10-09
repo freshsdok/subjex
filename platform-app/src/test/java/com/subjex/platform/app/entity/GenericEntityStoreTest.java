@@ -263,4 +263,62 @@ class GenericEntityStoreTest {
         assertThrows(IllegalArgumentException.class, () -> store.validateWrite(entity, badDateType));
     }
 
+
+    @Test
+    void tenantScopedIsolatesRowsAndIgnoresBodyTenantOverride() {
+        RenderedEntity entity = new EntityRenderer().render("""
+                entityKey: scoped-item
+                tableName: scoped_item
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                fields:
+                  - name: id
+                    kind: text
+                    required: true
+                    maxLength: 32
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 64
+                """);
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(H2PlatformTables.Mode.POSTGRESQL));
+        jdbc.execute(
+                "CREATE TABLE scoped_item (id VARCHAR(32) NOT NULL, title VARCHAR(64) NOT NULL, "
+                        + "tenant_id VARCHAR(64) NOT NULL, PRIMARY KEY (id, tenant_id))");
+        GenericEntityStore store = new GenericEntityStore(jdbc);
+
+        Map<String, Object> bodyA = new LinkedHashMap<>();
+        bodyA.put("id", "r1");
+        bodyA.put("title", "Acme row");
+        bodyA.put("tenantId", "other"); // must be ignored — header wins
+        store.save(entity, bodyA, "tenant-a");
+
+        Map<String, Object> bodyB = new LinkedHashMap<>();
+        bodyB.put("id", "r2");
+        bodyB.put("title", "Beta row");
+        store.save(entity, bodyB, "tenant-b");
+
+        List<Map<String, Object>> listA = store.list(entity, 10, null, true, null, null, "tenant-a");
+        assertEquals(1, listA.size());
+        assertEquals("r1", listA.get(0).get("id"));
+        assertEquals("Acme row", listA.get(0).get("title"));
+
+        List<Map<String, Object>> listB = store.list(entity, 10, null, true, null, null, "tenant-b");
+        assertEquals(1, listB.size());
+        assertEquals("r2", listB.get(0).get("id"));
+
+        assertTrue(store.findById(entity, "r1", "tenant-a").isPresent());
+        assertFalse(store.findById(entity, "r1", "tenant-b").isPresent());
+        assertFalse(store.deleteById(entity, "r1", "tenant-b"));
+        assertTrue(store.findById(entity, "r1", "tenant-a").isPresent());
+
+        String stamped = jdbc.queryForObject(
+                "SELECT tenant_id FROM scoped_item WHERE id = ?", String.class, "r1");
+        assertEquals("tenant-a", stamped);
+
+        assertThrows(IllegalArgumentException.class, () -> store.save(entity, bodyA, null));
+        assertThrows(IllegalArgumentException.class, () -> store.list(entity, 10, null, true, null, null, "  "));
+    }
+
 }

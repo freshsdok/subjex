@@ -5,6 +5,7 @@ import com.subjex.platform.contract.audit.AuditPort;
 import java.time.Clock;
 import java.time.Duration;
 import javax.sql.DataSource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -89,6 +90,20 @@ public class OperatorDirectoryTestConfiguration {
                 Clock.systemUTC(),
                 Duration.ofMinutes(30),
                 Duration.ofHours(8));
+    }
+
+    @Bean
+    JdbcOperatorLoginLockout operatorLoginLockout(
+            JdbcTemplate jdbc,
+            DataSource operatorTables,
+            @Value("${platform.auth.lockout-max-failures:5}") int maxFailures,
+            @Value("${platform.auth.lockout-duration:PT15M}") Duration lockoutDuration) {
+        return new JdbcOperatorLoginLockout(
+                jdbc,
+                new TransactionTemplate(new DataSourceTransactionManager(operatorTables)),
+                Clock.systemUTC(),
+                maxFailures,
+                lockoutDuration);
     }
 
     @Bean

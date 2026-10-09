@@ -70,5 +70,13 @@ class JdbcDeclarationStoreTest {
         assertEquals(2, promotes.get(0).revision());
         assertEquals("sha-two", promotes.get(0).gitCommitSha());
         assertEquals(1, promotes.get(1).revision());
+
+        // After both promoted: latestDraft empty; latestPromoted is newest PROMOTED.
+        assertTrue(store.latestDraft("acme", DeclarationKind.ENTITY, "demo-ticket").isEmpty());
+        assertEquals(2, store.latestPromoted("acme", DeclarationKind.ENTITY, "demo-ticket").orElseThrow().revision());
+        store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", "entityKey: demo-ticket\nversion: 3\n", "sub-c");
+        assertEquals(3, store.latestDraft("acme", DeclarationKind.ENTITY, "demo-ticket").orElseThrow().revision());
+        assertEquals(2, store.latestPromoted("acme", DeclarationKind.ENTITY, "demo-ticket").orElseThrow().revision());
+        assertEquals(3, store.latest("acme", DeclarationKind.ENTITY, "demo-ticket").orElseThrow().revision());
     }
 }

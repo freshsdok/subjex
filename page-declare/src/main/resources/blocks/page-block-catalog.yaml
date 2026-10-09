@@ -16,9 +16,9 @@ blocks:
   - id: FormFields
     titleEn: Form fields (from entity/form)
     titleZh: 表单字段（来自实体/表单）
-    summaryEn: Stub for entity-driven field generation; submit page still uses form YAML fields.
-    summaryZh: 实体驱动字段生成桩；提交页暂仍用表单 YAML 字段。
-    status: placeholder
+    summaryEn: Renders form/entity fields (text/number/date/enum/boolean; userRef/orgRef via pickers). Used by declared submit.
+    summaryZh: 按表单/实体字段渲染控件（文本/数字/日期/枚举/布尔；userRef/orgRef 走选人/选部门）。声明式提交页使用。
+    status: runtime
   - id: DetailReadonly
     titleEn: Detail (read-only)
     titleZh: 只读详情
@@ -28,15 +28,15 @@ blocks:
   - id: Section
     titleEn: Section
     titleZh: 分区
-    summaryEn: Layout wrapper for grouping blocks.
-    summaryZh: 分组积木的布局包裹。
-    status: placeholder
+    summaryEn: Card-style layout wrapper for grouping blocks; optional title/hint.
+    summaryZh: 卡片式分区包裹；可选标题与提示。
+    status: runtime
   - id: Tabs
     titleEn: Tabs
     titleZh: 标签页
-    summaryEn: Tabbed layout reserved for multi-panel pages.
-    summaryZh: 多面板页的标签布局占位。
-    status: placeholder
+    summaryEn: Client tablist; detail can show Fields/Raw when detail.blocks includes Tabs.
+    summaryZh: 客户端标签栏；detail.blocks 含 Tabs 时可展示字段/原始 JSON。
+    status: runtime
   - id: SubmitBar
     titleEn: Submit bar
     titleZh: 提交栏
@@ -58,6 +58,6 @@ blocks:
   - id: FlowSorter
     titleEn: Flow sorter / router
     titleZh: 流程分拣器
-    summaryEn: Reserved router stub for branching declared flows.
-    summaryZh: 声明式流程分支的分拣/路由占位。
-    status: placeholder
+    summaryEn: Navigation chip row for declared list/new (and concrete detail) paths; show when list.blocks includes FlowSorter.
+    summaryZh: 声明式列表/新建（及具体详情）路径的导航芯片行；list.blocks 含 FlowSorter 时显示。
+    status: runtime

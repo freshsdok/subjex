@@ -101,6 +101,45 @@ public final class JdbcDeclarationStore {
         return rows.stream().findFirst();
     }
 
+    /**
+     * Latest open {@code DRAFT} revision for one key, if any —
+     * 某键最新未晋升 {@code DRAFT}（若有）。
+     */
+    public Optional<DeclarationRevision> latestDraft(String tenantId, DeclarationKind kind, String declarationKey) {
+        return latestByState(tenantId, kind, declarationKey, DRAFT_STATE);
+    }
+
+    /**
+     * Latest {@code PROMOTED} revision for one key, if any (hot-reload metadata) —
+     * 某键最新 {@code PROMOTED}（若有；热加载元数据路径）。
+     */
+    public Optional<DeclarationRevision> latestPromoted(String tenantId, DeclarationKind kind, String declarationKey) {
+        return latestByState(tenantId, kind, declarationKey, PROMOTED_STATE);
+    }
+
+    private Optional<DeclarationRevision> latestByState(
+            String tenantId, DeclarationKind kind, String declarationKey, String draftState) {
+        String tid = requireTenantId(tenantId);
+        DeclarationKind k = Objects.requireNonNull(kind, "kind");
+        String key = requireKey(declarationKey);
+        List<DeclarationRevision> rows = jdbc.query(
+                """
+                SELECT tenant_id, declaration_kind, declaration_key, revision, yaml_body,
+                       draft_state, updated_at, updated_by_subject_id
+                FROM declaration_revision
+                WHERE tenant_id = ? AND declaration_kind = ? AND declaration_key = ?
+                  AND draft_state = ?
+                ORDER BY revision DESC
+                LIMIT 1
+                """,
+                ROW,
+                tid,
+                k.wireName(),
+                key,
+                draftState);
+        return rows.stream().findFirst();
+    }
+
     /** Latest revision per key for one kind in a tenant — 某租户某种类下每个键的最新修订。 */
     public List<DeclarationRevision> listLatest(String tenantId, DeclarationKind kind) {
         String tid = requireTenantId(tenantId);

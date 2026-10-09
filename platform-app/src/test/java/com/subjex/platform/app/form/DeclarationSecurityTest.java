@@ -31,6 +31,7 @@ import com.subjex.platform.app.page.PageCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.security.OperatorActionAudit;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
@@ -144,13 +145,17 @@ class DeclarationSecurityTest {
         FormDomainActionRunner formDomainActionRunner(
                 ServiceCatalog serviceCatalog,
                 ConfigCatalog configCatalog,
-                EffectiveDeclarationService effectiveDeclarationService) {
+                EffectiveDeclarationService effectiveDeclarationService,
+                TenantGuard tenantGuard,
+                OperatorTenantAccess operatorTenantAccess) {
             return new FormDomainActionRunner(
                     serviceCatalog,
                     configCatalog,
                     effectiveDeclarationService,
                     mock(GenericEntityStore.class),
-                    new CapabilityRunner(new CapabilityCatalog()));
+                    new CapabilityRunner(new CapabilityCatalog()),
+                    tenantGuard,
+                    operatorTenantAccess);
         }
 
         @Bean

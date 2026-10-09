@@ -1,6 +1,10 @@
 # LOCAL ONLY — default outbox HMAC for laptop compose/quickstart. Override in any shared environment.
 # 仅限本地 — 本机编排/快速开始的出箱 HMAC 默认值。任何共享环境请覆盖。
 platform:
+  # Laptop/quickstart: keep HTTP Basic for curl -u; override with PLATFORM_AUTH_HTTP_BASIC_ENABLED=false.
+  # 本机/快速开始：保留 HTTP Basic（curl -u）；可用环境变量关掉。
+  auth:
+    http-basic-enabled: ${PLATFORM_AUTH_HTTP_BASIC_ENABLED:true}
   delivery:
     hmac-secret: ${OUTBOX_HMAC_SECRET:change-me-outbox-hmac-secret-local!!}
     tls:

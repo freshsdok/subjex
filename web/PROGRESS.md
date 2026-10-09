@@ -87,7 +87,7 @@ Auth roadmap Slice E — OIDC SSO（2026-10-08）:
 
 9f. [done] OIDC RP + PKCE; `operator_idp_link` (deny unlinked); `/api/v1/auth/oidc/{status,start,callback}` → same Bearer as C; SSO skips local TOTP; admin bind/unlink API + Operators UI; console SSO button + callback routes. Flyway V10. `platform.oidc.enabled=false` by default.
     OIDC 依赖方 + PKCE；绑定表（未绑定拒绝）；OIDC 端点签发与 C 相同 Bearer；SSO 跳过本地 TOTP；管理员绑定 API 与界面；控制台 SSO。迁移 V10。默认关闭。
-    Next: login lockout / rate-limit follow-up. Multi-IdP / SAML / SCIM deferred.
+    Next: Lockout-1 done (see below). Multi-IdP / SAML / SCIM deferred; optional IP/global rate-limit remains.
     下一片：登录锁定/限流。多 IdP / SAML / SCIM 延后。
 
 Zero-code Z1 — 通用实体引擎（2026-10-08）:
@@ -216,4 +216,46 @@ MQ-3. [done] Console `/declarations` migration queue (entity only): list, enqueu
     声明页迁移队列控制台（仅实体）；入队/审阅/执行两步确认；文案与辅助单测；代理已支持 POST。**迁移队列基线齐。**
     Next options: Mac push of local commits; further roadmap gaps.
     下一波可选：本机推送本地提交；或其它路线图余项。
+
+Hot-reload promoted metadata — 已晋升元数据热加载（2026-10-09）:
+
+HR-1. [done] Explicit load order DRAFT > PROMOTED > classpath: `JdbcDeclarationStore.latestDraft` / `latestPromoted`; `EffectiveDeclarationService.resolutionSource`; `hasEntityDraft` = open DRAFT only; `/effective` adds `source`; tests cover promote hot-reload + draft beats promoted + no-tenant classpath. Local commit only (no push). No tenantScoped / Basic-off / org writes / lockout / page-blocks.
+    明确加载顺序（草稿 > 已晋升 > classpath）；解析来源；晋升后无新草稿则 hasEntityDraft=false；`/effective` 增加 source；单测覆盖热加载。仅本地提交。不开 tenantScoped / Basic 关闭 / 组织写 / 锁定 / 积木。
+    Next options: tenantScoped generic path; Basic off outside local; FormFields/sorter; login lockout; org write+console.
+    下一波可选：通用 tenantScoped；非 local 关 Basic；FormFields/分拣器；登录锁定；组织写+控制台。
+
+Tenant-scoped generic entities — 通用实体租户隔离（2026-10-09）:
+
+TS-1. [done] Generic `/records` + `entity.record.upsert` support `tenantScoped: true`: access gate via `DeclarationAccess.requireTenantWhenScoped`; row isolation on physical `tenant_id` (stamp/filter; body `tenantId`/`tenant_id` stripped); Flyway tables must include the column (generator not auto-adding yet). Local commit only (no push). No Basic-off / page-blocks / lockout / org writes.
+    通用 records 与 upsert 支持 tenantScoped：租户门禁 + 物理 `tenant_id` 隔离；表须含该列（生成器尚未自动加）。仅本地提交。不开 Basic 关闭 / 积木 / 锁定 / 组织写。
+    Next was Basic off outside local (see Basic-1 below).
+    下一片为非 local 关 Basic（见下方 Basic-1）。
+
+HTTP Basic safer default — 非 local 默认关 Basic（2026-10-09）:
+
+Basic-1. [done] `platform.auth.http-basic-enabled` default **false** (`PLATFORM_AUTH_HTTP_BASIC_ENABLED`); **true** under `application-local.yml`; `PlatformSecurityConfiguration` enables/disables `.httpBasic`; OpenAPI Basic scheme kept with opt-in note; tests enable Basic via `src/test/resources/application.properties`; `HttpBasicDisabledSecurityTest` asserts Basic 401 + Bearer OK when off. Local commit only (no push). No page-blocks / lockout / org writes.
+    配置默认关 Basic，local 打开；安全链按开关接线；OpenAPI 保留方案并注明可选；测试资源打开 Basic；关时 Basic→401、Bearer 仍通。仅本地提交。不开积木/锁定/组织写。
+    Next options: FormFields/sorter; login lockout; org write+console; migration generator auto-`tenant_id`.
+    下一波可选：FormFields/分拣器；登录锁定；组织写+控制台；迁移生成器自动加 tenant_id。
+
+Page blocks FormFields + FlowSorter — 页面积木 FormFields 与流程分拣器（2026-10-09）:
+
+Blocks-1. [done] FormFields real renderer (`fieldPickerRole` + shared controls; DeclaredSubmitForm uses `<FormFields>`); FlowSorter chip links + `buildDefaultFlowSorterOptions` (fail-closed); list page shows sorter only when `list.blocks` includes `FlowSorter`; catalog FormFields/FlowSorter → `runtime`; Section/Tabs still stubs. Vitest fieldPickerRole + flow-sorter. Local commit only (no push). No login lockout / org writes / push.
+    FormFields 真渲染并接入声明式提交；FlowSorter 默认分支链接（显式 blocks）；目录升为 runtime；Section/Tabs 仍桩。仅本地提交。
+    Next was login lockout (see Lockout-1 below).
+    下一片为登录锁定（见下方 Lockout-1）。
+
+Login lockout — 登录失败锁定（2026-10-09）:
+
+Lockout-1. [done] Flyway `V17__operator_login_lockout`; `JdbcOperatorLoginLockout` (assert/record/clear); wired on `POST /auth/login` (+ MFA verify failures count); config `platform.auth.lockout-max-failures=5` / `lockout-duration=PT15M`; active lock → **429** `{"reason":"login-lockout"}`; success clears; audit REFUSED with `:lockout` when operator known. Local commit only (no push). No org writes / Section-Tabs / SCIM.
+    V17 表 + JDBC 锁定存储；口令登录接线（MFA 校验失败也计数）；默认 5 次 / 15 分钟；锁定中 429；成功清除。仅本地提交。不开组织写 / Section-Tabs / SCIM。
+    Next was Section/Tabs (see Blocks-2 below).
+    下一片为 Section/Tabs（见下方 Blocks-2）。
+
+Page blocks Section + Tabs — 页面积木 Section 与 Tabs（2026-10-09）:
+
+Blocks-2. [done] Section card wrapper (title/hint/className); Tabs client tablist (`tabs` array, controlled/uncontrolled, empty muted note); detail wires Fields/Raw when `detail.blocks` includes Tabs, Section wrap when includes Section; list wraps ListTable when `list.blocks` includes Section; catalog → `runtime`; vitest `resolveActiveTabId`. Local commit only (no push). No org writes / super-admin / push.
+    Section 卡片包裹；Tabs 客户端标签栏；详情/列表按 blocks 显式接线；目录升为 runtime；单测默认选中。仅本地提交。不开组织写 / 超管 / 推送。
+    Next options: org write+console; migration generator auto-`tenant_id`.
+    下一波可选：组织写+控制台；迁移生成器自动加 tenant_id。
 

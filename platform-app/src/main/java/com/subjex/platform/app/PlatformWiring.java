@@ -40,6 +40,7 @@ import com.subjex.platform.app.security.JdbcOperatorAdmin;
 import com.subjex.platform.app.security.JdbcTenantAdmin;
 import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.JdbcOperatorTokenStore;
+import com.subjex.platform.app.security.JdbcOperatorLoginLockout;
 import com.subjex.platform.app.security.JdbcOperatorMfaStore;
 import com.subjex.platform.app.security.AesGcmSecretCipher;
 import com.subjex.platform.app.security.OidcProperties;
@@ -231,6 +232,17 @@ public class PlatformWiring {
             @Value("${platform.auth.refresh-token-ttl:PT8H}") Duration refreshTokenTtl) {
         return new JdbcOperatorTokenStore(
                 jdbc, transactionTemplate, operatorDirectory, clock, accessTokenTtl, refreshTokenTtl);
+    }
+
+    @Bean
+    JdbcOperatorLoginLockout operatorLoginLockout(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            Clock clock,
+            @Value("${platform.auth.lockout-max-failures:5}") int maxFailures,
+            @Value("${platform.auth.lockout-duration:PT15M}") Duration lockoutDuration) {
+        return new JdbcOperatorLoginLockout(
+                jdbc, transactionTemplate, clock, maxFailures, lockoutDuration);
     }
 
     @Bean
@@ -440,13 +452,17 @@ public class PlatformWiring {
             ConfigCatalog configCatalog,
             EffectiveDeclarationService effectiveDeclarationService,
             GenericEntityStore genericEntityStore,
-            CapabilityRunner capabilityRunner) {
+            CapabilityRunner capabilityRunner,
+            TenantGuard tenantGuard,
+            OperatorTenantAccess operatorTenantAccess) {
         return new FormDomainActionRunner(
                 serviceCatalog,
                 configCatalog,
                 effectiveDeclarationService,
                 genericEntityStore,
-                capabilityRunner);
+                capabilityRunner,
+                tenantGuard,
+                operatorTenantAccess);
     }
 
     /**

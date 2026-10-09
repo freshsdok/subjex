@@ -12,6 +12,7 @@ export function UserPicker({
   value,
   onChange,
   tenantId,
+  disabled = false,
 }: {
   name: string;
   label: string;
@@ -19,6 +20,7 @@ export function UserPicker({
   onChange: (next: string) => void;
   tenantId?: string;
   phrases: PhraseBook;
+  disabled?: boolean;
 }) {
   const [subjectIds, setSubjectIds] = useState<string[] | null>(null);
   const [liveFailed, setLiveFailed] = useState(false);
@@ -71,6 +73,7 @@ export function UserPicker({
         <select
           name={name}
           value={value}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
           aria-label={name}
           className="rounded-md border border-border bg-background px-2 py-1"
@@ -93,6 +96,7 @@ export function UserPicker({
         name={name}
         type="text"
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         aria-label={name}
         placeholder={name}

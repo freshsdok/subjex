@@ -30,12 +30,18 @@ server:
     include-binding-errors: never
 
 platform:
-  # Opaque Bearer access + rotating refresh (Slice C). Console uses these; Basic is local/script opt-in
-  # (safer default: off outside local later; impl may follow).
-  # 不透明 Bearer 访问令牌 + 轮换刷新（切片 C）。控制台用令牌；Basic 为本地/脚本可选（非 local 稍后默认关）。
+  # Opaque Bearer access + rotating refresh (Slice C). Console uses Bearer.
+  # HTTP Basic is off by default; profile `local` turns it on; scripts in shared envs:
+  # PLATFORM_AUTH_HTTP_BASIC_ENABLED=true.
+  # 不透明 Bearer（切片 C）。HTTP Basic 默认关；`local` 打开；共享环境脚本用环境变量显式打开。
   auth:
     access-token-ttl: PT30M
     refresh-token-ttl: PT8H
+    http-basic-enabled: ${PLATFORM_AUTH_HTTP_BASIC_ENABLED:false}
+    # Per-login password failure lockout (Lockout-1). Env: PLATFORM_AUTH_LOCKOUT_MAX_FAILURES / _DURATION.
+    # 按登录名口令失败锁定。环境变量可覆盖阈值与时长。
+    lockout-max-failures: ${PLATFORM_AUTH_LOCKOUT_MAX_FAILURES:5}
+    lockout-duration: ${PLATFORM_AUTH_LOCKOUT_DURATION:PT15M}
   # TOTP MFA (Slice D). required=false initially; set encryption-key in every shared environment.
   # TOTP 多因素（切片 D）。默认不强制；共享环境必须配置 encryption-key。
   mfa:

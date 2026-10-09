@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ListFilterBar, ListTable } from "@/components/page-blocks";
+import { FlowSorter, ListFilterBar, ListTable, Section } from "@/components/page-blocks";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
+import { buildDefaultFlowSorterOptions } from "@/lib/flow-sorter";
 import {
   isGenericEntityRecordsPath,
   listFilterFieldOptions,
@@ -17,13 +18,14 @@ type PageFlowDocument = {
   titleEn?: string;
   formKey?: string | null;
   list?: { path?: string; apiPath?: string; itemsKey?: string | null; columns?: string[]; blocks?: string[] };
-  detail?: { idField?: string; blocks?: string[] };
+  detail?: { idField?: string; path?: string; blocks?: string[] };
   submit?: { path?: string; blocks?: string[] };
 };
 
 // Declared list page — 声明式列表页：按 flow 声明的 apiPath 拉数据，用 ListTable 积木渲染。
 // Generic /entities/.../records paths get a thin filter/sort bar via URL searchParams.
 // list.blocks is exposed on the page API; empty/omitted still uses ListTable (default layout).
+// FlowSorter / Section only when list.blocks explicitly includes them — 仅当 blocks 显式含对应积木时接线。
 export default async function DeclaredListPage({
   params,
   searchParams,
@@ -55,9 +57,29 @@ export default async function DeclaredListPage({
     ? listFilterFieldOptions(flow.list?.columns, rows, filterParams)
     : [];
   const listHref = `/pages/${encodeURIComponent(flowKey)}`;
+  const listBlocks = flow.list?.blocks ?? [];
+  const showFlowSorter = listBlocks.includes("FlowSorter");
+  const showSection = listBlocks.includes("Section");
+  const sorterOptions = showFlowSorter
+    ? buildDefaultFlowSorterOptions(
+        {
+          listPath: flow.list?.path ?? listHref,
+          submitPath: flow.submit?.path ?? `/pages/${encodeURIComponent(flowKey)}/new`,
+          detailPath: flow.detail?.path,
+        },
+        {
+          list: phrases.flowSorterListAction,
+          newItem: phrases.newItemAction,
+          detail: phrases.openDetailAction,
+        },
+      )
+    : [];
   return (
     <section>
       <PageHeading title={title ?? flowKey} hint={phrases.pagesListHint} />
+      {showFlowSorter ? (
+        <FlowSorter options={sorterOptions} ariaLabel={phrases.flowSorterNavLabel} />
+      ) : null}
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <Link
           href={`/pages/${encodeURIComponent(flowKey)}/new`}
@@ -87,13 +109,25 @@ export default async function DeclaredListPage({
           }}
         />
       ) : null}
-      <ListTable
-        rows={rows}
-        idField={idField}
-        columns={flow.list?.columns}
-        detailHref={(id) => `/pages/${encodeURIComponent(flowKey)}/${encodeURIComponent(id)}`}
-        phrases={{ emptyList: phrases.emptyList, openDetailAction: phrases.openDetailAction }}
-      />
+      {showSection ? (
+        <Section title={phrases.listSectionTitle}>
+          <ListTable
+            rows={rows}
+            idField={idField}
+            columns={flow.list?.columns}
+            detailHref={(id) => `/pages/${encodeURIComponent(flowKey)}/${encodeURIComponent(id)}`}
+            phrases={{ emptyList: phrases.emptyList, openDetailAction: phrases.openDetailAction }}
+          />
+        </Section>
+      ) : (
+        <ListTable
+          rows={rows}
+          idField={idField}
+          columns={flow.list?.columns}
+          detailHref={(id) => `/pages/${encodeURIComponent(flowKey)}/${encodeURIComponent(id)}`}
+          phrases={{ emptyList: phrases.emptyList, openDetailAction: phrases.openDetailAction }}
+        />
+      )}
     </section>
   );
 }

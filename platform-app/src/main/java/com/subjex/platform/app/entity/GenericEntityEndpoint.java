@@ -8,6 +8,7 @@ import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
+import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,11 +30,13 @@ import org.springframework.web.server.ResponseStatusException;
  * GenericEntityEndpoint — 通用实体 REST：按 {@code entityKey} 对元数据驱动的表做 CRUD。
  * <p>
  * Paths under {@code /api/v1/entities/{entityKey}/records}. Does not replace the bespoke
- * {@code service-note/notes} list. {@code tenantScoped: true} is fail-closed in this slice (400).
+ * {@code service-note/notes} list. When {@code tenantScoped: true}, requires {@code X-Tenant-Id}
+ * (and operator–tenant grant) and isolates rows on physical {@code tenant_id}.
  * With non-blank {@code X-Tenant-Id}, resolves entity via {@link EffectiveDeclarationService#runtimeEntity}
  * (DB draft overlay when tableName+PK match classpath); otherwise classpath baseline.
  * 路径在 {@code /api/v1/entities/{entityKey}/records}。不替换专用的 {@code service-note/notes} 列表。
- * 本片对 {@code tenantScoped: true} 失败关闭（400）。带租户头时经 runtimeEntity 覆盖（表名+主键须一致）。
+ * {@code tenantScoped: true} 时要求租户头与授权，并按物理列 {@code tenant_id} 隔离。
+ * 带租户头时经 runtimeEntity 覆盖（表名+主键须一致）。
  */
 @RestController
 public class GenericEntityEndpoint {
@@ -49,12 +52,17 @@ public class GenericEntityEndpoint {
 
     private final EffectiveDeclarationService effective;
     private final GenericEntityStore store;
+    private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
 
     public GenericEntityEndpoint(
-            EffectiveDeclarationService effective, GenericEntityStore store, OperatorTenantAccess tenantAccess) {
+            EffectiveDeclarationService effective,
+            GenericEntityStore store,
+            TenantGuard tenantGuard,
+            OperatorTenantAccess tenantAccess) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.store = Objects.requireNonNull(store, "store");
+        this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
     }
 
@@ -76,8 +84,9 @@ public class GenericEntityEndpoint {
         if (hasFilterField != hasFilterValue) {
             throw new IllegalArgumentException("filterField and filterValue must be provided together");
         }
-        List<Map<String, Object>> records =
-                store.list(entity, capped, blankToNull(sort), ascending, blankToNull(filterField), filterValue);
+        String storeTenant = entity.tenantScoped() ? tenantId : null;
+        List<Map<String, Object>> records = store.list(
+                entity, capped, blankToNull(sort), ascending, blankToNull(filterField), filterValue, storeTenant);
         return new RecordsDocument(records);
     }
 
@@ -88,7 +97,8 @@ public class GenericEntityEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedEntity entity = requireEntity(entityKey, operator, tenantId);
-        return store.findById(entity, id)
+        String storeTenant = entity.tenantScoped() ? tenantId : null;
+        return store.findById(entity, id, storeTenant)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
@@ -107,7 +117,8 @@ public class GenericEntityEndpoint {
         }
         Map<String, Object> withPk = new LinkedHashMap<>(values);
         withPk.put(entity.primaryKey().name(), id);
-        store.save(entity, withPk);
+        String storeTenant = entity.tenantScoped() ? tenantId : null;
+        store.save(entity, withPk, storeTenant);
         return ResponseEntity.noContent().build();
     }
 
@@ -118,7 +129,8 @@ public class GenericEntityEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedEntity entity = requireEntity(entityKey, operator, tenantId);
-        if (!store.deleteById(entity, id)) {
+        String storeTenant = entity.tenantScoped() ? tenantId : null;
+        if (!store.deleteById(entity, id, storeTenant)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         return ResponseEntity.noContent().build();
@@ -132,10 +144,7 @@ public class GenericEntityEndpoint {
                 .runtimeEntity(tenantId, entityKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         DeclarationAccess.requirePermission(operator, entity.permission());
-        if (entity.tenantScoped()) {
-            throw new IllegalArgumentException(
-                    "tenantScoped entities are not supported on the generic path yet");
-        }
+        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, entity.tenantScoped(), tenantId);
         return entity;
     }
 

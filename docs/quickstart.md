@@ -113,9 +113,9 @@ All of these are on platform-app (`http://127.0.0.1:8080`) and ask for the opera
 
 JSON API and its OpenAPI description (local profile) / JSON 接口及其 OpenAPI 说明（local profile）：
 
-Prefer opaque Bearer tokens. HTTP Basic (`curl -u`) is a **local/script opt-in** and will be **disabled outside `local` by default** later (implementation may follow; re-enable explicitly for scripts if needed).
+Prefer opaque Bearer tokens. HTTP Basic (`curl -u`) is a **local/script opt-in**: on under profile `local`, **off by default** elsewhere. Re-enable in shared envs with `PLATFORM_AUTH_HTTP_BASIC_ENABLED=true` (or `platform.auth.http-basic-enabled=true`).
 
-优先不透明 Bearer。HTTP Basic（`curl -u`）视为**本地/脚本可选**；稍后非 `local` 将**默认关闭**（实现可跟进；脚本需显式打开）。
+优先不透明 Bearer。HTTP Basic（`curl -u`）为**本地/脚本可选**：`local` 打开，其它环境**默认关闭**。共享环境脚本用 `PLATFORM_AUTH_HTTP_BASIC_ENABLED=true`（或 `platform.auth.http-basic-enabled=true`）显式打开。
 
 ```shell
 # Login → Bearer (preferred) / 登录拿 Bearer（优先）
@@ -125,7 +125,8 @@ TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/me
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/openapi.json
 
-# Local/script only (Basic still works under local for now) / 仅本地脚本（local 下 Basic 暂仍可用）
+# Local/script only (Basic on under local; elsewhere set PLATFORM_AUTH_HTTP_BASIC_ENABLED=true)
+# 仅本地/脚本（local 下 Basic 开；其它环境需设环境变量）
 # curl -u platform-operator:change-me http://127.0.0.1:8080/api/v1/me
 ```
 

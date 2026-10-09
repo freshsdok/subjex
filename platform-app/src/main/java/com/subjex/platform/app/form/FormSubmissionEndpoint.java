@@ -80,7 +80,7 @@ public class FormSubmissionEndpoint {
                 ? Map.of()
                 : document.values();
         Map<String, Object> accepted = validate(form, rawValues);
-        String resultSummary = domainActions.apply(form, accepted, tenantId);
+        String resultSummary = domainActions.apply(form, accepted, tenantId, operator);
         List<EffectOutcomeDocument> effectOutcomes = sideEffects.run(form, accepted, operator, tenantId);
         FormSubmissionRow row = submissions.save(
                 formKey,

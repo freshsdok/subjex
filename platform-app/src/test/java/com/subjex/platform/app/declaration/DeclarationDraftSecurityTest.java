@@ -168,7 +168,8 @@ class DeclarationDraftSecurityTest {
                 .thenReturn(List.of(sampleRevision(1)));
         when(effective.effectiveEntity("acme", "demo-ticket"))
                 .thenReturn(Optional.of(sampleEntity(80)));
-        when(effective.hasEntityDraft("acme", "demo-ticket")).thenReturn(true);
+        when(effective.resolutionSource("acme", DeclarationKind.ENTITY, "demo-ticket"))
+                .thenReturn(EffectiveDeclarationService.SOURCE_DRAFT);
 
         mockMvc.perform(get(DeclarationDraftEndpoint.PATH)
                         .param("tenantId", "acme")
@@ -185,7 +186,8 @@ class DeclarationDraftSecurityTest {
                 .andExpect(jsonPath("$.key").value("demo-ticket"))
                 .andExpect(jsonPath("$.version").value(2))
                 .andExpect(jsonPath("$.fieldNames[1]").value("title"))
-                .andExpect(jsonPath("$.fromDraft").value(true));
+                .andExpect(jsonPath("$.fromDraft").value(true))
+                .andExpect(jsonPath("$.source").value("draft"));
 
         mockMvc.perform(put(DeclarationDraftEndpoint.PATH + "/entity/demo-ticket")
                         .param("tenantId", "acme")

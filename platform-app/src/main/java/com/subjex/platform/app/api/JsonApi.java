@@ -16,10 +16,10 @@ import org.springframework.context.annotation.Configuration;
  * JsonApi — JSON 接口：给即将到来的 {@code web/} Next.js 应用读写的 {@code /api/v1}，以及它的 OpenAPI 说明。
  * <p>
  * Every operator page has a JSON twin under {@link #BASE}. Prefer opaque Bearer access tokens; HTTP Basic
- * is a local/script opt-in and will be off outside {@code local} by default later (safer default; impl may follow).
+ * is a local/script opt-in ({@code platform.auth.http-basic-enabled}, on under {@code local}).
  * There is no server-side browser session on Java.
  * The description is served at {@code /api/v1/openapi.json} and itself needs a signed-in operator.
- * 每个操作页在 {@link #BASE} 下都有 JSON 孪生。优先不透明 Bearer；Basic 为本地/脚本可选，非 {@code local} 稍后默认关闭。
+ * 每个操作页在 {@link #BASE} 下都有 JSON 孪生。优先不透明 Bearer；Basic 为本地/脚本可选（{@code local} 默认开）。
  * 说明文档在 {@code /api/v1/openapi.json}，取它本身也需要已登录的操作员。
  */
 @Configuration
@@ -59,7 +59,10 @@ public class JsonApi {
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("basic")
                                 .description(
-                                        "Operator login and password (scripts/local tooling) — 操作员口令（脚本/本机工具）")))
+                                        "Operator login/password for scripts/local tooling. Server enables Basic "
+                                                + "under profile `local` or PLATFORM_AUTH_HTTP_BASIC_ENABLED=true; "
+                                                + "rejects Basic when platform.auth.http-basic-enabled=false — "
+                                                + "操作员口令（脚本/本机）。`local` 或环境变量打开；关闭时服务器拒绝 Basic")))
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
                 .addSecurityItem(new SecurityRequirement().addList(BASIC_SCHEME));
     }

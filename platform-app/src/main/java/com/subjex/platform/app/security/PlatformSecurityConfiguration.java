@@ -1,11 +1,14 @@
 package com.subjex.platform.app.security;
 
 import com.subjex.platform.contract.tenant.TenantGuard;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -20,19 +23,26 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * <p>
  * Anonymous access is limited to liveness/readiness probes and auth token endpoints (login/refresh/logout/mfa-verify/oidc).
  * {@code Authorization: Bearer} (opaque platform tokens) is the primary path for the console; HTTP Basic
- * is a local/script opt-in (safer default: off outside {@code local} later; impl may follow).
- * {@link JdbcOperatorDirectory} backs Basic; {@link JdbcOperatorTokenStore} backs Bearer.
+ * is off by default ({@code platform.auth.http-basic-enabled=false}) and on under {@code local}
+ * (or {@code PLATFORM_AUTH_HTTP_BASIC_ENABLED=true} for scripts in shared envs).
+ * {@link JdbcOperatorDirectory} backs Basic when enabled; {@link JdbcOperatorTokenStore} backs Bearer.
  * CSRF is off because there is no browser form posting to Java.
- * 匿名访问只留给探针与令牌端点（含 OIDC）。控制台主路径是 Bearer；Basic 为本地/脚本可选（非 local 稍后默认关）。无浏览器表单直投 Java，关闭 CSRF。
+ * 匿名访问只留给探针与令牌端点（含 OIDC）。控制台主路径是 Bearer；HTTP Basic 默认关，{@code local} 打开（共享环境脚本可设环境变量）。无浏览器表单直投 Java，关闭 CSRF。
  */
 @Configuration
 public class PlatformSecurityConfiguration {
 
     @Bean
-    SecurityFilterChain platformSecurity(HttpSecurity http, JdbcOperatorTokenStore tokenStore) throws Exception {
-        return http
-                .csrf(AbstractHttpConfigurer::disable)
+    SecurityFilterChain platformSecurity(
+            HttpSecurity http,
+            JdbcOperatorTokenStore tokenStore,
+            @Value("${platform.auth.http-basic-enabled:false}") boolean httpBasicEnabled)
+            throws Exception {
+        http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Without httpBasic/formLogin, Spring defaults to 403 for anonymous; keep 401 for API clients.
+                // 未开 httpBasic/formLogin 时 Spring 对匿名默认 403；API 客户端统一回 401。
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/prometheus").permitAll()
                         // Token issue / rotate / revoke — no prior auth (password or refresh in body).
@@ -132,8 +142,13 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         // Unmapped paths still need a signed-in operator; they answer 404, not data.
                         // 未映射的路径仍要求已登录的操作员；它们只会回 404，不给数据。
-                        .anyRequest().authenticated())
-                .httpBasic(Customizer.withDefaults())
+                        .anyRequest().authenticated());
+        if (httpBasicEnabled) {
+            http.httpBasic(Customizer.withDefaults());
+        } else {
+            http.httpBasic(AbstractHttpConfigurer::disable);
+        }
+        return http
                 .addFilterBefore(new BearerTokenAuthenticationFilter(tokenStore), UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
