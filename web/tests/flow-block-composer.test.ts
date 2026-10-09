@@ -91,7 +91,7 @@ submit:
     const once = applyFlowBlocksToYaml(sampleFlow, {
       list: ["ListTable"],
       detail: ["Tabs", "DetailReadonly"],
-      submit: ["UserPicker", "OrgPicker", "SubmitBar"],
+      submit: ["SubjectPicker", "OrganizationPicker", "SubmitBar"],
     });
     const twice = applyFlowBlocksToYaml(once, {
       list: ["FlowSorter", "ListTable"],

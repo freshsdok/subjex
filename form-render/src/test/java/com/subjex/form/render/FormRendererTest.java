@@ -333,15 +333,47 @@ class FormRendererTest {
 
 
     @Test
-    void rendersUserRefField() {
+    void rendersSubjectRefAndOrganizationRefFields() {
         String yaml = """
-                formKey: user-ref-sample
-                titleEn: User ref
-                titleZh: 选人样例
+                formKey: subject-ref-sample
+                titleEn: Subject ref
+                titleZh: 选主体样例
                 version: 1
                 permission: page.read
                 domainAction: entity.record.upsert
-                entityKey: user-ref-sample
+                entityKey: subject-ref-sample
+                fields:
+                  - name: id
+                    kind: text
+                    required: true
+                    maxLength: 32
+                  - name: assignee
+                    kind: subjectRef
+                    required: false
+                    maxLength: 64
+                  - name: dept
+                    kind: organizationRef
+                    required: false
+                    maxLength: 64
+                """;
+        RenderedForm form = renderer.render(yaml);
+        assertEquals(FieldKind.SUBJECT_REF, form.fields().get(1).kind());
+        assertEquals(FieldKind.ORGANIZATION_REF, form.fields().get(2).kind());
+        assertEquals("subjectRef", form.fields().get(1).kind().wireName());
+        assertEquals("organizationRef", form.fields().get(2).kind().wireName());
+        assertEquals(64, form.fields().get(1).maxLength());
+    }
+
+    @Test
+    void legacyUserRefAliasStillParsesAsSubjectRef() {
+        String yaml = """
+                formKey: legacy-user-ref
+                titleEn: Legacy
+                titleZh: 旧别名
+                version: 1
+                permission: page.read
+                domainAction: entity.record.upsert
+                entityKey: legacy-user-ref
                 fields:
                   - name: id
                     kind: text
@@ -350,11 +382,9 @@ class FormRendererTest {
                   - name: assignee
                     kind: userRef
                     required: false
-                    maxLength: 64
                 """;
         RenderedForm form = renderer.render(yaml);
-        assertEquals(FieldKind.USER_REF, form.fields().get(1).kind());
-        assertEquals(64, form.fields().get(1).maxLength());
+        assertEquals(FieldKind.SUBJECT_REF, form.fields().get(1).kind());
     }
 
 

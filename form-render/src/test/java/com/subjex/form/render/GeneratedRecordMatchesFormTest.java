@@ -63,7 +63,7 @@ class GeneratedRecordMatchesFormTest {
             Class<?> expected = switch (field.kind()) {
                 case INTEGER -> field.required() ? int.class : Integer.class;
                 case BOOLEAN -> field.required() ? boolean.class : Boolean.class;
-                case TEXT, DATE, ENUM, USER_REF -> String.class;
+                case TEXT, DATE, ENUM, SUBJECT_REF, ORGANIZATION_REF -> String.class;
             };
             assertEquals(expected, components[index].getType());
         }

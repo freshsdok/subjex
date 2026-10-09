@@ -1,9 +1,10 @@
 # Machine gates (planned CI names) / 机器门禁（计划 CI 名）
 
-Doc stubs for O2+ tests. Names are stable; implementations land with the matching slice.  
-文档桩；名称稳定，实现随对应切片落地。建议成为 CI 必过项。
+Names are stable. **MODEL / MEM / ORG / TENANT** → `JdbcOrganizationStoreGatesTest` (O2).  
+**MIG** → `OrganizationOntologyBackfillGatesTest` (O3). **AUTH** → `OrgAuthorizationGatesTest` (O4). **API** → `OrganizationApiSecurityTest` (O5). **DECL** → `DeclarationRefGatesTest` (O6).  
+名称稳定。MODEL…DECL 均已实现。建议成为 CI 必过项。
 
-## MODEL — existence independence
+## MODEL — existence independence *(O2 PASS)*
 
 | Gate | Assert |
 | --- | --- |
@@ -11,7 +12,7 @@ Doc stubs for O2+ tests. Names are stable; implementations land with the matchin
 | `MODEL-02` | Tenant exists without Organization |
 | `MODEL-03` | Subject exists without Organization |
 
-## MEM — membership purity
+## MEM — membership purity *(O2 PASS)*
 
 | Gate | Assert |
 | --- | --- |
@@ -19,7 +20,7 @@ Doc stubs for O2+ tests. Names are stable; implementations land with the matchin
 | `MEM-02` | Membership requires existing Subject |
 | `MEM-03` | Membership requires existing Organization |
 
-## ORG — relation graph
+## ORG — relation graph *(O2 PASS)*
 
 | Gate | Assert |
 | --- | --- |
@@ -27,7 +28,7 @@ Doc stubs for O2+ tests. Names are stable; implementations land with the matchin
 | `ORG-02` | Organization relation cannot self-reference |
 | `ORG-03` | CONTAINS relation cannot form cycle |
 
-## TENANT — association ≠ authz
+## TENANT — association ≠ authz *(O2 PASS)*
 
 | Gate | Assert |
 | --- | --- |
@@ -35,7 +36,7 @@ Doc stubs for O2+ tests. Names are stable; implementations land with the matchin
 | `TENANT-02` | Tenant may contain multiple Organizations |
 | `TENANT-03` | TenantOrganization does not grant Permission |
 
-## AUTH — scope fail-closed
+## AUTH — scope fail-closed *(O4 PASS)*
 
 | Gate | Assert |
 | --- | --- |
@@ -45,7 +46,7 @@ Doc stubs for O2+ tests. Names are stable; implementations land with the matchin
 | `AUTH-04` | Tenant mismatch denies |
 | `AUTH-05` | Organization descendant resolution cannot escape relation graph |
 
-## MIG — backfill integrity
+## MIG — backfill integrity *(O3 PASS)*
 
 | Gate | Assert |
 | --- | --- |
@@ -53,7 +54,7 @@ Doc stubs for O2+ tests. Names are stable; implementations land with the matchin
 | `MIG-02` | Existing membership backfills without loss |
 | `MIG-03` | Same-name orgs across tenants are not auto-merged |
 
-## DECL — zero-code refs
+## DECL — zero-code refs *(O6 PASS)*
 
 | Gate | Assert |
 | --- | --- |

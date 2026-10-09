@@ -1,8 +1,8 @@
 # ADR 0001 — O1 Model Freeze: Subject / Organization / Tenant ontology
 
-- Status: **Accepted (model freeze)** — persistence / migration / API follow O2+
+- Status: **Accepted (model freeze)** — O2–O5 landed (API/Console); O6 zero-code next
 - Date: 2026-10-09 (Asia/Shanghai)
-- Scope: documentation only; **no Flyway** for new tables until O1 review PASS
+- Scope: O1 docs freeze; O2 adds `organization` / `membership` / `organization_relation` / `tenant_organization` (legacy `org_unit` retained)
 
 ## Context / 背景
 
@@ -53,7 +53,7 @@ Authorization        named permission + OrgScope — fail-closed
 
 Do **not** invent `organizationUnitRef` / `tenantOrgUnitRef` unless a future real product proves distinct objects are required.
 
-Zero-code pickers converge to **SubjectPicker** + **OrganizationPicker** (Context narrows candidates). Field kinds migrate later (O6): `userRef` → `subjectRef`, `orgRef` → `organizationRef`.
+Zero-code pickers converge to **SubjectPicker** + **OrganizationPicker** (Context narrows candidates). Field kinds (O6 done): `subjectRef` / `organizationRef` (legacy `userRef` / `orgRef` dual-accept).
 
 ### Explicit non-goals this round / 本轮明确不做
 
@@ -61,7 +61,7 @@ HR system · Position/Job · dual/part-time · appointment history · legal gove
 
 ### Gate / 门禁
 
-**O1 complete before any formal Flyway** that creates `organization` / `membership` / `organization_relation` / `tenant_organization`. Legacy `org_unit` / `org_membership` remain the runtime tables until O7.
+**O1 complete** (review PASS). **O2** Flyway `V22__organization_ontology.sql` + `JdbcOrganizationStore`. Legacy `org_unit` / `org_membership` remain the *compat* runtime tables until O7; new world-model tables run alongside.
 
 ## Consequences / 后果
 
@@ -75,7 +75,7 @@ HR system · Position/Job · dual/part-time · appointment history · legal gove
 
 - Dual-read period (O3) before legacy removal
 - OrgScope / AccessChecker / SqlRbacPolicyEngine refactor (O4)
-- Console `/org` and declaration field kinds must migrate (O5–O6)
+- Declaration field kinds must migrate (O6); console `/org` migrated in O5
 
 **Deferred slices:** O2 Persistence → O3 Compatibility & Backfill → O4 Authorization → O5 API/Console → O6 Zero-code → O7 Legacy Removal (only after all PASS gates).
 

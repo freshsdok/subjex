@@ -7,10 +7,10 @@ import {
   fieldPickerRole,
   type FormFieldInput,
 } from "@/lib/form-field-input";
-import { OrgPicker } from "./org-picker";
-import { UserPicker } from "./user-picker";
+import { OrganizationPicker } from "./organization-picker";
+import { SubjectPicker } from "./subject-picker";
 
-// FormFields — 按表单/实体字段渲染控件（checkbox/date/select/number/text；userRef/orgRef → 选人/选部门）。
+// FormFields — 按表单/实体字段渲染控件（checkbox/date/select/number/text；subjectRef/organizationRef → SubjectPicker/OrganizationPicker）。
 export function FormFields({
   fields,
   values,
@@ -38,7 +38,7 @@ export function FormFields({
         const picker = fieldPickerRole(field);
         const value = values[field.name] ?? "";
 
-        if (picker === "org") {
+        if (picker === "organization") {
           if (readOnly) {
             return (
               <p key={field.name} className="text-sm">
@@ -48,7 +48,7 @@ export function FormFields({
             );
           }
           return (
-            <OrgPicker
+            <OrganizationPicker
               key={field.name}
               name={field.name}
               label={labelText}
@@ -60,7 +60,7 @@ export function FormFields({
             />
           );
         }
-        if (picker === "user") {
+        if (picker === "subject") {
           if (readOnly) {
             return (
               <p key={field.name} className="text-sm">
@@ -70,7 +70,7 @@ export function FormFields({
             );
           }
           return (
-            <UserPicker
+            <SubjectPicker
               key={field.name}
               name={field.name}
               label={labelText}

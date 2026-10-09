@@ -3,13 +3,16 @@ package com.subjex.form.render;
 /**
  * FieldKind — 字段种类：表单字段允许的声明值。
  * <p>
- * {@code text} / {@code enum} / {@code date} / {@code userRef} become strings.
+ * {@code text} / {@code enum} / {@code date} / refs become strings.
  * {@code integer} is a whole number. {@code boolean} is true/false.
  * {@code enum} requires {@code enumValues} on the field.
- * {@code userRef} is a reserved subject id (VARCHAR; picker in console).
- * {@code text}/{@code enum}/{@code date}/{@code userRef} 为字符串。{@code integer} 为整数。
+ * Canonical refs (O6): {@code subjectRef} (Subject id) and {@code organizationRef} (Organization id).
+ * Legacy {@code userRef} still parses as subjectRef; {@code orgRef} as organizationRef.
+ * Never invent {@code organizationUnitRef} / {@code tenantOrgUnitRef}.
+ * <p>
+ * {@code text}/{@code enum}/{@code date}/引用为字符串。{@code integer} 为整数。
  * {@code boolean} 为真假。{@code enum} 字段须带 {@code enumValues}。
- * {@code userRef} 预留主体 ID（VARCHAR；控制台选人）。
+ * 规范引用（O6）：{@code subjectRef} / {@code organizationRef}；旧 userRef/orgRef 仍可解析。
  */
 public enum FieldKind {
     TEXT,
@@ -17,7 +20,8 @@ public enum FieldKind {
     BOOLEAN,
     DATE,
     ENUM,
-    USER_REF;
+    SUBJECT_REF,
+    ORGANIZATION_REF;
 
     static FieldKind parse(String kind) {
         if ("text".equals(kind)) {
@@ -35,15 +39,24 @@ public enum FieldKind {
         if ("enum".equals(kind)) {
             return ENUM;
         }
-        if ("userRef".equals(kind)) {
-            return USER_REF;
+        if ("subjectRef".equals(kind) || "userRef".equals(kind)) {
+            return SUBJECT_REF;
+        }
+        if ("organizationRef".equals(kind) || "orgRef".equals(kind)) {
+            return ORGANIZATION_REF;
+        }
+        if ("organizationUnitRef".equals(kind) || "tenantOrgUnitRef".equals(kind)) {
+            throw new FormDefinitionRejected(
+                    "field kind "
+                            + kind
+                            + " is not allowed; use organizationRef (never organizationUnitRef/tenantOrgUnitRef)");
         }
         throw new FormDefinitionRejected(
-                "field kind is not text, integer, boolean, date, enum, or userRef");
+                "field kind is not text, integer, boolean, date, enum, subjectRef, or organizationRef"
+                        + " (legacy aliases userRef/orgRef still accepted)");
     }
 
-
-    /** YAML / API wire name — 声明与 API 落库名。 */
+    /** Canonical YAML / API wire name — 声明与 API 规范落库名。 */
     public String wireName() {
         return switch (this) {
             case TEXT -> "text";
@@ -51,13 +64,18 @@ public enum FieldKind {
             case BOOLEAN -> "boolean";
             case DATE -> "date";
             case ENUM -> "enum";
-            case USER_REF -> "userRef";
+            case SUBJECT_REF -> "subjectRef";
+            case ORGANIZATION_REF -> "organizationRef";
         };
     }
 
     /** Whether this kind may carry maxLength — 是否允许 maxLength。 */
     boolean allowsMaxLength() {
-        return this == TEXT || this == ENUM || this == DATE || this == USER_REF;
+        return this == TEXT
+                || this == ENUM
+                || this == DATE
+                || this == SUBJECT_REF
+                || this == ORGANIZATION_REF;
     }
 
     /** Whether this kind may carry integer min/max — 是否允许 minimum/maximum。 */

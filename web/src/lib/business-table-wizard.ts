@@ -67,7 +67,7 @@ function blankField(name = ""): BusinessTableField {
 
 /**
  * Default 报修单 shape — 默认报修单模板（键/表名可改）。
- * PK = first field ticketId; urgency enum; assignee userRef.
+ * PK = first field ticketId; urgency enum; assignee subjectRef.
  */
 export function defaultRepairTicketWizard(): BusinessTableWizardState {
   return {
@@ -107,7 +107,7 @@ export function defaultRepairTicketWizard(): BusinessTableWizardState {
       },
       {
         name: "assignee",
-        kind: "userRef",
+        kind: "subjectRef",
         required: false,
         maxLength: 64,
         enumValues: [],
@@ -150,23 +150,22 @@ function toEntityFields(
   }));
 }
 
-/** Map entity field kind onto form kinds (userRef kept) — 实体种类映射到表单。 */
+/** Map entity field kind onto form kinds (subjectRef/organizationRef kept) — 实体种类映射到表单。 */
 export function mapEntityKindToFormKind(
   kind: EntityWizardFieldKind,
 ): FormWizardFieldKind {
-  if ((ENTITY_FIELD_KINDS as readonly string[]).includes(kind)) {
-    if (
-      kind === "text" ||
-      kind === "integer" ||
-      kind === "boolean" ||
-      kind === "date" ||
-      kind === "enum" ||
-      kind === "userRef"
-    ) {
-      return kind;
-    }
+  if (
+    kind === "text" ||
+    kind === "integer" ||
+    kind === "boolean" ||
+    kind === "date" ||
+    kind === "enum" ||
+    kind === "subjectRef" ||
+    kind === "organizationRef"
+  ) {
+    return kind;
   }
-  // orgRef / entityRef → text at form layer for this wizard (fail soft)
+  // entityRef → text at form layer for this wizard (fail soft)
   return "text";
 }
 

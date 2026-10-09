@@ -1,6 +1,7 @@
 # Demo ticket form — 演示工单表单
 # Fields align with entities/demo-ticket.entity.yaml. Generic upsert via entity.record.upsert.
 # 字段与实体声明对齐。经 entity.record.upsert 通用写入。
+# O6: subjectRef / organizationRef (legacy userRef/orgRef still parse).
 formKey: demo-ticket
 titleEn: Demo ticket
 titleZh: 演示工单
@@ -23,11 +24,11 @@ fields:
     required: true
     maxLength: 32
   - name: assignee
-    kind: text
+    kind: subjectRef
     required: false
     maxLength: 64
   - name: orgUnit
-    kind: text
+    kind: organizationRef
     required: false
     maxLength: 64
 effects:

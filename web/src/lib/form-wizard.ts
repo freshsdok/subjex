@@ -2,8 +2,26 @@
 
 import { DEFAULT_DECLARATION_PERMISSION } from "@/lib/declaration-permission-catalog";
 
-export const FORM_FIELD_KINDS = ["text", "integer", "boolean", "date", "enum", "userRef"] as const;
+export const FORM_FIELD_KINDS = [
+  "text",
+  "integer",
+  "boolean",
+  "date",
+  "enum",
+  "subjectRef",
+  "organizationRef",
+] as const;
 export type FormWizardFieldKind = (typeof FORM_FIELD_KINDS)[number];
+
+/** O6: map legacy wire names to canonical kinds — 旧字段种类 → 规范名。 */
+export function normalizeFormFieldKind(raw: string): FormWizardFieldKind | null {
+  if (raw === "userRef") return "subjectRef";
+  if (raw === "orgRef") return "organizationRef";
+  if ((FORM_FIELD_KINDS as readonly string[]).includes(raw)) {
+    return raw as FormWizardFieldKind;
+  }
+  return null;
+}
 
 export type FormWizardField = {
   name: string;
@@ -96,7 +114,7 @@ function parseIntLoose(raw: string): number | null {
 }
 
 export function isFormWizardFieldKind(value: string): value is FormWizardFieldKind {
-  return (FORM_FIELD_KINDS as readonly string[]).includes(value);
+  return normalizeFormFieldKind(value) !== null;
 }
 
 /** Default audit.write effect stub — 默认审计副作用桩。 */
@@ -240,7 +258,8 @@ export function parseFormWizardFromYaml(yaml: string): FormWizardState {
           const [, name, raw] = prop;
           if (name === "kind") {
             const k = stripQuotes(raw);
-            if (isFormWizardFieldKind(k)) currentField.kind = k;
+            const normalized = normalizeFormFieldKind(k);
+            if (normalized) currentField.kind = normalized;
           } else if (name === "required") {
             const b = parseBool(raw);
             if (b != null) currentField.required = b;

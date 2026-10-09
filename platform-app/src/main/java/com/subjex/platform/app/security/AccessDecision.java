@@ -3,10 +3,9 @@ package com.subjex.platform.app.security;
 /**
  * AccessDecision — 一次上下文权限检查的可解释结果。
  * <p>
- * Fields: subject, tenant, orgScope (null = unspecified / no org filter), resource, action,
- * matchedPermission (held permission on allow or after permission passed; null when permission failed),
- * allowed, denyReason (null when allowed).
- * 字段：主体、租户、组织范围（null = 未指定/不过滤）、资源、动作、命中权限、是否允许、拒绝原因。
+ * Fields: subject, tenant, orgScope (null = unspecified — fail-closed when a resource org id is
+ * checked), resource, action, matchedPermission, allowed, denyReason.
+ * 字段：主体、租户、组织范围（null = 未指定；带资源组织 id 时 fail-closed）、资源、动作、命中权限、是否允许、拒绝原因。
  */
 public record AccessDecision(
         String subjectId,
@@ -18,14 +17,16 @@ public record AccessDecision(
         boolean allowed,
         String denyReason) {
 
-    /** Org scope not evaluated — 未评估组织范围。 */
+    /** Org scope not evaluated / unspecified — 未评估组织范围。 */
     public static final OrgScope ORG_SCOPE_UNSPECIFIED = null;
 
     public static final String DENY_PERMISSION_BLANK = "permission_blank";
     public static final String DENY_PERMISSION_MISSING = "permission_missing";
     public static final String DENY_TENANT_MISSING = "tenant_missing";
     public static final String DENY_TENANT_NOT_GRANTED = "tenant_not_granted";
+    public static final String DENY_TENANT_MISMATCH = "tenant_mismatch";
     public static final String DENY_ORG_OUT_OF_SCOPE = "org_out_of_scope";
+    public static final String DENY_ORG_SCOPE_MISSING = "org_scope_missing";
 
     public static AccessDecision allow(
             String subjectId,

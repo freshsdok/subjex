@@ -1,5 +1,8 @@
 package com.subjex.platform.app.org;
 
+import com.subjex.platform.app.organization.JdbcOrganizationStore;
+import com.subjex.platform.app.organization.OrganizationOntologyBackfill;
+import com.subjex.platform.app.organization.RelationKind;
 import com.subjex.platform.app.security.OrgScope;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -17,12 +20,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * JdbcOrgDirectory — 组织目录：按租户列出并写入组织单元与成员关系。
  * <p>
- * Pure JDBC ({@link JdbcTemplate} only). Writes need {@code org.write} at the HTTP layer.
- * Resolves org scope (self + descendants) for explainable access decisions (AX-2).
- * Spring-free class; bean in {@code PlatformWiring}.
- * 纯 JDBC（只用 {@link JdbcTemplate}）。写操作由 HTTP 层核对 {@code org.write}。
- * 解析组织范围（本部门及下级）供可解释判定（AX-2）。
- * 无 Spring 注解；Bean 在 {@code PlatformWiring}。
+ * O3 dual-read: when a tenant is fully backfilled ({@code org_unit} count =
+ * {@code org_unit_organization_map} count), reads prefer the Organization ontology
+ * (projected back to legacy {@link OrgUnit}/{@link OrgMembership} shapes). Otherwise
+ * reads hit {@code org_unit}/{@code org_membership}. Writes always hit legacy tables,
+ * then write-through to ontology when possible.
+ * <p>
+ * O3 双读：租户已完整回填时优先读新表并投影为旧形状；否则读旧表。写始终落旧表，并尽量写透新表。
+ * Pure JDBC; bean in {@code PlatformWiring}.
  */
 public final class JdbcOrgDirectory {
 
@@ -30,77 +35,61 @@ public final class JdbcOrgDirectory {
     public static final String STATE_DISABLED = "DISABLED";
 
     private final JdbcTemplate jdbc;
+    private final JdbcOrganizationStore organizationStore;
+    private final OrganizationOntologyBackfill backfill;
 
     public JdbcOrgDirectory(JdbcTemplate jdbc) {
+        this(jdbc, new JdbcOrganizationStore(jdbc));
+    }
+
+    public JdbcOrgDirectory(JdbcTemplate jdbc, JdbcOrganizationStore organizationStore) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
+        this.organizationStore =
+                organizationStore != null ? organizationStore : new JdbcOrganizationStore(jdbc);
+        this.backfill = new OrganizationOntologyBackfill(jdbc, this.organizationStore);
     }
 
     /** Units in one tenant, ordered by org_unit_id — 某租户内组织单元，按 org_unit_id 排序。 */
     public List<OrgUnit> listUnits(String tenantId) {
         String id = requireTenantId(tenantId);
-        return jdbc.query(
-                """
-                SELECT tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state
-                FROM org_unit
-                WHERE tenant_id = ?
-                ORDER BY org_unit_id
-                """,
-                (row, n) -> new OrgUnit(
-                        row.getString("tenant_id"),
-                        row.getString("org_unit_id"),
-                        row.getString("parent_org_unit_id"),
-                        row.getString("unit_name"),
-                        row.getString("unit_state")),
-                id);
+        if (backfill.isTenantFullyBackfilled(id)) {
+            return listUnitsFromOntology(id);
+        }
+        return listUnitsFromLegacy(id);
     }
 
     /** Memberships in one tenant, ordered by subject then unit — 某租户内成员关系，按主体再单元排序。 */
     public List<OrgMembership> listMemberships(String tenantId) {
         String id = requireTenantId(tenantId);
-        return jdbc.query(
-                """
-                SELECT tenant_id, subject_id, org_unit_id, membership_state
-                FROM org_membership
-                WHERE tenant_id = ?
-                ORDER BY subject_id, org_unit_id
-                """,
-                (row, n) -> new OrgMembership(
-                        row.getString("tenant_id"),
-                        row.getString("subject_id"),
-                        row.getString("org_unit_id"),
-                        row.getString("membership_state")),
-                id);
+        if (backfill.isTenantFullyBackfilled(id)) {
+            return listMembershipsFromOntology(id, null);
+        }
+        return listMembershipsFromLegacy(id);
     }
 
     /** Memberships for one subject in a tenant — 某租户内某一主体的成员关系。 */
     public List<OrgMembership> listMembershipsForSubject(String tenantId, String subjectId) {
         String tid = requireTenantId(tenantId);
         String sid = requireNonBlank(subjectId, "subjectId");
-        return jdbc.query(
-                """
-                SELECT tenant_id, subject_id, org_unit_id, membership_state
-                FROM org_membership
-                WHERE tenant_id = ? AND subject_id = ?
-                ORDER BY org_unit_id
-                """,
-                (row, n) -> new OrgMembership(
-                        row.getString("tenant_id"),
-                        row.getString("subject_id"),
-                        row.getString("org_unit_id"),
-                        row.getString("membership_state")),
-                tid,
-                sid);
+        if (backfill.isTenantFullyBackfilled(tid)) {
+            return listMembershipsFromOntology(tid, sid);
+        }
+        return listMembershipsFromLegacyForSubject(tid, sid);
     }
 
     /**
      * Resolve {@link OrgScope#MODE_SELF_AND_DESCENDANTS} for a subject in a tenant.
-     * Roots = ACTIVE membership unit ids; expanded = roots + all descendants via parent links.
-     * Returns {@code null} when the subject has no ACTIVE memberships (unspecified / no filter).
-     * 解析主体在租户内的「本部门及下级」范围。无 ACTIVE 成员则返回 null（未指定/不过滤）。
+     * Roots = ACTIVE membership unit / organization ids; expanded via parent links (legacy) or
+     * ACTIVE CONTAINS (ontology when fully backfilled). Empty ACTIVE memberships → {@link OrgScope#none()}
+     * (fail-closed; never silently UNRESTRICTED).
+     * 解析「本部门及下级」。无 ACTIVE 成员返回 NONE（fail-closed）。
      */
     public OrgScope resolveSelfAndDescendants(String tenantId, String subjectId) {
         String tid = requireTenantId(tenantId);
         String sid = requireNonBlank(subjectId, "subjectId");
+        if (backfill.isTenantFullyBackfilled(tid)) {
+            return resolveSelfAndDescendantsFromOntology(tid, sid);
+        }
         List<String> roots = jdbc.query(
                 """
                 SELECT org_unit_id
@@ -113,10 +102,64 @@ public final class JdbcOrgDirectory {
                 sid,
                 STATE_ACTIVE);
         if (roots.isEmpty()) {
-            return null;
+            return OrgScope.none();
         }
         Set<String> expanded = expandSelfAndDescendants(tid, roots);
         return OrgScope.selfAndDescendants(roots, expanded);
+    }
+
+    /**
+     * OrgScope in <em>organization_id</em> space for O5 Organization API.
+     * Maps {@link #resolveSelfAndDescendants} unit ids via {@code org_unit_organization_map}
+     * (falls back to the unit id when unmapped). NONE / UNRESTRICTED pass through.
+     * O5：组织 id 空间的范围；由单元范围经映射得到。
+     */
+    public OrgScope resolveOrganizationSelfAndDescendants(String tenantId, String subjectId) {
+        OrgScope unitScope = resolveSelfAndDescendants(tenantId, subjectId);
+        if (unitScope == null || unitScope.isNone() || unitScope.isUnrestricted()) {
+            return unitScope == null ? OrgScope.none() : unitScope;
+        }
+        List<String> mappedRoots = new ArrayList<>();
+        for (String root : unitScope.rootUnitIds()) {
+            mappedRoots.add(backfill.findOrganizationId(tenantId, root).orElse(root));
+        }
+        List<String> mappedUnits = new ArrayList<>();
+        for (String unit : unitScope.unitIds()) {
+            mappedUnits.add(backfill.findOrganizationId(tenantId, unit).orElse(unit));
+        }
+        return OrgScope.selfAndDescendants(mappedRoots, mappedUnits);
+    }
+
+    /**
+     * Resolve {@link OrgScope#MODE_SELF} — ACTIVE membership orgs only (no descendants).
+     * Empty → {@link OrgScope#none()}.
+     * 仅 ACTIVE 成员组织（不含下级）。空则 NONE。
+     */
+    public OrgScope resolveSelf(String tenantId, String subjectId) {
+        String tid = requireTenantId(tenantId);
+        String sid = requireNonBlank(subjectId, "subjectId");
+        if (backfill.isTenantFullyBackfilled(tid)) {
+            List<String> roots = activeMembershipUnitIdsFromOntology(tid, sid);
+            if (roots.isEmpty()) {
+                return OrgScope.none();
+            }
+            return OrgScope.self(roots);
+        }
+        List<String> roots = jdbc.query(
+                """
+                SELECT org_unit_id
+                FROM org_membership
+                WHERE tenant_id = ? AND subject_id = ? AND membership_state = ?
+                ORDER BY org_unit_id
+                """,
+                (row, n) -> row.getString("org_unit_id"),
+                tid,
+                sid,
+                STATE_ACTIVE);
+        if (roots.isEmpty()) {
+            return OrgScope.none();
+        }
+        return OrgScope.self(roots);
     }
 
     /**
@@ -145,37 +188,11 @@ public final class JdbcOrgDirectory {
         if (roots.isEmpty()) {
             return Set.of();
         }
-        Map<String, List<String>> childrenByParent = childrenIndex(tid);
-        Set<String> out = new HashSet<>();
-        ArrayDeque<String> queue = new ArrayDeque<>(roots);
-        while (!queue.isEmpty()) {
-            String current = queue.removeFirst();
-            if (!out.add(current)) {
-                continue;
-            }
-            List<String> children = childrenByParent.get(current);
-            if (children != null) {
-                for (String child : children) {
-                    if (!out.contains(child)) {
-                        queue.addLast(child);
-                    }
-                }
-            }
+        if (backfill.isTenantFullyBackfilled(tid)) {
+            return expandFromOntology(tid, roots);
         }
-        return Set.copyOf(out);
-    }
-
-    private Map<String, List<String>> childrenIndex(String tenantId) {
-        List<OrgUnit> units = listUnits(tenantId);
-        Map<String, List<String>> children = new HashMap<>();
-        for (OrgUnit unit : units) {
-            String parent = unit.parentOrgUnitId();
-            if (parent == null || parent.isBlank()) {
-                continue;
-            }
-            children.computeIfAbsent(parent, k -> new ArrayList<>()).add(unit.orgUnitId());
-        }
-        return children;
+        Map<String, List<String>> childrenByParent = childrenIndexFromUnits(listUnitsFromLegacy(tid));
+        return bfsExpand(roots, childrenByParent);
     }
 
     /**
@@ -233,7 +250,9 @@ public final class JdbcOrgDirectory {
                         uid);
             }
         }
-        return new OrgUnit(tid, uid, parent, name, state);
+        OrgUnit saved = new OrgUnit(tid, uid, parent, name, state);
+        backfill.syncUnitWriteThrough(tid, saved);
+        return saved;
     }
 
     /**
@@ -252,8 +271,10 @@ public final class JdbcOrgDirectory {
         if (updated == 0) {
             throw new IllegalArgumentException("org unit not found");
         }
-        return findUnit(tid, uid)
+        OrgUnit saved = findUnit(tid, uid)
                 .orElseThrow(() -> new IllegalArgumentException("org unit not found"));
+        backfill.syncUnitWriteThrough(tid, saved);
+        return saved;
     }
 
     /**
@@ -301,7 +322,13 @@ public final class JdbcOrgDirectory {
                         uid);
             }
         }
-        return new OrgMembership(tid, sid, uid, state);
+        OrgMembership saved = new OrgMembership(tid, sid, uid, state);
+        // Ensure unit is mapped (write-through may have created map on unit upsert).
+        if (backfill.findOrganizationId(tid, uid).isEmpty()) {
+            findUnit(tid, uid).ifPresent(unit -> backfill.syncUnitWriteThrough(tid, unit));
+        }
+        backfill.syncMembershipWriteThrough(tid, saved);
+        return saved;
     }
 
     /**
@@ -320,6 +347,9 @@ public final class JdbcOrgDirectory {
                 tid,
                 sid,
                 uid);
+        if (deleted > 0) {
+            backfill.endMembershipWriteThrough(tid, sid, uid);
+        }
         return deleted > 0;
     }
 
@@ -328,6 +358,214 @@ public final class JdbcOrgDirectory {
         String tid = requireTenantId(tenantId);
         String uid = requireNonBlank(orgUnitId, "orgUnitId");
         return findUnit(tid, uid).isPresent();
+    }
+
+    /** Exposed for backfill/tests: always read legacy org_unit — 供回填/测例：始终读旧表。 */
+    List<OrgUnit> listUnitsFromLegacy(String tenantId) {
+        return jdbc.query(
+                """
+                SELECT tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state
+                FROM org_unit
+                WHERE tenant_id = ?
+                ORDER BY org_unit_id
+                """,
+                (row, n) -> new OrgUnit(
+                        row.getString("tenant_id"),
+                        row.getString("org_unit_id"),
+                        row.getString("parent_org_unit_id"),
+                        row.getString("unit_name"),
+                        row.getString("unit_state")),
+                tenantId);
+    }
+
+    List<OrgMembership> listMembershipsFromLegacy(String tenantId) {
+        return jdbc.query(
+                """
+                SELECT tenant_id, subject_id, org_unit_id, membership_state
+                FROM org_membership
+                WHERE tenant_id = ?
+                ORDER BY subject_id, org_unit_id
+                """,
+                (row, n) -> new OrgMembership(
+                        row.getString("tenant_id"),
+                        row.getString("subject_id"),
+                        row.getString("org_unit_id"),
+                        row.getString("membership_state")),
+                tenantId);
+    }
+
+    private List<OrgMembership> listMembershipsFromLegacyForSubject(String tenantId, String subjectId) {
+        return jdbc.query(
+                """
+                SELECT tenant_id, subject_id, org_unit_id, membership_state
+                FROM org_membership
+                WHERE tenant_id = ? AND subject_id = ?
+                ORDER BY org_unit_id
+                """,
+                (row, n) -> new OrgMembership(
+                        row.getString("tenant_id"),
+                        row.getString("subject_id"),
+                        row.getString("org_unit_id"),
+                        row.getString("membership_state")),
+                tenantId,
+                subjectId);
+    }
+
+    private List<OrgUnit> listUnitsFromOntology(String tenantId) {
+        return jdbc.query(
+                """
+                SELECT m.tenant_id AS tenant_id,
+                       m.org_unit_id AS org_unit_id,
+                       pm.org_unit_id AS parent_org_unit_id,
+                       o.organization_name AS unit_name,
+                       o.organization_state AS unit_state
+                FROM org_unit_organization_map m
+                INNER JOIN organization o ON o.organization_id = m.organization_id
+                LEFT JOIN organization_relation r
+                    ON r.to_organization_id = m.organization_id
+                   AND r.relation_kind = ?
+                   AND r.relation_state = ?
+                LEFT JOIN org_unit_organization_map pm
+                    ON pm.organization_id = r.from_organization_id
+                   AND pm.tenant_id = m.tenant_id
+                WHERE m.tenant_id = ?
+                ORDER BY m.org_unit_id
+                """,
+                (row, n) -> new OrgUnit(
+                        row.getString("tenant_id"),
+                        row.getString("org_unit_id"),
+                        row.getString("parent_org_unit_id"),
+                        row.getString("unit_name"),
+                        row.getString("unit_state")),
+                RelationKind.CONTAINS,
+                JdbcOrganizationStore.STATE_ACTIVE,
+                tenantId);
+    }
+
+    private List<OrgMembership> listMembershipsFromOntology(String tenantId, String subjectIdOrNull) {
+        if (subjectIdOrNull == null) {
+            return jdbc.query(
+                    """
+                    SELECT m.tenant_id AS tenant_id,
+                           mem.subject_id AS subject_id,
+                           m.org_unit_id AS org_unit_id,
+                           mem.membership_state AS membership_state
+                    FROM membership mem
+                    INNER JOIN org_unit_organization_map m
+                        ON m.organization_id = mem.organization_id
+                       AND m.tenant_id = ?
+                    WHERE mem.membership_state <> ?
+                    ORDER BY mem.subject_id, m.org_unit_id
+                    """,
+                    (row, n) -> new OrgMembership(
+                            row.getString("tenant_id"),
+                            row.getString("subject_id"),
+                            row.getString("org_unit_id"),
+                            row.getString("membership_state")),
+                    tenantId,
+                    JdbcOrganizationStore.STATE_ENDED);
+        }
+        return jdbc.query(
+                """
+                SELECT m.tenant_id AS tenant_id,
+                       mem.subject_id AS subject_id,
+                       m.org_unit_id AS org_unit_id,
+                       mem.membership_state AS membership_state
+                FROM membership mem
+                INNER JOIN org_unit_organization_map m
+                    ON m.organization_id = mem.organization_id
+                   AND m.tenant_id = ?
+                WHERE mem.subject_id = ?
+                  AND mem.membership_state <> ?
+                ORDER BY m.org_unit_id
+                """,
+                (row, n) -> new OrgMembership(
+                        row.getString("tenant_id"),
+                        row.getString("subject_id"),
+                        row.getString("org_unit_id"),
+                        row.getString("membership_state")),
+                tenantId,
+                subjectIdOrNull,
+                JdbcOrganizationStore.STATE_ENDED);
+    }
+
+    private OrgScope resolveSelfAndDescendantsFromOntology(String tenantId, String subjectId) {
+        List<String> roots = activeMembershipUnitIdsFromOntology(tenantId, subjectId);
+        if (roots.isEmpty()) {
+            return OrgScope.none();
+        }
+        Set<String> expanded = expandFromOntology(tenantId, new HashSet<>(roots));
+        return OrgScope.selfAndDescendants(roots, expanded);
+    }
+
+    private List<String> activeMembershipUnitIdsFromOntology(String tenantId, String subjectId) {
+        return jdbc.query(
+                """
+                SELECT m.org_unit_id
+                FROM membership mem
+                INNER JOIN org_unit_organization_map m
+                    ON m.organization_id = mem.organization_id
+                   AND m.tenant_id = ?
+                INNER JOIN tenant_organization torg
+                    ON torg.organization_id = mem.organization_id
+                   AND torg.tenant_id = ?
+                   AND torg.link_state = ?
+                WHERE mem.subject_id = ? AND mem.membership_state = ?
+                ORDER BY m.org_unit_id
+                """,
+                (row, n) -> row.getString("org_unit_id"),
+                tenantId,
+                tenantId,
+                JdbcOrganizationStore.STATE_ACTIVE,
+                subjectId,
+                JdbcOrganizationStore.STATE_ACTIVE);
+    }
+
+    private Set<String> expandFromOntology(String tenantId, Set<String> rootUnitIds) {
+        Set<String> out = new HashSet<>();
+        for (String rootUnit : rootUnitIds) {
+            Optional<String> rootOrg = backfill.findOrganizationId(tenantId, rootUnit);
+            if (rootOrg.isEmpty()) {
+                out.add(rootUnit);
+                continue;
+            }
+            for (String orgId : organizationStore.containsSelfAndDescendants(rootOrg.get())) {
+                backfill.findOrgUnitId(tenantId, orgId).ifPresentOrElse(out::add, () -> {});
+            }
+        }
+        return Set.copyOf(out);
+    }
+
+    private static Map<String, List<String>> childrenIndexFromUnits(List<OrgUnit> units) {
+        Map<String, List<String>> children = new HashMap<>();
+        for (OrgUnit unit : units) {
+            String parent = unit.parentOrgUnitId();
+            if (parent == null || parent.isBlank()) {
+                continue;
+            }
+            children.computeIfAbsent(parent, k -> new ArrayList<>()).add(unit.orgUnitId());
+        }
+        return children;
+    }
+
+    private static Set<String> bfsExpand(Set<String> roots, Map<String, List<String>> childrenByParent) {
+        Set<String> out = new HashSet<>();
+        ArrayDeque<String> queue = new ArrayDeque<>(roots);
+        while (!queue.isEmpty()) {
+            String current = queue.removeFirst();
+            if (!out.add(current)) {
+                continue;
+            }
+            List<String> children = childrenByParent.get(current);
+            if (children != null) {
+                for (String child : children) {
+                    if (!out.contains(child)) {
+                        queue.addLast(child);
+                    }
+                }
+            }
+        }
+        return Set.copyOf(out);
     }
 
     private Optional<OrgUnit> findUnit(String tenantId, String orgUnitId) {

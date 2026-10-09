@@ -100,6 +100,12 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.ORG_READ.permissionName())
                         .requestMatchers("/api/v1/org/**")
                                 .hasAuthority(OperatorPermission.ORG_WRITE.permissionName())
+                        // O5 Organization ontology API (successor to /api/v1/org); same org.read / org.write.
+                        // O5 组织本体 API（继任 /api/v1/org）；权限相同。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/organizations", "/api/v1/organizations/**")
+                                .hasAuthority(OperatorPermission.ORG_READ.permissionName())
+                        .requestMatchers("/api/v1/organizations", "/api/v1/organizations/**")
+                                .hasAuthority(OperatorPermission.ORG_WRITE.permissionName())
                         // Declaration promote: POST needs declaration.promote; GET history uses declaration.read below.
                         // 声明晋升：POST 要 declaration.promote；GET 历史走下方 declaration.read。
                         .requestMatchers(HttpMethod.POST,

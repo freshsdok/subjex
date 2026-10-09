@@ -169,7 +169,12 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - AX. [done] Blocks-2: Section + Tabs runtime (detail Fields/Raw + list Section wrap); local commit only.
 - AY. [done] Org-W1: org.write + PUT/DELETE org units/memberships + audit; local commit only.
 - AZ. [done] Org-W2: thin org console `/org` (units/memberships, review→confirm writes); local commit only.
-- O1. [done docs] **Model Freeze** Subject/Organization/Tenant/Membership/OrganizationRelation/TenantOrganization — ADR [`adr/0001-o1-organization-ontology.md`](adr/0001-o1-organization-ontology.md) + [`ontology/`](ontology/); ten review answers unambiguous; **no Flyway**; pause structural `org_unit` expansion; local commit only.
+- O1. [done] **Model Freeze** Subject/Organization/Tenant/Membership/OrganizationRelation/TenantOrganization — ADR [`adr/0001-o1-organization-ontology.md`](adr/0001-o1-organization-ontology.md) + [`ontology/`](ontology/); review PASS; pushed `de1846ae`.
+- O2. [done] **Persistence** Flyway V22 + `JdbcOrganizationStore`; MODEL/MEM/ORG/TENANT gates; legacy `org_unit` retained.
+- O3. [done] **Compatibility & Backfill** V23 map + dual-read + write-through; MIG-01/02/03.
+- O4. [done] **Authorization** OrgScope five modes from Membership + OrganizationRelation; AUTH-01..05.
+- O5. [done] **API / Console** `/api/v1/organizations` + `/org` console; legacy `/api/v1/org` deprecated; local commit only.
+- O6. [done] **Zero-code** `subjectRef`/`organizationRef` (dual-accept `userRef`/`orgRef`); SubjectPicker + OrganizationPicker; DECL-01/02; local commit only.
 
 - BA. [done] SA-1: platform.super-admin break-glass bootstrap + directory expansion (role_permission stays empty); local commit only.
 - BB. [done] Mig-TID: EntityMigrationGenerator auto-adds tenant_id when tenantScoped and field list omits it; local commit only.
@@ -289,9 +294,9 @@ Agreed product model (owner confirmed). **Declaration remains the single source 
 
 **已拍板：优先级 R1**（负责人确认）。
 
-Sequence: **Z1** → **thin people/org** (shipped on legacy `org_unit`) → **Z2**… → **Z3/Z4**. **O1 Model Freeze (docs):** six-concept ontology replaces thin `org_unit` as the *long-term* base — see [`ontology/README.md`](ontology/); O2+ persistence/migration next; **Deferred still:** SCIM, dual-role, HR/Position, Zanzibar, full Cedar/Casbin. Field kinds later: `userRef`→`subjectRef`, `orgRef`→`organizationRef`; pickers → SubjectPicker + OrganizationPicker.
+Sequence: **Z1** → **thin people/org** (shipped on legacy `org_unit`) → **Z2**… → **Z3/Z4**. **O1+O2:** six-concept ontology + V22 persistence alongside thin `org_unit` — see [`ontology/README.md`](ontology/); O3 backfill next; **Deferred still:** SCIM, dual-role, HR/Position, Zanzibar, full Cedar/Casbin. Field kinds (O6 done): `subjectRef`/`organizationRef` (aliases `userRef`/`orgRef`); pickers → SubjectPicker + OrganizationPicker.
 
-顺序：**Z1** → **薄人员/组织**（已落在旧 `org_unit`）→ **Z2**…→ **Z3/Z4**。**O1 模型冻结（文档）：** 六概念本体取代薄 `org_unit` 作为长期底座——见 [`ontology/README.md`](ontology/)；O2+ 再持久化/迁移。后置仍含：SCIM、兼岗、HR/岗位、Zanzibar、完整 Cedar/Casbin。字段后续：`userRef`→`subjectRef`，`orgRef`→`organizationRef`；选人 → SubjectPicker + OrganizationPicker。
+顺序：**Z1** → **薄人员/组织**（已落在旧 `org_unit`）→ **Z2**…→ **Z3/Z4**。**O1 模型冻结（文档）：** 六概念本体取代薄 `org_unit` 作为长期底座——见 [`ontology/README.md`](ontology/)；O2+ 再持久化/迁移。后置仍含：SCIM、兼岗、HR/岗位、Zanzibar、完整 Cedar/Casbin。字段（O6 已做）：`subjectRef`/`organizationRef`（别名 userRef/orgRef）；选人 → SubjectPicker + OrganizationPicker。
 
 Rejected as default sequencing: R2 (org-first for strong approval demos); R3 (strict two-team parallel — not fit for single-thread delivery).
 

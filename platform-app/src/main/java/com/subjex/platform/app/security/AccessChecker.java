@@ -46,10 +46,11 @@ public final class AccessChecker {
     /**
      * Full evaluate with optional org scope + resource unit — 带可选组织范围与资源单元的完整判定。
      * <p>
-     * When {@code orgScope} is non-null and {@code resourceOrgUnitId} is non-blank, the unit must
-     * be inside the scope or the decision is deny {@link AccessDecision#DENY_ORG_OUT_OF_SCOPE}.
-     * Null scope = unspecified (no org filter), including platform operators without memberships.
-     * 范围非空且资源单元非空时须落在范围内，否则拒绝 {@code org_out_of_scope}。范围 null = 未指定。
+     * When {@code resourceOrgUnitId} is non-blank: null/unspecified scope → fail-closed
+     * {@link AccessDecision#DENY_ORG_SCOPE_MISSING}; {@link OrgScope#MODE_NONE} →
+     * {@link AccessDecision#DENY_ORG_OUT_OF_SCOPE}; {@link OrgScope#MODE_UNRESTRICTED} → allow;
+     * otherwise the unit must be inside the scope. Blank resource unit skips the org filter.
+     * 资源组织 id 非空时：未指定 fail-closed；NONE 拒绝；UNRESTRICTED 放行；否则须落在范围内。
      */
     public static AccessDecision evaluate(
             OperatorPrincipal operator,
@@ -162,8 +163,8 @@ public final class AccessChecker {
     }
 
     /**
-     * After permission+tenant allow: attach scope; deny when resource unit outside —
-     * 权限与租户通过后附带范围；资源单元越界则拒绝。
+     * After permission+tenant allow: attach scope; fail-closed when resource unit present —
+     * 权限与租户通过后附带范围；资源单元存在时缺失范围 fail-closed。
      */
     public static AccessDecision applyOrgScope(
             AccessDecision decision, OrgScope orgScope, String resourceOrgUnitId) {
@@ -172,23 +173,33 @@ public final class AccessChecker {
         if (!withScope.allowed()) {
             return withScope;
         }
-        if (orgScope == null) {
-            return withScope;
-        }
         if (resourceOrgUnitId == null || resourceOrgUnitId.isBlank()) {
             return withScope;
         }
-        if (orgScope.contains(resourceOrgUnitId)) {
+        if (orgScope == null) {
+            return AccessDecision.deny(
+                    withScope.subjectId(),
+                    withScope.tenantId(),
+                    null,
+                    withScope.resource(),
+                    withScope.action(),
+                    withScope.matchedPermission(),
+                    AccessDecision.DENY_ORG_SCOPE_MISSING);
+        }
+        if (orgScope.isUnrestricted()) {
             return withScope;
         }
-        return AccessDecision.deny(
-                withScope.subjectId(),
-                withScope.tenantId(),
-                orgScope,
-                withScope.resource(),
-                withScope.action(),
-                withScope.matchedPermission(),
-                AccessDecision.DENY_ORG_OUT_OF_SCOPE);
+        if (orgScope.isNone() || !orgScope.contains(resourceOrgUnitId)) {
+            return AccessDecision.deny(
+                    withScope.subjectId(),
+                    withScope.tenantId(),
+                    orgScope,
+                    withScope.resource(),
+                    withScope.action(),
+                    withScope.matchedPermission(),
+                    AccessDecision.DENY_ORG_OUT_OF_SCOPE);
+        }
+        return withScope;
     }
 
     /**

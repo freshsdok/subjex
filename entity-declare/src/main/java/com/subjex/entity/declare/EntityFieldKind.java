@@ -5,10 +5,14 @@ package com.subjex.entity.declare;
  * <p>
  * {@code text} becomes a string column. {@code integer} becomes a whole-number column.
  * {@code boolean} is JDBC BOOLEAN. {@code enum} / {@code date} / refs are VARCHAR.
- * {@code userRef} / {@code orgRef} / {@code entityRef} are reserved references (VARCHAR; pickers later).
+ * Canonical refs (O6): {@code subjectRef} / {@code organizationRef} / {@code entityRef}.
+ * Legacy aliases {@code userRef} / {@code orgRef} still parse to the same kinds.
+ * Never invent {@code organizationUnitRef} / {@code tenantOrgUnitRef}.
+ * <p>
  * {@code text} 成为字符串列。{@code integer} 成为整数列。
  * {@code boolean} 为 JDBC BOOLEAN。{@code enum} / {@code date} / 引用为 VARCHAR。
- * {@code userRef} / {@code orgRef} / {@code entityRef} 预留引用（VARCHAR；选人组件后置）。
+ * 规范引用（O6）：{@code subjectRef} / {@code organizationRef} / {@code entityRef}。
+ * 旧别名 {@code userRef} / {@code orgRef} 仍解析为同一种类。禁止 organizationUnitRef/tenantOrgUnitRef。
  */
 public enum EntityFieldKind {
     TEXT,
@@ -16,8 +20,8 @@ public enum EntityFieldKind {
     BOOLEAN,
     ENUM,
     DATE,
-    USER_REF,
-    ORG_REF,
+    SUBJECT_REF,
+    ORGANIZATION_REF,
     ENTITY_REF;
 
     static EntityFieldKind parse(String kind) {
@@ -36,24 +40,52 @@ public enum EntityFieldKind {
         if ("date".equals(kind)) {
             return DATE;
         }
-        if ("userRef".equals(kind)) {
-            return USER_REF;
+        // Canonical + legacy alias (O6 dual-accept) — 规范名 + 过渡期旧名
+        if ("subjectRef".equals(kind) || "userRef".equals(kind)) {
+            return SUBJECT_REF;
         }
-        if ("orgRef".equals(kind)) {
-            return ORG_REF;
+        if ("organizationRef".equals(kind) || "orgRef".equals(kind)) {
+            return ORGANIZATION_REF;
         }
         if ("entityRef".equals(kind)) {
             return ENTITY_REF;
         }
+        if ("organizationUnitRef".equals(kind) || "tenantOrgUnitRef".equals(kind)) {
+            throw new EntityDefinitionRejected(
+                    "field kind "
+                            + kind
+                            + " is not allowed; use organizationRef (never organizationUnitRef/tenantOrgUnitRef)");
+        }
         throw new EntityDefinitionRejected(
-                "field kind is not text, integer, boolean, enum, date, userRef, orgRef, or entityRef");
+                "field kind is not text, integer, boolean, enum, date, subjectRef, organizationRef, or entityRef"
+                        + " (legacy aliases userRef/orgRef still accepted)");
+    }
+
+    /**
+     * Canonical YAML / API wire name — 声明与 API 规范落库名（不含旧别名）。
+     */
+    public String wireName() {
+        return switch (this) {
+            case TEXT -> "text";
+            case INTEGER -> "integer";
+            case BOOLEAN -> "boolean";
+            case ENUM -> "enum";
+            case DATE -> "date";
+            case SUBJECT_REF -> "subjectRef";
+            case ORGANIZATION_REF -> "organizationRef";
+            case ENTITY_REF -> "entityRef";
+        };
     }
 
     /**
      * Whether this kind may carry {@code maxLength} in YAML — 该种类是否允许 YAML 带 maxLength。
      */
     boolean allowsMaxLength() {
-        return this == TEXT || this == ENUM || this == USER_REF || this == ORG_REF || this == ENTITY_REF;
+        return this == TEXT
+                || this == ENUM
+                || this == SUBJECT_REF
+                || this == ORGANIZATION_REF
+                || this == ENTITY_REF;
     }
 
     /**
@@ -66,7 +98,10 @@ public enum EntityFieldKind {
         if (this == DATE) {
             return 10;
         }
-        if (this == USER_REF || this == ORG_REF || this == ENTITY_REF || this == ENUM) {
+        if (this == SUBJECT_REF
+                || this == ORGANIZATION_REF
+                || this == ENTITY_REF
+                || this == ENUM) {
             return 64;
         }
         return 255;

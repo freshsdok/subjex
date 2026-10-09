@@ -107,7 +107,7 @@ public final class EntityMigrationGenerator {
             case INTEGER -> "INTEGER";
             case BOOLEAN -> "BOOLEAN";
             case DATE -> "VARCHAR(10)";
-            case TEXT, ENUM, USER_REF, ORG_REF, ENTITY_REF -> {
+            case TEXT, ENUM, SUBJECT_REF, ORGANIZATION_REF, ENTITY_REF -> {
                 int length = field.maxLength() == null ? field.kind().defaultVarcharLength() : field.maxLength();
                 yield "VARCHAR(" + length + ")";
             }

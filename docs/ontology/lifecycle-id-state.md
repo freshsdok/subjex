@@ -86,4 +86,4 @@ Derived at Context/AuthZ time from Membership + OrganizationRelation (+ explicit
 | `SELF_AND_DESCENDANTS` | SELF plus CONTAINS closure |
 | `EXPLICIT` | Caller- or policy-supplied organization id set |
 
-**Missing / unspecified scope on an org-scoped check = fail-closed** (treat closer to `NONE`, never silently `UNRESTRICTED`). Today’s AX code only exposes `SELF_AND_DESCENDANTS`; O4 must add the full enum and the NONE≠UNRESTRICTED distinction.
+**Missing / unspecified scope on an org-scoped check = fail-closed** (deny `org_scope_missing`, never silently `UNRESTRICTED`). O4 implements all five modes on `OrgScope`; `JdbcOrgDirectory.resolveSelf` / `resolveSelfAndDescendants` derive from Membership + OrganizationRelation (legacy dual-read when not fully backfilled). Empty ACTIVE memberships → `NONE`.

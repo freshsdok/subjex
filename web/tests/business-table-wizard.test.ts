@@ -40,27 +40,27 @@ describe("business-table-wizard — 新建业务表向导", () => {
       kind: "enum",
       enumValues: ["low", "medium", "high", "critical"],
     });
-    expect(state.fields[4].kind).toBe("userRef");
+    expect(state.fields[4].kind).toBe("subjectRef");
   });
 
-  it("builds entity yaml with tenantScoped and userRef — 实体 YAML", () => {
+  it("builds entity yaml with tenantScoped and subjectRef — 实体 YAML", () => {
     const yaml = buildBusinessTableEntityYaml(defaultRepairTicketWizard());
     expect(yaml).toContain("entityKey: repair-ticket");
     expect(yaml).toContain("tableName: repair_ticket");
     expect(yaml).toContain("tenantScoped: true");
-    expect(yaml).toContain("kind: userRef");
+    expect(yaml).toContain("kind: subjectRef");
     expect(yaml).toContain("enumValues: [low, medium, high, critical]");
     const parsed = parseEntityWizardFromYaml(yaml);
     expect(parsed.fields[0].name).toBe("ticketId");
-    expect(parsed.fields[4].kind).toBe("userRef");
+    expect(parsed.fields[4].kind).toBe("subjectRef");
   });
 
-  it("builds form yaml with audit.write and userRef — 表单 YAML", () => {
+  it("builds form yaml with audit.write and subjectRef — 表单 YAML", () => {
     const yaml = buildBusinessTableFormYaml(defaultRepairTicketWizard());
     expect(yaml).toContain("formKey: repair-ticket");
     expect(yaml).toContain("domainAction: entity.record.upsert");
     expect(yaml).toContain("entityKey: repair-ticket");
-    expect(yaml).toContain("kind: userRef");
+    expect(yaml).toContain("kind: subjectRef");
     expect(yaml).toContain("actionTargetField: ticketId");
     expect(yaml).not.toContain("capability");
     expect(yaml).not.toContain("algo.");
@@ -75,7 +75,7 @@ describe("business-table-wizard — 新建业务表向导", () => {
         },
       },
     ]);
-    expect(parsed.fields[4].kind).toBe("userRef");
+    expect(parsed.fields[4].kind).toBe("subjectRef");
   });
 
   it("builds flow yaml with fixed paths and four blocks — 流程路径与积木", () => {

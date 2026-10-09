@@ -15,6 +15,8 @@ import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.PolicyPrincipal;
 import com.subjex.platform.app.security.PolicyResource;
 import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.app.organization.OrganizationApiEndpoint;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
@@ -29,17 +31,24 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * OrgApiEndpoint — 组织目录 JSON：按租户列组织单元与成员关系，并支持写操作。
+ * OrgApiEndpoint — legacy org_unit JSON (deprecated since O5).
+ * <p>
+ * Prefer {@link com.subjex.platform.app.organization.OrganizationApiEndpoint}
+ * at {@code /api/v1/organizations}. This controller remains for compatibility;
+ * responses carry {@code Deprecation} / {@code Link} / {@code Warning} via
+ * response Deprecation headers.
  * <p>
  * GET needs {@code org.read}. PUT/DELETE need {@code org.write} plus an operator–tenant grant.
  * When the actor has ACTIVE memberships, responses and writes are limited to
- * {@link OrgScope#MODE_SELF_AND_DESCENDANTS}; operators without memberships stay unscoped.
+ * {@link OrgScope#MODE_SELF_AND_DESCENDANTS}. No ACTIVE memberships → {@link OrgScope#none()}
+ * (fail-closed lists/writes; never silently {@link OrgScope#MODE_UNRESTRICTED}).
  * Membership write scope uses {@link PolicyEngine} (SQL RBAC adapter).
  * Missing/blank {@code tenantId} is 400. Optional {@code subjectId} on GET memberships narrows via
  * {@link JdbcOrgDirectory#listMembershipsForSubject}.
- * GET 要 {@code org.read}。PUT/DELETE 要 {@code org.write} 与操作员—租户授权。
- * 有 ACTIVE 成员时按「本部门及下级」过滤/门禁；无成员则不过滤。缺/空 {@code tenantId} 为 400。
+ * <p>
+ * 旧 org_unit JSON（O5 起弃用）。请改用 {@code /api/v1/organizations}。本控制器仍兼容；响应带弃用头。
  */
+@Deprecated
 @RestController
 public class OrgApiEndpoint {
 
@@ -65,7 +74,9 @@ public class OrgApiEndpoint {
     @GetMapping(PATH + "/units")
     public UnitsDocument units(
             @AuthenticationPrincipal OperatorPrincipal operator,
-            @RequestParam(value = "tenantId", required = false) String tenantId) {
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            HttpServletResponse response) {
+        markDeprecated(response);
         String tid = requireTenantIdParam(tenantId);
         OrgScope scope = resolveScope(operator, tid);
         List<OrgUnitDocument> units = directory.listUnits(tid).stream()
@@ -79,7 +90,9 @@ public class OrgApiEndpoint {
     public MembershipsDocument memberships(
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestParam(value = "tenantId", required = false) String tenantId,
-            @RequestParam(value = "subjectId", required = false) String subjectId) {
+            @RequestParam(value = "subjectId", required = false) String subjectId,
+            HttpServletResponse response) {
+        markDeprecated(response);
         String tid = requireTenantIdParam(tenantId);
         OrgScope scope = resolveScope(operator, tid);
         List<OrgMembership> rows = subjectId == null || subjectId.isBlank()
@@ -97,7 +110,9 @@ public class OrgApiEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @PathVariable("orgUnitId") String orgUnitId,
             @RequestParam(value = "tenantId", required = false) String tenantId,
-            @RequestBody UnitWriteRequest body) {
+            @RequestBody UnitWriteRequest body,
+            HttpServletResponse response) {
+        markDeprecated(response);
         String tid = requireTenant(operator, tenantId);
         if (body == null) {
             throw new IllegalArgumentException("body required");
@@ -114,7 +129,9 @@ public class OrgApiEndpoint {
     public MembershipDocument upsertMembership(
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestParam(value = "tenantId", required = false) String tenantId,
-            @RequestBody MembershipWriteRequest body) {
+            @RequestBody MembershipWriteRequest body,
+            HttpServletResponse response) {
+        markDeprecated(response);
         String tid = requireTenant(operator, tenantId);
         if (body == null) {
             throw new IllegalArgumentException("body required");
@@ -136,7 +153,9 @@ public class OrgApiEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestParam(value = "tenantId", required = false) String tenantId,
             @RequestParam(value = "subjectId", required = false) String subjectId,
-            @RequestParam(value = "orgUnitId", required = false) String orgUnitId) {
+            @RequestParam(value = "orgUnitId", required = false) String orgUnitId,
+            HttpServletResponse response) {
+        markDeprecated(response);
         String tid = requireTenant(operator, tenantId);
         OrgScope scope = resolveScope(operator, tid);
         requireMembershipUnitInScope(operator, tid, scope, orgUnitId);
@@ -152,7 +171,7 @@ public class OrgApiEndpoint {
 
     private OrgScope resolveScope(OperatorPrincipal operator, String tenantId) {
         if (operator == null || operator.subjectId() == null || operator.subjectId().isBlank()) {
-            return null;
+            return OrgScope.none();
         }
         return directory.resolveSelfAndDescendants(tenantId, operator.subjectId());
     }
@@ -163,7 +182,8 @@ public class OrgApiEndpoint {
             OrgScope scope,
             String orgUnitId,
             String parentOrgUnitId) {
-        if (scope == null) {
+        OrgScope effective = scope == null ? OrgScope.none() : scope;
+        if (effective.isUnrestricted()) {
             return;
         }
         String uid = orgUnitId == null ? "" : orgUnitId.trim();
@@ -171,10 +191,10 @@ public class OrgApiEndpoint {
         boolean exists = directory.unitExists(tenantId, uid);
         boolean allowed;
         if (exists) {
-            allowed = scope.contains(uid);
+            allowed = effective.contains(uid);
         } else {
             // Creating: must attach under an in-scope parent (no new roots for scoped actors).
-            allowed = parent != null && scope.contains(parent);
+            allowed = parent != null && effective.contains(parent);
         }
         if (allowed) {
             return;
@@ -182,7 +202,7 @@ public class OrgApiEndpoint {
         AccessDecision decision = AccessDecision.deny(
                 operator == null ? null : operator.subjectId(),
                 tenantId,
-                scope,
+                effective,
                 AccessResource.of("org_unit", uid),
                 AccessAction.of("write"),
                 OperatorPermission.ORG_WRITE.permissionName(),
@@ -192,21 +212,37 @@ public class OrgApiEndpoint {
 
     private void requireMembershipUnitInScope(
             OperatorPrincipal operator, String tenantId, OrgScope scope, String orgUnitId) {
-        if (scope == null) {
-            return;
-        }
+        OrgScope effective = scope == null ? OrgScope.none() : scope;
         String uid = orgUnitId == null ? "" : orgUnitId.trim();
         policyEngine.require(
                 PolicyPrincipal.from(operator),
                 OperatorPermission.ORG_WRITE.permissionName(),
                 AccessAction.of("write"),
                 PolicyResource.of("org_membership", uid)
-                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, uid),
-                PolicyContext.of(tenantId, false, scope));
+                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, uid)
+                        .withAttribute(PolicyResource.ATTR_TENANT_ID, tenantId),
+                PolicyContext.of(tenantId, false, effective));
     }
 
     private static boolean inScopeOrUnspecified(OrgScope scope, String orgUnitId) {
-        return scope == null || scope.contains(orgUnitId);
+        if (scope == null) {
+            return false;
+        }
+        return scope.contains(orgUnitId);
+    }
+
+
+    private static void markDeprecated(HttpServletResponse response) {
+        if (response == null) {
+            return;
+        }
+        response.setHeader("Deprecation", "true");
+        response.setHeader(
+                "Link",
+                "<" + OrganizationApiEndpoint.PATH + ">; rel=\"successor-version\"");
+        response.setHeader(
+                "Warning",
+                "299 - \"Deprecated: use " + OrganizationApiEndpoint.PATH + " (O5 Organization ontology)\"");
     }
 
     private static String requireTenantIdParam(String tenantId) {

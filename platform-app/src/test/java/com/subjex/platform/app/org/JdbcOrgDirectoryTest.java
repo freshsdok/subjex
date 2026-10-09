@@ -149,7 +149,12 @@ class JdbcOrgDirectoryTest {
         Set<String> fromRoot = directory.descendantUnitIds("acme", "u-root");
         assertTrue(fromRoot.containsAll(Set.of("u-root", "u-eng", "u-team", "u-sales")));
 
-        assertNull(directory.resolveSelfAndDescendants("acme", "sub-disabled"));
-        assertNull(directory.resolveSelfAndDescendants("acme", "sub-missing"));
+        assertTrue(directory.resolveSelfAndDescendants("acme", "sub-disabled").isNone());
+        assertTrue(directory.resolveSelfAndDescendants("acme", "sub-missing").isNone());
+
+        OrgScope selfOnly = directory.resolveSelf("acme", "sub-eng");
+        assertEquals(OrgScope.MODE_SELF, selfOnly.mode());
+        assertEquals(List.of("u-eng"), selfOnly.unitIds());
+        assertFalse(selfOnly.contains("u-team"));
     }
 }

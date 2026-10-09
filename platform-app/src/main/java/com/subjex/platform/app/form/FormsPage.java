@@ -102,7 +102,8 @@ public class FormsPage {
             case BOOLEAN -> "布尔";
             case DATE -> "日期";
             case ENUM -> "枚举";
-            case USER_REF -> "选人";
+            case SUBJECT_REF -> "选主体";
+            case ORGANIZATION_REF -> "选组织";
         };
     }
 
@@ -113,7 +114,8 @@ public class FormsPage {
             case BOOLEAN -> "boolean";
             case DATE -> "date";
             case ENUM -> "enum";
-            case USER_REF -> "userRef";
+            case SUBJECT_REF -> "subjectRef";
+            case ORGANIZATION_REF -> "organizationRef";
         };
     }
 

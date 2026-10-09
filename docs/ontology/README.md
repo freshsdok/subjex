@@ -1,7 +1,7 @@
 # Ontology — O1 Model Freeze / 本体模型冻结（O1）
 
-**Status:** Model freeze (docs only). No new Flyway tables until O1 review PASS.  
-**状态：** 模型冻结（仅文档）。O1 内审通过前不写新表 Flyway。
+**Status:** O1–O6: Model → Persistence → Backfill → Authz → API/Console → **Zero-code refs**. Legacy `org_unit` still runtime (deprecated API).  
+**状态：** O1–O6 已落地。旧 `org_unit` 仍运行（旧 API 已弃用）。
 
 **Baseline:** Owner V1.0 ontology revision (2026-10).  
 **基线：** 业主 V1.0 本体修订。
@@ -26,14 +26,18 @@
 | [`lifecycle-id-state.md`](lifecycle-id-state.md) | Lifecycle, ID rules, state rules |
 | [`review-questions.md`](review-questions.md) | Ten review answers (gate for migration) |
 | [`migration-mapping.md`](migration-mapping.md) | Legacy → new mapping (no auto-merge) |
-| [`machine-gates.md`](machine-gates.md) | Planned CI gate names (stubs) |
+| [`machine-gates.md`](machine-gates.md) | CI gate names (MODEL…DECL PASS) |
+| [`o4-authorization.md`](o4-authorization.md) | O4 OrgScope modes + fail-closed auth |
+| [`o5-api-console.md`](o5-api-console.md) | O5 Organization API + console `/org` |
+| [`o6-zero-code.md`](o6-zero-code.md) | O6 subjectRef/organizationRef + SubjectPicker/OrganizationPicker |
+| [`o3-dual-read.md`](o3-dual-read.md) | O3 backfill + dual-read exact strategy |
 
 ## Locks / 锁定
 
 - Do **not** invent `organizationUnitRef` / `tenantOrgUnitRef`.
 - Pickers → **SubjectPicker** + **OrganizationPicker** (Context narrows candidates).
-- Pause structural expansion of `org_unit` / `org_membership` until O1 PASS; bugfixes OK.
-- Legacy thin model remains runtime until O7.
+- O1 PASS; pause structural expansion of `org_unit` / `org_membership` until O7; bugfixes OK.
+- Legacy thin model remains runtime until O7. O3 backfill available; do not DROP legacy tables.
 
 ## Slice order / 切片顺序
 

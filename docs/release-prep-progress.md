@@ -96,7 +96,45 @@
 ## O1 — Ontology model freeze（2026-10-09）
 
 - 文档包：`docs/adr/0001-o1-organization-ontology.md` + `docs/ontology/*`
-- 冻结六概念；十问已书面回答；**无 Flyway**；旧 `org_unit` 标为租户内薄模型（兼容至 O7）
+- 冻结六概念；十问已书面回答；内审 **approve**；已推 `github/main` `de1846ae`
 - 交叉引用：`ARCHITECTURE.md` §18、`docs/lowcode-roadmap.md`、`SECURITY.md` #9
-- 提交：本地 `docs(ontology): O1 model freeze Subject Organization Tenant`（未 push）
 
+## O2 — Persistence（2026-10-09）
+
+- Flyway `V22__organization_ontology.sql`：`organization` / `membership` / `organization_relation` / `tenant_organization`
+- `JdbcOrganizationStore`：存在性校验、CONTAINS 禁自环/禁环；旧 `org_unit` / `org_membership` **仍运行**
+- 门禁：MODEL/MEM/ORG/TENANT 单测；AUTH/MIG/DECL `@Disabled` 桩
+- Subject / Tenant 沿用 V1（不新建 subject 表）
+- 提交：本地 `feat(org): O2 persist organization membership relation tenant_organization`（未 push）
+
+## O3 — Compatibility & Backfill（2026-10-09）
+
+- Flyway `V23__org_unit_organization_map.sql`：旁路映射表
+- `OrganizationOntologyBackfill`：按租户 1:1 回填 organization / tenant_organization / CONTAINS / membership；禁跨租户同名合并
+- `JdbcOrgDirectory`：完整回填后优先读新表并投影；写仍落旧表 + 写透；回滚不删旧表
+- 策略文档：`docs/ontology/o3-dual-read.md`
+- 门禁：MIG-01 / MIG-02 / MIG-03（`OrganizationOntologyBackfillGatesTest`）
+- 提交：本地 `feat(org): O3 backfill org_unit to organization with dual-read`（未 push）
+
+## O4 — Authorization（2026-10-09）
+
+- OrgScope 五模式；Membership + OrganizationRelation 推导；fail-closed
+- 门禁 AUTH-01..05；提交：`878ba35`
+
+## O5 — API / Console（2026-10-09）
+
+- 新 API：`/api/v1/organizations`（列表/详情/写入）+ `/memberships`
+- 旧 `/api/v1/org/**`：`@Deprecated` + `Deprecation`/`Link`/`Warning` 响应头
+- 控制台 `/org` 改走新 API；写透旧表维持 O3 双读
+- 安全单测：`OrganizationApiSecurityTest`
+- 文档：`docs/ontology/o5-api-console.md`
+- 提交：本地 `feat(org): O5 organization API and console migration`（未 push；tip 见 git log）
+
+## O6 — Zero-code refs（2026-10-09）
+
+- 字段：`subjectRef` / `organizationRef`（解析仍接受 `userRef` / `orgRef`）；拒绝 organizationUnitRef/tenantOrgUnitRef
+- 积木：SubjectPicker + OrganizationPicker（旧 UserPicker/OrgPicker id 过渡期仍接受）
+- 向导/样例写出规范名；报修单 assignee = subjectRef
+- 门禁 DECL-01 / DECL-02：`DeclarationRefGatesTest`
+- 文档：`docs/ontology/o6-zero-code.md`
+- 提交：本地 `feat(lowcode): O6 organizationRef and subjectRef with pickers`（未 push）

@@ -9,7 +9,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * EntityCatalogTest — 实体目录测试：加载 classpath 样例；userRef/orgRef 解析；未知 kind 仍拒绝。
+ * EntityCatalogTest — 实体目录测试：加载 classpath 样例；subjectRef/organizationRef 解析（含旧别名）；未知 kind 仍拒绝。
  */
 class EntityCatalogTest {
 
@@ -23,14 +23,14 @@ class EntityCatalogTest {
         assertTrue(ticket.isPresent());
         assertEquals("demo_ticket", ticket.get().tableName());
         assertEquals(5, ticket.get().fields().size());
-        assertEquals(EntityFieldKind.USER_REF, ticket.get().fields().get(3).kind());
-        assertEquals(EntityFieldKind.ORG_REF, ticket.get().fields().get(4).kind());
+        assertEquals(EntityFieldKind.SUBJECT_REF, ticket.get().fields().get(3).kind());
+        assertEquals(EntityFieldKind.ORGANIZATION_REF, ticket.get().fields().get(4).kind());
         assertEquals(64, ticket.get().fields().get(3).maxLength());
         assertEquals(64, ticket.get().fields().get(4).maxLength());
     }
 
     @Test
-    void userRefAndOrgRefParseAndMapToVarchar() {
+    void subjectRefAndOrganizationRefParseAndMapToVarchar() {
         String yaml = """
                 entityKey: ref-sample
                 tableName: ref_sample
@@ -42,19 +42,68 @@ class EntityCatalogTest {
                     required: true
                     maxLength: 32
                   - name: owner
-                    kind: userRef
+                    kind: subjectRef
                     required: false
                     maxLength: 64
+                  - name: dept
+                    kind: organizationRef
+                    required: false
+                """;
+        RenderedEntity entity = new EntityRenderer().render(yaml);
+        assertEquals(EntityFieldKind.SUBJECT_REF, entity.fields().get(1).kind());
+        assertEquals(EntityFieldKind.ORGANIZATION_REF, entity.fields().get(2).kind());
+        assertEquals("subjectRef", entity.fields().get(1).kind().wireName());
+        assertEquals("organizationRef", entity.fields().get(2).kind().wireName());
+        String sql = new EntityMigrationGenerator().sql(entity);
+        assertTrue(sql.contains("owner VARCHAR(64)"));
+        assertTrue(sql.contains("dept VARCHAR(64)"));
+    }
+
+    @Test
+    void legacyUserRefAndOrgRefAliasesStillParse() {
+        String yaml = """
+                entityKey: legacy-ref
+                tableName: legacy_ref
+                version: 1
+                permission: page.read
+                fields:
+                  - name: itemId
+                    kind: text
+                    required: true
+                    maxLength: 32
+                  - name: owner
+                    kind: userRef
+                    required: false
                   - name: dept
                     kind: orgRef
                     required: false
                 """;
         RenderedEntity entity = new EntityRenderer().render(yaml);
-        assertEquals(EntityFieldKind.USER_REF, entity.fields().get(1).kind());
-        assertEquals(EntityFieldKind.ORG_REF, entity.fields().get(2).kind());
-        String sql = new EntityMigrationGenerator().sql(entity);
-        assertTrue(sql.contains("owner VARCHAR(64)"));
-        assertTrue(sql.contains("dept VARCHAR(64)"));
+        assertEquals(EntityFieldKind.SUBJECT_REF, entity.fields().get(1).kind());
+        assertEquals(EntityFieldKind.ORGANIZATION_REF, entity.fields().get(2).kind());
+    }
+
+    @Test
+    void rejectsInventedOrganizationUnitRefKinds() {
+        for (String bad : new String[] {"organizationUnitRef", "tenantOrgUnitRef"}) {
+            String yaml = """
+                    entityKey: bad-ref
+                    tableName: bad_ref
+                    version: 1
+                    permission: page.read
+                    fields:
+                      - name: itemId
+                        kind: text
+                        required: true
+                        maxLength: 8
+                      - name: unit
+                        kind: %s
+                        required: false
+                    """.formatted(bad);
+            EntityDefinitionRejected ex =
+                    assertThrows(EntityDefinitionRejected.class, () -> new EntityRenderer().render(yaml));
+            assertTrue(ex.getMessage().contains("organizationRef"));
+        }
     }
 
     @Test
@@ -71,7 +120,7 @@ class EntityCatalogTest {
                 """;
         EntityDefinitionRejected ex =
                 assertThrows(EntityDefinitionRejected.class, () -> new EntityRenderer().render(yaml));
-        assertTrue(ex.getMessage().contains("userRef"));
+        assertTrue(ex.getMessage().contains("subjectRef"));
     }
 
     @Test

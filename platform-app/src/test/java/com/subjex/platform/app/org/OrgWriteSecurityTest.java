@@ -99,6 +99,9 @@ class OrgWriteSecurityTest {
         }
         jdbc.update("DELETE FROM operator_tenant_grant WHERE subject_id = ?", "subject-viewer");
         tenantAccess.ensureGrant(LocalOperatorSeeder.SUBJECT_ID, OperatorTenantAccess.ALL_TENANTS);
+        // Platform operator without memberships: explicit UNRESTRICTED (AUTH-03 — never implied by null).
+        when(directory.resolveSelfAndDescendants(anyString(), eq(LocalOperatorSeeder.SUBJECT_ID)))
+                .thenReturn(OrgScope.unrestricted());
     }
 
     @Test

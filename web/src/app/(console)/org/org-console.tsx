@@ -15,18 +15,18 @@ import {
 
 type TenantOption = { tenantId: string; tenantName: string };
 
-type UnitRow = {
+type OrganizationRow = {
   tenantId?: string;
-  orgUnitId?: string;
-  parentOrgUnitId?: string | null;
-  unitName?: string;
-  unitState?: string;
+  organizationId?: string;
+  parentOrganizationId?: string | null;
+  organizationName?: string;
+  organizationState?: string;
 };
 
 type MembershipRow = {
   tenantId?: string;
   subjectId?: string;
-  orgUnitId?: string;
+  organizationId?: string;
   membershipState?: string;
 };
 
@@ -39,11 +39,11 @@ type Props = {
   initialTenantId: string;
 };
 
-// Org console — 组织控制台：选租户、列单元/成员；有 org.write 时两步确认写入。
+// Org console — O5：选租户、列 Organization/Membership；走 /api/v1/organizations；有 org.write 时两步确认写入。
 export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }: Props) {
   const router = useRouter();
   const [tenantId, setTenantId] = useState(initialTenantId);
-  const [units, setUnits] = useState<UnitRow[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationRow[]>([]);
   const [memberships, setMemberships] = useState<MembershipRow[]>([]);
   const [listStatus, setListStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listErrorStatus, setListErrorStatus] = useState(0);
@@ -67,7 +67,7 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
   const [memberProblem, setMemberProblem] = useState<string | null>(null);
   const [memberNotice, setMemberNotice] = useState<string | null>(null);
 
-  const [removeKey, setRemoveKey] = useState<{ subjectId: string; orgUnitId: string } | null>(null);
+  const [removeKey, setRemoveKey] = useState<{ subjectId: string; organizationId: string } | null>(null);
   const [removeStep, setRemoveStep] = useState<FormStep>("editing");
   const [removeProblem, setRemoveProblem] = useState<string | null>(null);
 
@@ -80,31 +80,31 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
   const loadLists = useCallback(async () => {
     const tid = tenantId.trim();
     if (!tid) {
-      setUnits([]);
+      setOrganizations([]);
       setMemberships([]);
       setListStatus("idle");
       return;
     }
     setListStatus("loading");
     const q = `tenantId=${encodeURIComponent(tid)}`;
-    const [unitsReply, membersReply] = await Promise.all([
-      fetch(`/api/platform/org/units?${q}`, { cache: "no-store" }).catch(() => null),
-      fetch(`/api/platform/org/memberships?${q}`, { cache: "no-store" }).catch(() => null),
+    const [orgsReply, membersReply] = await Promise.all([
+      fetch(`/api/platform/organizations?${q}`, { cache: "no-store" }).catch(() => null),
+      fetch(`/api/platform/organizations/memberships?${q}`, { cache: "no-store" }).catch(() => null),
     ]);
-    if (unitsReply?.status === 401 || membersReply?.status === 401) {
+    if (orgsReply?.status === 401 || membersReply?.status === 401) {
       router.replace("/login");
       return;
     }
-    if (!unitsReply?.ok || !membersReply?.ok) {
-      setListErrorStatus(unitsReply?.status || membersReply?.status || 0);
+    if (!orgsReply?.ok || !membersReply?.ok) {
+      setListErrorStatus(orgsReply?.status || membersReply?.status || 0);
       setListStatus("error");
-      setUnits([]);
+      setOrganizations([]);
       setMemberships([]);
       return;
     }
-    const unitsBody = (await unitsReply.json()) as { units?: UnitRow[] };
+    const orgsBody = (await orgsReply.json()) as { organizations?: OrganizationRow[] };
     const membersBody = (await membersReply.json()) as { memberships?: MembershipRow[] };
-    setUnits(unitsBody.units ?? []);
+    setOrganizations(orgsBody.organizations ?? []);
     setMemberships(membersBody.memberships ?? []);
     setListStatus("ok");
   }, [tenantId, router]);
@@ -154,13 +154,17 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
     const parent = normalizeOptionalParentId(unitParent) ?? "";
     const name = unitName.trim();
     const state = unitState.trim() || ORG_UNIT_STATE_ACTIVE;
-    const body: { parentOrgUnitId?: string; unitName: string; unitState: string } = {
-      unitName: name,
-      unitState: state,
+    const body: {
+      parentOrganizationId?: string;
+      organizationName: string;
+      organizationState: string;
+    } = {
+      organizationName: name,
+      organizationState: state,
     };
-    if (parent) body.parentOrgUnitId = parent;
+    if (parent) body.parentOrganizationId = parent;
     const reply = await fetch(
-      `/api/platform/org/units/${encodeURIComponent(id)}?tenantId=${encodeURIComponent(tid)}`,
+      `/api/platform/organizations/${encodeURIComponent(id)}?tenantId=${encodeURIComponent(tid)}`,
       {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -185,28 +189,32 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
     void loadLists();
   }
 
-  function startToggle(row: UnitRow) {
-    if (!canWrite || !row.orgUnitId) return;
+  function startToggle(row: OrganizationRow) {
+    if (!canWrite || !row.organizationId) return;
     setToggleProblem(null);
-    setToggleUnitId(row.orgUnitId);
+    setToggleUnitId(row.organizationId);
     setToggleStep("reviewing");
   }
 
   async function confirmToggle() {
     if (!canWrite || !toggleUnitId) return;
-    const row = units.find((u) => u.orgUnitId === toggleUnitId);
+    const row = organizations.find((u) => u.organizationId === toggleUnitId);
     if (!row) return;
     setToggleStep("saving");
     setToggleProblem(null);
     const tid = tenantId.trim();
-    const nextState = toggledOrgState(row.unitState);
-    const body: { parentOrgUnitId?: string; unitName: string; unitState: string } = {
-      unitName: row.unitName ?? toggleUnitId,
-      unitState: nextState,
+    const nextState = toggledOrgState(row.organizationState);
+    const body: {
+      parentOrganizationId?: string;
+      organizationName: string;
+      organizationState: string;
+    } = {
+      organizationName: row.organizationName ?? toggleUnitId,
+      organizationState: nextState,
     };
-    if (row.parentOrgUnitId) body.parentOrgUnitId = row.parentOrgUnitId;
+    if (row.parentOrganizationId) body.parentOrganizationId = row.parentOrganizationId;
     const reply = await fetch(
-      `/api/platform/org/units/${encodeURIComponent(toggleUnitId)}?tenantId=${encodeURIComponent(tid)}`,
+      `/api/platform/organizations/${encodeURIComponent(toggleUnitId)}?tenantId=${encodeURIComponent(tid)}`,
       {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -256,11 +264,18 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
     const subject = normalizeOrgId(memberSubject)!;
     const unit = normalizeOrgId(memberUnit)!;
     const state = memberState.trim() || ORG_MEMBERSHIP_STATE_ACTIVE;
-    const reply = await fetch(`/api/platform/org/memberships?tenantId=${encodeURIComponent(tid)}`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ subjectId: subject, orgUnitId: unit, membershipState: state }),
-    }).catch(() => null);
+    const reply = await fetch(
+      `/api/platform/organizations/memberships?tenantId=${encodeURIComponent(tid)}`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          subjectId: subject,
+          organizationId: unit,
+          membershipState: state,
+        }),
+      },
+    ).catch(() => null);
     if (reply?.status === 401) {
       router.replace("/login");
       return;
@@ -279,9 +294,9 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
   }
 
   function startRemove(row: MembershipRow) {
-    if (!canWrite || !row.subjectId || !row.orgUnitId) return;
+    if (!canWrite || !row.subjectId || !row.organizationId) return;
     setRemoveProblem(null);
-    setRemoveKey({ subjectId: row.subjectId, orgUnitId: row.orgUnitId });
+    setRemoveKey({ subjectId: row.subjectId, organizationId: row.organizationId });
     setRemoveStep("reviewing");
   }
 
@@ -293,9 +308,9 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
     const q = new URLSearchParams({
       tenantId: tid,
       subjectId: removeKey.subjectId,
-      orgUnitId: removeKey.orgUnitId,
+      organizationId: removeKey.organizationId,
     });
-    const reply = await fetch(`/api/platform/org/memberships?${q.toString()}`, {
+    const reply = await fetch(`/api/platform/organizations/memberships?${q.toString()}`, {
       method: "DELETE",
     }).catch(() => null);
     if (reply?.status === 401) {
@@ -368,7 +383,7 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
           <section>
             <h2 className="text-sm font-medium">{phrases.orgUnitsTitle}</h2>
             <p className="mt-1 text-xs text-muted">{phrases.orgUnitsHint}</p>
-            {units.length === 0 ? (
+            {organizations.length === 0 ? (
               <p className="mt-3 text-sm text-muted">{phrases.emptyList}</p>
             ) : (
               <table className="mt-3 w-full border-collapse overflow-hidden rounded-lg border border-border bg-surface text-sm">
@@ -382,18 +397,18 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
                   </tr>
                 </thead>
                 <tbody>
-                  {units.map((row) => {
-                    const id = row.orgUnitId ?? "";
-                    const disabled = isOrgDisabledState(row.unitState);
+                  {organizations.map((row) => {
+                    const id = row.organizationId ?? "";
+                    const disabled = isOrgDisabledState(row.organizationState);
                     const reviewingThis = toggleUnitId === id && toggleStep !== "editing";
                     return (
                       <tr key={id} className="border-t border-border align-top">
-                        <td className="px-3 py-2 font-mono text-xs">{row.orgUnitId}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{row.organizationId}</td>
                         <td className="px-3 py-2 font-mono text-xs text-muted">
-                          {row.parentOrgUnitId || phrases.orgRootLabel}
+                          {row.parentOrganizationId || phrases.orgRootLabel}
                         </td>
-                        <td className="px-3 py-2">{row.unitName}</td>
-                        <td className="px-3 py-2">{row.unitState}</td>
+                        <td className="px-3 py-2">{row.organizationName}</td>
+                        <td className="px-3 py-2">{row.organizationState}</td>
                         {canWrite ? (
                           <td className="px-3 py-2">
                             {reviewingThis ? (
@@ -401,7 +416,7 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
                                 <p>
                                   {fillPhrase(phrases.orgUnitToggleReview, {
                                     id,
-                                    state: toggledOrgState(row.unitState),
+                                    state: toggledOrgState(row.organizationState),
                                   })}
                                 </p>
                                 {toggleProblem ? (
@@ -578,15 +593,15 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
                 </thead>
                 <tbody>
                   {memberships.map((row) => {
-                    const key = `${row.subjectId}/${row.orgUnitId}`;
+                    const key = `${row.subjectId}/${row.organizationId}`;
                     const reviewingThis =
                       removeKey?.subjectId === row.subjectId &&
-                      removeKey?.orgUnitId === row.orgUnitId &&
+                      removeKey?.organizationId === row.organizationId &&
                       removeStep !== "editing";
                     return (
                       <tr key={key} className="border-t border-border align-top">
                         <td className="px-3 py-2 font-mono text-xs">{row.subjectId}</td>
-                        <td className="px-3 py-2 font-mono text-xs">{row.orgUnitId}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{row.organizationId}</td>
                         <td className="px-3 py-2">{row.membershipState}</td>
                         {canWrite ? (
                           <td className="px-3 py-2">
@@ -595,7 +610,7 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
                                 <p>
                                   {fillPhrase(phrases.orgMembershipRemoveReview, {
                                     subject: row.subjectId ?? "",
-                                    unit: row.orgUnitId ?? "",
+                                    unit: row.organizationId ?? "",
                                   })}
                                 </p>
                                 {removeProblem ? (

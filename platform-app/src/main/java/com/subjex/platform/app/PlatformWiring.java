@@ -26,6 +26,8 @@ import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.platform.app.page.PageCatalog;
 import com.subjex.platform.app.org.JdbcOrgDirectory;
+import com.subjex.platform.app.organization.JdbcOrganizationStore;
+import com.subjex.platform.app.organization.OrganizationOntologyBackfill;
 import com.subjex.platform.app.capability.CapabilityCatalog;
 import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.form.FormDomainActionRunner;
@@ -539,9 +541,32 @@ public class PlatformWiring {
     /**
      * Read-only org_unit tree and memberships — 只读组织树与成员关系。
      */
+    /**
+     * O2 Organization ontology store (alongside legacy org_unit) —
+     * O2 Organization 本体存储（与旧 org_unit 并存）。
+     */
     @Bean
-    JdbcOrgDirectory jdbcOrgDirectory(JdbcTemplate jdbc) {
-        return new JdbcOrgDirectory(jdbc);
+    JdbcOrganizationStore jdbcOrganizationStore(JdbcTemplate jdbc) {
+        return new JdbcOrganizationStore(jdbc);
+    }
+
+    /**
+     * O3 backfill org_unit → organization (idempotent; no cross-tenant merge) —
+     * O3 回填（幂等；禁止跨租户合并）。
+     */
+    @Bean
+    OrganizationOntologyBackfill organizationOntologyBackfill(
+            JdbcTemplate jdbc, JdbcOrganizationStore jdbcOrganizationStore) {
+        return new OrganizationOntologyBackfill(jdbc, jdbcOrganizationStore);
+    }
+
+    /**
+     * Org directory with O3 dual-read / write-through —
+     * 组织目录（O3 双读 / 写透）。
+     */
+    @Bean
+    JdbcOrgDirectory jdbcOrgDirectory(JdbcTemplate jdbc, JdbcOrganizationStore jdbcOrganizationStore) {
+        return new JdbcOrgDirectory(jdbc, jdbcOrganizationStore);
     }
 
     /**

@@ -375,3 +375,17 @@ OB-2. [done] Module `subjex-outbox-kafka`: KafkaDeliveryPublisher + auto-config 
 
 Local commits only (not pushed). Checklist: `docs/release/v0.1.0-alpha.1-checklist.md`. Tag blocked by `docs/release/drills/DRILL-PENDING.md`.
 仅本地提交。检查表见上；`DRILL-PENDING` 阻断 tag。
+
+O1. [done] Model freeze docs ADR+ontology pack; review approve; pushed github/main `de1846ae`.
+O2. [done] Flyway V22 organization/membership/organization_relation/tenant_organization + JdbcOrganizationStore; MODEL/MEM/ORG/TENANT gates; AUTH/MIG/DECL stubs; legacy org_unit kept; local commit only (no push).
+
+O3. [done] V23 org_unit_organization_map; OrganizationOntologyBackfill (per-tenant 1:1, no cross-tenant merge); JdbcOrgDirectory dual-read prefer-new when fully backfilled + write-through; MIG-01/02/03; docs o3-dual-read; legacy tables kept. Local commit only (no push).
+
+O4. [done] OrgScope modes NONE/UNRESTRICTED/SELF/SELF_AND_DESCENDANTS/EXPLICIT; AccessChecker fail-closed on missing scope; SqlRbacPolicyEngine tenant_mismatch; JdbcOrgDirectory resolveSelf + ontology Membership/Relation (TenantOrganization filter); AUTH-01..05; legacy dual-read kept. Local commit only (no push).
+    组织范围五模式；缺 scope fail-closed；租户不一致拒绝；从 Membership+OrganizationRelation 推导；AUTH 门禁；旧表双读保留。仅本地提交。
+
+O5. [done] `/api/v1/organizations` + memberships; console `/org`; legacy `/api/v1/org` deprecated; OrganizationApiSecurityTest; local commit `f447c08`.
+    Organization API 与控制台；旧 API 弃用。本地提交。
+
+O6. [done] Zero-code: `subjectRef`/`organizationRef` (dual-accept userRef/orgRef); SubjectPicker + OrganizationPicker; wizards/samples write canonical; DECL-01/02 green; no O7 DROP. Local commit only (no push).
+    零代码引用与选人积木收敛；门禁 DECL 绿；不删旧表。仅本地提交。

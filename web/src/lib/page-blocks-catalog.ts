@@ -23,8 +23,8 @@ export const PAGE_BLOCKS_CATALOG: readonly PageBlockCatalogEntry[] = [
     id: "FormFields",
     titleEn: "Form fields (from entity/form)",
     titleZh: "表单字段（来自实体/表单）",
-    summaryEn: "Renders form/entity fields (text/number/date/enum/boolean; userRef/orgRef via pickers). Used by declared submit.",
-    summaryZh: "按表单/实体字段渲染控件（文本/数字/日期/枚举/布尔；userRef/orgRef 走选人/选部门）。声明式提交页使用。",
+    summaryEn: "Renders form/entity fields (text/number/date/enum/boolean; subjectRef/organizationRef via SubjectPicker/OrganizationPicker). Used by declared submit.",
+    summaryZh: "按表单/实体字段渲染控件（文本/数字/日期/枚举/布尔；subjectRef/organizationRef 走 SubjectPicker/OrganizationPicker）。声明式提交页使用。",
     status: "runtime",
   },
   {
@@ -60,19 +60,19 @@ export const PAGE_BLOCKS_CATALOG: readonly PageBlockCatalogEntry[] = [
     status: "runtime",
   },
   {
-    id: "UserPicker",
-    titleEn: "User picker",
-    titleZh: "选人",
-    summaryEn: "Live thin-org memberships when tenantId is set; otherwise enabled subject-id text input.",
-    summaryZh: "有 tenantId 时拉薄组织成员；否则可编辑主体 id 文本框。",
+    id: "SubjectPicker",
+    titleEn: "Subject picker",
+    titleZh: "选主体",
+    summaryEn: "Live Membership subjectIds for tenant when tenantId is set; otherwise enabled subject-id text input. Context narrows candidates.",
+    summaryZh: "有 tenantId 时拉该租户 Membership 的 subjectId；否则可编辑主体 id。Context 收窄候选。",
     status: "runtime-thin",
   },
   {
-    id: "OrgPicker",
-    titleEn: "Org unit picker",
-    titleZh: "选部门",
-    summaryEn: "Live thin-org units when tenantId is set; otherwise enabled text input.",
-    summaryZh: "有 tenantId 时拉薄组织单元；否则可编辑文本框。",
+    id: "OrganizationPicker",
+    titleEn: "Organization picker",
+    titleZh: "选组织",
+    summaryEn: "Live Organizations linked to tenant when tenantId is set; otherwise enabled organization-id text input. Context narrows candidates.",
+    summaryZh: "有 tenantId 时拉租户关联 Organization；否则可编辑组织 id。Context 收窄候选。",
     status: "runtime-thin",
   },
   {
@@ -89,6 +89,19 @@ export const PAGE_BLOCK_IDS: readonly string[] = PAGE_BLOCKS_CATALOG.map((entry)
 
 export const PAGE_BLOCK_ID_SET: ReadonlySet<string> = new Set(PAGE_BLOCK_IDS);
 
+/** O6 transition: old flow YAML may still list UserPicker/OrgPicker — 过渡期旧积木 id。 */
+export const LEGACY_PAGE_BLOCK_ALIASES: ReadonlySet<string> = new Set([
+  "UserPicker",
+  "OrgPicker",
+]);
+
 export function isPageBlockId(value: string): boolean {
-  return PAGE_BLOCK_ID_SET.has(value);
+  return PAGE_BLOCK_ID_SET.has(value) || LEGACY_PAGE_BLOCK_ALIASES.has(value);
+}
+
+/** Canonical block id (maps legacy aliases) — 规范积木 id。 */
+export function canonicalPageBlockId(value: string): string {
+  if (value === "UserPicker") return "SubjectPicker";
+  if (value === "OrgPicker") return "OrganizationPicker";
+  return value;
 }

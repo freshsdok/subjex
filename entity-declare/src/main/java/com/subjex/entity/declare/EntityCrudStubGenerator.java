@@ -141,7 +141,7 @@ public final class EntityCrudStubGenerator {
         return switch (field.kind()) {
             case INTEGER -> field.required() ? "int" : "Integer";
             case BOOLEAN -> field.required() ? "boolean" : "Boolean";
-            case TEXT, ENUM, DATE, USER_REF, ORG_REF, ENTITY_REF -> "String";
+            case TEXT, ENUM, DATE, SUBJECT_REF, ORGANIZATION_REF, ENTITY_REF -> "String";
         };
     }
 }

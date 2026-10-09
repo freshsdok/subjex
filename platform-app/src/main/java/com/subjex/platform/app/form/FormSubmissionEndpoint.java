@@ -213,7 +213,7 @@ public class FormSubmissionEndpoint {
 
     private static Object coerce(FormField field, Object raw) {
         return switch (field.kind()) {
-            case TEXT, DATE, USER_REF -> coerceTextLike(field, raw);
+            case TEXT, DATE, SUBJECT_REF, ORGANIZATION_REF -> coerceTextLike(field, raw);
             case ENUM -> {
                 String text = coerceTextLike(field, raw);
                 if (!field.enumValues().contains(text)) {

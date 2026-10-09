@@ -151,4 +151,33 @@ class SqlRbacPolicyEngineTest {
         assertEquals("sub-9", principal.subjectId());
         assertTrue(principal.permissionNames().contains("org.write"));
     }
+
+    @Test
+    void deniesWhenContextTenantMismatchesResourceTenant() {
+        PolicyPrincipal principal = PolicyPrincipal.of("subject-1", Set.of("org.write"));
+        AccessDecision decision = engine.evaluate(
+                principal,
+                "org.write",
+                AccessAction.of("write"),
+                PolicyResource.of("org_unit", "u-eng")
+                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, "u-eng")
+                        .withAttribute(PolicyResource.ATTR_TENANT_ID, "other"),
+                PolicyContext.of("acme", false, OrgScope.unrestricted()));
+        assertFalse(decision.allowed());
+        assertEquals(AccessDecision.DENY_TENANT_MISMATCH, decision.denyReason());
+    }
+
+    @Test
+    void deniesWhenOrgScopeMissingOnResourceOrg() {
+        PolicyPrincipal principal = PolicyPrincipal.of("subject-1", Set.of("org.write"));
+        AccessDecision decision = engine.evaluate(
+                principal,
+                "org.write",
+                AccessAction.of("write"),
+                PolicyResource.of("org_membership", "u-root")
+                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, "u-root"),
+                PolicyContext.of("acme", false, null));
+        assertFalse(decision.allowed());
+        assertEquals(AccessDecision.DENY_ORG_SCOPE_MISSING, decision.denyReason());
+    }
 }

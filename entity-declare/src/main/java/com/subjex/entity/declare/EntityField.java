@@ -5,10 +5,10 @@ import java.util.List;
 /**
  * EntityField — 实体字段：渲染后的一个字段，约束已经校验过。
  * <p>
- * {@code maxLength} belongs to text / enum / userRef / orgRef / entityRef.
+ * {@code maxLength} belongs to text / enum / subjectRef / organizationRef / entityRef.
  * Integer, boolean, and date fields do not use maxLength.
  * {@code enumValues} is required for enum. {@code refEntityKey} is optional on entityRef.
- * {@code maxLength} 属于 text / enum / userRef / orgRef / entityRef。
+ * {@code maxLength} 属于 text / enum / subjectRef / organizationRef / entityRef。
  * integer / boolean / date 不使用 maxLength。enum 必须带 enumValues；entityRef 可带 refEntityKey。
  */
 public record EntityField(

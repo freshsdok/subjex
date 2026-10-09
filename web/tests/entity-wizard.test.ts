@@ -57,8 +57,8 @@ describe("entity-wizard — 实体向导", () => {
       enumValues: [],
       refEntityKey: null,
     });
-    expect(state.fields[3].kind).toBe("userRef");
-    expect(state.fields[4].kind).toBe("orgRef");
+    expect(state.fields[3].kind).toBe("subjectRef");
+    expect(state.fields[4].kind).toBe("organizationRef");
   });
 
   it("round-trips apply → parse — 应用后再解析一致", () => {
@@ -66,8 +66,10 @@ describe("entity-wizard — 实体向导", () => {
     const yaml = applyEntityWizardToYaml("", parsed);
     expect(yaml).toContain("entityKey: demo-ticket");
     expect(yaml).toContain("tableName: demo_ticket");
-    expect(yaml).toContain("kind: userRef");
-    expect(yaml).toContain("kind: orgRef");
+    expect(yaml).toContain("kind: subjectRef");
+    expect(yaml).toContain("kind: organizationRef");
+    expect(yaml).not.toContain("kind: userRef");
+    expect(yaml).not.toContain("kind: orgRef");
     const fieldsChunk = yaml.slice(yaml.indexOf("fields:"));
     expect(fieldsChunk.indexOf("ticketId")).toBeLessThan(fieldsChunk.indexOf("title"));
     const again = parseEntityWizardFromYaml(yaml);

@@ -145,7 +145,7 @@ class AccessCheckerTest {
     }
 
     @Test
-    void skipsOrgFilterWhenScopeUnspecified() {
+    void deniesWhenScopeUnspecifiedAndResourceOrgPresent() {
         OperatorPrincipal operator = operator("subject-1", Set.of("org.write"));
         AccessDecision decision = AccessChecker.evaluate(
                 operator,
@@ -158,8 +158,63 @@ class AccessCheckerTest {
                 AccessAction.of("write"),
                 null,
                 "u-root");
+        assertFalse(decision.allowed());
+        assertEquals(AccessDecision.DENY_ORG_SCOPE_MISSING, decision.denyReason());
+        assertNull(decision.orgScope());
+    }
+
+    @Test
+    void skipsOrgFilterWhenResourceOrgBlankEvenIfScopeMissing() {
+        OperatorPrincipal operator = operator("subject-1", Set.of("org.write"));
+        AccessDecision decision = AccessChecker.evaluate(
+                operator,
+                "org.write",
+                false,
+                "acme",
+                tenantGuard,
+                null,
+                AccessResource.of("form", "endpoint"),
+                AccessAction.of("write"),
+                null,
+                null);
         assertTrue(decision.allowed());
         assertNull(decision.orgScope());
+    }
+
+    @Test
+    void unrestrictedAllowsAnyResourceOrg() {
+        OperatorPrincipal operator = operator("subject-1", Set.of("org.write"));
+        AccessDecision decision = AccessChecker.evaluate(
+                operator,
+                "org.write",
+                false,
+                "acme",
+                tenantGuard,
+                null,
+                AccessResource.of("org_unit", "u-root"),
+                AccessAction.of("write"),
+                OrgScope.unrestricted(),
+                "u-root");
+        assertTrue(decision.allowed());
+        assertTrue(decision.orgScope().isUnrestricted());
+    }
+
+    @Test
+    void noneDeniesAnyResourceOrg() {
+        OperatorPrincipal operator = operator("subject-1", Set.of("org.write"));
+        AccessDecision decision = AccessChecker.evaluate(
+                operator,
+                "org.write",
+                false,
+                "acme",
+                tenantGuard,
+                null,
+                AccessResource.of("org_unit", "u-root"),
+                AccessAction.of("write"),
+                OrgScope.none(),
+                "u-root");
+        assertFalse(decision.allowed());
+        assertEquals(AccessDecision.DENY_ORG_OUT_OF_SCOPE, decision.denyReason());
     }
 
     @Test

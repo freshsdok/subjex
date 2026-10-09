@@ -34,7 +34,7 @@ public final class FormRecordGenerator {
         return switch (field.kind()) {
             case INTEGER -> field.required() ? "int" : "Integer";
             case BOOLEAN -> field.required() ? "boolean" : "Boolean";
-            case TEXT, DATE, ENUM, USER_REF -> "String";
+            case TEXT, DATE, ENUM, SUBJECT_REF, ORGANIZATION_REF -> "String";
         };
     }
 }

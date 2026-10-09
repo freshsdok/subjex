@@ -8,11 +8,21 @@ export const ENTITY_FIELD_KINDS = [
   "boolean",
   "enum",
   "date",
-  "userRef",
-  "orgRef",
+  "subjectRef",
+  "organizationRef",
   "entityRef",
 ] as const;
 export type EntityWizardFieldKind = (typeof ENTITY_FIELD_KINDS)[number];
+
+/** O6: map legacy wire names to canonical kinds — 旧字段种类 → 规范名。 */
+export function normalizeEntityFieldKind(raw: string): EntityWizardFieldKind | null {
+  if (raw === "userRef") return "subjectRef";
+  if (raw === "orgRef") return "organizationRef";
+  if ((ENTITY_FIELD_KINDS as readonly string[]).includes(raw)) {
+    return raw as EntityWizardFieldKind;
+  }
+  return null;
+}
 
 export type EntityWizardField = {
   name: string;
@@ -88,7 +98,7 @@ export function formatEnumValuesList(values: readonly string[]): string {
 }
 
 export function isEntityWizardFieldKind(value: string): value is EntityWizardFieldKind {
-  return (ENTITY_FIELD_KINDS as readonly string[]).includes(value);
+  return normalizeEntityFieldKind(value) !== null;
 }
 
 function blankField(name = ""): EntityWizardField {
@@ -188,7 +198,8 @@ export function parseEntityWizardFromYaml(yaml: string): EntityWizardState {
         const [, name, raw] = prop;
         if (name === "kind") {
           const k = stripQuotes(raw);
-          if (isEntityWizardFieldKind(k)) current.kind = k;
+          const normalized = normalizeEntityFieldKind(k);
+          if (normalized) current.kind = normalized;
         } else if (name === "required") {
           const b = parseBool(raw);
           if (b != null) current.required = b;

@@ -1,7 +1,7 @@
 # Migration mapping (O1 plan) / 迁移映射（O1 规划）
 
-**This file is a mapping table only.** Dual-read implementation is **O3**. Formal DDL is **O2** after O1 review PASS.  
-**本文件仅为映射表。** 双读实现属 **O3**。正式 DDL 在 O1 内审通过后的 **O2**。
+**Mapping + O3 status.** Formal DDL is O2 (`V22`). Remap + dual-read are O3 (`V23`, `OrganizationOntologyBackfill`).  
+**映射与 O3 状态。** 正式 DDL 为 O2（V22）。旁路映射与双读为 O3（V23、Backfill）。详见 [`o3-dual-read.md`](o3-dual-read.md)。
 
 ## Hard rules / 硬规则
 
@@ -29,17 +29,18 @@
 | Same `org_unit_id` string in two tenants | **Do not merge**; mint distinct Organization ids; keep remap table for dual-read |
 | Same `unit_name`, different tenants | **Do not merge** |
 
-## Dual-read (later O3) / 双读（后置 O3）
+## Dual-read (O3) / 双读（O3）
+
+Exact strategy: [`o3-dual-read.md`](o3-dual-read.md).
 
 | Phase | Read | Write |
 | --- | --- | --- |
-| Pre-O3 | Legacy only | Legacy only |
-| O3 dual-read | Prefer new; fallback legacy; compare in tests (MIG-*) | Write both or write new + async backfill (decide in O3 ADR) |
+| Pre-backfill | Legacy only | Legacy + optional write-through on API writes |
+| O3 fully backfilled tenant | Prefer ontology (project via map); MIG-* tests | Legacy + write-through |
 | Post-O7 | New only | New only; drop legacy tables |
 
 ## Out of scope here / 此处不做
 
-- Flyway scripts
 - Automated merge UI
 - SCIM / cross-org identity sync
 - Deleting `org_unit` / `org_membership` (O7 only after MIG/AUTH/API/console/declaration/E2E PASS)

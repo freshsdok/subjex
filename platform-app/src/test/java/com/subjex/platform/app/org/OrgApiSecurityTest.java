@@ -4,6 +4,7 @@ import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguratio
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR_PASSWORD;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER_PASSWORD;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -81,6 +82,8 @@ class OrgApiSecurityTest {
                     passwordEncoder.encode(BARE_PASSWORD));
             // No subject_role → no permissions (including org.read).
         }
+        // Default: explicit UNRESTRICTED for actors without membership stubs (AUTH-03).
+        when(directory.resolveSelfAndDescendants(anyString(), anyString())).thenReturn(OrgScope.unrestricted());
     }
 
     @Test
@@ -189,8 +192,9 @@ class OrgApiSecurityTest {
     }
 
     @Test
-    void unscopedActorSeesFullTenantList() throws Exception {
-        when(directory.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID)).thenReturn(null);
+    void unrestrictedActorSeesFullTenantList() throws Exception {
+        when(directory.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID))
+                .thenReturn(OrgScope.unrestricted());
         when(directory.listUnits("acme"))
                 .thenReturn(List.of(
                         new OrgUnit("acme", "u-root", null, "Root", "ACTIVE"),
@@ -201,6 +205,22 @@ class OrgApiSecurityTest {
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.units.length()").value(2));
+    }
+
+    @Test
+    void noneScopedActorSeesEmptyList() throws Exception {
+        when(directory.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID))
+                .thenReturn(OrgScope.none());
+        when(directory.listUnits("acme"))
+                .thenReturn(List.of(
+                        new OrgUnit("acme", "u-root", null, "Root", "ACTIVE"),
+                        new OrgUnit("acme", "u-eng", "u-root", "Eng", "ACTIVE")));
+
+        mockMvc.perform(get(OrgApiEndpoint.PATH + "/units")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.units.length()").value(0));
     }
 
     @TestConfiguration

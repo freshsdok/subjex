@@ -9,8 +9,9 @@ import java.util.Set;
  * <p>
  * Does not fork permission or org-scope logic. Bridges {@link PolicyPrincipal} to a lightweight
  * {@link OperatorPrincipal} for AccessChecker. Resource {@link PolicyResource#ATTR_ORG_UNIT_ID}
- * feeds org-scope checks. No Cedar/Casbin dependency.
- * 不复制权限/组织逻辑；主体桥到轻量 OperatorPrincipal；资源 orgUnitId 供范围核对。
+ * feeds org-scope checks. Context vs resource tenant mismatch → {@link AccessDecision#DENY_TENANT_MISMATCH}.
+ * No Cedar/Casbin dependency.
+ * 不复制权限/组织逻辑；主体桥到轻量 OperatorPrincipal；资源 orgUnitId 供范围核对；租户不一致拒绝。
  */
 public final class SqlRbacPolicyEngine implements PolicyEngine {
 
@@ -33,9 +34,24 @@ public final class SqlRbacPolicyEngine implements PolicyEngine {
         Objects.requireNonNull(resource, "resource");
         PolicyContext ctx = context == null ? PolicyContext.unscoped() : context;
         OperatorPrincipal bridge = bridge(principal);
-        String tenantId = ctx.tenantId();
+        String ctxTenant = ctx.tenantId();
+        String resourceTenant = resource.attribute(PolicyResource.ATTR_TENANT_ID);
+        if (ctxTenant != null
+                && resourceTenant != null
+                && !resourceTenant.isBlank()
+                && !ctxTenant.equals(resourceTenant.trim())) {
+            return AccessDecision.deny(
+                    principal == null ? null : principal.subjectId(),
+                    ctxTenant,
+                    ctx.orgScope(),
+                    AccessResource.of(resource.kind(), resource.id()),
+                    action,
+                    requiredPermission == null || requiredPermission.isBlank() ? null : requiredPermission,
+                    AccessDecision.DENY_TENANT_MISMATCH);
+        }
+        String tenantId = ctxTenant;
         if (tenantId == null) {
-            tenantId = resource.attribute(PolicyResource.ATTR_TENANT_ID);
+            tenantId = resourceTenant;
         }
         return AccessChecker.evaluate(
                 bridge,

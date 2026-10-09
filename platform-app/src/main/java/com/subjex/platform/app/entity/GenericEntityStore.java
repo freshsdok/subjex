@@ -210,7 +210,7 @@ public final class GenericEntityStore {
                     throw new IllegalArgumentException("filterValue must be integer for field: " + field.name());
                 }
             }
-            case TEXT, ENUM, DATE, USER_REF, ORG_REF, ENTITY_REF -> raw;
+            case TEXT, ENUM, DATE, SUBJECT_REF, ORGANIZATION_REF, ENTITY_REF -> raw;
         };
     }
 
@@ -288,7 +288,7 @@ public final class GenericEntityStore {
             case BOOLEAN -> coerceBoolean(field.name(), raw);
             case DATE -> coerceDate(field.name(), raw);
             case ENUM -> coerceEnum(field, raw);
-            case TEXT, USER_REF, ORG_REF, ENTITY_REF -> coerceText(field, raw);
+            case TEXT, SUBJECT_REF, ORGANIZATION_REF, ENTITY_REF -> coerceText(field, raw);
         };
     }
 
@@ -475,7 +475,7 @@ public final class GenericEntityStore {
                         boolean value = row.getBoolean(col);
                         out.put(field.name(), row.wasNull() ? null : value);
                     }
-                    case TEXT, ENUM, DATE, USER_REF, ORG_REF, ENTITY_REF ->
+                    case TEXT, ENUM, DATE, SUBJECT_REF, ORGANIZATION_REF, ENTITY_REF ->
                             out.put(field.name(), row.getString(col));
                 }
             }
