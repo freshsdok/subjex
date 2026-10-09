@@ -1,7 +1,7 @@
 # Machine gates (planned CI names) / 机器门禁（计划 CI 名）
 
 Names are stable. **MODEL / MEM / ORG / TENANT** → `JdbcOrganizationStoreGatesTest` (O2).  
-**MIG** → `OrganizationOntologyBackfillGatesTest` (O3). **AUTH** → `OrgAuthorizationGatesTest` (O4). **API** → `OrganizationApiSecurityTest` (O5). **DECL** → `DeclarationRefGatesTest` (O6).  
+**MIG** → `OrganizationOntologyBackfillGatesTest` (O3). **AUTH** → `OrgAuthorizationGatesTest` (O4). **API** → `OrganizationApiSecurityTest` (O5). **DECL** → `DeclarationRefGatesTest` (O6). **E2E** → `OrganizationOntologyCutoverE2ETest` (O7).  
 名称稳定。MODEL…DECL 均已实现。建议成为 CI 必过项。
 
 ## MODEL — existence independence *(O2 PASS)*
@@ -46,7 +46,7 @@ Names are stable. **MODEL / MEM / ORG / TENANT** → `JdbcOrganizationStoreGates
 | `AUTH-04` | Tenant mismatch denies |
 | `AUTH-05` | Organization descendant resolution cannot escape relation graph |
 
-## MIG — backfill integrity *(O3 PASS)*
+## MIG — backfill integrity *(O3 PASS; O7 rewritten for post-DROP)*
 
 | Gate | Assert |
 | --- | --- |
@@ -64,3 +64,12 @@ Names are stable. **MODEL / MEM / ORG / TENANT** → `JdbcOrganizationStoreGates
 ## Suggested JUnit display names / 建议展示名
 
 Use the gate id as the test method prefix or `@DisplayName`, e.g. `MODEL_01_organizationExistsWithoutTenant`.
+
+
+## E2E — cutover *(O7)*
+
+| Gate | Assert |
+| --- | --- |
+| `E2E-01` | Backfill/seed → org surface → auth scope → declaration refs → console path smoke |
+
+Record: [`o7-e2e-pass.md`](o7-e2e-pass.md).

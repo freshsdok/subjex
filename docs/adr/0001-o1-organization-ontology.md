@@ -1,6 +1,6 @@
 # ADR 0001 — O1 Model Freeze: Subject / Organization / Tenant ontology
 
-- Status: **Accepted (model freeze)** — O2–O5 landed (API/Console); O6 zero-code next
+- Status: **Accepted** — O2–**O7 complete** (legacy `org_unit` / `org_membership` dropped)
 - Date: 2026-10-09 (Asia/Shanghai)
 - Scope: O1 docs freeze; O2 adds `organization` / `membership` / `organization_relation` / `tenant_organization` (legacy `org_unit` retained)
 
@@ -61,7 +61,7 @@ HR system · Position/Job · dual/part-time · appointment history · legal gove
 
 ### Gate / 门禁
 
-**O1 complete** (review PASS). **O2** Flyway `V22__organization_ontology.sql` + `JdbcOrganizationStore`. Legacy `org_unit` / `org_membership` remain the *compat* runtime tables until O7; new world-model tables run alongside.
+**O1–O7 complete.** Ontology tables are SoT. Flyway `V24__DropLegacyOrgUnit` removes `org_unit` / `org_membership` after backfill; `org_unit_organization_map` retained. Deprecated `/api/v1/org/**` adapts via map.
 
 ## Consequences / 后果
 
@@ -77,7 +77,7 @@ HR system · Position/Job · dual/part-time · appointment history · legal gove
 - OrgScope / AccessChecker / SqlRbacPolicyEngine refactor (O4)
 - Declaration field kinds must migrate (O6); console `/org` migrated in O5
 
-**Deferred slices:** O2 Persistence → O3 Compatibility & Backfill → O4 Authorization → O5 API/Console → O6 Zero-code → O7 Legacy Removal (only after all PASS gates).
+**Slices done:** O2 → O3 → O4 → O5 → O6 → **O7 Legacy Removal** (after MIG/AUTH/API/console/declaration/E2E PASS).
 
 ## Links / 链接
 

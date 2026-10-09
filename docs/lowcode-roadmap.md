@@ -170,11 +170,12 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - AY. [done] Org-W1: org.write + PUT/DELETE org units/memberships + audit; local commit only.
 - AZ. [done] Org-W2: thin org console `/org` (units/memberships, review→confirm writes); local commit only.
 - O1. [done] **Model Freeze** Subject/Organization/Tenant/Membership/OrganizationRelation/TenantOrganization — ADR [`adr/0001-o1-organization-ontology.md`](adr/0001-o1-organization-ontology.md) + [`ontology/`](ontology/); review PASS; pushed `de1846ae`.
-- O2. [done] **Persistence** Flyway V22 + `JdbcOrganizationStore`; MODEL/MEM/ORG/TENANT gates; legacy `org_unit` retained.
+- O2. [done] **Persistence** Flyway V22 + `JdbcOrganizationStore`; MODEL/MEM/ORG/TENANT gates (legacy retained until O7).
 - O3. [done] **Compatibility & Backfill** V23 map + dual-read + write-through; MIG-01/02/03.
 - O4. [done] **Authorization** OrgScope five modes from Membership + OrganizationRelation; AUTH-01..05.
 - O5. [done] **API / Console** `/api/v1/organizations` + `/org` console; legacy `/api/v1/org` deprecated; local commit only.
 - O6. [done] **Zero-code** `subjectRef`/`organizationRef` (dual-accept `userRef`/`orgRef`); SubjectPicker + OrganizationPicker; DECL-01/02; local commit only.
+- O7. [done] E2E-01 PASS; V24 DROP `org_unit`/`org_membership`; remap kept; `/api/v1/org/**` thin adapter.
 
 - BA. [done] SA-1: platform.super-admin break-glass bootstrap + directory expansion (role_permission stays empty); local commit only.
 - BB. [done] Mig-TID: EntityMigrationGenerator auto-adds tenant_id when tenantScoped and field list omits it; local commit only.
@@ -279,7 +280,7 @@ Agreed product model (owner confirmed). **Declaration remains the single source 
 | Topic / 主题 | Rule / 规则 |
 | --- | --- |
 | Tenant / 租户 | Hard **isolation** boundary for data and grants. 数据与授权的硬隔离边界。 |
-| Org / 组织 | **O1 freeze:** real-world **Organization** (+ Membership / OrganizationRelation / TenantOrganization). Legacy `org_unit` = **tenant-scoped thin model** (compat until O7) — do not extend structurally. Never invent `organizationUnitRef` / `tenantOrgUnitRef`. Pickers → SubjectPicker + OrganizationPicker. See [`ontology/README.md`](ontology/README.md). **O1 冻结：** 现实侧 Organization；旧 `org_unit` 为租户内薄模型（兼容至 O7）——暂停结构性扩展。不发明 organizationUnitRef/tenantOrgUnitRef。选人收敛 SubjectPicker+OrganizationPicker。 |
+| Org / 组织 | **O1 freeze:** real-world **Organization** (+ Membership / OrganizationRelation / TenantOrganization). Legacy `org_unit` **removed in O7** — do not reintroduce thin-org tables. Never invent `organizationUnitRef` / `tenantOrgUnitRef`. Pickers → SubjectPicker + OrganizationPicker. See [`ontology/README.md`](ontology/README.md). **O1 冻结：** 现实侧 Organization；旧 `org_unit` 已在 O7 删除——勿再引入薄组织表。不发明 organizationUnitRef/tenantOrgUnitRef。选人收敛 SubjectPicker+OrganizationPicker。 |
 | People model / 人员模型 | **Permission separation**, not separate login account types as the primary split. Same subject/account machinery can serve console and business work; what differs is **roles / named permissions** (and org scope). 主分割是**权限分层**，不是先拆两套登录账号类型。 |
 | Platform super-admin / 平台超管 | Own **role name** (e.g. `platform.super-admin`), **isolated** from all other accounts/roles: distinct privilege set (and typically a dedicated bootstrap / break-glass path). No ordinary operator or business role inherits or aliases full platform power. 独立角色名（如 `platform.super-admin`），与其他一切账号/角色分开；普通操作员/业务角色不得继承或冒充全平台权力。 |
 | Console vs business work / 控制台 vs 业务办事 | “Operator” vs “business user” is a **permission tier** (what you may open and mutate), not a mandatory second account product. One person may hold both tiers only if explicitly granted. 「操作员 / 业务」是权限档位，不强制第二套账号产品。 |

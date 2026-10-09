@@ -7,10 +7,10 @@
 
 1. **Forbid auto cross-tenant Organization merge.** Same `unit_name` in tenant A and tenant B → **two** Organization rows (distinct ids).  
    **禁止跨租户自动合并 Organization。** 同名不同租户 → 两个 Organization。
-2. Legacy tables stay writable for bugfixes until O7; no structural feature adds on `org_unit` / `org_membership` after O1 freeze.  
-   旧表在 O7 前可修 bug；O1 冻结后不对旧表加结构性能力。
-3. Rollback before O7: disable new stores; continue serving `org_unit` / `org_membership`.  
-   O7 前的回滚：关掉新 Store，继续服务旧表。
+2. **O7 done:** `org_unit` / `org_membership` dropped (V24). Remap kept.  
+   **O7 完成：** 旧表已删；映射保留。
+3. Post-O7 rollback of *data* is restore-from-backup only (tables gone).  
+   O7 后数据回滚只能从备份恢复。
 
 ## Table mapping / 表映射
 
@@ -37,10 +37,10 @@ Exact strategy: [`o3-dual-read.md`](o3-dual-read.md).
 | --- | --- | --- |
 | Pre-backfill | Legacy only | Legacy + optional write-through on API writes |
 | O3 fully backfilled tenant | Prefer ontology (project via map); MIG-* tests | Legacy + write-through |
-| Post-O7 | New only | New only; drop legacy tables |
+| Post-O7 | New only (+ map projection for deprecated API) | New only; legacy tables dropped |
 
 ## Out of scope here / 此处不做
 
 - Automated merge UI
 - SCIM / cross-org identity sync
-- Deleting `org_unit` / `org_membership` (O7 only after MIG/AUTH/API/console/declaration/E2E PASS)
+- ~~Deleting `org_unit` / `org_membership`~~ **done in O7** after MIG/AUTH/API/console/declaration/E2E PASS

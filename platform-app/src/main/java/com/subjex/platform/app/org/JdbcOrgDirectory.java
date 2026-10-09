@@ -14,19 +14,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * JdbcOrgDirectory — 组织目录：按租户列出并写入组织单元与成员关系。
+ * JdbcOrgDirectory — 组织目录：按租户列出并写入组织单元与成员关系（旧 API 形状）。
  * <p>
- * O3 dual-read: when a tenant is fully backfilled ({@code org_unit} count =
- * {@code org_unit_organization_map} count), reads prefer the Organization ontology
- * (projected back to legacy {@link OrgUnit}/{@link OrgMembership} shapes). Otherwise
- * reads hit {@code org_unit}/{@code org_membership}. Writes always hit legacy tables,
- * then write-through to ontology when possible.
+ * O7: reads/writes use Organization ontology + {@code org_unit_organization_map}.
+ * Legacy {@code org_unit}/{@code org_membership} are dropped (V24). Deprecated
+ * {@code /api/v1/org/**} stays as a thin adapter projecting map aliases.
  * <p>
- * O3 双读：租户已完整回填时优先读新表并投影为旧形状；否则读旧表。写始终落旧表，并尽量写透新表。
+ * Pre-O7 dual-read remains if legacy tables are still present (upgrade window).
  * Pure JDBC; bean in {@code PlatformWiring}.
  */
 public final class JdbcOrgDirectory {
@@ -52,7 +49,7 @@ public final class JdbcOrgDirectory {
     /** Units in one tenant, ordered by org_unit_id — 某租户内组织单元，按 org_unit_id 排序。 */
     public List<OrgUnit> listUnits(String tenantId) {
         String id = requireTenantId(tenantId);
-        if (backfill.isTenantFullyBackfilled(id)) {
+        if (preferOntology(id)) {
             return listUnitsFromOntology(id);
         }
         return listUnitsFromLegacy(id);
@@ -61,7 +58,7 @@ public final class JdbcOrgDirectory {
     /** Memberships in one tenant, ordered by subject then unit — 某租户内成员关系，按主体再单元排序。 */
     public List<OrgMembership> listMemberships(String tenantId) {
         String id = requireTenantId(tenantId);
-        if (backfill.isTenantFullyBackfilled(id)) {
+        if (preferOntology(id)) {
             return listMembershipsFromOntology(id, null);
         }
         return listMembershipsFromLegacy(id);
@@ -71,7 +68,7 @@ public final class JdbcOrgDirectory {
     public List<OrgMembership> listMembershipsForSubject(String tenantId, String subjectId) {
         String tid = requireTenantId(tenantId);
         String sid = requireNonBlank(subjectId, "subjectId");
-        if (backfill.isTenantFullyBackfilled(tid)) {
+        if (preferOntology(tid)) {
             return listMembershipsFromOntology(tid, sid);
         }
         return listMembershipsFromLegacyForSubject(tid, sid);
@@ -87,7 +84,7 @@ public final class JdbcOrgDirectory {
     public OrgScope resolveSelfAndDescendants(String tenantId, String subjectId) {
         String tid = requireTenantId(tenantId);
         String sid = requireNonBlank(subjectId, "subjectId");
-        if (backfill.isTenantFullyBackfilled(tid)) {
+        if (preferOntology(tid)) {
             return resolveSelfAndDescendantsFromOntology(tid, sid);
         }
         List<String> roots = jdbc.query(
@@ -138,7 +135,7 @@ public final class JdbcOrgDirectory {
     public OrgScope resolveSelf(String tenantId, String subjectId) {
         String tid = requireTenantId(tenantId);
         String sid = requireNonBlank(subjectId, "subjectId");
-        if (backfill.isTenantFullyBackfilled(tid)) {
+        if (preferOntology(tid)) {
             List<String> roots = activeMembershipUnitIdsFromOntology(tid, sid);
             if (roots.isEmpty()) {
                 return OrgScope.none();
@@ -188,7 +185,7 @@ public final class JdbcOrgDirectory {
         if (roots.isEmpty()) {
             return Set.of();
         }
-        if (backfill.isTenantFullyBackfilled(tid)) {
+        if (preferOntology(tid)) {
             return expandFromOntology(tid, roots);
         }
         Map<String, List<String>> childrenByParent = childrenIndexFromUnits(listUnitsFromLegacy(tid));
@@ -213,43 +210,6 @@ public final class JdbcOrgDirectory {
             }
             requireUnitExists(tid, parent, "parent org unit not found");
         }
-        int updated = jdbc.update(
-                """
-                UPDATE org_unit
-                SET parent_org_unit_id = ?, unit_name = ?, unit_state = ?
-                WHERE tenant_id = ? AND org_unit_id = ?
-                """,
-                parent,
-                name,
-                state,
-                tid,
-                uid);
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                        """
-                        INSERT INTO org_unit (tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state)
-                        VALUES (?, ?, ?, ?, ?)
-                        """,
-                        tid,
-                        uid,
-                        parent,
-                        name,
-                        state);
-            } catch (DuplicateKeyException raced) {
-                jdbc.update(
-                        """
-                        UPDATE org_unit
-                        SET parent_org_unit_id = ?, unit_name = ?, unit_state = ?
-                        WHERE tenant_id = ? AND org_unit_id = ?
-                        """,
-                        parent,
-                        name,
-                        state,
-                        tid,
-                        uid);
-            }
-        }
         OrgUnit saved = new OrgUnit(tid, uid, parent, name, state);
         backfill.syncUnitWriteThrough(tid, saved);
         return saved;
@@ -263,16 +223,9 @@ public final class JdbcOrgDirectory {
         String tid = requireTenantId(tenantId);
         String uid = requireNonBlank(orgUnitId, "orgUnitId");
         String st = requireNonBlank(state, "unitState");
-        int updated = jdbc.update(
-                "UPDATE org_unit SET unit_state = ? WHERE tenant_id = ? AND org_unit_id = ?",
-                st,
-                tid,
-                uid);
-        if (updated == 0) {
-            throw new IllegalArgumentException("org unit not found");
-        }
-        OrgUnit saved = findUnit(tid, uid)
+        OrgUnit current = findUnit(tid, uid)
                 .orElseThrow(() -> new IllegalArgumentException("org unit not found"));
+        OrgUnit saved = new OrgUnit(tid, uid, current.parentOrgUnitId(), current.unitName(), st);
         backfill.syncUnitWriteThrough(tid, saved);
         return saved;
     }
@@ -288,45 +241,7 @@ public final class JdbcOrgDirectory {
         String uid = requireNonBlank(orgUnitId, "orgUnitId");
         String state = blankToDefault(membershipState, STATE_ACTIVE);
         requireUnitExists(tid, uid, "org unit not found");
-        int updated = jdbc.update(
-                """
-                UPDATE org_membership
-                SET membership_state = ?
-                WHERE tenant_id = ? AND subject_id = ? AND org_unit_id = ?
-                """,
-                state,
-                tid,
-                sid,
-                uid);
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                        """
-                        INSERT INTO org_membership (tenant_id, subject_id, org_unit_id, membership_state)
-                        VALUES (?, ?, ?, ?)
-                        """,
-                        tid,
-                        sid,
-                        uid,
-                        state);
-            } catch (DuplicateKeyException raced) {
-                jdbc.update(
-                        """
-                        UPDATE org_membership
-                        SET membership_state = ?
-                        WHERE tenant_id = ? AND subject_id = ? AND org_unit_id = ?
-                        """,
-                        state,
-                        tid,
-                        sid,
-                        uid);
-            }
-        }
         OrgMembership saved = new OrgMembership(tid, sid, uid, state);
-        // Ensure unit is mapped (write-through may have created map on unit upsert).
-        if (backfill.findOrganizationId(tid, uid).isEmpty()) {
-            findUnit(tid, uid).ifPresent(unit -> backfill.syncUnitWriteThrough(tid, unit));
-        }
         backfill.syncMembershipWriteThrough(tid, saved);
         return saved;
     }
@@ -339,6 +254,15 @@ public final class JdbcOrgDirectory {
         String tid = requireTenantId(tenantId);
         String sid = requireNonBlank(subjectId, "subjectId");
         String uid = requireNonBlank(orgUnitId, "orgUnitId");
+        if (preferOntology(tid) || !backfill.legacyOrgTablesPresent()) {
+            boolean any = listMembershipsFromOntology(tid, sid).stream()
+                    .anyMatch(m -> uid.equals(m.orgUnitId()));
+            if (!any) {
+                return false;
+            }
+            backfill.endMembershipWriteThrough(tid, sid, uid);
+            return true;
+        }
         int deleted = jdbc.update(
                 """
                 DELETE FROM org_membership
@@ -569,6 +493,11 @@ public final class JdbcOrgDirectory {
     }
 
     private Optional<OrgUnit> findUnit(String tenantId, String orgUnitId) {
+        if (preferOntology(tenantId) || !backfill.legacyOrgTablesPresent()) {
+            return listUnitsFromOntology(tenantId).stream()
+                    .filter(u -> orgUnitId.equals(u.orgUnitId()))
+                    .findFirst();
+        }
         List<OrgUnit> rows = jdbc.query(
                 """
                 SELECT tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state
@@ -587,14 +516,28 @@ public final class JdbcOrgDirectory {
     }
 
     private void requireUnitExists(String tenantId, String orgUnitId, String message) {
-        Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM org_unit WHERE tenant_id = ? AND org_unit_id = ?",
-                Integer.class,
-                tenantId,
-                orgUnitId);
-        if (count == null || count == 0) {
-            throw new IllegalArgumentException(message);
+        if (backfill.findOrganizationId(tenantId, orgUnitId).isPresent()) {
+            return;
         }
+        if (backfill.legacyOrgTablesPresent()) {
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM org_unit WHERE tenant_id = ? AND org_unit_id = ?",
+                    Integer.class,
+                    tenantId,
+                    orgUnitId);
+            if (count != null && count > 0) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException(message);
+    }
+
+    /** Prefer ontology reads when legacy is gone or tenant is fully backfilled. */
+    private boolean preferOntology(String tenantId) {
+        if (!backfill.legacyOrgTablesPresent()) {
+            return true;
+        }
+        return backfill.isTenantFullyBackfilled(tenantId);
     }
 
     private static String requireTenantId(String tenantId) {

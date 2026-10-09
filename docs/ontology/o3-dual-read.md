@@ -1,13 +1,13 @@
 # O3 Dual-read & backfill strategy / O3 双读与回填策略
 
-**Status:** Implemented with O3 (`OrganizationOntologyBackfill` + `JdbcOrgDirectory`).  
-**状态：** 随 O3 落地。
+**Status:** Implemented with O3; **superseded for storage by O7** (legacy tables dropped; map kept).  
+**状态：** O3 落地；**O7 后旧表已删**（映射保留）。
 
 ## Hard rules (unchanged) / 硬规则（不变）
 
 1. **No automatic cross-tenant Organization merge** (MIG-03).
-2. Legacy `org_unit` / `org_membership` **stay**; O7 only after all PASS gates.
-3. Rollback before O7: stop preferring new reads (or skip backfill); keep serving legacy tables. **Do not DROP** legacy tables.
+2. O7 DROPs legacy tables after E2E PASS (see [`o7-e2e-pass.md`](o7-e2e-pass.md)).
+3. Pre-O7 rollback: stop preferring new reads; keep serving legacy. Post-O7: restore backup.
 
 ## Id minting / ID 生成
 

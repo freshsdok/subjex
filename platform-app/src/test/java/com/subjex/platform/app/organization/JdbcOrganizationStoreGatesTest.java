@@ -234,8 +234,8 @@ class JdbcOrganizationStoreGatesTest {
 
     @ParameterizedTest
     @EnumSource(H2PlatformTables.Mode.class)
-    @DisplayName("legacy org_unit tables still present after O2 migration")
-    void legacyOrgUnitTablesStillPresent(H2PlatformTables.Mode mode) throws Exception {
+    @DisplayName("O7 legacy org_unit tables dropped; ontology + map remain")
+    void legacyOrgUnitTablesDroppedOntologyRemains(H2PlatformTables.Mode mode) throws Exception {
         JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
         Set<String> tables = new HashSet<>();
         try (Connection connection = jdbc.getDataSource().getConnection()) {
@@ -246,11 +246,12 @@ class JdbcOrganizationStoreGatesTest {
                 }
             }
         }
-        assertTrue(tables.contains("org_unit"), tables.toString());
-        assertTrue(tables.contains("org_membership"), tables.toString());
+        assertFalse(tables.contains("org_unit"), tables.toString());
+        assertFalse(tables.contains("org_membership"), tables.toString());
         assertTrue(tables.contains("organization"), tables.toString());
         assertTrue(tables.contains("membership"), tables.toString());
         assertTrue(tables.contains("organization_relation"), tables.toString());
         assertTrue(tables.contains("tenant_organization"), tables.toString());
+        assertTrue(tables.contains("org_unit_organization_map"), tables.toString());
     }
 }

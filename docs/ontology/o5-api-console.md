@@ -31,8 +31,8 @@ Controller marked `@Deprecated`. Filter `LegacyOrgApiDeprecationFilter` also sta
 ## Dual-read / write-through / 双读写透
 
 - **Reads (new API):** always ontology (`organization` / `membership` / relations / `tenant_organization`).
-- **Writes (new API):** ontology first, then `OrganizationOntologyBackfill.syncOrganizationToLegacy` / `syncMembershipToLegacy` / `endMembershipToLegacy` so O3 dual-read and legacy clients stay consistent.
-- **Legacy API:** unchanged (legacy tables + O3 write-through into ontology).
+- **Writes (new API):** ontology first; `syncOrganizationToLegacy` ensures remap aliases only (O7; no `org_unit` writes).
+- **Legacy API:** thin adapter via `JdbcOrgDirectory` (ontology + map); deprecated headers unchanged.
 
 ## Console / 控制台
 
@@ -40,4 +40,4 @@ Controller marked `@Deprecated`. Filter `LegacyOrgApiDeprecationFilter` also sta
 
 ## Non-goals / 非目标
 
-No HR/Position/SCIM; no Picker rename (O6); no legacy table DROP (O7).
+No HR/Position/SCIM. Legacy table DROP completed in O7.

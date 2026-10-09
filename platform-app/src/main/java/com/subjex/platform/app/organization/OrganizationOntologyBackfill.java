@@ -2,9 +2,13 @@ package com.subjex.platform.app.organization;
 
 import com.subjex.platform.app.org.OrgMembership;
 import com.subjex.platform.app.org.OrgUnit;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -16,9 +20,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * OrganizationOntologyBackfill — O3 per-tenant 1:1 copy of org_unit / org_membership into
  * organization ontology tables. Idempotent. Never merges same-name orgs across tenants (MIG-03).
  * <p>
- * O3：按租户 1:1 回填；幂等；禁止跨租户同名合并。旧表不删（回滚=停用新读，继续旧表）。
- * O5 also reverse-syncs Organization API writes into legacy tables for dual-read.
- * O5 亦将 Organization API 写入反向同步到旧表以维持双读。
+ * O7: after Flyway V24, legacy tables are gone. {@link #backfillAll()} is a no-op when tables are
+ * absent. Organization API "reverse sync" keeps {@code org_unit_organization_map} only (no writes
+ * to dropped tables). Directory write-through uses {@link #syncUnitWriteThrough} /
+ * {@link #syncMembershipWriteThrough} against ontology + map.
+ * <p>
+ * O3 回填；O7 后旧表已删，回填空操作；反向同步只维护映射表。
  */
 public final class OrganizationOntologyBackfill {
 
@@ -41,8 +48,16 @@ public final class OrganizationOntologyBackfill {
         this.store = Objects.requireNonNull(store, "store");
     }
 
+    /** Whether legacy {@code org_unit} still exists (pre-O7 / mid-V24). */
+    public boolean legacyOrgTablesPresent() {
+        return tableExists("org_unit");
+    }
+
     /** Backfill every tenant that has at least one org_unit — 回填所有有 org_unit 的租户。 */
     public Result backfillAll() {
+        if (!legacyOrgTablesPresent()) {
+            return new Result(0, 0, 0, 0, 0);
+        }
         List<String> tenants = jdbc.query(
                 "SELECT DISTINCT tenant_id FROM org_unit ORDER BY tenant_id",
                 (row, n) -> row.getString("tenant_id"));
@@ -62,18 +77,20 @@ public final class OrganizationOntologyBackfill {
 
     /**
      * Copy one tenant's units, parent CONTAINS edges, and memberships.
-     * 回填单租户：组织、CONTAINS 边、成员关系。
+     * No-op when legacy tables are already dropped (O7).
      */
     public Result backfillTenant(String tenantId) {
         String tid = requireNonBlank(tenantId, "tenantId");
+        if (!legacyOrgTablesPresent()) {
+            return new Result(0, 0, 0, 0, 0);
+        }
         ensureTenantRow(tid);
-        Set<String> collidingUnitIds = collidingOrgUnitIds();
         List<OrgUnit> units = listLegacyUnits(tid);
         int orgCount = 0;
         int mapCount = 0;
         Map<String, String> unitToOrg = new HashMap<>();
         for (OrgUnit unit : units) {
-            boolean unique = !collidingUnitIds.contains(unit.orgUnitId());
+            boolean unique = orgUnitIdGloballyUniqueIncluding(tid, unit.orgUnitId());
             String organizationId = findOrganizationId(tid, unit.orgUnitId())
                     .orElseGet(() -> OrganizationIdMint.mint(tid, unit.orgUnitId(), unique));
             store.upsertOrganization(organizationId, unit.unitName(), unit.unitState());
@@ -115,9 +132,15 @@ public final class OrganizationOntologyBackfill {
         return new Result(1, orgCount, relCount, memCount, mapCount);
     }
 
-    /** Whether remap covers every legacy unit for the tenant (dual-read gate). */
+    /**
+     * Dual-read gate (pre-O7): remap covers every legacy unit.
+     * Post-O7 (legacy gone): always true — ontology is source of truth.
+     */
     public boolean isTenantFullyBackfilled(String tenantId) {
         String tid = requireNonBlank(tenantId, "tenantId");
+        if (!legacyOrgTablesPresent()) {
+            return true;
+        }
         Integer units = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM org_unit WHERE tenant_id = ?", Integer.class, tid);
         Integer maps = jdbc.queryForObject(
@@ -158,14 +181,14 @@ public final class OrganizationOntologyBackfill {
     }
 
     /**
-     * Write-through one legacy unit into ontology tables (after legacy write).
-     * 写透：在旧表写入后同步到新表。
+     * Write-through one unit into ontology tables + map (legacy directory / adapter writes).
+     * Does not require {@code org_unit} rows (O7).
      */
     public void syncUnitWriteThrough(String tenantId, OrgUnit unit) {
         String tid = requireNonBlank(tenantId, "tenantId");
+        Objects.requireNonNull(unit, "unit");
         ensureTenantRow(tid);
-        Set<String> colliding = collidingOrgUnitIds();
-        boolean unique = !colliding.contains(unit.orgUnitId());
+        boolean unique = orgUnitIdGloballyUniqueIncluding(tid, unit.orgUnitId());
         String organizationId = findOrganizationId(tid, unit.orgUnitId())
                 .orElseGet(() -> OrganizationIdMint.mint(tid, unit.orgUnitId(), unique));
         store.upsertOrganization(organizationId, unit.unitName(), unit.unitState());
@@ -176,6 +199,7 @@ public final class OrganizationOntologyBackfill {
 
     public void syncMembershipWriteThrough(String tenantId, OrgMembership membership) {
         String tid = requireNonBlank(tenantId, "tenantId");
+        Objects.requireNonNull(membership, "membership");
         String organizationId = findOrganizationId(tid, membership.orgUnitId())
                 .orElseThrow(() -> new IllegalStateException(
                         "org unit not mapped; backfill or upsert unit first: " + membership.orgUnitId()));
@@ -193,75 +217,69 @@ public final class OrganizationOntologyBackfill {
     }
 
     /**
-     * O5 reverse write-through: ontology organization → legacy org_unit + map (dual-read keep-alive).
-     * Uses existing map org_unit_id when present; else organizationId as org_unit_id.
-     * O5 反向写透：新表组织 → 旧 org_unit + 映射（维持双读）。
+     * O5/O7: ensure map alias for Organization API writes (legacy org_unit_id compatibility).
+     * No longer writes {@code org_unit} (dropped in V24).
      */
     public void syncOrganizationToLegacy(
             String tenantId, Organization organization, String parentOrganizationIdOrNull) {
         String tid = requireNonBlank(tenantId, "tenantId");
         Objects.requireNonNull(organization, "organization");
         String oid = requireNonBlank(organization.organizationId(), "organizationId");
-        String name = requireNonBlank(organization.organizationName(), "organizationName");
-        String state = organization.organizationState() == null || organization.organizationState().isBlank()
-                ? JdbcOrganizationStore.STATE_ACTIVE
-                : organization.organizationState().trim();
         ensureTenantRow(tid);
         String orgUnitId = findOrgUnitId(tid, oid).orElse(oid);
-        String parentUnitId = null;
+        upsertMap(tid, orgUnitId, oid);
+        // Parent validation only — CONTAINS already set by OrganizationApiEndpoint.
         if (parentOrganizationIdOrNull != null && !parentOrganizationIdOrNull.isBlank()) {
             String parentOrg = parentOrganizationIdOrNull.trim();
-            parentUnitId = findOrgUnitId(tid, parentOrg)
+            findOrgUnitId(tid, parentOrg)
                     .orElseThrow(() -> new IllegalArgumentException("parent organization not mapped in tenant"));
         }
-        upsertLegacyUnit(tid, orgUnitId, parentUnitId, name, state);
-        upsertMap(tid, orgUnitId, oid);
     }
 
     /**
-     * O5 reverse write-through: ontology membership → legacy org_membership.
-     * O5 反向写透：新成员 → 旧 org_membership。
+     * O5/O7: membership already lives in ontology; legacy table removed — no-op.
      */
     public void syncMembershipToLegacy(String tenantId, Membership membership) {
-        String tid = requireNonBlank(tenantId, "tenantId");
+        requireNonBlank(tenantId, "tenantId");
         Objects.requireNonNull(membership, "membership");
-        String oid = requireNonBlank(membership.organizationId(), "organizationId");
-        String orgUnitId = findOrgUnitId(tid, oid)
-                .orElseThrow(() -> new IllegalStateException(
-                        "organization not mapped; upsert organization first: " + oid));
-        String state = membership.membershipState() == null || membership.membershipState().isBlank()
-                ? JdbcOrganizationStore.STATE_ACTIVE
-                : membership.membershipState().trim();
-        if (JdbcOrganizationStore.STATE_ENDED.equals(state)) {
-            jdbc.update(
-                    """
-                    DELETE FROM org_membership
-                    WHERE tenant_id = ? AND subject_id = ? AND org_unit_id = ?
-                    """,
-                    tid,
-                    membership.subjectId(),
-                    orgUnitId);
-            return;
-        }
-        upsertLegacyMembership(tid, membership.subjectId(), orgUnitId, state);
+        // Ensure map exists when membership org was created via Organization API.
+        findOrgUnitId(tenantId, membership.organizationId())
+                .orElseGet(
+                        () -> {
+                            upsertMap(tenantId, membership.organizationId(), membership.organizationId());
+                            return membership.organizationId();
+                        });
     }
 
-    /** O5: end ontology membership and delete legacy row when mapped. */
+    /** O5/O7: ontology membership already ENDED by caller; legacy delete is no-op. */
     public void endMembershipToLegacy(String tenantId, String subjectId, String organizationId) {
+        requireNonBlank(tenantId, "tenantId");
+        requireNonBlank(subjectId, "subjectId");
+        requireNonBlank(organizationId, "organizationId");
+    }
+
+    /**
+     * Whether this org_unit_id string is unique across tenants for minting (including {@code tenantId}).
+     * Used so a second tenant claiming the same unit id gets a hashed organization_id (MIG-03).
+     */
+    public boolean orgUnitIdGloballyUniqueIncluding(String tenantId, String orgUnitId) {
         String tid = requireNonBlank(tenantId, "tenantId");
-        String sid = requireNonBlank(subjectId, "subjectId");
-        String oid = requireNonBlank(organizationId, "organizationId");
-        Optional<String> orgUnitId = findOrgUnitId(tid, oid);
-        if (orgUnitId.isPresent()) {
-            jdbc.update(
-                    """
-                    DELETE FROM org_membership
-                    WHERE tenant_id = ? AND subject_id = ? AND org_unit_id = ?
-                    """,
-                    tid,
-                    sid,
-                    orgUnitId.get());
+        String uid = requireNonBlank(orgUnitId, "orgUnitId");
+        Set<String> tenants = new HashSet<>();
+        List<String> fromMap = jdbc.query(
+                "SELECT DISTINCT tenant_id FROM org_unit_organization_map WHERE org_unit_id = ?",
+                (row, n) -> row.getString("tenant_id"),
+                uid);
+        tenants.addAll(fromMap);
+        if (legacyOrgTablesPresent()) {
+            List<String> fromLegacy = jdbc.query(
+                    "SELECT DISTINCT tenant_id FROM org_unit WHERE org_unit_id = ?",
+                    (row, n) -> row.getString("tenant_id"),
+                    uid);
+            tenants.addAll(fromLegacy);
         }
+        tenants.add(tid);
+        return tenants.size() <= 1;
     }
 
     private List<OrgUnit> listLegacyUnits(String tenantId) {
@@ -335,85 +353,6 @@ public final class OrganizationOntologyBackfill {
                 newParentOrg, childOrganizationId, RelationKind.CONTAINS, JdbcOrganizationStore.STATE_ACTIVE);
     }
 
-    private void upsertLegacyUnit(
-            String tenantId, String orgUnitId, String parentOrgUnitId, String unitName, String unitState) {
-        int updated = jdbc.update(
-                """
-                UPDATE org_unit
-                SET parent_org_unit_id = ?, unit_name = ?, unit_state = ?
-                WHERE tenant_id = ? AND org_unit_id = ?
-                """,
-                parentOrgUnitId,
-                unitName,
-                unitState,
-                tenantId,
-                orgUnitId);
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                        """
-                        INSERT INTO org_unit (tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state)
-                        VALUES (?, ?, ?, ?, ?)
-                        """,
-                        tenantId,
-                        orgUnitId,
-                        parentOrgUnitId,
-                        unitName,
-                        unitState);
-            } catch (DuplicateKeyException raced) {
-                jdbc.update(
-                        """
-                        UPDATE org_unit
-                        SET parent_org_unit_id = ?, unit_name = ?, unit_state = ?
-                        WHERE tenant_id = ? AND org_unit_id = ?
-                        """,
-                        parentOrgUnitId,
-                        unitName,
-                        unitState,
-                        tenantId,
-                        orgUnitId);
-            }
-        }
-    }
-
-    private void upsertLegacyMembership(
-            String tenantId, String subjectId, String orgUnitId, String membershipState) {
-        int updated = jdbc.update(
-                """
-                UPDATE org_membership
-                SET membership_state = ?
-                WHERE tenant_id = ? AND subject_id = ? AND org_unit_id = ?
-                """,
-                membershipState,
-                tenantId,
-                subjectId,
-                orgUnitId);
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                        """
-                        INSERT INTO org_membership (tenant_id, subject_id, org_unit_id, membership_state)
-                        VALUES (?, ?, ?, ?)
-                        """,
-                        tenantId,
-                        subjectId,
-                        orgUnitId,
-                        membershipState);
-            } catch (DuplicateKeyException raced) {
-                jdbc.update(
-                        """
-                        UPDATE org_membership
-                        SET membership_state = ?
-                        WHERE tenant_id = ? AND subject_id = ? AND org_unit_id = ?
-                        """,
-                        membershipState,
-                        tenantId,
-                        subjectId,
-                        orgUnitId);
-            }
-        }
-    }
-
     private void upsertMap(String tenantId, String orgUnitId, String organizationId) {
         int updated = jdbc.update(
                 """
@@ -448,16 +387,24 @@ public final class OrganizationOntologyBackfill {
         }
     }
 
-    private Set<String> collidingOrgUnitIds() {
-        List<String> ids = jdbc.query(
-                """
-                SELECT org_unit_id
-                FROM org_unit
-                GROUP BY org_unit_id
-                HAVING COUNT(DISTINCT tenant_id) > 1
-                """,
-                (row, n) -> row.getString("org_unit_id"));
-        return new HashSet<>(ids);
+    private boolean tableExists(String tableName) {
+        try {
+            if (jdbc.getDataSource() == null) {
+                return false;
+            }
+            Set<String> tables = new HashSet<>();
+            try (Connection connection = jdbc.getDataSource().getConnection()) {
+                DatabaseMetaData meta = connection.getMetaData();
+                try (ResultSet rs = meta.getTables(null, null, "%", new String[] {"TABLE"})) {
+                    while (rs.next()) {
+                        tables.add(rs.getString("TABLE_NAME").toLowerCase(Locale.ROOT));
+                    }
+                }
+            }
+            return tables.contains(tableName.toLowerCase(Locale.ROOT));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void ensureTenantRow(String tenantId) {

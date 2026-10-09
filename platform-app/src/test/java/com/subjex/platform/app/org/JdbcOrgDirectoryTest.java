@@ -25,25 +25,13 @@ class JdbcOrgDirectoryTest {
         JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
         JdbcOrgDirectory directory = new JdbcOrgDirectory(jdbc);
 
-        jdbc.update(
-                "INSERT INTO org_unit (tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state) VALUES (?,?,?,?,?)",
-                "acme", "u-root", null, "Acme Root", "ACTIVE");
-        jdbc.update(
-                "INSERT INTO org_unit (tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state) VALUES (?,?,?,?,?)",
-                "acme", "u-eng", "u-root", "Engineering", "ACTIVE");
-        jdbc.update(
-                "INSERT INTO org_unit (tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state) VALUES (?,?,?,?,?)",
-                "other", "u-other", null, "Other Co", "ACTIVE");
+        directory.upsertUnit("acme", "u-root", null, "Acme Root", "ACTIVE");
+        directory.upsertUnit("acme", "u-eng", "u-root", "Engineering", "ACTIVE");
+        directory.upsertUnit("other", "u-other", null, "Other Co", "ACTIVE");
 
-        jdbc.update(
-                "INSERT INTO org_membership (tenant_id, subject_id, org_unit_id, membership_state) VALUES (?,?,?,?)",
-                "acme", "sub-b", "u-eng", "ACTIVE");
-        jdbc.update(
-                "INSERT INTO org_membership (tenant_id, subject_id, org_unit_id, membership_state) VALUES (?,?,?,?)",
-                "acme", "sub-a", "u-root", "ACTIVE");
-        jdbc.update(
-                "INSERT INTO org_membership (tenant_id, subject_id, org_unit_id, membership_state) VALUES (?,?,?,?)",
-                "other", "sub-x", "u-other", "ACTIVE");
+        directory.upsertMembership("acme", "sub-b", "u-eng", "ACTIVE");
+        directory.upsertMembership("acme", "sub-a", "u-root", "ACTIVE");
+        directory.upsertMembership("other", "sub-x", "u-other", "ACTIVE");
 
         List<OrgUnit> units = directory.listUnits("acme");
         assertEquals(2, units.size());
@@ -95,9 +83,7 @@ class JdbcOrgDirectoryTest {
                 IllegalArgumentException.class,
                 () -> directory.upsertUnit("acme", "u-cross", "u-other", "Cross", "ACTIVE"));
 
-        jdbc.update(
-                "INSERT INTO org_unit (tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state) VALUES (?,?,?,?,?)",
-                "other", "u-other", null, "Other", "ACTIVE");
+        directory.upsertUnit("other", "u-other", null, "Other", "ACTIVE");
         assertThrows(
                 IllegalArgumentException.class,
                 () -> directory.upsertUnit("acme", "u-cross", "u-other", "Cross", "ACTIVE"));
