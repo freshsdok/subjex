@@ -28,9 +28,9 @@ public enum OperatorPermission {
     OPERATOR_MANAGE("operator.manage"),
     /** Create, rename, disable, and enable tenants — 创建、改名、禁用与启用租户。 */
     TENANT_MANAGE("tenant.manage"),
-    /** List org_unit tree and memberships (read-only) — 列出组织树与成员关系（只读）。 */
+    /** Read Organization ontology (tree / memberships); not the dropped {@code org_unit} tables — 读组织本体（树/成员）；不是已 DROP 的 org_unit 表。 */
     ORG_READ("org.read"),
-    /** Create, update, or disable org units and memberships — 创建、更新或停用组织单元与成员关系。 */
+    /** Create, update, or disable Organizations and memberships on the ontology — 在组织本体上创建/更新/停用组织与成员。 */
     ORG_WRITE("org.write"),
     /** List and read tenant declaration drafts — 列出并读取租户声明草稿。 */
     DECLARATION_READ("declaration.read"),

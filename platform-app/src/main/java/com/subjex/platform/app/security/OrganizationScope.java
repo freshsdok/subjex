@@ -11,14 +11,14 @@ import java.util.TreeSet;
  * <p>
  * Modes: {@link #MODE_NONE}, {@link #MODE_UNRESTRICTED}, {@link #MODE_SELF},
  * {@link #MODE_SELF_AND_DESCENDANTS}, {@link #MODE_EXPLICIT}. Derived at Context time from
- * Membership + OrganizationRelation(CONTAINS) — never stored on Membership; never from
- * {@code org_unit_organization_map}. Null on {@link AccessDecision} / {@link PolicyContext}
+ * Membership + OrganizationRelation(CONTAINS) — never stored on Membership; never from the
+ * dropped {@code org_unit_organization_map} (O8). Null on {@link AccessDecision} / {@link PolicyContext}
  * means unspecified; {@link AccessChecker} treats unspecified + resource organization id as
  * fail-closed (not UNRESTRICTED).
  * <p>
  * Wire JSON uses {@code rootOrganizationIds} / {@code organizationIds} (O8-2).
  * Legacy {@code OrgScope} lives in {@code org.legacy} and converts via {@code toOrganizationScope()}.
- * 组织范围。由 Membership + CONTAINS 推导；JSON 字段为 organization* 命名。
+ * 组织范围：由 Membership + CONTAINS 推导；不读已 DROP 的 map 表。JSON 字段为 organization* 命名。
  */
 public record OrganizationScope(
         String mode, List<String> rootOrganizationIds, List<String> organizationIds) {

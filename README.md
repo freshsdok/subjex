@@ -4,9 +4,9 @@ Semantic modular platform: subject identity, tenant isolation, and a single task
 
 第一版按 `ARCHITECTURE.md` 实现平台契约，不包含具体业务领域。业务读写走 JDBC，不经过 ORM 模型层。MySQL 与 PostgreSQL 共用同一套迁移脚本，靠配置切换连接。
 
-**Status / 状态：** pre-release (`0.1.0-SNAPSHOT`, no tag yet). Contracts are complete and tested; most runtime pieces are deliberately thin slices. Intended for evaluation on a trusted network only — read [`SECURITY.md`](SECURITY.md) for known limits and [`CHANGELOG.md`](CHANGELOG.md) for what is in the tree.
+**Status / 状态：** evaluation pre-release (`0.1.0-SNAPSHOT` Maven coords; Git tag **`v0.1.0-alpha.1`** on tip `e7dc268`). Contracts are complete and tested; most runtime pieces are deliberately thin slices. **Not production-ready.** Trusted-network evaluation only — read [`SECURITY.md`](SECURITY.md) and [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md).
 
-**状态：** 发布前（`0.1.0-SNAPSHOT`，尚未打 tag）。契约完整且有测试，运行面多为刻意做薄的切片。仅适合在受信网络内评估，已知限制见 [`SECURITY.md`](SECURITY.md)，内容清单见 [`CHANGELOG.md`](CHANGELOG.md)。
+**状态：** 评估预发布（Maven 仍为 `0.1.0-SNAPSHOT`；已打 Git 预发布 tag **`v0.1.0-alpha.1`**，指向 `e7dc268`）。契约完整且有测试，运行面多为刻意做薄的切片。**非生产就绪。** 仅受信网络评估，见 [`SECURITY.md`](SECURITY.md) 与 [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md)。
 
 **What it is not / 它不是：** not a Nacos/Apollo/Consul replacement (discovery and config are shared tables behind `platform-app` HTTP), not an API gateway product (no dynamic routing, no TLS), not a full AI platform (`model-gateway` only records an invocation today). See `ARCHITECTURE.md` §4 and §7.
 

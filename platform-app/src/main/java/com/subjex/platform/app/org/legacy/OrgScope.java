@@ -9,12 +9,13 @@ import java.util.TreeSet;
 
 /**
  * OrgScope — <strong>deprecated</strong> legacy mirror of {@link OrganizationScope}.
- * Prefer {@link OrganizationScope}. Kept only for {@code JdbcOrgDirectory} /
- * {@code /api/v1/org/**} until O8-3 isolates the legacy package.
- * Field names aligned with OrganizationScope in O8-2 ({@code rootOrganizationIds} /
- * {@code organizationIds}).
+ * Prefer {@link OrganizationScope}. O8-3 already isolated compatibility under
+ * {@code org.legacy}; this type remains only for {@code JdbcOrgDirectory} /
+ * {@code /api/v1/org/**} adapters (not for new code).
+ * Field names match OrganizationScope (O8-2): {@code rootOrganizationIds} / {@code organizationIds}.
  * <p>
- * 已弃用；正式用 {@link OrganizationScope}。仅旧目录/旧 API 暂留至 O8-3。
+ * 已弃用；正式用 {@link OrganizationScope}。O8-3 已把兼容层收到 {@code org.legacy}；
+ * 本类型仅供旧目录/旧 {@code /api/v1/org/**} 适配，新代码不要依赖。
  */
 @Deprecated(since = "O8-1", forRemoval = false)
 public record OrgScope(String mode, List<String> rootOrganizationIds, List<String> organizationIds) {

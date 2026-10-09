@@ -15,9 +15,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * JdbcOrganizationStore — O2 persistence for Organization ontology.
  * <p>
- * Pure JDBC. Legacy {@code org_unit} / {@code org_membership} remain untouched.
- * Integrity (existence, no self-edge, CONTAINS acyclicity) enforced in app — no SQL FKs (H2 dual-MODE).
- * 纯 JDBC。旧 org_unit / org_membership 不动。完整性在应用层约束。
+ * Pure JDBC against ontology tables only. After O8 FULL PASS, legacy {@code org_unit} /
+ * {@code org_membership} are <strong>dropped</strong> (V24); this store does not read or write them.
+ * Integrity (existence, no self-edge, CONTAINS acyclicity) is enforced in-app — no SQL FKs (H2 dual-MODE).
+ * 纯 JDBC，只写组织本体表。O8 全量通过后旧 {@code org_unit}/{@code org_membership} 已 DROP（V24）；本存储不碰旧表。
+ * 完整性在应用层约束（无 SQL 外键，兼容 H2 双模式）。
  */
 public final class JdbcOrganizationStore {
 
