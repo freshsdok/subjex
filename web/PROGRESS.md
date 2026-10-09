@@ -516,3 +516,6 @@ CI-fix-3. [done] 2026-10-09 CST; P1 Trivy deps on Boot **3.5.16** (last OSS 3.5)
 
 Boot4-1. [done] 2026-10-09 CST; Spring Boot **4.0.8** + Framework 7.0.9; testcontainers 2.x rename; Jackson 3 (`tools.jackson` / `JacksonException`); Boot 4 package moves + `spring-boot-starter-webmvc-test` / `security-test`; jackson `datatype.datetime`; Kafka MockProducer Partitioner; consumer autoconfigure.exclude FQCNs. Plan `docs/release/boot4-migration.md`. Local `mvn test` green excl. VendorStartup. Next = squash-push → CI image-scan (expect spring-webmvc CRITICAL gone) → Boot4-2 polish / alpha when green. **No tag yet.**
     Boot 4.0.8 切片完成；待 squash 推送看 image-scan。未打 tag。
+
+Boot4-2. [done] 2026-10-09 CST; CI tip d838f73 red (VendorStartup Flyway bean; Trivy Tomcat 11.0.24 + Jackson 2.21.5 HIGH). Fixes: `spring-boot-starter-flyway`; `tomcat.version=11.0.26`; `jackson-bom.version=3.1.7`; `jackson-2-bom.version=2.21.7`; springdoc **3.1.1**. Local tests; squash-push. **No tag.**
+    Boot4-2：Flyway starter + Tomcat/Jackson 覆盖 + springdoc 3；待 squash 推送。未打 tag。

@@ -26,8 +26,8 @@ Goal: clear Trivy CRITICAL on `spring-webmvc` 6.2.19 (CVE-2026-47884 / CVE-2026-
 | Slice | Scope | Exit |
 |-------|--------|------|
 | **Boot4-1** | Plan + Boot **4.0.8**; testcontainers 2.x; Jackson 3; Boot 4 package/API fixes | **DONE** local tests green (ex VendorStartup); push |
-| **Boot4-2** | Remaining compile/test failures (Security, Actuator, starter renames, deprecated props) | `mvn test` green (VendorStartup may still need Docker) |
-| **Boot4-3** | Image build + Trivy; confirm spring-webmvc CRITICAL gone; docs/checklist | image-scan green → then alpha tag (owner) |
+| **Boot4-2** | `spring-boot-starter-flyway` for MigrationGuard; `tomcat.version=11.0.26`; `jackson-bom.version=3.1.7`; `jackson-2-bom.version=2.21.7`; springdoc **3.1.1** | local tests + CI test/image-scan |
+| **Boot4-3** | Confirm image-scan green enough for alpha; checklist | alpha tag (owner only) |
 
 ## Known probes (already failed) / 已知试探
 
@@ -45,5 +45,5 @@ Goal: clear Trivy CRITICAL on `spring-webmvc` 6.2.19 (CVE-2026-47884 / CVE-2026-
 **Boot4-1 DONE locally:** parent **4.0.8**; testcontainers 2.x artifactIds; Jackson 3 (`tools.jackson`); Boot 4 package moves (web server, security, WebMvcTest, ServerProperties, …); `spring.jackson.datatype.datetime.write-dates-as-timestamps`; Kafka `MockProducer` + Partitioner; sample-consumer autoconfigure.exclude FQCNs.  
 `mvn test -Dsurefire.excludes=**/VendorStartupTest.java` → **BUILD SUCCESS**. VendorStartup still needs Docker on CI.
 
-**Next = Boot4-2 (light):** CI image-scan verify spring-webmvc CRITICAL gone; any CI-only failures; optional VendorStartup package polish. Then alpha tag when image-scan green (owner).
+**Boot4-2 DONE locally (2026-10-09):** CI on Boot4-1 tip was red — VendorStartup missing Flyway bean; Trivy Tomcat 11.0.24 CRITICAL + Jackson HIGH (spring-webmvc CRITICAL cleared). Fixes: `spring-boot-starter-flyway` (MigrationGuard); property overrides `tomcat.version=11.0.26`, `jackson-bom.version=3.1.7`, `jackson-2-bom.version=2.21.7` (flyway/swagger leftover Jackson 2); springdoc **3.1.1** (Boot 4). Next = squash-push → CI; alpha tag only when image-scan green (owner). **No tag this slice.**
 

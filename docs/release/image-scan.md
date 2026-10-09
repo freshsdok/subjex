@@ -39,6 +39,8 @@ trivy image --severity HIGH,CRITICAL --exit-code 1 subjex/platform-app:0.1.0-SNA
 
 ## Alpha residual / P1 (2026-10-09)
 
-Boot **4.0.8** migration (Boot4-1) lands Framework **7.0.9** / spring-webmvc fix line. Re-check Trivy on CI after squash-push; expect CVE-2026-47884 / CVE-2026-47890 **cleared**. Do not tag `v0.1.0-alpha.1` until image-scan job is green.
+Boot **4.0.8** migration (Boot4-1) lands Framework **7.0.9** / spring-webmvc fix line — expect CVE-2026-47884 / CVE-2026-47890 **cleared**.
+
+**Boot4-2 overrides (2026-10-09):** `tomcat.version=11.0.26` (≥11.0.25), `jackson-bom.version=3.1.7`, `jackson-2-bom.version=2.21.7` (clears leftover `com.fasterxml.jackson` 2.21.5 from flyway/swagger). Do not tag `v0.1.0-alpha.1` until image-scan job is green.
 
 Boot4-1 已升 Framework 7.0.9；推送后看 CI image-scan；全绿再打 alpha tag。
