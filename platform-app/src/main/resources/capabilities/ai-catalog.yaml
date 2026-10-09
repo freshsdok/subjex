@@ -1,6 +1,6 @@
 # AI capability catalog — AI 能力目录
-# Preview stubs only; real calls go through model-gateway later. Never write stores from these stubs.
-# 仅预览桩；真实调用日后经 model-gateway。桩不得写库。
+# Preview stubs only until AI-3b+ wires ModelCompletionClient. Never write stores without AiWriteConfirmGate.
+# 预览桩；AI-3b+ 经 ModelCompletionClient。无 AiWriteConfirmGate 不得写库。见 docs/ai/capability-real-ai-plan.md
 capabilities:
   - id: ai.summarizePreview
     titleEn: Summarize preview

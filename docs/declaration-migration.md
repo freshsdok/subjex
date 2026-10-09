@@ -90,7 +90,7 @@ Schema/field changes are **not** casual console DDL. Operators enqueue reviewed 
 
 ## Console UI (MQ-3) / 控制台（MQ-3）
 
-`/declarations` (entity kind only): list migrations, enqueue (revision + `sqlText`) with review→confirm, Review (`PENDING`→`REVIEWED`) and Apply (`REVIEWED`→`APPLIED`/`FAILED`) with review→confirm. Form/flow show a one-line note. Gate: `declaration.migrate` (`canMigrate`). Platform web proxy already forwards POST for `…/migrations` paths.
+`/declarations` (entity kind only): list migrations, enqueue (revision + `sqlText`) with review→confirm, Review (`PENDING`→`REVIEWED`), Apply (`REVIEWED`→`APPLIED`/`FAILED`), guided Review&Apply (SQL confirm then review→apply), Cancel (`PENDING`/`REVIEWED`→`CANCELLED` via `POST …/migrations/{id}/cancel`). Form/flow show a one-line note. Gate: `declaration.migrate` (`canMigrate`). Platform web proxy already forwards POST for `…/migrations` paths. MigUX-2d: path checklist chip + filtered migrate audit (`declaration.migrate.*`) under the entity panel.
 
 声明页仅 **entity** 展示迁移队列：列表、入队（审阅→确认）、审阅、执行；表单/流程一行说明。权限 `declaration.migrate`。代理已转发迁移 POST。
 
@@ -176,3 +176,7 @@ Non-dev path: **新建业务表** → entity migration queue (review/apply) → 
 
 非开发路径：新建业务表 → 迁移队列 → 晋升 → 页面。单种模板与实体/表单向导为高级入口；样例仅回归。
 
+## Schema note (CI-fix-1) / 库表说明
+
+`declaration_migration.sql_text` is **TEXT** (V16 corrected for MySQL InnoDB utf8mb4 row size; V29 alters already-applied VARCHAR stores after `flyway repair` of the V16 checksum). Long-lived DBs that applied the old V16 need repair once, then migrate to V29.
+`sql_text` 为 TEXT（V16 为 MySQL 行大小修正；已应用旧 V16 的库需先 `flyway repair` 再跑 V29）。

@@ -1,6 +1,7 @@
 package com.subjex.outbox.kafka;
 
 import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
 import com.subjex.platform.contract.delivery.DeliveryPort;
 import io.opentelemetry.api.OpenTelemetry;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -69,12 +71,16 @@ public class OutboxKafkaAutoConfiguration {
             @Value("${platform.delivery.kafka.topic:}") String topic,
             @Value("${platform.delivery.declaration-version:1}") int declarationVersion,
             @Value("${platform.delivery.breaker-failure-threshold:3}") int failureThreshold,
+            ObjectProvider<DeliveryCircuitBreakerPort> sharedBreaker,
             OpenTelemetry openTelemetry) {
         if (topic == null || topic.isBlank()) {
             throw new IllegalStateException("platform.delivery.kafka.topic is required when transport=kafka");
         }
         Objects.requireNonNull(openTelemetry, "openTelemetry");
-        DeliveryCircuitBreaker breaker = new DeliveryCircuitBreaker(failureThreshold);
+        DeliveryCircuitBreakerPort breaker = sharedBreaker.getIfAvailable();
+        if (breaker == null) {
+            breaker = new DeliveryCircuitBreaker(failureThreshold);
+        }
         return new KafkaDeliveryPublisher(outboxKafkaProducer, topic.trim(), declarationVersion, breaker, openTelemetry);
     }
 }

@@ -30,7 +30,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Live startup on MySQL and PostgreSQL — 在 MySQL 和 PostgreSQL 上真实启动。
  * <p>
  * Skipped when Docker is absent. A skip is not a pass against a live database.
- * 没有 Docker 时跳过。跳过不等于已经对着真实数据库通过。
+ * Probes are asserted on local.management.port (P2 separate management port).
+ * 没有 Docker 时跳过。跳过不等于已经对着真实数据库通过。探针断言管理口（P2）。
  */
 class VendorStartupTest {
 
@@ -88,6 +89,9 @@ class VendorStartupTest {
                 "--spring.datasource.password=" + password,
                 "--spring.datasource.driver-class-name=" + driver,
                 "--server.port=0",
+                // P2: probes live on the management port, not the business port.
+                // P2：探针在管理口，不在业务口。
+                "--management.server.port=0",
                 "--platform.storage.directory=target/object-store",
                 "--platform.delivery.hmac-secret=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "--platform.delivery.allow-insecure=true"};
@@ -103,23 +107,40 @@ class VendorStartupTest {
                     .queryForObject("SELECT COUNT(*) FROM platform_task", Long.class);
             assertEquals(0L, tasks);
             String port = context.getEnvironment().getProperty("local.server.port");
+            String managementPort = context.getEnvironment().getProperty("local.management.port");
+            if (managementPort == null || managementPort.isBlank()) {
+                managementPort = port;
+            }
             // The shared table holds the bound random port, not zero / 共享登记表里是绑定的随机端口，不是零
             ServiceEndpoint registered = context.getBean(ServiceRoster.class)
                     .resolve(PlatformServiceNames.PLATFORM_APP).orElseThrow();
             assertEquals(Integer.parseInt(port), registered.port());
             HttpClient client = HttpClient.newHttpClient();
+            // Anonymous probes on the management port (P2)
             HttpResponse<String> liveness = client.send(
-                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/actuator/health/liveness"))
+                    HttpRequest.newBuilder(URI.create(
+                                    "http://127.0.0.1:" + managementPort + "/actuator/health/liveness"))
                             .GET().build(),
                     HttpResponse.BodyHandlers.ofString());
             HttpResponse<String> readiness = client.send(
-                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/actuator/health/readiness"))
+                    HttpRequest.newBuilder(URI.create(
+                                    "http://127.0.0.1:" + managementPort + "/actuator/health/readiness"))
                             .GET().build(),
                     HttpResponse.BodyHandlers.ofString());
-            assertEquals(200, liveness.statusCode());
-            assertEquals(200, readiness.statusCode());
+            assertEquals(200, liveness.statusCode(), "liveness on management port");
+            assertEquals(200, readiness.statusCode(), "readiness on management port");
             assertTrue(liveness.body().contains("UP"));
             assertTrue(readiness.body().contains("UP"));
+            // Business-port probe path is not the anonymous contract when management is separate (often 401).
+            HttpResponse<String> businessReadiness = client.send(
+                    HttpRequest.newBuilder(URI.create(
+                                    "http://127.0.0.1:" + port + "/actuator/health/readiness"))
+                            .GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertTrue(
+                    businessReadiness.statusCode() == 401 || businessReadiness.statusCode() == 404,
+                    "business-port readiness should be 401/404 when management port is set, got "
+                            + businessReadiness.statusCode());
             String basic = Base64.getEncoder().encodeToString(
                     (OPERATOR_NAME + ":" + OPERATOR_PASSWORD).getBytes(StandardCharsets.UTF_8));
             HttpResponse<String> admin = client.send(

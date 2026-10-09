@@ -1,9 +1,11 @@
-# Local stack: PostgreSQL + Redis + one platform-app + sample-consumer + entry-gateway (P4 single-replica gate).
-# 本地编排：PostgreSQL + Redis + 单 platform-app + sample-consumer + 入口网关（P4 单副本门禁）。
+# Local stack: PostgreSQL + Redis + one platform-app + sample-consumer + entry-gateway (P4/Scale-4d default).
+# 本地编排：PostgreSQL + Redis + 单 platform-app + sample-consumer + 入口网关（P4/Scale-4d 默认）。
 # From repository root:
 #   docker compose -f deploy/compose/docker-compose.yml up --build
-# Dual replica (`--scale platform-app=2`) is a known limit, not a product claim — breaker/rate-limit stay in-process.
-# 双副本仅为已知限制、非对外能力——熔断/限流仍是进程内状态。
+# Dual replica (`--scale platform-app=2`) is honest only with BOTH backends jdbc
+# (PLATFORM_RATE_LIMIT_BACKEND + PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND); defaults stay process.
+# See docs/release/single-replica-gate.md. Object store is still per-container disk unless shared.
+# 双副本仅在两个后端都为 jdbc 时方可对外宣称；默认仍 process。见单副本门禁文档。对象存储仍按容器本地盘。
 # Gateway listens on http://127.0.0.1:8088.
 # 网关监听 http://127.0.0.1:8088。
 # Outbox delivery uses SAMPLE_CONSUMER_HOST/PORT (same as deploy/k8s/platform-app.yaml).

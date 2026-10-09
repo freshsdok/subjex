@@ -11,8 +11,9 @@ package com.subjex.platform.app.security;
  *       act → requiredPermission (action label stays explainability); domain → tenantId</li>
  * </ul>
  * First adapter is {@link SqlRbacPolicyEngine} over {@link AccessChecker}. No custom DSL.
- * Full Cedar/Casbin jars are later swap-ins behind this port — do not add Maven deps yet.
- * 输入形状对齐 Cedar/Casbin 子集。首适配器为 SQL RBAC；无自研 DSL；完整引擎后置换入。
+ * Default wiring: {@link CedarPolicyEngine} via {@code platform.authz.engine=cedar} (AuthZ-1d).
+ * {@link SqlRbacPolicyEngine} selectable with {@code sql}. No self-authored DSL.
+ * 默认 Cedar；可选 sql；无自研 DSL。
  */
 public interface PolicyEngine {
 

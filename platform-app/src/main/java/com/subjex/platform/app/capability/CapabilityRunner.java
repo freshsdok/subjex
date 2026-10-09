@@ -8,17 +8,27 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * CapabilityRunner — 能力执行器：对检入键跑确定性/预览桩；AI 桩不写任何存储。
+ * CapabilityRunner — 能力执行器：算法确定性；AI 经 {@link ModelCompletionClient} 预览（默认本地桩）。
  * <p>
- * No vendor SDKs. AI stubs mention model-gateway for later wiring and return preview text only.
- * 无厂商 SDK。AI 桩注明日后经 model-gateway；仅返回预览文本。
+ * AI paths are preview-only — no entity/DB mutation. Write-back needs {@link AiWriteConfirmGate} (AI-3c+).
+ * No hard dependency on the optional {@code model-gateway} module.
+ * AI 仅预览、不写库；写回须确认门闩。不硬依赖 model-gateway。
  */
 public final class CapabilityRunner {
 
     private final CapabilityCatalog catalog;
+    private final ModelCompletionClient completionClient;
 
+    /**
+     * Tests / callers without DI: local stub completion — 无 DI 时用本地桩补全。
+     */
     public CapabilityRunner(CapabilityCatalog catalog) {
+        this(catalog, new LocalStubModelCompletionClient());
+    }
+
+    public CapabilityRunner(CapabilityCatalog catalog, ModelCompletionClient completionClient) {
         this.catalog = Objects.requireNonNull(catalog, "catalog");
+        this.completionClient = Objects.requireNonNull(completionClient, "completionClient");
     }
 
     /**
@@ -32,8 +42,9 @@ public final class CapabilityRunner {
         return switch (id) {
             case ALGO_HASH_FINGERPRINT -> hashFingerprint(inputText);
             case ALGO_NORMALIZE_WHITESPACE -> normalizeWhitespace(inputText);
-            case AI_SUMMARIZE_PREVIEW -> summarizePreview(inputText);
-            case AI_SUGGEST_TITLE_PREVIEW -> suggestTitlePreview(inputText);
+            case AI_SUMMARIZE_PREVIEW, AI_SUGGEST_TITLE_PREVIEW -> completionClient
+                    .complete(new ModelCompletionRequest(id.id(), inputText))
+                    .text();
         };
     }
 
@@ -53,30 +64,6 @@ public final class CapabilityRunner {
      */
     private static String normalizeWhitespace(String inputText) {
         return inputText.replaceAll("\\s+", " ");
-    }
-
-    /**
-     * Fixed template preview; does not call model-gateway or mutate stores.
-     * 固定模板预览；不调网关、不写库。
-     */
-    private static String summarizePreview(String inputText) {
-        String clipped = inputText.length() > 80 ? inputText.substring(0, 80) + "…" : inputText;
-        return "[ai.summarizePreview] model-gateway stub preview: " + clipped;
-    }
-
-    /**
-     * Title suggestion from first line or ~60 chars; preview only, no store write.
-     * 取首行或约 60 字作标题建议；仅预览，不写库。
-     */
-    private static String suggestTitlePreview(String inputText) {
-        String firstLine = inputText;
-        int newline = inputText.indexOf('\n');
-        if (newline >= 0) {
-            firstLine = inputText.substring(0, newline);
-        }
-        firstLine = firstLine.strip();
-        String clipped = firstLine.length() > 60 ? firstLine.substring(0, 60) + "…" : firstLine;
-        return "[ai.suggestTitlePreview] model-gateway stub title: " + clipped;
     }
 
     private static String requiredText(Map<String, Object> inputs, String name) {

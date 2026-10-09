@@ -1,5 +1,6 @@
 package com.subjex.platform.app.jdbc;
 
+import com.subjex.platform.contract.config.ConfigNamespaces;
 import com.subjex.platform.contract.config.ConfigOverrideStore;
 import java.time.Clock;
 import java.util.Objects;
@@ -9,11 +10,10 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * JdbcConfigOverride — JDBC 配置覆盖：压过具名键的值存在共享库的 {@code config_override} 表里。
+ * JdbcConfigOverride — JDBC 配置覆盖：按命名空间存在共享库 {@code config_override}，带修订号。
  * <p>
- * Every process on the same database, and the same process after a restart, reads the same override.
- * Local application config is still the base layer. This is not a configuration server.
- * 连同一个库的每个进程、以及重启后的同一进程，读到同一个覆盖值。本地应用配置仍是底层。这不是配置服务器。
+ * Every process on the same database shares rows. Flat methods use {@link ConfigNamespaces#DEFAULT}.
+ * 连同一库的进程共享行。扁平方法走默认命名空间。
  */
 public final class JdbcConfigOverride implements ConfigOverrideStore {
 
@@ -26,43 +26,93 @@ public final class JdbcConfigOverride implements ConfigOverrideStore {
     }
 
     @Override
-    public void override(String key, String value) {
+    public long put(String namespace, String key, String value) {
+        String ns = ConfigNamespaces.require(namespace);
         if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("config key is missing");
         }
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("config value is missing");
         }
-        int updated = update(key, value);
-        if (updated == 0) {
-            try {
-                jdbc.update(
-                        "INSERT INTO config_override (config_key, config_value, overridden_at) VALUES (?, ?, ?)",
-                        key, value, PlatformTables.timestamp(clock.instant()));
-            } catch (DuplicateKeyException raced) {
-                update(key, value);
-            }
+        int updated = jdbc.update(
+                """
+                UPDATE config_override
+                SET config_value = ?, revision = revision + 1, overridden_at = ?
+                WHERE namespace = ? AND config_key = ?
+                """,
+                value,
+                PlatformTables.timestamp(clock.instant()),
+                ns,
+                key);
+        if (updated == 1) {
+            return requireRevision(ns, key);
+        }
+        try {
+            jdbc.update(
+                    """
+                    INSERT INTO config_override (namespace, config_key, config_value, revision, overridden_at)
+                    VALUES (?, ?, ?, 1, ?)
+                    """,
+                    ns,
+                    key,
+                    value,
+                    PlatformTables.timestamp(clock.instant()));
+            return 1L;
+        } catch (DuplicateKeyException raced) {
+            jdbc.update(
+                    """
+                    UPDATE config_override
+                    SET config_value = ?, revision = revision + 1, overridden_at = ?
+                    WHERE namespace = ? AND config_key = ?
+                    """,
+                    value,
+                    PlatformTables.timestamp(clock.instant()),
+                    ns,
+                    key);
+            return requireRevision(ns, key);
         }
     }
 
     @Override
-    public Optional<String> lookup(String key) {
+    public Optional<String> lookup(String namespace, String key) {
         if (key == null || key.isBlank()) {
             return Optional.empty();
         }
+        String ns = ConfigNamespaces.require(namespace);
         return jdbc.queryForList(
-                "SELECT config_value FROM config_override WHERE config_key = ?", String.class, key)
-                .stream().findFirst();
+                        "SELECT config_value FROM config_override WHERE namespace = ? AND config_key = ?",
+                        String.class,
+                        ns,
+                        key)
+                .stream()
+                .findFirst();
     }
 
     @Override
-    public Set<String> keys() {
-        return Set.copyOf(jdbc.queryForList("SELECT config_key FROM config_override", String.class));
+    public Set<String> keys(String namespace) {
+        String ns = ConfigNamespaces.require(namespace);
+        return Set.copyOf(jdbc.queryForList(
+                "SELECT config_key FROM config_override WHERE namespace = ?", String.class, ns));
     }
 
-    private int update(String key, String value) {
-        return jdbc.update(
-                "UPDATE config_override SET config_value = ?, overridden_at = ? WHERE config_key = ?",
-                value, PlatformTables.timestamp(clock.instant()), key);
+    @Override
+    public Optional<Long> revision(String namespace, String key) {
+        if (key == null || key.isBlank()) {
+            return Optional.empty();
+        }
+        String ns = ConfigNamespaces.require(namespace);
+        return jdbc.queryForList(
+                        "SELECT revision FROM config_override WHERE namespace = ? AND config_key = ?",
+                        Long.class,
+                        ns,
+                        key)
+                .stream()
+                .findFirst();
+    }
+
+    private long requireRevision(String namespace, String key) {
+        return revision(namespace, key)
+                .orElseThrow(() -> new IllegalStateException(
+                        "config override revision missing for " + namespace + "/" + key));
     }
 }

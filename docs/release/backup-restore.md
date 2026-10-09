@@ -5,8 +5,8 @@
 **No successful drill record ⇒ do not cut `v0.1.0-alpha.1`.**
 **没有成功演练记录 ⇒ 不得打 `v0.1.0-alpha.1` tag。**
 
-Record files live under `docs/release/drills/`. A stub named `DRILL-PENDING.md` means the gate is still closed.
-记录在 `docs/release/drills/`。若存在 `DRILL-PENDING.md`，门禁仍关闭。
+Record files live under `docs/release/drills/`. A stub named `DRILL-PENDING.md` would mean the gate is still closed — **current tree has PASS** `2026-10-09-backup-restore.md` and no `DRILL-PENDING.md`.
+记录在 `docs/release/drills/`。若存在 `DRILL-PENDING.md` 则门禁仍关——**当前树已有 PASS 记录，无 DRILL-PENDING。**
 
 ## Scope / 范围
 

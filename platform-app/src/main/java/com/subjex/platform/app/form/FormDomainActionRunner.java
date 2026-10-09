@@ -6,6 +6,7 @@ import com.subjex.form.render.DomainActionKey;
 import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.config.ConfigCatalog;
+import com.subjex.platform.contract.config.ConfigNamespaces;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
@@ -113,7 +114,7 @@ public final class FormDomainActionRunner {
     private String overrideConfig(Map<String, Object> accepted) {
         String configKey = stringValue(accepted, "configKey");
         String configValue = stringValue(accepted, "configValue");
-        config.override(configKey, configValue);
+        config.put(ConfigNamespaces.DEFAULT, configKey, configValue);
         return configKey + "=" + configValue;
     }
 

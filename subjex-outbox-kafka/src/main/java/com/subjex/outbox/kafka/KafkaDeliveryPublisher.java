@@ -1,7 +1,7 @@
 package com.subjex.outbox.kafka;
 
 import com.subjex.platform.contract.delivery.DeliveryAttempt;
-import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
 import com.subjex.platform.contract.delivery.DeliveryPort;
 import com.subjex.platform.contract.task.DeliveryResult;
 import com.subjex.platform.contract.task.OutboxEvent;
@@ -41,7 +41,7 @@ public final class KafkaDeliveryPublisher implements DeliveryPort {
     private final Producer<String, byte[]> producer;
     private final String topic;
     private final int declarationVersion;
-    private final DeliveryCircuitBreaker breaker;
+    private final DeliveryCircuitBreakerPort breaker;
     private final OpenTelemetry openTelemetry;
     private final Duration sendTimeout;
 
@@ -49,7 +49,7 @@ public final class KafkaDeliveryPublisher implements DeliveryPort {
             Producer<String, byte[]> producer,
             String topic,
             int declarationVersion,
-            DeliveryCircuitBreaker breaker,
+            DeliveryCircuitBreakerPort breaker,
             OpenTelemetry openTelemetry) {
         this(producer, topic, declarationVersion, breaker, openTelemetry, Duration.ofSeconds(10));
     }
@@ -58,7 +58,7 @@ public final class KafkaDeliveryPublisher implements DeliveryPort {
             Producer<String, byte[]> producer,
             String topic,
             int declarationVersion,
-            DeliveryCircuitBreaker breaker,
+            DeliveryCircuitBreakerPort breaker,
             OpenTelemetry openTelemetry,
             Duration sendTimeout) {
         this.producer = Objects.requireNonNull(producer, "producer");

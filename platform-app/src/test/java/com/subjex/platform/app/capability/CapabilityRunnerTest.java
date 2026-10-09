@@ -11,7 +11,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * CapabilityRunnerTest — 能力桩：哈希/空白归一确定性；AI 预览固定模板且不依赖外部。
+ * CapabilityRunnerTest — 能力：哈希/空白归一确定性；AI 经 ModelCompletionClient（默认本地桩）。
  */
 class CapabilityRunnerTest {
 
@@ -67,5 +67,22 @@ class CapabilityRunnerTest {
     @Test
     void unknownCapabilityIsRejected() {
         assertThrows(CapabilityRejected.class, () -> runner.run("algo.nope", Map.of("inputText", "x")));
+    }
+
+    @Test
+    void routesAiThroughInjectedClient() {
+        ModelCompletionClient fake = request -> new ModelCompletionResult(
+                "FAKE-SUMMARY:" + request.inputText(),
+                "test",
+                "fake-model",
+                LocalStubModelCompletionClient.sha256Hex(request.inputText()),
+                true);
+        CapabilityRunner wired = new CapabilityRunner(new CapabilityCatalog(), fake);
+        assertEquals(
+                "FAKE-SUMMARY:note",
+                wired.run("ai.summarizePreview", Map.of("inputText", "note")));
+        assertEquals(
+                "FAKE-SUMMARY:Title only",
+                wired.run("ai.suggestTitlePreview", Map.of("inputText", "Title only")));
     }
 }

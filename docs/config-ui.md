@@ -9,6 +9,15 @@ Evidence opened before designing `GET /config`. These are the pages and threads 
 - Apollo documents associated namespaces that override public ones key-by-key (`k1=v3` wins over public `k1=v1` while `k2` stays public). The override story is real, and it is easy to misread which namespace supplied the effective value. https://github.com/apolloconfig/apollo/wiki/Apollo%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E4%B9%8B%E2%80%9CNamespace%E2%80%9D
 - Non-properties Apollo public namespaces cannot override a single key; the whole file wins or loses, which surprised callers who expected key-level override. https://github.com/apolloconfig/apollo/issues/4508
 
-`GET /config` is the opposite of that complaint. One sentence says what the page is. Each row is a key, the effective value, and a plain-language source: local file or stored override. There is no giant property dump, no namespace tree, no editor, and no historical versions.
+`GET /config` (HTML) and the console `/config` are the opposite of that complaint. One sentence says what the page is. Each row is a key, the effective value, a plain-language source (local file or stored override), and a **revision**. Operators pick a **namespace** (at least `default`). There is no giant property dump, no Nacos-style tree, and no history/rollback table in the MVP.
 
-`GET /config` 对着的就是这个抱怨。开头一句话说明这页是什么。每一行是键、生效值，以及直白的来源：本地文件或已存覆盖。没有巨型属性堆、没有命名空间树、没有编辑器，也没有历史版本。
+HTML `GET /config` 与控制台 `/config` 对着的就是这个抱怨。开头一句话说明这页是什么。每一行是键、生效值、直白来源（本地文件或已存覆盖）和**修订号**。操作员可选择**命名空间**（至少 `default`）。没有巨型属性堆、没有 Nacos 式树，MVP 也没有历史回滚表。
+
+---
+
+## Independent config center (Item 5) / 独立配置中心 — **DONE**
+
+MVP = versioned **namespaces on DB + HTTP** (`ConfigCenterPort`, `config_override` namespace+revision, ETag/If-Match) — **not** Nacos/Apollo and **not** a separate config microservice.
+Plan (5a–5d): [`docs/config/independent-config-center-plan.md`](config/independent-config-center-plan.md).
+MVP = 库表+HTTP 上的版本化命名空间覆盖层，不是 Nacos/Apollo，也不另起配置进程。计划见上。
+

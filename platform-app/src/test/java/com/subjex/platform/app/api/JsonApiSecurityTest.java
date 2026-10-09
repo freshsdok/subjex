@@ -55,6 +55,7 @@ import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import com.subjex.platform.contract.config.ConfigEntry;
+import com.subjex.platform.contract.config.ConfigNamespaces;
 import com.subjex.platform.contract.config.ConfigOrigin;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
@@ -159,9 +160,11 @@ class JsonApiSecurityTest {
                     passwordEncoder.encode(BARE_PASSWORD));
         }
         when(serviceCatalog.list()).thenReturn(List.of(new ListedService("billing", "10.0.0.7", 8080, "up")));
-        when(configCatalog.list()).thenReturn(List.of(new ConfigEntry("subjex.greeting", "hello", ConfigOrigin.LOCAL)));
-        when(configCatalog.entry("subjex.greeting"))
-                .thenReturn(Optional.of(new ConfigEntry("subjex.greeting", "hi", ConfigOrigin.OVERRIDE)));
+        when(configCatalog.list(ConfigNamespaces.DEFAULT))
+                .thenReturn(List.of(new ConfigEntry("subjex.greeting", "hello", ConfigOrigin.LOCAL)));
+        when(configCatalog.put(eq(ConfigNamespaces.DEFAULT), eq("subjex.greeting"), eq("hi")))
+                .thenReturn(new ConfigEntry(
+                        ConfigNamespaces.DEFAULT, "subjex.greeting", "hi", ConfigOrigin.OVERRIDE, 1L));
     }
 
     @Test
@@ -211,15 +214,17 @@ class JsonApiSecurityTest {
 
         mockMvc.perform(override(path, "{\"value\":\"   \"}").with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isBadRequest());
-        verify(configCatalog, never()).override(anyString(), anyString());
+        verify(configCatalog, never()).put(anyString(), anyString(), anyString());
         verify(operatorActionAudit, never()).record(any(), anyString(), anyString(), any());
 
         mockMvc.perform(override(path, "{\"value\":\"hi\"}").with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.key").value("subjex.greeting"))
                 .andExpect(jsonPath("$.value").value("hi"))
-                .andExpect(jsonPath("$.origin").value("override"));
-        verify(configCatalog).override("subjex.greeting", "hi");
+                .andExpect(jsonPath("$.origin").value("override"))
+                .andExpect(jsonPath("$.namespace").value(ConfigNamespaces.DEFAULT))
+                .andExpect(jsonPath("$.revision").value(1));
+        verify(configCatalog).put(ConfigNamespaces.DEFAULT, "subjex.greeting", "hi");
         verify(operatorActionAudit).record(
                 any(), eq(OperatorActionAudit.CONFIG_OVERRIDE), eq("subjex.greeting"), eq(AuditOutcome.ALLOWED));
     }
@@ -438,7 +443,7 @@ class JsonApiSecurityTest {
                 .andExpect(jsonPath("$.resultSummary").value("subjex.greeting=hi"))
                 .andExpect(jsonPath("$.effects[0].key").value("audit.write"))
                 .andExpect(jsonPath("$.effects[1].key").value("extension.invoke"));
-        verify(configCatalog).override("subjex.greeting", "hi");
+        verify(configCatalog).put(ConfigNamespaces.DEFAULT, "subjex.greeting", "hi");
         verify(operatorActionAudit)
                 .recordFormEffect(
                         any(),

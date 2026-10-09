@@ -6,9 +6,16 @@ import { fillPhrase, type LanguageCode, type PhraseBook } from "@/i18n/phrases";
 import {
   DECLARATION_KINDS,
   canApplyMigration,
+  canCancelMigration,
+  canGuidedReviewApplyMigration,
   canOfferDeclarationMigrate,
   canOfferDeclarationPromote,
   canReviewMigration,
+  filterMigrateAuditEntries,
+  isFailedMigration,
+  migrationPathChecklist,
+  type MigrationPathChipState,
+  type MigrationPathStep,
   declarationMigrateEnqueueBody,
   declarationPromoteRequestBody,
   declarationTenantCookieWrite,
@@ -55,6 +62,8 @@ type RevisionRow = {
   draftState?: string;
   updatedAt?: string;
   updatedBySubjectId?: string;
+  /** MigUX-2b: ids from entity PUT auto-enqueue (RT-4). */
+  enqueuedMigrationIds?: string[];
 };
 
 type EffectiveSummary = {
@@ -92,6 +101,20 @@ type MigrationRow = {
   errorMessage?: string;
 };
 
+type MigrateAuditRow = {
+  auditEntryId?: string;
+  occurredAt?: string;
+  actorLogin?: string;
+  actor?: string;
+  actionName?: string;
+  actionWordZh?: string;
+  actionWordEn?: string;
+  actionTarget?: string;
+  outcome?: string;
+  outcomeWordZh?: string;
+  outcomeWordEn?: string;
+};
+
 type MigrateStep =
   | { phase: "idle" }
   | { phase: "review-enqueue" }
@@ -99,7 +122,11 @@ type MigrateStep =
   | { phase: "review-review"; migrationId: string }
   | { phase: "reviewing"; migrationId: string }
   | { phase: "review-apply"; migrationId: string }
-  | { phase: "applying"; migrationId: string };
+  | { phase: "applying"; migrationId: string }
+  | { phase: "review-guided"; migrationId: string }
+  | { phase: "guiding"; migrationId: string }
+  | { phase: "review-cancel"; migrationId: string }
+  | { phase: "cancelling"; migrationId: string };
 
 type Props = {
   phrases: PhraseBook;
@@ -158,6 +185,9 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
   const [migrateStep, setMigrateStep] = useState<MigrateStep>({ phase: "idle" });
   const [migrateProblem, setMigrateProblem] = useState<string | null>(null);
   const [migrateNotice, setMigrateNotice] = useState<string | null>(null);
+  const [showManualMigrateEnqueue, setShowManualMigrateEnqueue] = useState(false);
+  const [migrateAudit, setMigrateAudit] = useState<MigrateAuditRow[] | null>(null);
+  const [migrateAuditStatus, setMigrateAuditStatus] = useState<"idle" | "loading" | "ok" | "forbidden" | "error">("idle");
 
   const [newKey, setNewKey] = useState("");
   const [effective, setEffective] = useState<EffectiveSummary | null>(null);
@@ -289,6 +319,9 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     setMigrateStep({ phase: "idle" });
     setMigrateProblem(null);
     setMigrateNotice(null);
+    setShowManualMigrateEnqueue(false);
+    setMigrateAudit(null);
+    setMigrateAuditStatus("idle");
     setEffective(null);
     setEffectiveProblem(null);
 
@@ -298,6 +331,10 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
       syncWizardsFromYaml(existing.yamlBody, activeKind);
       setLoadedRevision(existing.revision ?? null);
       setDraftState(existing.draftState ?? null);
+      if (activeKind === "entity") {
+        await loadMigrations(key, activeKind);
+        void loadPromoteHistoryForKey(key, activeKind);
+      }
       return;
     }
 
@@ -316,6 +353,10 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
       syncWizardsFromYaml(yaml, activeKind);
       setLoadedRevision(body.revision ?? null);
       setDraftState(body.draftState ?? null);
+      if (activeKind === "entity") {
+        await loadMigrations(key, activeKind);
+        void loadPromoteHistoryForKey(key, activeKind);
+      }
       return;
     }
     if (reply?.status === 404) {
@@ -431,15 +472,27 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     const body = (await reply.json()) as RevisionRow;
     setLoadedRevision(body.revision ?? null);
     setDraftState(body.draftState ?? "DRAFT");
-    setSavedMessage(
-      fillPhrase(phrases.declarationsSavedNotice, {
-        kind,
-        key: selectedKey,
-        revision: body.revision ?? "",
-      }),
-    );
+    const enqueued = body.enqueuedMigrationIds ?? [];
+    let saved = fillPhrase(phrases.declarationsSavedNotice, {
+      kind,
+      key: selectedKey,
+      revision: body.revision ?? "",
+    });
+    if (kind === "entity" && enqueued.length > 0) {
+      saved =
+        saved +
+        " " +
+        fillPhrase(phrases.declarationsMigrateAutoEnqueuedNotice, { count: String(enqueued.length) });
+      setMigrateNotice(
+        fillPhrase(phrases.declarationsMigrateAutoEnqueuedNotice, { count: String(enqueued.length) }),
+      );
+    }
+    setSavedMessage(saved);
     setEditorStep("editing");
     await loadList();
+    if (kind === "entity" && selectedKey) {
+      await loadMigrations(selectedKey, "entity");
+    }
   }
 
   function reviewPromote() {
@@ -506,17 +559,14 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     await loadList();
   }
 
-  async function loadPromoteHistory() {
-    if (!selectedKey) return;
+  async function loadPromoteHistoryForKey(key: string, kindOverride?: DeclarationKind) {
     const tid = tenantId.trim();
-    if (!tid) {
-      setEditorProblem(phrases.declarationsTenantRequired);
-      return;
-    }
+    if (!tid || !key) return;
+    const activeKind = kindOverride ?? kind;
     setHistoryStatus("loading");
     setHistoryErrorStatus(0);
     const reply = await fetch(
-      `/api/platform/declarations/${encodeURIComponent(kind)}/${encodeURIComponent(selectedKey)}/promotes?tenantId=${encodeURIComponent(tid)}`,
+      `/api/platform/declarations/${encodeURIComponent(activeKind)}/${encodeURIComponent(key)}/promotes?tenantId=${encodeURIComponent(tid)}`,
       { cache: "no-store" },
     ).catch(() => null);
     if (reply?.status === 401) {
@@ -532,6 +582,11 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     const doc = (await reply.json()) as { promotes?: PromoteHistoryRow[] };
     setPromoteHistory(doc.promotes ?? []);
     setHistoryStatus("ok");
+  }
+
+  async function loadPromoteHistory() {
+    if (!selectedKey) return;
+    await loadPromoteHistoryForKey(selectedKey);
   }
 
   async function loadEffective() {
@@ -577,6 +632,9 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     setMigrateStep({ phase: "idle" });
     setMigrateProblem(null);
     setMigrateNotice(null);
+    setShowManualMigrateEnqueue(false);
+    setMigrateAudit(null);
+    setMigrateAuditStatus("idle");
     setEffective(null);
     setEffectiveProblem(null);
     setComposerBlocks(emptyFlowPageBlocks());
@@ -585,8 +643,10 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     setComposerNotice(null);
   }
 
-  async function loadMigrations() {
-    if (!selectedKey || kind !== "entity") return;
+  async function loadMigrations(keyOverride?: string, kindOverride?: DeclarationKind) {
+    const key = keyOverride ?? selectedKey;
+    const activeKind = kindOverride ?? kind;
+    if (!key || activeKind !== "entity") return;
     const tid = tenantId.trim();
     if (!tid) {
       setMigrateProblem(phrases.declarationsTenantRequired);
@@ -596,7 +656,7 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     setMigrateErrorStatus(0);
     setMigrateProblem(null);
     const reply = await fetch(
-      `/api/platform/declarations/${encodeURIComponent(kind)}/${encodeURIComponent(selectedKey)}/migrations?tenantId=${encodeURIComponent(tid)}`,
+      `/api/platform/declarations/${encodeURIComponent(activeKind)}/${encodeURIComponent(key)}/migrations?tenantId=${encodeURIComponent(tid)}`,
       { cache: "no-store" },
     ).catch(() => null);
     if (reply?.status === 401) {
@@ -612,6 +672,36 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     const doc = (await reply.json()) as { migrations?: MigrationRow[] };
     setMigrations(doc.migrations ?? []);
     setMigrateStatus("ok");
+    await loadMigrateAudit(key);
+  }
+
+  async function loadMigrateAudit(keyOverride?: string) {
+    const key = keyOverride ?? selectedKey;
+    if (!key) return;
+    setMigrateAuditStatus("loading");
+    const reply = await fetch(`/api/platform/audit`, { cache: "no-store" }).catch(() => null);
+    if (reply?.status === 401) {
+      router.replace("/login");
+      return;
+    }
+    if (reply?.status === 403) {
+      setMigrateAudit(null);
+      setMigrateAuditStatus("forbidden");
+      return;
+    }
+    if (!reply?.ok) {
+      setMigrateAudit(null);
+      setMigrateAuditStatus("error");
+      return;
+    }
+    const doc = (await reply.json()) as { entries?: MigrateAuditRow[] };
+    setMigrateAudit(filterMigrateAuditEntries(doc.entries ?? [], key));
+    setMigrateAuditStatus("ok");
+  }
+
+
+  function migrationById(migrationId: string): MigrationRow | undefined {
+    return migrations?.find((m) => m.migrationId === migrationId);
   }
 
   function reviewEnqueueMigration() {
@@ -763,6 +853,117 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
     await loadMigrations();
   }
 
+
+  function reviewGuidedReviewApply(migrationId: string) {
+    if (!canOfferDeclarationMigrate({ canMigrate, kind, tenantId, selectedKey })) return;
+    setMigrateProblem(null);
+    setMigrateNotice(null);
+    setMigrateStep({ phase: "review-guided", migrationId });
+  }
+
+  async function confirmGuidedReviewApply() {
+    if (migrateStep.phase !== "review-guided" && migrateStep.phase !== "guiding") return;
+    if (!canOfferDeclarationMigrate({ canMigrate, kind, tenantId, selectedKey })) return;
+    const migrationId = migrateStep.migrationId;
+    const tid = tenantId.trim();
+    setMigrateStep({ phase: "guiding", migrationId });
+    setMigrateProblem(null);
+    const base = `/api/platform/declarations/${encodeURIComponent(kind)}/${encodeURIComponent(selectedKey!)}/migrations/${encodeURIComponent(migrationId)}`;
+    const reviewReply = await fetch(
+      `${base}/review?tenantId=${encodeURIComponent(tid)}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    ).catch(() => null);
+    if (reviewReply?.status === 401) {
+      router.replace("/login");
+      return;
+    }
+    if (reviewReply?.status === 403) {
+      setMigrateProblem(phrases.declarationsMigrateForbidden);
+      setMigrateStep({ phase: "idle" });
+      return;
+    }
+    if (!reviewReply?.ok) {
+      setMigrateProblem(
+        fillPhrase(phrases.declarationsMigrateGuidedFailed, { status: reviewReply?.status ?? 0 }),
+      );
+      setMigrateStep({ phase: "idle" });
+      await loadMigrations();
+      return;
+    }
+    const applyReply = await fetch(
+      `${base}/apply?tenantId=${encodeURIComponent(tid)}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    ).catch(() => null);
+    if (applyReply?.status === 401) {
+      router.replace("/login");
+      return;
+    }
+    if (applyReply?.status === 403) {
+      setMigrateProblem(phrases.declarationsMigrateForbidden);
+      setMigrateStep({ phase: "idle" });
+      await loadMigrations();
+      return;
+    }
+    if (!applyReply?.ok) {
+      const failedDoc = applyReply ? ((await applyReply.json().catch(() => null)) as MigrationRow | null) : null;
+      const errBit = failedDoc?.errorMessage ? ` ${failedDoc.errorMessage}` : "";
+      setMigrateProblem(
+        fillPhrase(phrases.declarationsMigrateGuidedFailed, { status: applyReply?.status ?? 0 }) + errBit,
+      );
+      setMigrateStep({ phase: "idle" });
+      await loadMigrations();
+      return;
+    }
+    setMigrateNotice(fillPhrase(phrases.declarationsMigrateGuidedAppliedNotice, { id: migrationId }));
+    setMigrateStep({ phase: "idle" });
+    await loadMigrations();
+  }
+
+  function reviewCancelMigration(migrationId: string) {
+    if (!canOfferDeclarationMigrate({ canMigrate, kind, tenantId, selectedKey })) return;
+    setMigrateProblem(null);
+    setMigrateNotice(null);
+    setMigrateStep({ phase: "review-cancel", migrationId });
+  }
+
+  async function confirmCancelMigration() {
+    if (migrateStep.phase !== "review-cancel" && migrateStep.phase !== "cancelling") return;
+    if (!canOfferDeclarationMigrate({ canMigrate, kind, tenantId, selectedKey })) return;
+    const migrationId = migrateStep.migrationId;
+    const tid = tenantId.trim();
+    setMigrateStep({ phase: "cancelling", migrationId });
+    setMigrateProblem(null);
+    const reply = await fetch(
+      `/api/platform/declarations/${encodeURIComponent(kind)}/${encodeURIComponent(selectedKey!)}/migrations/${encodeURIComponent(migrationId)}/cancel?tenantId=${encodeURIComponent(tid)}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    ).catch(() => null);
+    if (reply?.status === 401) {
+      router.replace("/login");
+      return;
+    }
+    if (reply?.status === 403) {
+      setMigrateProblem(phrases.declarationsMigrateForbidden);
+      setMigrateStep({ phase: "idle" });
+      return;
+    }
+    if (!reply?.ok) {
+      setMigrateProblem(fillPhrase(phrases.declarationsMigrateCancelFailed, { status: reply?.status ?? 0 }));
+      setMigrateStep({ phase: "idle" });
+      return;
+    }
+    setMigrateNotice(fillPhrase(phrases.declarationsMigrateCancelledNotice, { id: migrationId }));
+    setMigrateStep({ phase: "idle" });
+    await loadMigrations();
+  }
+
+  function fillAdvancedFromFailed(row: MigrationRow) {
+    setShowManualMigrateEnqueue(true);
+    setMigrateSql(row.sqlText ?? "");
+    setMigrateRevision(row.declarationRevision != null ? String(row.declarationRevision) : "");
+    setMigrateNotice(phrases.declarationsMigrateFailedHint);
+    setMigrateProblem(null);
+  }
+
   const showPromote = canOfferDeclarationPromote({
     canPromote,
     tenantId,
@@ -779,7 +980,51 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
   const migrateBusy =
     migrateStep.phase === "enqueueing" ||
     migrateStep.phase === "reviewing" ||
-    migrateStep.phase === "applying";
+    migrateStep.phase === "applying" ||
+    migrateStep.phase === "guiding" ||
+    migrateStep.phase === "cancelling";
+
+  const pathChips = useMemo(() => {
+    if (kind !== "entity" || !selectedKey) return [];
+    const promotedForRevision =
+      (loadedRevision != null &&
+        (promoteHistory?.some((p) => p.revision === loadedRevision) ?? false)) ||
+      draftState === "PROMOTED";
+    return migrationPathChecklist({
+      hasDraft: loadedRevision != null || (yamlBody.trim() !== "" && selectedKey != null),
+      revision: loadedRevision,
+      migrations,
+      promotedForRevision,
+    });
+  }, [kind, selectedKey, loadedRevision, promoteHistory, draftState, yamlBody, migrations]);
+
+  function pathChipLabel(step: MigrationPathStep): string {
+    switch (step) {
+      case "draft":
+        return phrases.declarationsMigratePathDraft;
+      case "PENDING":
+        return phrases.declarationsMigratePathPending;
+      case "REVIEWED":
+        return phrases.declarationsMigratePathReviewed;
+      case "APPLIED":
+        return phrases.declarationsMigratePathApplied;
+      case "promote":
+        return phrases.declarationsMigratePathPromote;
+    }
+  }
+
+  function pathChipClass(state: MigrationPathChipState): string {
+    switch (state) {
+      case "done":
+        return "border-green-600/40 bg-green-50 text-green-800";
+      case "current":
+        return "border-accent bg-accent/10 text-foreground font-medium";
+      case "blocked":
+        return "border-danger/50 bg-danger/5 text-danger";
+      default:
+        return "border-border bg-surface text-muted";
+    }
+  }
 
   const useTenantSelect = tenantOptions.length > 0;
   const selectOptions = useMemo(() => {
@@ -1115,6 +1360,98 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                 </button>
               </div>
 
+              {pathChips.length > 0 ? (
+                <div className="mt-2">
+                  <p className="text-[11px] font-medium text-muted">{phrases.declarationsMigratePathTitle}</p>
+                  <ol className="mt-1 flex flex-wrap items-center gap-1">
+                    {pathChips.map((chip, index) => (
+                      <li key={chip.step} className="flex items-center gap-1">
+                        {index > 0 ? <span className="text-muted">→</span> : null}
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[11px] ${pathChipClass(chip.state)}`}
+                          title={chip.state}
+                        >
+                          {pathChipLabel(chip.step)}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                  {pathChips.some((c) => c.state === "blocked") ? (
+                    <p className="mt-1 text-[11px] text-danger">{phrases.declarationsMigratePathBlockedHint}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="mt-2 rounded-md border border-border bg-surface px-2 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{phrases.declarationsMigrateAuditTitle}</p>
+                    <p className="mt-0.5 text-[11px] text-muted">{phrases.declarationsMigrateAuditHint}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => void loadMigrateAudit()}
+                      disabled={migrateBusy || busyStep || migrateAuditStatus === "loading"}
+                      className="rounded-md border border-border px-2 py-0.5 text-[11px] hover:bg-background disabled:opacity-60"
+                    >
+                      {phrases.declarationsMigrateAuditRefresh}
+                    </button>
+                    <a
+                      href="/audit"
+                      className="rounded-md border border-border px-2 py-0.5 text-[11px] hover:bg-background"
+                    >
+                      {phrases.declarationsMigrateAuditLink}
+                    </a>
+                  </div>
+                </div>
+                {migrateAuditStatus === "loading" ? (
+                  <p className="mt-1 text-muted">{phrases.savingAction}</p>
+                ) : null}
+                {migrateAuditStatus === "forbidden" ? (
+                  <p role="status" className="mt-1 text-muted">
+                    {phrases.declarationsMigrateAuditForbidden}
+                  </p>
+                ) : null}
+                {migrateAuditStatus === "error" ? (
+                  <p role="alert" className="mt-1 text-danger">
+                    {fillPhrase(phrases.declarationsLoadFailed, { status: 0 })}
+                  </p>
+                ) : null}
+                {migrateAuditStatus === "ok" && migrateAudit ? (
+                  migrateAudit.length === 0 ? (
+                    <p className="mt-1 text-muted">{phrases.declarationsMigrateAuditEmpty}</p>
+                  ) : (
+                    <table className="mt-2 w-full border-collapse text-left text-[11px]">
+                      <thead className="text-muted">
+                        <tr>
+                          <th className="py-0.5 pr-2 font-medium">{phrases.declarationsMigrateAuditTimeColumn}</th>
+                          <th className="py-0.5 pr-2 font-medium">{phrases.declarationsMigrateAuditActorColumn}</th>
+                          <th className="py-0.5 pr-2 font-medium">{phrases.declarationsMigrateAuditActionColumn}</th>
+                          <th className="py-0.5 pr-2 font-medium">{phrases.declarationsMigrateAuditTargetColumn}</th>
+                          <th className="py-0.5 font-medium">{phrases.declarationsMigrateAuditOutcomeColumn}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {migrateAudit.slice(0, 12).map((row) => (
+                          <tr key={row.auditEntryId ?? `${row.occurredAt}-${row.actionName}`} className="border-t border-border align-top">
+                            <td className="whitespace-nowrap py-0.5 pr-2">{row.occurredAt ?? "—"}</td>
+                            <td className="py-0.5 pr-2">{row.actorLogin ?? row.actor ?? "—"}</td>
+                            <td className="py-0.5 pr-2" title={row.actionName}>
+                              {language === "zh" ? (row.actionWordZh ?? row.actionName) : (row.actionWordEn ?? row.actionName)}
+                            </td>
+                            <td className="max-w-[12rem] py-0.5 pr-2 font-mono break-all">{row.actionTarget ?? "—"}</td>
+                            <td className="py-0.5">
+                              {language === "zh" ? (row.outcomeWordZh ?? row.outcome) : (row.outcomeWordEn ?? row.outcome)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
+                ) : null}
+              </div>
+
               {migrateStep.phase === "review-enqueue" || migrateStep.phase === "enqueueing" ? (
                 <div className="mt-2 rounded-md border border-border bg-surface px-2 py-2">
                   <p className="font-medium">{phrases.declarationsMigrateEnqueueReviewTitle}</p>
@@ -1157,6 +1494,9 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                   <p className="mt-1 text-muted">
                     {fillPhrase(phrases.declarationsMigrateReviewBody, { id: migrateStep.migrationId })}
                   </p>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px]">
+                    {migrationById(migrateStep.migrationId)?.sqlText?.trim() || "—"}
+                  </pre>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -1184,6 +1524,9 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                   <p className="mt-1 text-muted">
                     {fillPhrase(phrases.declarationsMigrateApplyReviewBody, { id: migrateStep.migrationId })}
                   </p>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px]">
+                    {migrationById(migrateStep.migrationId)?.sqlText?.trim() || "—"}
+                  </pre>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -1205,37 +1548,113 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                     </button>
                   </div>
                 </div>
+              ) : migrateStep.phase === "review-guided" || migrateStep.phase === "guiding" ? (
+                <div className="mt-2 rounded-md border border-accent bg-surface px-2 py-2">
+                  <p className="font-medium">{phrases.declarationsMigrateGuidedReviewTitle}</p>
+                  <p className="mt-1 text-muted">
+                    {fillPhrase(phrases.declarationsMigrateGuidedReviewBody, { id: migrateStep.migrationId })}
+                  </p>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px]">
+                    {migrationById(migrateStep.migrationId)?.sqlText?.trim() || "—"}
+                  </pre>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void confirmGuidedReviewApply()}
+                      disabled={migrateBusy}
+                      className="rounded-md bg-accent px-2 py-1 text-xs text-white disabled:opacity-60"
+                    >
+                      {migrateStep.phase === "guiding"
+                        ? phrases.declarationsMigrateGuidingAction
+                        : phrases.declarationsMigrateConfirmGuidedAction}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMigrateStep({ phase: "idle" })}
+                      disabled={migrateBusy}
+                      className="rounded-md border border-border px-2 py-1 text-xs"
+                    >
+                      {phrases.cancelAction}
+                    </button>
+                  </div>
+                </div>
+              ) : migrateStep.phase === "review-cancel" || migrateStep.phase === "cancelling" ? (
+                <div className="mt-2 rounded-md border border-border bg-surface px-2 py-2">
+                  <p className="font-medium">{phrases.declarationsMigrateCancelReviewTitle}</p>
+                  <p className="mt-1 text-muted">
+                    {fillPhrase(phrases.declarationsMigrateCancelReviewBody, { id: migrateStep.migrationId })}
+                  </p>
+                  <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap font-mono text-[11px]">
+                    {migrationById(migrateStep.migrationId)?.sqlText?.trim() || "—"}
+                  </pre>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void confirmCancelMigration()}
+                      disabled={migrateBusy}
+                      className="rounded-md border border-danger px-2 py-1 text-xs text-danger disabled:opacity-60"
+                    >
+                      {migrateStep.phase === "cancelling"
+                        ? phrases.declarationsMigrateCancellingAction
+                        : phrases.declarationsMigrateConfirmCancelAction}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMigrateStep({ phase: "idle" })}
+                      disabled={migrateBusy}
+                      className="rounded-md border border-border px-2 py-1 text-xs"
+                    >
+                      {phrases.cancelAction}
+                    </button>
+                  </div>
+                </div>
               ) : showMigrate ? (
                 <div className="mt-3 rounded-md border border-border bg-surface px-2 py-2">
-                  <p className="font-medium">{phrases.declarationsMigrateEnqueueTitle}</p>
-                  <div className="mt-2 flex flex-wrap gap-3">
-                    <label className="flex flex-col gap-1">
-                      <span className="text-muted">{phrases.declarationsMigrateRevisionLabel}</span>
-                      <input
-                        value={migrateRevision}
-                        onChange={(event) => setMigrateRevision(event.target.value)}
-                        className="w-24 rounded-md border border-border bg-background px-2 py-1 font-mono"
-                        aria-label={phrases.declarationsMigrateRevisionLabel}
-                      />
-                    </label>
-                    <label className="flex min-w-[16rem] flex-1 flex-col gap-1">
-                      <span className="text-muted">{phrases.declarationsMigrateSqlLabel}</span>
-                      <textarea
-                        value={migrateSql}
-                        onChange={(event) => setMigrateSql(event.target.value)}
-                        rows={3}
-                        className="w-full rounded-md border border-border bg-background px-2 py-1 font-mono leading-5"
-                        aria-label={phrases.declarationsMigrateSqlLabel}
-                      />
-                    </label>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{phrases.declarationsMigrateAdvancedManualTitle}</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowManualMigrateEnqueue((v) => !v)}
+                      className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-background"
+                    >
+                      {showManualMigrateEnqueue
+                        ? phrases.declarationsMigrateAdvancedHideAction
+                        : phrases.declarationsMigrateAdvancedShowAction}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={reviewEnqueueMigration}
-                    className="mt-2 rounded-md bg-accent px-2 py-1 text-xs text-white"
-                  >
-                    {phrases.declarationsMigrateEnqueueAction}
-                  </button>
+                  {showManualMigrateEnqueue ? (
+                    <>
+                      <p className="mt-2 font-medium">{phrases.declarationsMigrateEnqueueTitle}</p>
+                      <div className="mt-2 flex flex-wrap gap-3">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-muted">{phrases.declarationsMigrateRevisionLabel}</span>
+                          <input
+                            value={migrateRevision}
+                            onChange={(event) => setMigrateRevision(event.target.value)}
+                            className="w-24 rounded-md border border-border bg-background px-2 py-1 font-mono"
+                            aria-label={phrases.declarationsMigrateRevisionLabel}
+                          />
+                        </label>
+                        <label className="flex min-w-[16rem] flex-1 flex-col gap-1">
+                          <span className="text-muted">{phrases.declarationsMigrateSqlLabel}</span>
+                          <textarea
+                            value={migrateSql}
+                            onChange={(event) => setMigrateSql(event.target.value)}
+                            rows={3}
+                            className="w-full rounded-md border border-border bg-background px-2 py-1 font-mono leading-5"
+                            aria-label={phrases.declarationsMigrateSqlLabel}
+                          />
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={reviewEnqueueMigration}
+                        className="mt-2 rounded-md bg-accent px-2 py-1 text-xs text-white"
+                      >
+                        {phrases.declarationsMigrateEnqueueAction}
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -1275,18 +1694,53 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                     </thead>
                     <tbody>
                       {migrations.map((row) => (
-                        <tr key={row.migrationId ?? `${row.declarationRevision}-${row.createdAt}`} className="border-t border-border align-top">
+                        <tr
+                          key={row.migrationId ?? `${row.declarationRevision}-${row.createdAt}`}
+                          className={
+                            isFailedMigration(row.status)
+                              ? "border-t border-danger/40 bg-danger/5 align-top"
+                              : "border-t border-border align-top"
+                          }
+                        >
                           <td className="py-1 pr-2 font-mono">{row.migrationId ?? "—"}</td>
                           <td className="py-1 pr-2">{row.declarationRevision ?? "—"}</td>
-                          <td className="py-1 pr-2">{row.status ?? "—"}</td>
+                          <td
+                            className={
+                              isFailedMigration(row.status)
+                                ? "py-1 pr-2 font-medium text-danger"
+                                : "py-1 pr-2"
+                            }
+                          >
+                            {row.status ?? "—"}
+                          </td>
                           <td className="max-w-[14rem] py-1 pr-2 font-mono whitespace-pre-wrap break-all">
                             {row.sqlText ?? "—"}
                           </td>
                           <td className="max-w-[10rem] py-1 pr-2 text-danger whitespace-pre-wrap break-all">
-                            {row.errorMessage ?? "—"}
+                            {isFailedMigration(row.status) ? (
+                              <>
+                                <span className="font-medium">{row.errorMessage ?? "—"}</span>
+                                <p className="mt-1 text-[11px] font-normal text-muted">
+                                  {phrases.declarationsMigrateFailedHint}
+                                </p>
+                              </>
+                            ) : (
+                              (row.errorMessage ?? "—")
+                            )}
                           </td>
                           <td className="py-1">
                             <div className="flex flex-wrap gap-1">
+                              {showMigrate &&
+                              canGuidedReviewApplyMigration(row.status) &&
+                              migrateStep.phase === "idle" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => reviewGuidedReviewApply(row.migrationId!)}
+                                  className="rounded-md bg-accent px-1.5 py-0.5 text-white hover:opacity-90"
+                                >
+                                  {phrases.declarationsMigrateGuidedAction}
+                                </button>
+                              ) : null}
                               {showMigrate && canReviewMigration(row.status) && migrateStep.phase === "idle" ? (
                                 <button
                                   type="button"
@@ -1303,6 +1757,24 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
                                   className="rounded-md border border-border px-1.5 py-0.5 hover:bg-surface"
                                 >
                                   {phrases.declarationsMigrateApplyAction}
+                                </button>
+                              ) : null}
+                              {showMigrate && canCancelMigration(row.status) && migrateStep.phase === "idle" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => reviewCancelMigration(row.migrationId!)}
+                                  className="rounded-md border border-border px-1.5 py-0.5 text-muted hover:bg-surface"
+                                >
+                                  {phrases.declarationsMigrateCancelAction}
+                                </button>
+                              ) : null}
+                              {showMigrate && isFailedMigration(row.status) && migrateStep.phase === "idle" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => fillAdvancedFromFailed(row)}
+                                  className="rounded-md border border-danger/50 px-1.5 py-0.5 text-danger hover:bg-surface"
+                                >
+                                  {phrases.declarationsMigrateRequeueAction}
                                 </button>
                               ) : null}
                             </div>

@@ -11,14 +11,17 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
 契约预览 + 运行面薄切片，仅供受信网络内评估。对外暴露前请先读 `SECURITY.md`。
 
 ### Added / 新增
-- **O1 Model Freeze:** six-concept ontology Subject / Organization / Tenant / Membership / OrganizationRelation / TenantOrganization — ADR `docs/adr/0001-o1-organization-ontology.md` + `docs/ontology/*`; review PASS; on `github/main` `de1846ae`. Legacy `org_unit` marked tenant-scoped thin model until O7.
-  **O1 模型冻结：** 六概念本体 + ADR/ontology 包；内审通过并已推送。旧 `org_unit` 标为租户内薄模型至 O7。
+- **Pre-alpha capacity track (local tip, not pushed/tagged):** **1** AuthZ Cedar default (`platform.authz.engine=cedar`); **2** controlled migration UX (MigUX); **3** real AI preview + mandatory confirm write-back; **4** horizontal scale MVP (JDBC shared rate-limit + delivery breaker; advertise replicas>1 only when both `jdbc`); **5** independent config center MVP (namespaces + revision/ETag; DB+HTTP, not Nacos). Closing tip before docs收口: capacity+CI at `78520cc` lineage; see `web/PROGRESS.md`.
+  **预 alpha 能力轨（仅本地 tip，未 push/打 tag）：** 1 Cedar AuthZ；2 受控迁移 UX；3 真 AI+强制确认写；4 水平扩展 JDBC 共享；5 配置中心命名空间/ETag。详见 `web/PROGRESS.md`。
 
-- **O2 Persistence:** Flyway `V22__organization_ontology.sql` (`organization`, `membership`, `organization_relation`, `tenant_organization`); `JdbcOrganizationStore` with CONTAINS acyclicity; machine gates MODEL/MEM/ORG/TENANT; AUTH/MIG/DECL stubs; legacy `org_unit` / `org_membership` kept running.
-  **O2 持久化：** V22 四表 + JDBC 存储与环路校验；MODEL/MEM/ORG/TENANT 门禁；AUTH/MIG/DECL 桩；旧表仍运行。
+- **O1 Model Freeze:** six-concept ontology — ADR + `docs/ontology/*`; review PASS (`github/main` `de1846ae`). Superseded for runtime by **O8 FULL PASS** (legacy thin tables dropped).
+  **O1 模型冻结：** 六概念本体文档冻结；运行时以 **O8 FULL PASS** 为准（旧薄表已删）。
 
-- **Production gaps P1–P7 (local):** image-scan CI + reproducible Dockerfiles; management-port probes + NetworkPolicy sample; rotatable secrets / reject `change-me` outside local; single-replica gate; tenant daily/storage quotas (429); backup/restore procedure + `DRILL-PENDING`; dual-operator declaration promote + rollback (no auto DROP). Release checklist: `docs/release/v0.1.0-alpha.1-checklist.md`. **Tag blocked** until backup drill PASS.
-  生产缺口 P1–P7（本地）：镜像扫描、探针/网络策略、密钥轮换、单副本门禁、租户配额、备份演练待过、双人晋升与回滚。发版检查表见上。**备份演练 PASS 前不得打 tag。**
+- **O2–O8 Organization:** V22 ontology tables → O3 dual-read → O7 DROP `org_unit`/`org_membership` → **O8 FULL PASS** (ontology-only; SubjectPicker/OrganizationPicker; squash on `github/main` `1e431b2`).
+  **O2–O8 组织：** 本体持久化直至 O8 全量通过；旧薄表已 DROP。
+
+- **Production gaps P1–P7 (local code+docs):** image-scan workflow + non-root images; management-port probes + NetworkPolicy; secrets rotation / reject `change-me` outside local; single-replica gate (Scale-4d: replicas>1 only with both JDBC shared backends); tenant quotas; **backup/restore drill PASS** (`docs/release/drills/2026-10-09-backup-restore.md`); dual-operator promote + rollback. Checklist: `docs/release/v0.1.0-alpha.1-checklist.md`. **Alpha tag not cut** — awaiting remote CI verify + intentional release; still **not** production-ready.
+  生产缺口 P1–P7（本地代码/文档已齐；P6 演练已 PASS）。**尚未打 alpha tag**——需远端 CI 验绿后再发；仍非生产就绪。
 
 - **Outbox `DeliveryPort` (OB-1):** transport as a port; default `platform.delivery.transport=socket` keeps `OutboxSocketPublisher` → sample-consumer. Socket demoted to local/quickstart demo (single address, ≤4000 body, shared HMAC — not multi-consumer). Circuit breaker wraps only the selected transport.
   出箱 `DeliveryPort`（OB-1）：传输端口化；默认 socket 演示路径保留；熔断只包所选传输。
@@ -84,6 +87,8 @@ Contract preview with thin runtime slices, for evaluation on a trusted network. 
   CI 已落到 `.github/workflows/build.yml`：每次 push / PR 跑后端 `mvn -B test` 与控制台 typecheck/test/build；`docs/ci/` 仅作指引。
 
 ### Fixed / 修复
+- **CI — VendorStartupTest MySQL row size + ready probe (CI-fix-1):** V16 `declaration_migration.sql_text` → **TEXT** (MySQL utf8mb4 InnoDB); V29 widen-after-repair; probes assert **management port** (P2). Local H2 V29 green; live VendorStartupTest needs Docker/CI.
+  CI：MySQL 行大小与管理口就绪探针修复；真库启动待 CI Docker 再验。
 - **Security / reliability — outbox background relay.** `TaskMessagePort.relayPending` + scheduled `OutboxRelay` retry `PENDING` rows under distributed lock `outbox-relay` until `PUBLISHED` or dead-letter; circuit breaker gains half-open cooldown so a transient consumer outage does not leave rows stuck. Attempt count is not burned while the breaker refuses calls.
   出箱后台重投：调度工人在分布式锁下重试 PENDING，直到送出或死信；熔断半开冷却；拒呼时不消耗尝试次数。
 - **Security — outbox frame no longer carries the operator password; TLS fail-closed outside local.** Protocol `SUBJEX-OUTBOX 2` uses HMAC-SHA256 (`OUTBOX_HMAC_SECRET` ≥ 32). TLS (PKCS12) required unless `local` / `platform.delivery.allow-insecure=true`. Local default secret only in `application-local.yml`.
@@ -101,11 +106,12 @@ See `SECURITY.md` for the security-relevant ones. Also:
 - Circuit breaker open-cooldown is per process (not shared across `platform-app` replicas).
 - Dead letters are read-only (no replay).
 - Object storage has only a local-directory implementation and no HTTP endpoint uses it.
-- Rate limit, circuit breaker and object storage are per-process state.
+- Rate limit and delivery circuit breaker default to **per-process** (`process`); optional shared **`jdbc`** backends (Scale-4b/4c) — advertise `replicas>1` only when **both** are `jdbc` (Scale-4d). Object storage remains per-pod local directory unless a shared volume/SPI is used.
 - `deploy/compose` includes `sample-consumer` (wired like k8s) but not `web/`; full compose image build / end-to-end smoke still optional and not always run in this release cycle.
 - `web/` has no Dockerfile or manifests (CI now covers typecheck/test/build; no image yet).
 - Activating `.github/workflows/*` on the remote requires a token with the `workflow` scope; until that push lands, GitHub Actions still will not run.
 - Console operator create / password reset / grant editor landed (Slice A); role catalog UI still deferred.
 - Auto-creating tenants on first granted task submission remains for missing ACTIVE tenants; explicit admin is `/api/v1/tenants` + `/tenants` (Slice B). Hard delete / quotas deferred.
-- Opaque Bearer, TOTP MFA, and OIDC RP landed (Slices C–E). Login lockout/rate-limit still deferred.
-- HTTP Basic remains available for scripts/local tooling; console path uses Bearer only after login.
+- Opaque Bearer, TOTP MFA, OIDC RP, and **login lockout** landed (Slices C–E + lockout). HTTP Basic remains local/script opt-in; console uses Bearer after login.
+- **AuthZ default Cedar**; set `platform.authz.engine=sql` only when Cedar natives are unavailable.
+- Alpha **not tagged**; local tip **not squash-pushed**. Remote Actions must re-verify `VendorStartupTest` + `image-scan` before cutting `v0.1.0-alpha.1`.

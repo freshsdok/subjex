@@ -1,7 +1,7 @@
 package com.subjex.platform.app.delivery;
 
 import com.subjex.platform.contract.delivery.DeliveryAttempt;
-import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
 import com.subjex.platform.contract.delivery.DeliveryPort;
 import com.subjex.platform.contract.delivery.OutboxHmac;
 import com.subjex.platform.contract.delivery.OutboxSocketFrame;
@@ -27,9 +27,9 @@ import javax.net.ssl.SSLSocket;
  * <p>
  * Pushes JDBC outbox rows to sample-consumer over {@code SUBJEX-OUTBOX 2}. Single address, body ≤ 4000 bytes,
  * shared HMAC — not a multi-consumer bus. Optional TLS when an {@link SSLContext} is provided. Failures open
- * only this publisher's {@link DeliveryCircuitBreaker}. The current span is written as traceparent.
+ * only this publisher's {@link DeliveryCircuitBreakerPort}. The current span is written as traceparent.
  * 把 JDBC 出箱行经 {@code SUBJEX-OUTBOX 2} 推给 sample-consumer。单地址、正文 ≤4000 字节、共享 HMAC——
- * 不是多消费方总线。提供 {@link SSLContext} 时走 TLS。失败只打开本实现的熔断器。当前跨度写成 traceparent。
+ * 不是多消费方总线。提供 {@link SSLContext} 时走 TLS。失败只打开本实现的熔断端口。当前跨度写成 traceparent。
  */
 public final class OutboxSocketPublisher implements DeliveryPort {
 
@@ -37,7 +37,7 @@ public final class OutboxSocketPublisher implements DeliveryPort {
     private final int consumerPort;
     private final String hmacSecret;
     private final SSLContext sslContext;
-    private final DeliveryCircuitBreaker breaker;
+    private final DeliveryCircuitBreakerPort breaker;
     private final OpenTelemetry openTelemetry;
     private final Clock clock;
 
@@ -46,7 +46,7 @@ public final class OutboxSocketPublisher implements DeliveryPort {
             int consumerPort,
             String hmacSecret,
             SSLContext sslContext,
-            DeliveryCircuitBreaker breaker,
+            DeliveryCircuitBreakerPort breaker,
             OpenTelemetry openTelemetry,
             Clock clock) {
         if (consumerHost == null || consumerHost.isBlank()) {

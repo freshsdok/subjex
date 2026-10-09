@@ -134,15 +134,15 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - O. [done] People model lock: **permission tiers** (not separate login account types as primary split); **platform super-admin isolated** from all other accounts; `ARCHITECTURE.md` §18; local commit only (no push).
 - P. [done] UX/runtime locks: **page builder/configurator** first (most-used components as visual blocks; not free canvas); **algo/AI thin** in first wave (catalog + 1–2 stubs); **strict DB management** for field/schema changes (controlled migrations / no casual online DDL; align dual-track promote); permission tiers + isolated super-admin already locked; `ARCHITECTURE.md` §18; local commit only (no push).
 - Q. [done] Dual-track ops locks: promote via **internal git** (self-hosted / in-platform; **not** GitHub-dependent); declaration drafts **tenant-scoped**; platform **super-admin** own role name (e.g. `platform.super-admin`); `ARCHITECTURE.md` §18; local commit only (no push).
-- R. [done] Runtime/ops locks: **promoted declaration metadata may hot-reload**; **schema/table changes** go through **migration queue** and declaration switches only after migration completes (**bound together**); first-wave **page blocks** listed (generic form components, ListTable, FormFields, DetailReadonly, Section/Tabs, SubmitBar, UserPicker/OrgPicker placeholders, flow sorter/router); Z1 engine = **new sample and/or parallel read-adapt `service_note`** (old JDBC may remain then delete); **HTTP Basic** safer default (off outside `local`) — curl/docs with Z1; **Basic-1 implemented**; `ARCHITECTURE.md` §18; local commit only (no push).
+- R. [done] Runtime/ops locks: hot-reload metadata + migration queue bound; first-wave page blocks (now SubjectPicker/OrganizationPicker after O8); Z1 engine; **HTTP Basic** off outside `local` (**Basic-1 implemented**); `ARCHITECTURE.md` §18; local commit only (no push).
 - S. [done] Z1-1: EntityCatalog + userRef/orgRef + demo-ticket YAML/V12; local commit only.
 - T. [done] Z1-2: generic JDBC CRUD + REST /records by entityKey (demo-ticket); local commit only.
 - U. [done] Z1-3: parallel generic read for service_note + Basic safer-default docs; local commit only.
 - V. [done] Thin-org-1: org_unit + membership Flyway V13, org.read, platform.super-admin role reserved, JDBC reader; local commit only.
 - W. [done] Thin-org-2: read-only GET /api/v1/org/units|memberships + org.read security; local commit only.
-- X. [done] Z2-1: page-block catalog + React stubs (ListTable wired; User/Org pickers placeholder); local commit only.
+- X. [done] Z2-1: page-block catalog + React stubs (ListTable wired; pickers later Subject/Organization); local commit only.
 - Y. [done] Z2-2: demo-ticket flow/form + entity.record.upsert generic domain action; local commit only.
-- Z. [done] Z2-3: detail GET /records/{id}, live User/Org pickers (thin), forms entityKey; local commit only.
+- Z. [done] Z2-3: detail GET /records/{id}, live pickers (now Subject/Organization after O8), forms entityKey; local commit only.
 - AA. [done] Z3-1: declaration_revision + JdbcDeclarationStore + declaration.read/write; local commit only.
 - AB. [done] Z3-2: declaration draft HTTP + effective overlay (DB over classpath); local commit only.
 - AC. [done] Z3-3: runtime overlay when tenant header present (entity/form/flow); Z3 baseline landed; local commit only.
@@ -170,7 +170,7 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - AY. [done] Org-W1: org.write + PUT/DELETE org units/memberships + audit; local commit only.
 - AZ. [done] Org-W2: thin org console `/org` (units/memberships, review→confirm writes); local commit only.
 - O1. [done] **Model Freeze** Subject/Organization/Tenant/Membership/OrganizationRelation/TenantOrganization — ADR [`adr/0001-o1-organization-ontology.md`](adr/0001-o1-organization-ontology.md) + [`ontology/`](ontology/); review PASS; pushed `de1846ae`.
-- O2. [done] **Persistence** Flyway V22 + `JdbcOrganizationStore`; MODEL/MEM/ORG/TENANT gates (legacy retained until O7).
+- O2. [done] **Persistence** Flyway V22 + `JdbcOrganizationStore`; MODEL/MEM/ORG/TENANT gates (legacy later DROPped in O7/O8).
 - O3. [done] **Compatibility & Backfill** V23 map + dual-read + write-through; MIG-01/02/03.
 - O4. [done] **Authorization** OrgScope five modes from Membership + OrganizationRelation; AUTH-01..05.
 - O5. [done] **API / Console** `/api/v1/organizations` + `/org` console; legacy `/api/v1/org` deprecated; local commit only.
@@ -184,7 +184,7 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - BE. [done] Cap-4: thin console `/capabilities` catalog + try-run; local commit only.
 - BF. [done] AX-1: explainable `AccessDecision` / `AccessChecker` for declaration API paths; structured 403; local commit only.
 - BG. [done] AX-2: OrgScope self+descendants on AccessDecision + org API filter/deny; local commit only.
-- BH. [done] AX-3: PolicyEngine port (Cedar/Casbin subset shape) + SqlRbacPolicyEngine + Org membership caller; local commit only.
+- BH. [done] AX-3: PolicyEngine port + SqlRbacPolicyEngine; later AuthZ-1d default **Cedar**; local commit only.
 
 
 ## Thin algo/AI progress / 薄算法·AI 进度
@@ -295,9 +295,9 @@ Agreed product model (owner confirmed). **Declaration remains the single source 
 
 **已拍板：优先级 R1**（负责人确认）。
 
-Sequence: **Z1** → **thin people/org** (shipped on legacy `org_unit`) → **Z2**… → **Z3/Z4**. **O1+O2:** six-concept ontology + V22 persistence alongside thin `org_unit` — see [`ontology/README.md`](ontology/); O3 backfill next; **Deferred still:** SCIM, dual-role, HR/Position, Zanzibar, full Cedar/Casbin. Field kinds (O6 done): `subjectRef`/`organizationRef` (aliases `userRef`/`orgRef`); pickers → SubjectPicker + OrganizationPicker.
+Sequence (executed): **Z1** → thin people/org (**historical**) → **Z2**…→ **Z5** / MQ / RT. **O1–O8 FULL PASS:** ontology-only runtime; V24 DROP `org_unit`/`org_membership`; field kinds **`subjectRef`/`organizationRef` only** (aliases removed in O8-5); pickers → **SubjectPicker + OrganizationPicker**. **AuthZ:** default Cedar (`platform.authz.engine=cedar`). **Deferred still:** SCIM, dual-role, HR/Position, Zanzibar. See [`ontology/README.md`](ontology/).
 
-顺序：**Z1** → **薄人员/组织**（已落在旧 `org_unit`）→ **Z2**…→ **Z3/Z4**。**O1 模型冻结（文档）：** 六概念本体取代薄 `org_unit` 作为长期底座——见 [`ontology/README.md`](ontology/)；O2+ 再持久化/迁移。后置仍含：SCIM、兼岗、HR/岗位、Zanzibar、完整 Cedar/Casbin。字段（O6 已做）：`subjectRef`/`organizationRef`（别名 userRef/orgRef）；选人 → SubjectPicker + OrganizationPicker。
+顺序（已走过）：**Z1** → 薄组织（**历史**）→ **Z2**…→ **Z5**/MQ/RT。**O1–O8 FULL PASS：** 仅本体运行时；V24 删除旧表；字段仅 subjectRef/organizationRef；选人 SubjectPicker+OrganizationPicker。**AuthZ 默认 Cedar。** 后置：SCIM、兼岗、HR、Zanzibar。
 
 Rejected as default sequencing: R2 (org-first for strong approval demos); R3 (strict two-team parallel — not fit for single-thread delivery).
 
@@ -324,9 +324,9 @@ Rejected as default sequencing: R2 (org-first for strong approval demos); R3 (st
 **已拍板：页面构建器**（负责人确认）——首波交付**结构化构建器/配置器**，不做自由画布；优先设计**最常用页面组件**作为可视化积木。
 
 
-**Decided / 已拍板：first-wave page blocks** (owner confirmed) — first wave component catalog includes: **generic form components**; **ListTable**; **FormFields** (generated from entity fields); **DetailReadonly**; **Section / Tabs**; **SubmitBar**; **UserPicker / OrgPicker** placeholders (wire real data after thin org); **flow sorter / router** (流程分拣器). Not free canvas; not charts / large rich-text editors in v1.
+**Decided / 已拍板：first-wave page blocks** (owner confirmed; **O8 current**) — catalog: **generic form components**; **ListTable**; **FormFields**; **DetailReadonly**; **Section / Tabs**; **SubmitBar**; **SubjectPicker / OrganizationPicker** (legacy UserPicker/OrgPicker **removed**); **flow sorter / router**. Not free canvas; not charts / large rich-text editors in v1.
 
-**已拍板：首波页面积木**（负责人确认）——首波组件目录含：**通用窗体组件**；**ListTable**；**FormFields**（按实体字段生成）；**DetailReadonly**；**Section / Tabs**；**SubmitBar**；**UserPicker / OrgPicker** 占位（薄组织后再接真数据）；**流程分拣器**。非自由画布；v1 不做图表 / 大型富文本编辑器。
+**已拍板：首波页面积木**（O8 后现行）——含通用窗体、ListTable、FormFields、DetailReadonly、Section/Tabs、SubmitBar、**SubjectPicker / OrganizationPicker**（旧 User/Org picker **已删**）、流程分拣器。非自由画布。
 
 **Decided / 已拍板：algorithm / AI thin first wave** (owner confirmed) — first wave includes only a **thin layer**: capability **catalog + stubs** (wireable from flow/action; flows may declare `submit.capabilityId`; console can `POST .../capabilities/{id}/run`), **not** full algorithm or AI engines.
 
@@ -390,8 +390,8 @@ Do in order unless the owner renumbers. **First wave still Z1–Z4** (dual-track
 | --- | --- | --- | --- |
 | Z0 | Docs / 文档 | Zero-code model + **dual-track decided** in roadmap + `ARCHITECTURE.md`. | done (docs) |
 | Z1 | Generic entity CRUD / 通用实体 CRUD | Metadata-driven table + REST by `entityKey`; **new sample and/or parallel read-adapt `service_note`** (old JDBC may remain then delete) — **new entity → zero Java**. Reserve `userRef`/`orgRef` kinds. Schema/field evolution only via **migration queue** bound to declaration cutover (hot-reload metadata only after migration completes). HTTP Basic **off** outside `local` (**Basic-1 done**). | **R1 #1 / baseline landed** (Z1-1..3; bespoke write **removed**, generic owns service-note writes) |
-| thin org | Thin people/org base / 薄人员组织底座 | `org_unit` tree + membership + **read + write** APIs (`org.read` / `org.write`) + **console `/org`**; wire **permission tiers** (console vs business work); **`platform.super-admin` (own role name)** out of ordinary grants; **no** mandatory second account type; **no** SCIM / complex dual-role yet. | **R1 #2 / write + thin console** (Thin-org-1..2 + Org-W1..W2) |
-| Z2 | Generic flow pages / 通用流程页 | list/detail/new/edit fully declaration-driven; first-wave blocks: **generic form components**, **ListTable**, **FormFields**, **DetailReadonly**, **Section/Tabs**, **SubmitBar**, **UserPicker/OrgPicker** (thin live), **flow sorter/router** — **new business page → zero bespoke front-end**. | **R1 #3 / baseline landed** (Z2-1..3; detail GET + thin pickers + forms entityKey) |
+| thin org | Thin people/org base / 薄人员组织底座（**历史，O8 已收口**） | Was `org_unit` tree + membership; **replaced by O1–O8 ontology** (`/api/v1/organizations`). **`platform.super-admin`** isolated; **no** SCIM / dual-role. | **R1 #2 / closed via O8 FULL PASS** |
+| Z2 | Generic flow pages / 通用流程页 | list/detail/new/edit declaration-driven; blocks include **SubjectPicker / OrganizationPicker** (legacy User/Org pickers removed in O8) — **new business page → zero bespoke front-end**. | **R1 #3 / baseline landed** (Z2-1..3; O8 pickers) |
 | Z3 | Declaration store / 声明存储 | `declaration_revision` (or equivalent) + **tenant-scoped** drafts; load order: DB overlay over classpath. May overlap Z1 **after** Z1 baseline lands. | **R1 #4 / baseline landed** (Z3-1..3) |
 | Z4 | Console page builder / configurator / 控制台页面构建器 | **Structured builder** (not free canvas): compose pages from **most-used visual component blocks**; wizards also cover entity/form/flow/permission; writes drafts in Z3. | **R1 #4 / first wave** |
 | Z5 | Promote / 晋升 | Export YAML into **internal git** (self-hosted / in-platform; **not** GitHub-dependent) / gated apply + audit — closes the dual-track loop. | right after first wave |

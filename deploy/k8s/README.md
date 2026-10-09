@@ -34,3 +34,10 @@ entry-gateway.yaml — HTTP entry gateway (not applied by tests).
 
 Probes and Prometheus use `management.server.port` (not the business port). Sample isolation: `networkpolicy-sample.yaml`.
 探针与 Prometheus 走管理端口（非业务口）。隔离样例见 `networkpolicy-sample.yaml`。
+
+## Single-replica gate / 单副本门禁（P4 → Scale-4d）
+
+Default `platform-app.yaml` keeps **`replicas: 1`**. Do **not** advertise multi-replica unless both shared backends are `jdbc` (rate-limit + delivery circuit breaker). Optional illustrative patch: `platform-app-shared-backends.snippet.yaml`. Object storage remains local per pod without a shared volume. Details: [`docs/release/single-replica-gate.md`](../../docs/release/single-replica-gate.md).
+
+默认清单保持单副本。未同时打开双 `jdbc` 后端时不要对外宣称多副本。可选示意补丁见 `platform-app-shared-backends.snippet.yaml`。无共享卷时对象存储仍按副本本地。详见单副本门禁文档。
+

@@ -206,7 +206,98 @@ export function canApplyMigration(status: string | undefined | null): boolean {
   return status === "REVIEWED";
 }
 
+/** PENDING or REVIEWED → may Cancel — 待审/已审可取消。 */
+export function canCancelMigration(status: string | undefined | null): boolean {
+  return status === "PENDING" || status === "REVIEWED";
+}
+
+/** PENDING → guided review+apply — 待审可一键审阅并执行（仍需确认 SQL）。 */
+export function canGuidedReviewApplyMigration(status: string | undefined | null): boolean {
+  return status === "PENDING";
+}
+
+/** FAILED row emphasis / re-queue hint — 失败行高亮。 */
+export function isFailedMigration(status: string | undefined | null): boolean {
+  return status === "FAILED";
+}
+
 /** Statuses that block entity promote — 会挡住实体晋升的状态。 */
 export function migrationBlocksPromote(status: string | undefined | null): boolean {
   return status === "PENDING" || status === "REVIEWED" || status === "FAILED";
+}
+
+/** Path chip steps — 迁移路径步骤（草稿→入队→审阅→执行→晋升）。 */
+export const MIGRATION_PATH_STEPS = ["draft", "PENDING", "REVIEWED", "APPLIED", "promote"] as const;
+export type MigrationPathStep = (typeof MIGRATION_PATH_STEPS)[number];
+export type MigrationPathChipState = "done" | "current" | "todo" | "blocked";
+
+export type MigrationPathChip = {
+  step: MigrationPathStep;
+  state: MigrationPathChipState;
+};
+
+/**
+ * Lightweight path checklist for entity migrate→promote.
+ * 实体迁移路径轻量清单：按当前修订上的队列状态推导。
+ */
+export function migrationPathChecklist(opts: {
+  hasDraft: boolean;
+  revision: number | null | undefined;
+  migrations: { status?: string; declarationRevision?: number }[] | null | undefined;
+  promotedForRevision: boolean;
+}): MigrationPathChip[] {
+  const rev = opts.revision;
+  const rows =
+    opts.migrations == null || rev == null
+      ? []
+      : opts.migrations.filter((m) => m.declarationRevision === rev);
+  const statuses = new Set(rows.map((m) => m.status).filter(Boolean) as string[]);
+  const hasPending = statuses.has("PENDING");
+  const hasReviewed = statuses.has("REVIEWED");
+  const hasApplied = statuses.has("APPLIED");
+  const hasFailed = statuses.has("FAILED");
+  const enqueued = rows.length > 0;
+  const openBlockers = hasPending || hasReviewed || hasFailed;
+  const appliedDone = hasApplied && !hasPending && !hasReviewed && !hasFailed;
+
+  const doneFlags: Record<MigrationPathStep, boolean> = {
+    draft: opts.hasDraft,
+    PENDING: enqueued,
+    REVIEWED: hasReviewed || hasApplied,
+    APPLIED: appliedDone,
+    promote: opts.promotedForRevision,
+  };
+  const blockedFlags: Partial<Record<MigrationPathStep, boolean>> = {
+    REVIEWED: hasFailed && !hasReviewed && !hasApplied,
+    APPLIED: hasFailed && !appliedDone,
+    promote: openBlockers && !opts.promotedForRevision,
+  };
+
+  const order: MigrationPathStep[] = ["draft", "PENDING", "REVIEWED", "APPLIED", "promote"];
+  let currentAssigned = false;
+  return order.map((step) => {
+    if (doneFlags[step]) return { step, state: "done" as const };
+    if (blockedFlags[step]) return { step, state: "blocked" as const };
+    if (!currentAssigned) {
+      currentAssigned = true;
+      return { step, state: "current" as const };
+    }
+    return { step, state: "todo" as const };
+  });
+}
+
+/** Filter platform audit rows to declaration.migrate.* for an entity key — 过滤某实体的迁移审计。 */
+export function filterMigrateAuditEntries<T extends { actionName?: string; actionTarget?: string }>(
+  entries: T[] | null | undefined,
+  declarationKey: string,
+): T[] {
+  const key = declarationKey.trim();
+  if (!key || !entries) return [];
+  const needle = `entity/${key}`;
+  return entries.filter((e) => {
+    const action = e.actionName ?? "";
+    if (!action.startsWith("declaration.migrate.")) return false;
+    const target = e.actionTarget ?? "";
+    return target.includes(needle);
+  });
 }

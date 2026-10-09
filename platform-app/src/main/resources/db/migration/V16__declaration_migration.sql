@@ -15,7 +15,9 @@ CREATE TABLE declaration_migration (
     declaration_kind VARCHAR(32) NOT NULL,
     declaration_key VARCHAR(128) NOT NULL,
     declaration_revision INT NOT NULL,
-    sql_text VARCHAR(16000) NOT NULL,
+    -- TEXT: MySQL utf8mb4 cannot fit VARCHAR(16000) in an InnoDB row (CI VendorStartupTest).
+    -- TEXT：MySQL utf8mb4 下 VARCHAR(16000) 会触发行大小上限（CI VendorStartupTest）。
+    sql_text TEXT NOT NULL,
     status VARCHAR(32) NOT NULL,
     created_at TIMESTAMP NOT NULL,
     created_by_subject_id VARCHAR(64) NOT NULL,

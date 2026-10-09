@@ -7,6 +7,8 @@ import {
   capabilityRunPath,
   capabilitySummary,
   capabilityTitle,
+  capabilityWriteBackPath,
+  capabilityWriteTicketPath,
   isKnownCapabilityKind,
   type CapabilityRow,
 } from "@/lib/capabilities-console";
@@ -17,26 +19,55 @@ type Props = {
   capabilities: CapabilityRow[];
 };
 
-type RunStep = "idle" | "running";
+type RunStep = "idle" | "running" | "issuing" | "confirming";
 
-// Capabilities console — 能力控制台：目录表 + 选中项试跑。
+type WriteTicket = {
+  capabilityId: string;
+  previewText: string;
+  ticketId: string;
+  inputDigest: string;
+  previewDigest: string;
+  expiresAt: string;
+};
+
+// Capabilities console — 能力控制台：目录表 + 试跑预览；AI 可签发写回确认票并确认写回（默认 noop）。
 export function CapabilitiesConsole({ phrases, language, capabilities }: Props) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>(capabilities[0]?.id ?? "");
   const [inputText, setInputText] = useState("");
   const [step, setStep] = useState<RunStep>("idle");
   const [result, setResult] = useState<string | null>(null);
+  const [ticket, setTicket] = useState<WriteTicket | null>(null);
+  const [writeNotice, setWriteNotice] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const selected = useMemo(
     () => capabilities.find((row) => row.id === selectedId) ?? null,
     [capabilities, selectedId],
   );
+  const selectedIsAi = selected != null && selected.kind === "AI";
+  const busy = step !== "idle";
 
   function kindLabel(kind: string): string {
     if (kind === "ALGORITHM") return phrases.capabilitiesKindAlgorithm;
     if (kind === "AI") return phrases.capabilitiesKindAi;
     return kind;
+  }
+
+  function clearSelectionSideEffects() {
+    setResult(null);
+    setTicket(null);
+    setWriteNotice(null);
+    setProblem(null);
+  }
+
+  async function readErrorDetail(reply: Response): Promise<string> {
+    try {
+      const errBody = (await reply.json()) as { message?: string; reason?: string };
+      return errBody.message ?? errBody.reason ?? "";
+    } catch {
+      return "";
+    }
   }
 
   async function runSelected() {
@@ -47,6 +78,8 @@ export function CapabilitiesConsole({ phrases, language, capabilities }: Props) 
     setStep("running");
     setProblem(null);
     setResult(null);
+    setTicket(null);
+    setWriteNotice(null);
     const reply = await fetch(capabilityRunPath(selected.id), {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
@@ -63,13 +96,7 @@ export function CapabilitiesConsole({ phrases, language, capabilities }: Props) 
       return;
     }
     if (!reply.ok) {
-      let detail = "";
-      try {
-        const errBody = (await reply.json()) as { message?: string; reason?: string };
-        detail = errBody.message ?? errBody.reason ?? "";
-      } catch {
-        detail = "";
-      }
+      const detail = await readErrorDetail(reply);
       setProblem(
         detail
           ? `${fillPhrase(phrases.capabilitiesRunFailed, { status: reply.status })} ${detail}`
@@ -80,6 +107,89 @@ export function CapabilitiesConsole({ phrases, language, capabilities }: Props) 
     }
     const body = (await reply.json()) as { capabilityId?: string; result?: string };
     setResult(typeof body.result === "string" ? body.result : "");
+    setStep("idle");
+  }
+
+  async function issueWriteTicket() {
+    if (!selected || !selectedIsAi) {
+      setProblem(phrases.capabilitiesAiOnlyWriteHint);
+      return;
+    }
+    setStep("issuing");
+    setProblem(null);
+    setWriteNotice(null);
+    const reply = await fetch(capabilityWriteTicketPath(selected.id), {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ inputText }),
+      cache: "no-store",
+    }).catch(() => null);
+    if (reply?.status === 401) {
+      router.replace("/login");
+      return;
+    }
+    if (!reply?.ok) {
+      const detail = reply ? await readErrorDetail(reply) : "";
+      setProblem(
+        detail
+          ? `${fillPhrase(phrases.capabilitiesTicketFailed, { status: reply?.status ?? 0 })} ${detail}`
+          : fillPhrase(phrases.capabilitiesTicketFailed, { status: reply?.status ?? 0 }),
+      );
+      setStep("idle");
+      return;
+    }
+    const body = (await reply.json()) as WriteTicket;
+    setTicket(body);
+    if (body.previewText) {
+      setResult(body.previewText);
+    }
+    setStep("idle");
+  }
+
+  async function confirmWriteBack() {
+    if (!selected || !selectedIsAi || !ticket) {
+      setProblem(phrases.capabilitiesAiOnlyWriteHint);
+      return;
+    }
+    setStep("confirming");
+    setProblem(null);
+    const reply = await fetch(capabilityWriteBackPath(selected.id), {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        ticketId: ticket.ticketId,
+        inputDigest: ticket.inputDigest,
+        previewDigest: ticket.previewDigest,
+        expiresAt: ticket.expiresAt,
+        previewText: ticket.previewText,
+      }),
+      cache: "no-store",
+    }).catch(() => null);
+    if (reply?.status === 401) {
+      router.replace("/login");
+      return;
+    }
+    if (!reply?.ok) {
+      const detail = reply ? await readErrorDetail(reply) : "";
+      setProblem(
+        detail
+          ? `${fillPhrase(phrases.capabilitiesWriteBackFailed, { status: reply?.status ?? 0 })} ${detail}`
+          : fillPhrase(phrases.capabilitiesWriteBackFailed, { status: reply?.status ?? 0 }),
+      );
+      setStep("idle");
+      return;
+    }
+    const body = (await reply.json()) as { sink?: string; persisted?: boolean; suggestion?: string };
+    setWriteNotice(
+      fillPhrase(phrases.capabilitiesWriteBackNotice, {
+        sink: body.sink ?? "noop",
+        persisted: String(body.persisted ?? false),
+      }),
+    );
+    if (typeof body.suggestion === "string") {
+      setResult(body.suggestion);
+    }
+    setTicket(null);
     setStep("idle");
   }
 
@@ -108,15 +218,13 @@ export function CapabilitiesConsole({ phrases, language, capabilities }: Props) 
                   className={`cursor-pointer border-t border-border ${active ? "bg-background" : ""}`}
                   onClick={() => {
                     setSelectedId(row.id);
-                    setResult(null);
-                    setProblem(null);
+                    clearSelectionSideEffects();
                   }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
                       setSelectedId(row.id);
-                      setResult(null);
-                      setProblem(null);
+                      clearSelectionSideEffects();
                     }
                   }}
                   tabIndex={0}
@@ -154,8 +262,7 @@ export function CapabilitiesConsole({ phrases, language, capabilities }: Props) 
               value={selectedId}
               onChange={(event) => {
                 setSelectedId(event.target.value);
-                setResult(null);
-                setProblem(null);
+                clearSelectionSideEffects();
               }}
             >
               {capabilities.map((row) => (
@@ -178,11 +285,23 @@ export function CapabilitiesConsole({ phrases, language, capabilities }: Props) 
             <button
               type="button"
               className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-              disabled={step === "running" || !selectedId}
+              disabled={busy || !selectedId}
               onClick={() => void runSelected()}
             >
               {step === "running" ? phrases.capabilitiesRunningAction : phrases.capabilitiesRunAction}
             </button>
+            {selectedIsAi ? (
+              <button
+                type="button"
+                className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                disabled={busy || !selectedId || inputText.trim() === ""}
+                onClick={() => void issueWriteTicket()}
+              >
+                {step === "issuing"
+                  ? phrases.capabilitiesIssuingTicketAction
+                  : phrases.capabilitiesIssueTicketAction}
+              </button>
+            ) : null}
             {selected ? (
               <span className="text-xs text-muted">
                 {kindLabel(selected.kind)} · {selected.id}
@@ -194,12 +313,39 @@ export function CapabilitiesConsole({ phrases, language, capabilities }: Props) 
               {problem}
             </p>
           ) : null}
+          {writeNotice ? (
+            <p role="status" className="text-sm text-green-700">
+              {writeNotice}
+            </p>
+          ) : null}
           {result != null ? (
             <div>
               <h3 className="text-sm font-medium">{phrases.capabilitiesResultTitle}</h3>
               <pre className="mt-1 max-h-64 overflow-auto rounded-md border border-border bg-background p-3 font-mono text-xs whitespace-pre-wrap break-all">
                 {result || phrases.capabilitiesResultEmpty}
               </pre>
+            </div>
+          ) : null}
+          {ticket ? (
+            <div className="rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-sm">
+              <p className="font-medium">{phrases.capabilitiesTicketTitle}</p>
+              <p className="mt-1 text-xs text-muted">{phrases.capabilitiesTicketHint}</p>
+              <p className="mt-2 font-mono text-xs">
+                {phrases.capabilitiesTicketIdLabel}: {ticket.ticketId}
+              </p>
+              <p className="mt-1 font-mono text-xs">
+                {phrases.capabilitiesTicketExpiresLabel}: {ticket.expiresAt}
+              </p>
+              <button
+                type="button"
+                className="mt-3 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                disabled={busy}
+                onClick={() => void confirmWriteBack()}
+              >
+                {step === "confirming"
+                  ? phrases.capabilitiesConfirmingWriteAction
+                  : phrases.capabilitiesConfirmWriteAction}
+              </button>
             </div>
           ) : null}
         </div>

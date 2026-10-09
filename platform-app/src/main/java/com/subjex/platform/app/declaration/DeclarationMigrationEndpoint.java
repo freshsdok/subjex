@@ -21,10 +21,10 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * DeclarationMigrationEndpoint — 声明迁移队列 HTTP：列表 / 入队 / 审阅 / 执行 REVIEWED DDL。
  * <p>
- * GET needs {@code declaration.read}; POST enqueue/review/apply need {@code declaration.migrate}.
+ * GET needs {@code declaration.read}; POST enqueue/review/apply/cancel need {@code declaration.migrate}.
  * Apply runs fail-closed DDL for entity only ({@link DeclarationMigrationApplyService}).
  * Tenant grant required. Entity promote bind is in {@link DeclarationPromoteService}.
- * GET 要 {@code declaration.read}；POST 入队/审阅/执行要 {@code declaration.migrate}。
+ * GET 要 {@code declaration.read}；POST 入队/审阅/执行/取消要 {@code declaration.migrate}。
  * 执行仅 entity、失败关闭。须租户授权。实体晋升绑定见 PromoteService。
  */
 @RestController
@@ -144,6 +144,30 @@ public class DeclarationMigrationEndpoint {
         String target = k.wireName() + "/" + key + "#" + applied.migrationId();
         audit.record(operator, "declaration.migrate.apply", target, AuditOutcome.ALLOWED);
         return document(applied);
+    }
+
+
+    @PostMapping(PATH + "/{kind}/{key}/migrations/{id}/cancel")
+    public MigrationDocument cancel(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("kind") String kind,
+            @PathVariable("key") String key,
+            @PathVariable("id") String id,
+            @RequestParam(value = "tenantId", required = false) String tenantId) {
+        String tid = requireTenant(operator, tenantId);
+        DeclarationKind k = DeclarationKind.fromWire(kind);
+        DeclarationMigration existing = migrationStore
+                .findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!tid.equals(existing.tenantId())
+                || existing.kind() != k
+                || !key.equals(existing.declarationKey())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        DeclarationMigration cancelled = migrationStore.markCancelled(id);
+        String target = k.wireName() + "/" + key + "#" + cancelled.migrationId();
+        audit.record(operator, "declaration.migrate.cancel", target, AuditOutcome.ALLOWED);
+        return document(cancelled);
     }
 
     private String requireTenant(OperatorPrincipal operator, String tenantId) {

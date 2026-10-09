@@ -27,6 +27,10 @@ public record AccessDecision(
     public static final String DENY_TENANT_MISMATCH = "tenant_mismatch";
     public static final String DENY_ORG_OUT_OF_SCOPE = "org_out_of_scope";
     public static final String DENY_ORG_SCOPE_MISSING = "org_scope_missing";
+    /** Cedar native/FFI unavailable or policy load failed — Cedar 原生库不可用或策略加载失败。 */
+    public static final String DENY_CEDAR_UNAVAILABLE = "cedar_unavailable";
+    /** Cedar engine error during evaluate — Cedar 判定过程出错。 */
+    public static final String DENY_CEDAR_ERROR = "cedar_error";
 
     public static AccessDecision allow(
             String subjectId,

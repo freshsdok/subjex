@@ -78,6 +78,12 @@ async function forwardToPlatform(
     );
     const tenantId = tenantFromRequest || tenantFromCookie;
     if (tenantId) forwardedHeaders["X-Tenant-Id"] = tenantId;
+    // Config-5c: pass optimistic-concurrency headers through to platform-app.
+    // 配置乐观并发头透传至 platform-app。
+    const ifMatch = request.headers.get("If-Match");
+    if (ifMatch) forwardedHeaders["If-Match"] = ifMatch;
+    const ifNoneMatch = request.headers.get("If-None-Match");
+    if (ifNoneMatch) forwardedHeaders["If-None-Match"] = ifNoneMatch;
     return fetch(`${platformApiBase}/api/v1/${platformPath}${query}`, {
       method: request.method,
       headers: forwardedHeaders,
@@ -105,13 +111,18 @@ async function forwardToPlatform(
     }
   }
 
+  const replyHeaders: Record<string, string> = {
+    "content-type": upstreamReply.headers.get("content-type") ?? "application/json",
+  };
+  const etag = upstreamReply.headers.get("etag");
+  if (etag) replyHeaders["etag"] = etag;
   return new Response(upstreamReply.body, {
     status: upstreamReply.status,
-    headers: { "content-type": upstreamReply.headers.get("content-type") ?? "application/json" },
+    headers: replyHeaders,
   });
 }
 
-// GET/PUT/POST/PATCH/DELETE — includes declaration migrations enqueue/review/apply POSTs.
+// GET/PUT/POST/PATCH/DELETE — includes declaration migrations enqueue/review/apply/cancel POSTs.
 export const GET = forwardToPlatform;
 export const PUT = forwardToPlatform;
 export const POST = forwardToPlatform;

@@ -13,8 +13,9 @@ import java.util.Objects;
  * A success clears the streak. Once open, calls are refused until {@code openCooldown} elapses, then one probe
  * is allowed (half-open) so background relay can recover after a transient outage.
  * 熔断器只包所选传输。一次成功清掉连续失败；打开后冷却期内拒呼，结束后允许一次半开探测。
+ * Implements {@link DeliveryCircuitBreakerPort} (Scale-4a). Shared JDBC backend is Scale-4c.
  */
-public final class DeliveryCircuitBreaker {
+public final class DeliveryCircuitBreaker implements DeliveryCircuitBreakerPort {
 
     private final int failureThreshold;
     private final Duration openCooldown;
@@ -39,6 +40,7 @@ public final class DeliveryCircuitBreaker {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    @Override
     public synchronized boolean allowCall() {
         if (!open) {
             return true;
@@ -47,12 +49,14 @@ public final class DeliveryCircuitBreaker {
         return !clock.instant().isBefore(readyAt);
     }
 
+    @Override
     public synchronized void recordSuccess() {
         consecutiveFailures = 0;
         open = false;
         openedAt = null;
     }
 
+    @Override
     public synchronized void recordFailure() {
         consecutiveFailures++;
         if (consecutiveFailures >= failureThreshold) {
@@ -61,11 +65,13 @@ public final class DeliveryCircuitBreaker {
         }
     }
 
+    @Override
     public synchronized boolean isOpen() {
         return open && !allowCall();
     }
 
     /** Whether the breaker has tripped (may still be in half-open probe window). / 是否已跳闸（半开探测窗口内仍为 true）。 */
+    @Override
     public synchronized boolean isTripped() {
         return open;
     }

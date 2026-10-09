@@ -41,7 +41,7 @@ class OutboxTlsDeliveryTest {
         OpenTelemetry telemetry = telemetry();
         TaskRecordedReceipts receipts = new TaskRecordedReceipts();
         OutboxSocketListener listener = new OutboxSocketListener(
-                0, SECRET, serverSsl, telemetry, new ObjectMapper(), receipts, Clock.systemUTC());
+                0, SECRET, "", serverSsl, telemetry, new ObjectMapper(), receipts, Clock.systemUTC());
         listener.start();
         try {
             OutboxSocketPublisher publisher = new OutboxSocketPublisher(

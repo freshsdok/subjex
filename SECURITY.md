@@ -12,8 +12,8 @@ Please do **not** open a public issue for a vulnerability. Use GitHub private vu
 
 ## Deployment boundary / 部署边界
 
-subjex is a pre-release framework skeleton. Treat a build that completes [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md) as an **evaluation build per that checklist** — not production-ready, and not for the public internet. Until the checklist (including a PASS backup/restore drill) is green, keep it on a private network only.
-subjex 是发布前的框架骨架。完成 [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md) 的构建视为**按该清单部署的评估版**——不是生产就绪，也不适合公网。在检查表（含备份恢复 PASS 演练）全部变绿之前，仍只应放在私有网络。
+subjex is a pre-release framework skeleton. Treat a build that completes [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md) as an **evaluation build per that checklist** — not production-ready, and not for the public internet. P6 backup/restore drill is recorded PASS; keep evaluation builds off the public internet until the checklist rows you care about are green on a **remote** CI run and you intentionally cut alpha.
+subjex 是发布前的框架骨架。完成 [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md) 的构建视为**按该清单部署的评估版**——不是生产就绪，也不适合公网。P6 备份演练已有 PASS 记录；在远端 CI 验绿并主动打 alpha 之前仍只应放在私有网络。
 
 ## Known limitations / 已知安全限制
 
@@ -34,8 +34,11 @@ subjex 是发布前的框架骨架。完成 [`docs/release/v0.1.0-alpha.1-checkl
 8. **Images are built in CI and scanned (P1); public push optional.** Three Dockerfiles build as non-root uid 10001; Trivy HIGH/CRITICAL gates the alpha tag. Reports: CI artifacts `trivy-*-v0.1.0-alpha.1`. See `docs/release/image-scan.md`.
    镜像在 CI 构建并扫描（P1）；公开推送可选。三 Dockerfile 非 root uid 10001；Trivy 高危门禁 alpha tag。报告见 CI 产物与 `docs/release/image-scan.md`。
 
-9. **Organization ontology (O1 freeze) — relationship ≠ authorization.** Long-term model is Subject / Organization / Tenant / Membership / OrganizationRelation / TenantOrganization ([`docs/ontology/README.md`](docs/ontology/README.md)). Runtime still uses tenant-scoped legacy `org_unit` / `org_membership` until O7. Missing org scope on org-scoped checks must stay **fail-closed** (never auto-unrestricted). TenantOrganization and Membership do not grant named permissions. Do not invent `organizationUnitRef` / `tenantOrgUnitRef`.
-   **组织本体（O1 冻结）——关系≠授权。** 长期模型见 ontology 包；运行时仍用旧 `org_unit` 至 O7。组织范围缺失须 **fail-closed**。TenantOrganization / Membership 不授予具名权限。不发明 organizationUnitRef / tenantOrgUnitRef。
+9. **Organization ontology (O1 freeze; O8 FULL PASS) — relationship ≠ authorization.** Model is Subject / Organization / Tenant / Membership / OrganizationRelation / TenantOrganization ([`docs/ontology/README.md`](docs/ontology/README.md)). Legacy `org_unit` / `org_membership` were **DROPPED in O7/O8** (V24); runtime is ontology-only. Missing org scope on org-scoped checks must stay **fail-closed**. TenantOrganization and Membership do not grant named permissions. Do not invent `organizationUnitRef` / `tenantOrgUnitRef`. **Authorization engine default is Cedar** (`platform.authz.engine=cedar`; `sql` escape hatch).
+   **组织本体（O1 冻结；O8 FULL PASS）——关系≠授权。** 旧 `org_unit` 已在 O7/O8 DROP；运行时仅本体。组织范围缺失须 **fail-closed**。默认策略引擎 **Cedar**（`sql` 为逃生）。不发明 organizationUnitRef / tenantOrgUnitRef。
+
+10. **Multi-replica gate (Scale-4d) — advertise `platform-app` replicas>1 only with shared JDBC backends; object store stays local.** Defaults keep `platform.rate-limit.backend=process` and `platform.delivery.circuit-breaker.backend=process` (per JVM). Publishing or documenting `replicas > 1` as a capability requires **both** backends set to `jdbc` (shared `rate_limit_window` + `delivery_circuit_breaker`). Default K8s/compose manifests stay at **`replicas: 1`**. Optional snippet: `deploy/k8s/platform-app-shared-backends.snippet.yaml`. `LocalDirectoryObjectStorage` (`platform.storage.directory`, default `object-store`) is **per-pod disk** — multi-pod without a shared volume (or a different SPI) does not share blobs. `entry-gateway` rate limits remain **per gateway process** (no jdbc backend). Details: [`docs/release/single-replica-gate.md`](docs/release/single-replica-gate.md).
+   **多副本门禁（Scale-4d）——对外宣称 `platform-app` 多副本须同时打开 JDBC 共享限流与共享投递熔断；对象存储仍是本地盘。** 默认两个后端都是 `process`。把 `replicas > 1` 写成能力时，须**同时** `jdbc`。默认清单仍为单副本。可选片段见 `platform-app-shared-backends.snippet.yaml`。本地对象目录按副本隔离——无共享卷（或不换 SPI）则对象不共享。入口网关限流仍按进程。详见单副本门禁文档。
 
 The full assessment these items come from is `docs/pre-release-assessment.md`.
 以上条目来自 `docs/pre-release-assessment.md`。

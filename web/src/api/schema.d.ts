@@ -445,11 +445,14 @@ export interface components {
         };
         ConfigValueDocument: {
             value?: string;
+            namespace?: string;
         };
         ConfigEntryDocument: {
+            namespace?: string;
             key?: string;
             value?: string;
             origin?: string;
+            revision?: number;
         };
         CreateTenantRequest: {
             tenantId?: string;
@@ -654,6 +657,7 @@ export interface components {
             memoryLimit?: string;
         };
         ConfigDocument: {
+            namespace?: string;
             entries?: components["schemas"]["ConfigEntryDocument"][];
         };
         CodegenDocument: {

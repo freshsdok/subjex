@@ -3,6 +3,8 @@ import {
   capabilityRunPath,
   capabilitySummary,
   capabilityTitle,
+  capabilityWriteBackPath,
+  capabilityWriteTicketPath,
   isKnownCapabilityKind,
   type CapabilityRow,
 } from "@/lib/capabilities-console";
@@ -29,6 +31,12 @@ describe("capabilities-console — 能力控制台辅助", () => {
       "/api/platform/capabilities/algo.hashFingerprint/run",
     );
     expect(capabilityRunPath("ai/weird")).toBe("/api/platform/capabilities/ai%2Fweird/run");
+    expect(capabilityWriteTicketPath("ai.summarizePreview")).toBe(
+      "/api/platform/capabilities/ai.summarizePreview/write-ticket",
+    );
+    expect(capabilityWriteBackPath("ai.summarizePreview")).toBe(
+      "/api/platform/capabilities/ai.summarizePreview/write-back",
+    );
   });
 
   it("recognizes known kinds", () => {

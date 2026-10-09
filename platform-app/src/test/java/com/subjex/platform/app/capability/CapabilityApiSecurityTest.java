@@ -8,7 +8,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
@@ -48,6 +53,9 @@ class CapabilityApiSecurityTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @MockitoBean
+    private OperatorActionAudit audit;
 
     @BeforeEach
     void bareOperatorWithoutPageRead() {
@@ -168,8 +176,85 @@ class CapabilityApiSecurityTest {
         }
 
         @Bean
-        CapabilityRunner capabilityRunner(CapabilityCatalog capabilityCatalog) {
-            return new CapabilityRunner(capabilityCatalog);
+        ModelCompletionClient modelCompletionClient() {
+            return new LocalStubModelCompletionClient();
         }
+
+        @Bean
+        CapabilityRunner capabilityRunner(
+                CapabilityCatalog capabilityCatalog, ModelCompletionClient modelCompletionClient) {
+            return new CapabilityRunner(capabilityCatalog, modelCompletionClient);
+        }
+
+        @Bean
+        AiWriteConfirmGate aiWriteConfirmGate() {
+            return new InMemoryAiWriteConfirmGate(Clock.fixed(Instant.parse("2026-10-09T06:00:00Z"), ZoneOffset.UTC));
+        }
+
+        @Bean
+        AiWriteBackSink aiWriteBackSink() {
+            return new NoOpAiWriteBackSink();
+        }
+    }
+
+    @Test
+    void writeBackWithoutTicketIs400() throws Exception {
+        mockMvc.perform(post(CapabilityApiEndpoint.PATH + "/ai.summarizePreview/write-back")
+                        .with(httpBasic(VIEWER, VIEWER_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value(org.hamcrest.Matchers.containsString("required")));
+    }
+
+    @Test
+    void writeTicketThenWriteBackOnceThenReject() throws Exception {
+        String ticketJson = mockMvc.perform(post(CapabilityApiEndpoint.PATH + "/ai.summarizePreview/write-ticket")
+                        .with(httpBasic(VIEWER, VIEWER_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inputText\":\"confirm-me\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ticketId").isNotEmpty())
+                .andExpect(jsonPath("$.previewText").value(org.hamcrest.Matchers.containsString("confirm-me")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        // Parse fields via second call shape — use MockMvc result JSON paths by re-requesting is hard;
+        // extract with simple string ops for ticketId
+        com.fasterxml.jackson.databind.JsonNode node =
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(ticketJson);
+        String body = String.format(
+                "{\"ticketId\":\"%s\",\"inputDigest\":\"%s\",\"previewDigest\":\"%s\",\"expiresAt\":\"%s\",\"previewText\":%s}",
+                node.get("ticketId").asText(),
+                node.get("inputDigest").asText(),
+                node.get("previewDigest").asText(),
+                node.get("expiresAt").asText(),
+                node.get("previewText").toString());
+
+        mockMvc.perform(post(CapabilityApiEndpoint.PATH + "/ai.summarizePreview/write-back")
+                        .with(httpBasic(VIEWER, VIEWER_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sink").value("noop"))
+                .andExpect(jsonPath("$.persisted").value(false));
+
+        mockMvc.perform(post(CapabilityApiEndpoint.PATH + "/ai.summarizePreview/write-back")
+                        .with(httpBasic(VIEWER, VIEWER_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value(org.hamcrest.Matchers.containsString("already used")));
+    }
+
+    @Test
+    void algorithmCannotIssueWriteTicket() throws Exception {
+        mockMvc.perform(post(CapabilityApiEndpoint.PATH + "/algo.hashFingerprint/write-ticket")
+                        .with(httpBasic(VIEWER, VIEWER_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inputText\":\"x\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value(org.hamcrest.Matchers.containsString("AI")));
     }
 }

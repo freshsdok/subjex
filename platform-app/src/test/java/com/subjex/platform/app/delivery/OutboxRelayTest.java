@@ -1,6 +1,7 @@
 package com.subjex.platform.app.delivery;
 
 import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -97,7 +98,7 @@ class OutboxRelayTest {
     }
 
     private static JdbcTaskMessagePort port(
-            JdbcTemplate jdbc, DataSource source, int port, DeliveryCircuitBreaker breaker, Clock clock) {
+            JdbcTemplate jdbc, DataSource source, int port, DeliveryCircuitBreakerPort breaker, Clock clock) {
         TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(source));
         OpenTelemetry telemetry = telemetry();
         OutboxSocketPublisher publisher = new OutboxSocketPublisher(

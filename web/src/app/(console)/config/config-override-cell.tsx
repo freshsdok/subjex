@@ -5,15 +5,20 @@ import { useState } from "react";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 
 // Override steps — 修改步骤：查看 → 编辑 → 核对改动 → 保存。多一步核对，避免误改线上配置。
+// Config-5c/5d: If-Match from revision; PUT carries namespace.
 type OverrideStep = "viewing" | "editing" | "reviewing" | "saving";
 
 export function ConfigOverrideCell({
   configKey,
   currentValue,
+  revision,
+  namespace,
   phrases,
 }: {
   configKey: string;
   currentValue: string;
+  revision: number;
+  namespace: string;
   phrases: PhraseBook;
 }) {
   const router = useRouter();
@@ -38,13 +43,26 @@ export function ConfigOverrideCell({
 
   async function confirmSave() {
     setStep("saving");
-    const reply = await fetch(`/api/platform/config/${encodeURIComponent(configKey)}`, {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    // Optimistic concurrency when we know a revision (including 0 for local-only).
+    // 已知修订号时带 If-Match（含本地 0）。
+    if (Number.isFinite(revision) && revision >= 0) {
+      headers["If-Match"] = `"${revision}"`;
+    }
+    const ns = namespace.trim() || "default";
+    const query = ns === "default" ? "" : `?namespace=${encodeURIComponent(ns)}`;
+    const reply = await fetch(`/api/platform/config/${encodeURIComponent(configKey)}${query}`, {
       method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ value: draftValue }),
+      headers,
+      body: JSON.stringify({ value: draftValue, namespace: ns }),
     }).catch(() => null);
     if (reply?.status === 401) {
       router.replace("/login");
+      return;
+    }
+    if (reply?.status === 412) {
+      setProblem(phrases.configRevisionMismatch);
+      setStep("editing");
       return;
     }
     if (!reply?.ok) {
@@ -52,7 +70,14 @@ export function ConfigOverrideCell({
       setStep("editing");
       return;
     }
-    setSavedMessage(fillPhrase(phrases.savedNotice, { key: configKey }));
+    let nextRevision = revision + 1;
+    try {
+      const body = (await reply.json()) as { revision?: number };
+      if (typeof body.revision === "number") nextRevision = body.revision;
+    } catch {
+      // body optional on some paths
+    }
+    setSavedMessage(fillPhrase(phrases.savedNotice, { key: configKey, revision: nextRevision }));
     setStep("viewing");
     router.refresh();
   }

@@ -1,0 +1,43 @@
+# OPTIONAL — not applied by CI/tests. Merge only when you intentionally advertise replicas>1.
+# 可选——CI/测试不应用。仅在你有意对外宣称多副本时合并。
+#
+# Gate (Scale-4d): BOTH backends must be jdbc, or keep replicas: 1.
+# 门禁（Scale-4d）：两个后端都必须是 jdbc，否则保持 replicas: 1。
+#   PLATFORM_RATE_LIMIT_BACKEND=jdbc
+#   PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc
+#
+# Object storage: LocalDirectoryObjectStorage is per-pod disk. Mount a shared PVC at
+# platform.storage.directory (default object-store) or do not claim shared blobs.
+# 对象存储：本地目录按副本隔离。多副本须共享卷挂到 platform.storage.directory，或不要宣称共享对象。
+#
+# entry-gateway rate-limit stays per process (gateway has no JDBC backend).
+# 入口网关限流仍按进程（网关无 jdbc 后端）。
+#
+# Example patch on top of platform-app.yaml (illustrative — edit to match your cluster):
+# 在 platform-app.yaml 之上的示例补丁（示意——按集群改）：
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-app
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: platform-app
+          env:
+            - name: PLATFORM_RATE_LIMIT_BACKEND
+              value: jdbc
+            - name: PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND
+              value: jdbc
+            # Optional: pin breaker destination key (default outbox)
+            # 可选：固定熔断目的键（默认 outbox）
+            - name: PLATFORM_DELIVERY_CIRCUIT_BREAKER_DESTINATION_KEY
+              value: outbox
+          # volumeMounts:
+          #   - name: object-store
+          #     mountPath: /app/object-store
+      # volumes:
+      #   - name: object-store
+      #     persistentVolumeClaim:
+      #       claimName: platform-object-store

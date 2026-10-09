@@ -21,6 +21,7 @@ import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.capability.CapabilityCatalog;
 import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.config.ConfigCatalog;
+import com.subjex.platform.contract.config.ConfigNamespaces;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
@@ -86,7 +87,7 @@ class FormDomainActionRunnerTest {
         RenderedForm form = form("another-key", DomainActionKey.CONFIG_OVERRIDE, null);
         String summary = runner.apply(form, Map.of("configKey", "subjex.greeting", "configValue", "hi"));
         assertEquals("subjex.greeting=hi", summary);
-        verify(config).override("subjex.greeting", "hi");
+        verify(config).put(ConfigNamespaces.DEFAULT, "subjex.greeting", "hi");
     }
 
     @Test

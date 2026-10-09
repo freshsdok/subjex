@@ -112,6 +112,15 @@
             <artifactId>spring-security-oauth2-jose</artifactId>
         </dependency>
 
+        <!-- AuthZ-1b: Cedar behind PolicyEngine (uber = JNI native). Not the default bean yet. -->
+        <!-- AuthZ-1b：Cedar 适配器（uber 含原生库）。尚未切换 PlatformWiring 默认实现。 -->
+        <dependency>
+            <groupId>com.cedarpolicy</groupId>
+            <artifactId>cedar-java</artifactId>
+            <version>4.10.0</version>
+            <classifier>uber</classifier>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

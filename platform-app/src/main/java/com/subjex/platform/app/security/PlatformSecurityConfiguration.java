@@ -113,11 +113,12 @@ public class PlatformSecurityConfiguration {
                                 "/api/v1/declarations/*/*/promote/approvals",
                                 "/api/v1/declarations/*/*/rollback")
                                 .hasAuthority(OperatorPermission.DECLARATION_PROMOTE.permissionName())
-                        // Declaration migration queue: enqueue/review/apply need declaration.migrate; GET list uses declaration.read.
-                        // 声明迁移队列：入队/审阅/执行要 declaration.migrate；GET 列表走 declaration.read。
+                        // Declaration migration queue: enqueue/review/apply/cancel need declaration.migrate; GET list uses declaration.read.
+                        // 声明迁移队列：入队/审阅/执行/取消要 declaration.migrate；GET 列表走 declaration.read。
                         .requestMatchers(HttpMethod.POST, "/api/v1/declarations/*/*/migrations",
                                 "/api/v1/declarations/*/*/migrations/*/review",
-                                "/api/v1/declarations/*/*/migrations/*/apply")
+                                "/api/v1/declarations/*/*/migrations/*/apply",
+                                "/api/v1/declarations/*/*/migrations/*/cancel")
                                 .hasAuthority(OperatorPermission.DECLARATION_MIGRATE.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/declarations", "/api/v1/declarations/**")
                                 .hasAuthority(OperatorPermission.DECLARATION_READ.permissionName())
@@ -139,9 +140,11 @@ public class PlatformSecurityConfiguration {
                                 "/api/v1/deploy", "/api/v1/forms", "/api/v1/pages", "/api/v1/codegen", "/api/v1/language", "/api/v1/skins",
                                 "/api/v1/capabilities")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
-                        // Capability try-run: same page.read as list (stubs / preview only).
-                        // 能力试跑：与目录相同 page.read（桩/预览）。
-                        .requestMatchers(HttpMethod.POST, "/api/v1/capabilities/*/run")
+                        // Capability try-run + AI write-ticket/write-back: page.read (preview; write-back needs confirm ticket).
+                        // 能力试跑与 AI 写回票/写回：page.read（预览；写回须确认票）。
+                        .requestMatchers(HttpMethod.POST, "/api/v1/capabilities/*/run",
+                                "/api/v1/capabilities/*/write-ticket",
+                                "/api/v1/capabilities/*/write-back")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         .requestMatchers("/admin", "/admin/**", "/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())

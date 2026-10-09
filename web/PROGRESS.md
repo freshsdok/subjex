@@ -98,7 +98,7 @@ Z1-1. [done] EntityCatalog (Spring-free classpath `entities/*.entity.yaml`), fie
 Z1-2. [done] Generic JDBC CRUD (`GenericEntityStore`) + REST `/api/v1/entities/{entityKey}/records` (`GenericEntityEndpoint`); `EntityCatalog` + store beans in `PlatformWiring`; PUT/DELETE/POST entities authenticated (declared permission in endpoint); `tenantScoped:true` → 400 this slice; demo-ticket covered by store tests. `service_note` bespoke path unchanged. Local commit only (no push).
     通用 JDBC CRUD + 按 entityKey 的 `/records` REST；接线与安全扩展；本片不支持 tenantScoped；demo-ticket 测例。service_note 专用路径未动。仅本地提交。
 
-Z1-3. [done] Parallel generic read for `service_note`: store tests via `GenericEntityStore`; `ServiceNoteEntityEndpoint.list` reads through generic store (compat `/notes` JSON); writes stay on `JdbcServiceNoteStore`. Quickstart/docs prefer Bearer; Basic = local/script opt-in (off outside `local` later; impl may follow). Local commit only (no push).
+Z1-3. [done] Parallel generic read for `service_note`: store tests via `GenericEntityStore`; `ServiceNoteEntityEndpoint.list` reads through generic store (compat `/notes` JSON); writes stay on `JdbcServiceNoteStore`. Quickstart/docs prefer Bearer; Basic = local/script opt-in (off outside `local`; Basic-1 later landed). Local commit only (no push).
     service_note 并行通用读；`/notes` 兼容垫片；写仍专用 JDBC；Basic 文档更安全默认。仅本地提交。
     Next was thin people/org (done as Thin-org-1 below). Optional later: switch form writes to generic + delete bespoke JDBC; implement Basic-off outside `local`.
     下一片原为薄人员/组织（见下方 Thin-org-1）。可选：写切通用并删专用 JDBC；实现非 local 关闭 Basic。
@@ -124,7 +124,7 @@ Z2-1. [done] Page-block catalog (`page-declare/.../blocks/page-block-catalog.yam
 Z2-2. [done] demo-ticket flow/form on generic `/records` + `entity.record.upsert` domain action (form `entityKey` fail-closed; fields validated by entity at runtime); local commit only (no push).
     demo-ticket 流程/表单走通用 `/records`；通用 `entity.record.upsert`（表单 `entityKey` 失败关闭；字段运行时按实体校验）。仅本地提交。
 
-Z2-3. [done] Detail prefers `GET /records/{id}` (list+find fallback for `/notes`); live thin OrgPicker/UserPicker (field names `orgUnit`/`assignee`; text fallback without tenantId); forms JSON `entityKey` on detail+index; catalog User/Org → `runtime-thin`; local commit only (no push).
+Z2-3. [done] Detail prefers `GET /records/{id}` (list+find fallback for `/notes`); live thin Org/User pickers then (**O8**) Subject/Organization pickers; forms JSON `entityKey`; local commit only (no push).
     详情优先单条 GET；选人/选部门接薄组织只读（无租户则文本）；表单 API 暴露 entityKey。仅本地提交。
     **Z2 baseline landed** → next is Z3 (declaration store). Do not start Z3 in this commit.
     **Z2 基线齐** → 下一片 Z3 声明库。本提交不开 Z3。
@@ -373,8 +373,8 @@ OB-2. [done] Module `subjex-outbox-kafka`: KafkaDeliveryPublisher + auto-config 
 
 ## Production gaps P1–P7 (2026-10-09 Asia/Shanghai) / 生产缺口
 
-Local commits only (not pushed). Checklist: `docs/release/v0.1.0-alpha.1-checklist.md`. Tag blocked by `docs/release/drills/DRILL-PENDING.md`.
-仅本地提交。检查表见上；`DRILL-PENDING` 阻断 tag。
+Local commits only (not pushed). Checklist: `docs/release/v0.1.0-alpha.1-checklist.md`. P6 drill **PASS** (`2026-10-09-backup-restore.md`); **no `DRILL-PENDING.md`**. Tag still blocked by **remote CI verify + intentional cut** (not by missing drill).
+仅本地提交。P6 演练已 PASS；无 DRILL-PENDING。tag 仍待远端 CI 与主动发版（非缺演练）。
 
 O1. [done] Model freeze docs ADR+ontology pack; review approve; pushed github/main `de1846ae`.
 O2. [done] Flyway V22 organization/membership/organization_relation/tenant_organization + JdbcOrganizationStore; MODEL/MEM/ORG/TENANT gates; AUTH/MIG/DECL stubs; legacy org_unit kept; local commit only (no push).
@@ -421,3 +421,86 @@ O8. [DONE FULL PASS] 2026-10-09 CST; metrics ontology=1; legacy domain/SQL/polic
 
 O8-push. [done] Squashed O8 inventory…O8-6 onto `github/main` as `1e431b2` (parent `ae44c78` O7; tree `241dcbd` = local `8af9dd9`). Fast-forward only, never force. Local O8 commits remain as history.
     已 squash 推到 GitHub main；本地 O8 提交链保留作历史。
+
+## Pre-alpha track (before v0.1.0-alpha.1) / Alpha 前轨道（2026-10-09）
+
+Locked order (owner): **1** AuthZ Cedar via PolicyEngine → **2** controlled migration UX → **3** real AI + mandatory confirm → **4** horizontal scale MVP (shared breaker/rate-limit) → **5** independent config center MVP → then CI fix + docs + alpha tag.
+已锁定顺序：1 AuthZ 接 Cedar → 2 受控迁移体验 → 3 真 AI+强制确认写 → 4 水平扩展 MVP → 5 独立配置中心 MVP → 再修 CI/文档/打 alpha。
+**Items 1–5 DONE locally** (2026-10-09 CST). **CI-fix-1 DONE** (`78520cc`). **Docs收口 DONE** (this slice). **Not squash-pushed; not tagged.** Next: remote CI verify → optional compose smoke → intentional `v0.1.0-alpha.1`.
+项 1–5 与 CI 修复、文档收口已在本地完成；**未 push、未打 tag**。下一动作：远端 CI 验绿 → 再考虑 alpha。
+
+AuthZ-1a. [done] 2026-10-09 CST; chose **Cedar** (not Casbin); inventory; ADR `docs/authz/cedar-or-casbin-adr.md`. Local commit only (no push).
+    选定 Cedar；盘点与 ADR。仅本地提交。
+
+AuthZ-1b. [done] 2026-10-09 CST; `CedarPolicyEngine` + `cedar-java:4.10.0:uber`; baseline.cedar; FFI fail-soft; PlatformWiring still SQL. Local commit only (no push).
+    Cedar 适配器落地；默认仍 SQL。仅本地提交。
+
+AuthZ-1c. [done] 2026-10-09 CST; dual-run 12 golden cases; anonymous later aligned in 1d. Local commit only (no push).
+    双跑金样对齐。仅本地提交。
+
+AuthZ-1d. [done] 2026-10-09 CST; default **`platform.authz.engine=cedar`**. **Item 1 (AuthZ Cedar) DONE.** Local commit only (no push).
+    AuthZ 项 1 收工。仅本地提交。
+
+## Pre-alpha track item 2 — controlled migration UX / 受控迁移体验
+
+MigUX-2a. [done] 2026-10-09 CST; inventory MQ+RT-4 vs console; plan `docs/lowcode/migration-ux-deepen.md` (2a–2d); tiny win: entity draft save refreshes migration list. Local commit only (no push).
+    盘点与加深计划；保存后刷新迁移列表。仅本地提交。
+
+MigUX-2b. [done] 2026-10-09 CST; `loadMigrations(key?, kind?)`; auto-load after open entity + 新建业务表; PUT `enqueuedMigrationIds` + toast 「已入队 N 条 PENDING」; manual SQL under Advanced. Local commit only (no push).
+    打开/保存自动拉队列；入队反馈；手工入队收进高级。仅本地提交。
+
+MigUX-2c. [done] 2026-10-09 CST; guided 「审阅并执行」 (SQL confirm → review+apply); cancel PENDING/REVIEWED (`POST …/cancel`); FAILED highlight + Advanced re-queue; discrete Review/Apply kept. Local commit only (no push).
+    一键审阅并执行（仍确认 SQL）；取消入队；失败行强调。仅本地提交。
+
+MigUX-2d. [done] 2026-10-09 CST; path chip draft→PENDING→REVIEWED→APPLIED→promote; migrate audit panel (`declaration.migrate.*` via GET /audit); phrases polish. **Item 2 (controlled migration UX) DONE.** Local commit only (no push).
+    路径芯片 + 迁移审计；项 2 收工。仅本地提交。
+
+## Pre-alpha track item 3 — real AI + mandatory confirm / 真 AI + 强制确认写
+
+AI-3a. [done] 2026-10-09 CST; inventory Cap stubs / CapabilityRunner / model-gateway / console try-run; plan `docs/ai/capability-real-ai-plan.md` (3a–3d); scaffold `ModelCompletionClient` + `LocalStubModelCompletionClient` + `AiWriteConfirmGate` / in-memory (no API keys; runner still stub). First capability: **ai.summarizePreview**. Local commit only (no push).
+    盘点与计划；补全端口 + 写回确认门闩脚手架。仅本地提交。
+
+AI-3b. [done] 2026-10-09 CST; `CapabilityRunner` → `ModelCompletionClient` for summarizePreview + suggestTitlePreview; `platform.ai.completion.mode=stub|http` (default stub); HTTP client fail-closed / no live vendor; preview-only. Local commit only (no push).
+    Runner 接补全客户端；默认 stub。仅本地提交。
+
+AI-3c. [done] 2026-10-09 CST; `POST …/write-ticket` + `…/write-back` (consume + noop sink); console issue ticket → confirm write-back; audit `capability.ai.preview`/`confirm`. Local commit only (no push).
+    写回须确认票；默认 noop。仅本地提交。
+
+AI-3d. [done] 2026-10-09 CST; E2E `AiSummarizePreviewConfirmE2ETest` (run→ticket→write-back once→reject); plan walkthrough + secrets/HTTP-gated notes. **Item 3 (real AI + mandatory confirm) DONE.** Local commit only (no push).
+    E2E + 文档收工；项 3 完成。仅本地提交。
+
+## Pre-alpha track item 4 — horizontal scale MVP / 水平扩展
+
+Scale-4a. [done] 2026-10-09 CST; inventory breaker/rate-limit/relay lock/object-store/K8s P4; plan `docs/scale/horizontal-mvp-plan.md` (4a–4d); extract `DeliveryCircuitBreakerPort`; prefer JDBC shared counters over Redis for Java; **replicas:1 default kept**. Next = **Scale-4b** (`JdbcRateLimitPort` + backend switch). Local commit only (no push).
+    盘点与计划；熔断端口抽出；默认仍单副本。下一片 4b。仅本地提交。
+
+Scale-4b. [done] 2026-10-09 CST; `JdbcRateLimitPort` + Flyway `V26__rate_limit_window`; `platform.rate-limit.backend=process|jdbc` (default **process**); gateway process-only (jdbc fail-closed); dual-instance H2 shared-budget test; **replicas:1 default kept**. Next = **Scale-4c** (shared delivery breaker). Local commit only (no push).
+    JDBC 共享限流；默认仍 process；下一片 4c 共享熔断。仅本地提交。
+
+Scale-4c. [done] 2026-10-09 CST; `JdbcDeliveryCircuitBreakerPort` + Flyway `V27__delivery_circuit_breaker`; `platform.delivery.circuit-breaker.backend=process|jdbc` (default **process**); OutboxSocket/Kafka use port; dual-instance shared open-state test; **replicas:1 default kept**. Next = **Scale-4d** (gate/docs for replicas>1 when shared backends on). Local commit only (no push).
+    JDBC 共享投递熔断；默认仍 process；下一片 4d 门禁与文档。仅本地提交。
+
+Scale-4d. [done] 2026-10-09 CST; gate: advertise replicas>1 **only when** both rate-limit + circuit-breaker backends are `jdbc`; `single-replica-gate.md` + SECURITY §10 + ARCHITECTURE; object-store multi-pod caveat; default manifests still **replicas:1**; optional `platform-app-shared-backends.snippet.yaml`. **Item 4 (horizontal scale MVP) DONE.** Next = **item 5** independent config center MVP (suggested Config-5a inventory+plan). Local commit only (no push).
+    多副本门禁与文档收工；项 4 完成。下一片项 5 配置中心。仅本地提交。
+
+## Pre-alpha track item 5 — independent config center MVP / 独立配置中心
+
+Config-5a. [done] 2026-10-09 CST; inventory ConfigSource/`config_override`/HTTP `/config`+`/api/v1/config`/HttpConfigSource/console; plan `docs/config/independent-config-center-plan.md` (5a–5d); extract `ConfigCenterPort` (`ConfigCatalog` implements); deepen DB+HTTP not new microservice; **Item 4 already DONE**. Next = **Config-5b** (namespace + revision schema). Local commit only (no push).
+    盘点与计划；抽出配置中心端口；下一片 5b 命名空间+版本。仅本地提交。
+
+Config-5b. [done] 2026-10-09 CST; Flyway `V28__config_override_namespace_revision` (namespace+revision, PK `(namespace, config_key)`); `ConfigCenterPort`/`JdbcConfigOverride` namespace-aware put returns revision; optional API `namespace` (default `default`, POST entries still 204); `JdbcConfigNamespaceRevisionTest`. Next = **Config-5c** (ETag/poll). Local commit only (no push).
+    命名空间+修订号；下一片 5c ETag/轮询。仅本地提交。
+
+Config-5c. [done] 2026-10-09 CST; `ConfigETags` `"N"`; GET entries ETag + If-None-Match→304; PUT/POST If-Match→412; `HttpConfigSource` knownRevisions + conditional read/override; console revision column + If-Match on save; proxy forwards concurrency headers; history table skipped. Next = **Config-5d** (namespace UX + docs → Item 5 DONE). Local commit only (no push).
+    ETag/If-Match；控制台修订号；下一片 5d 文档与命名空间打磨以完成项 5。仅本地提交。
+
+Config-5d. [done] 2026-10-09 CST; console namespace picker (`default`+query); list/PUT honor namespace; honesty notice; ARCHITECTURE §7/§10/§16 + config-ui link plan. **Item 5 (independent config center MVP) DONE.** Next track = **CI fix + docs收口 + alpha** (items 1–5 complete). Local commit only (no push).
+    命名空间 UX 与文档诚实收口；项 5 完成。下一轨修 CI/文档/打 alpha。仅本地提交。
+
+## Release track — CI fix → docs收口 → alpha / 发版轨
+
+CI-fix-1. [done] 2026-10-09 CST; VendorStartupTest: V16 `sql_text` → **TEXT** (MySQL utf8mb4 row-size) + V29 widen-after-repair; probes assert **management port** (P2; business-port readiness 401/404 expected). H2 V29 suite green; VendorStartupTest skipped locally (no Docker). image-scan earlier “Set up job” failure looks **runner/infra** — workflow YAML unchanged this slice; re-check on next CI run. Next = docs收口 then alpha (no tag yet). Local commit only (no push).
+    MySQL 行大小与就绪探针管理口；无 Docker 未真跑厂商启动。image-scan 疑似基建。下一片文档收口。仅本地提交。
+
+Docs-align-1. [done] 2026-10-09 CST; ARCHITECTURE §16/§18 (O8, Cedar default, Subject/Organization pickers, Basic-1 landed); lowcode-roadmap picker/O8 lines; CHANGELOG capacity 1–5 + CI-fix + P6 PASS (no DRILL-PENDING / Tag-blocked-on-drill lie); checklist tip reds = remote CI / image-scan / no tag; SECURITY §9 O8+Cedar; release-prep blockers refreshed. **Still no push / no alpha tag / not production-ready.** Next = remote verify then alpha cut when owner says so.
+    文档对齐 O8/Cedar/能力轨/CI；检查表红项仅剩远端 CI 与未打 tag。仅本地提交。

@@ -69,15 +69,18 @@
 
 - **完整 compose 镜像构建 / 全栈实测**：可选；compose 已含 `sample-consumer`，仍不含 `web/`。本切片未强制 `--build` 冒烟。
 
-## 仍阻塞正式 tag / Still blocking a public tag
+## 仍阻塞正式 tag / Still blocking a public tag（2026-10-09 docs收口后）
 
-1. **B2（本机已做，远端未落地）**：工作流已在 `.github/workflows/build.yml`（含 web）；需带 `workflow` scope 的令牌 push 后 Actions 才会跑；跑绿前仍阻塞正式 tag。
-2. **未实测 compose 全栈**（可选但评估列为前 5 项动作第 4 项）：compose 已含 `sample-consumer`；仍建议跑一次 `docker compose … up --build --scale platform-app=2` + `smoke-load.sh` 验证健康检查与投递。
-3. **安全加固仍是非阻塞已知限制**（可带着发 alpha，但要写进 release notes）：~~XFF 信任条件化~~（已修）、~~Redis 会话 Basic 头静态加密（`OPERATOR_SESSION_SECRET`）~~（已修；仍非平台签发操作员 API 令牌）、~~操作员开通（one-shot bootstrap，无手写 SQL）~~（已修；仍无改密/禁用/用户 UI）、~~出箱 HMAC + 非 local TLS / 后台重投~~（已修；仍无 mTLS 客户端证书与短时投递令牌）。
+1. **远端 CI 未验绿**：本机 tip 含 O8 + items 1–5 + CI-fix-1（MySQL TEXT / 管理口探针）+ docs收口，**尚未 squash-push**。push 后须确认 `mvn test`（含 Docker `VendorStartupTest`）与 `image-scan` 绿。
+2. **image-scan**：历史上有 “Set up job” 基建失败；代码侧工作流仍在；远端再确认。
+3. **可选 compose 全栈冒烟**（非硬门禁）：`--scale platform-app=2` 时须按 Scale-4d 打开双 JDBC 共享后端。
+4. **非阻塞已知限制**（可进 alpha release notes）：出箱 mTLS/短时令牌；对象存储仍按副本本地盘；网关限流仍按进程。
+
+P6 备份演练：**PASS**（`docs/release/drills/2026-10-09-backup-restore.md`）。**无 `DRILL-PENDING.md`。**
 
 ## 建议的下一个标签
 
-修完 B2、CI 绿之后打 **`v0.1.0-alpha.1`**（pre-release），不要标稳定 `0.1.0`。当前仍是 `0.1.0-SNAPSHOT`，不要打 tag。
+远端 CI 绿且文档对齐后打 **`v0.1.0-alpha.1`**（pre-release），不要标稳定 `0.1.0`。当前仍是 `0.1.0-SNAPSHOT`，**不要打 tag**（本片只做 docs收口）。
 
 ## 本机提交 / Local commits (not pushed)
 
@@ -102,7 +105,7 @@
 ## O2 — Persistence（2026-10-09）
 
 - Flyway `V22__organization_ontology.sql`：`organization` / `membership` / `organization_relation` / `tenant_organization`
-- `JdbcOrganizationStore`：存在性校验、CONTAINS 禁自环/禁环；旧 `org_unit` / `org_membership` **仍运行**
+- `JdbcOrganizationStore`：存在性校验、CONTAINS 禁自环/禁环；旧表其后在 O7/O8 **已 DROP**（本条保留为 O2 当时状态）
 - 门禁：MODEL/MEM/ORG/TENANT 单测；AUTH/MIG/DECL `@Disabled` 桩
 - Subject / Tenant 沿用 V1（不新建 subject 表）
 - 提交：本地 `feat(org): O2 persist organization membership relation tenant_organization`（未 push）
@@ -133,8 +136,14 @@
 ## O6 — Zero-code refs（2026-10-09）
 
 - 字段：`subjectRef` / `organizationRef`（解析仍接受 `userRef` / `orgRef`）；拒绝 organizationUnitRef/tenantOrgUnitRef
-- 积木：SubjectPicker + OrganizationPicker（旧 UserPicker/OrgPicker id 过渡期仍接受）
+- 积木：SubjectPicker + OrganizationPicker（O8-5 起旧 UserPicker/OrgPicker **已删除**）
 - 向导/样例写出规范名；报修单 assignee = subjectRef
 - 门禁 DECL-01 / DECL-02：`DeclarationRefGatesTest`
 - 文档：`docs/ontology/o6-zero-code.md`
 - 提交：本地 `feat(lowcode): O6 organizationRef and subjectRef with pickers`（未 push）
+
+## Docs收口 / Alpha readiness tip（2026-10-09）
+
+- Local tip lineage includes: O8 FULL PASS, AuthZ Cedar, MigUX, AI confirm, Scale-4d, Config-5d, CI-fix-1 (`78520cc`), then this docs align commit.
+- Aligned: `ARCHITECTURE.md` §16/§18, `docs/lowcode-roadmap.md` pickers/O8, `CHANGELOG` Unreleased, `SECURITY` §9/Cedar+O8, checklist, `web/PROGRESS.md`.
+- **Not done:** squash-push to GitHub; cut `v0.1.0-alpha.1`; claim production-ready.

@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   CLASSPATH_SAMPLE_KEYS,
   canApplyMigration,
+  canCancelMigration,
+  canGuidedReviewApplyMigration,
   canOfferDeclarationMigrate,
   canOfferDeclarationPromote,
   canReviewMigration,
+  filterMigrateAuditEntries,
+  isFailedMigration,
+  migrationPathChecklist,
   declarationMigrateEnqueueBody,
   declarationPromoteRequestBody,
   declarationTenantCookieName,
@@ -163,9 +168,80 @@ describe("declaration-draft migration helpers — 迁移辅助", () => {
     expect(canReviewMigration("REVIEWED")).toBe(false);
     expect(canApplyMigration("REVIEWED")).toBe(true);
     expect(canApplyMigration("PENDING")).toBe(false);
+    expect(canCancelMigration("PENDING")).toBe(true);
+    expect(canCancelMigration("REVIEWED")).toBe(true);
+    expect(canCancelMigration("FAILED")).toBe(false);
+    expect(canCancelMigration("APPLIED")).toBe(false);
+    expect(canGuidedReviewApplyMigration("PENDING")).toBe(true);
+    expect(canGuidedReviewApplyMigration("REVIEWED")).toBe(false);
+    expect(isFailedMigration("FAILED")).toBe(true);
+    expect(isFailedMigration("PENDING")).toBe(false);
     expect(migrationBlocksPromote("PENDING")).toBe(true);
     expect(migrationBlocksPromote("FAILED")).toBe(true);
     expect(migrationBlocksPromote("APPLIED")).toBe(false);
     expect(migrationBlocksPromote("CANCELLED")).toBe(false);
+  });
+});
+
+describe("declaration-draft migration path + audit filter — 路径清单与审计过滤", () => {
+  it("builds path chips draft→promote — 推导路径芯片", () => {
+    const empty = migrationPathChecklist({
+      hasDraft: false,
+      revision: null,
+      migrations: null,
+      promotedForRevision: false,
+    });
+    expect(empty.map((c) => c.state)).toEqual(["current", "todo", "todo", "todo", "todo"]);
+
+    const drafted = migrationPathChecklist({
+      hasDraft: true,
+      revision: 2,
+      migrations: [],
+      promotedForRevision: false,
+    });
+    expect(drafted.find((c) => c.step === "draft")?.state).toBe("done");
+    expect(drafted.find((c) => c.step === "PENDING")?.state).toBe("current");
+
+    const pending = migrationPathChecklist({
+      hasDraft: true,
+      revision: 2,
+      migrations: [{ status: "PENDING", declarationRevision: 2 }],
+      promotedForRevision: false,
+    });
+    expect(pending.find((c) => c.step === "PENDING")?.state).toBe("done");
+    expect(pending.find((c) => c.step === "REVIEWED")?.state).toBe("current");
+
+    const applied = migrationPathChecklist({
+      hasDraft: true,
+      revision: 2,
+      migrations: [{ status: "APPLIED", declarationRevision: 2 }],
+      promotedForRevision: false,
+    });
+    expect(applied.find((c) => c.step === "REVIEWED")?.state).toBe("done");
+    expect(applied.find((c) => c.step === "APPLIED")?.state).toBe("done");
+    expect(applied.find((c) => c.step === "promote")?.state).toBe("current");
+
+    const failed = migrationPathChecklist({
+      hasDraft: true,
+      revision: 2,
+      migrations: [{ status: "FAILED", declarationRevision: 2 }],
+      promotedForRevision: false,
+    });
+    expect(failed.find((c) => c.step === "APPLIED")?.state).toBe("blocked");
+    expect(failed.find((c) => c.step === "promote")?.state).toBe("blocked");
+  });
+
+  it("filters migrate audit by entity key — 按实体键过滤迁移审计", () => {
+    const rows = [
+      { actionName: "declaration.migrate.apply", actionTarget: "entity/demo-ticket#mig-1" },
+      { actionName: "declaration.migrate.enqueue", actionTarget: "entity/other@1#mig-2" },
+      { actionName: "config.override", actionTarget: "entity/demo-ticket" },
+      { actionName: "declaration.migrate.review", actionTarget: "entity/demo-ticket#mig-3" },
+    ];
+    expect(filterMigrateAuditEntries(rows, "demo-ticket").map((r) => r.actionName)).toEqual([
+      "declaration.migrate.apply",
+      "declaration.migrate.review",
+    ]);
+    expect(filterMigrateAuditEntries(rows, "")).toEqual([]);
   });
 });

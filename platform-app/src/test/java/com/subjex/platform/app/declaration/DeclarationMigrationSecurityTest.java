@@ -132,6 +132,10 @@ class DeclarationMigrationSecurityTest {
                         .param("tenantId", "acme")
                         .with(httpBasic(BARE, BARE_PASSWORD)))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(post(PATH + "/migrations/mig-1/cancel")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(BARE, BARE_PASSWORD)))
+                .andExpect(status().isForbidden());
         verifyNoInteractions(migrationStore, applyService);
     }
 
@@ -162,8 +166,13 @@ class DeclarationMigrationSecurityTest {
                         .param("tenantId", "acme")
                         .with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(post(PATH + "/migrations/mig-1/cancel")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isForbidden());
         verify(migrationStore, never()).enqueue(anyString(), any(), anyString(), anyInt(), anyString(), anyString());
         verify(migrationStore, never()).markReviewed(anyString());
+        verify(migrationStore, never()).markCancelled(anyString());
         verifyNoInteractions(applyService);
     }
 
@@ -285,6 +294,24 @@ class DeclarationMigrationSecurityTest {
                 .andExpect(jsonPath("$.reason").value(
                         "migration must be REVIEWED to apply (was PENDING): mig-1"));
         verify(audit, never()).record(any(), eq("declaration.migrate.apply"), anyString(), any());
+    }
+
+
+    @Test
+    void operatorCanCancelPendingAndAudits() throws Exception {
+        when(migrationStore.findById("mig-1"))
+                .thenReturn(Optional.of(sampleMigration(JdbcDeclarationMigrationStore.PENDING)));
+        when(migrationStore.markCancelled("mig-1"))
+                .thenReturn(sampleMigration(JdbcDeclarationMigrationStore.CANCELLED));
+
+        mockMvc.perform(post(PATH + "/migrations/mig-1/cancel")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        verify(audit)
+                .record(any(), eq("declaration.migrate.cancel"), eq("entity/demo-ticket#mig-1"), eq(AuditOutcome.ALLOWED));
     }
 
     private static DeclarationRevision sampleRevision(int revision) {

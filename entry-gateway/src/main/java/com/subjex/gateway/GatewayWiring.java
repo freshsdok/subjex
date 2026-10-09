@@ -26,9 +26,18 @@ public class GatewayWiring {
 
     @Bean
     RateLimitPort rateLimitPort(
+            @Value("${gateway.rate-limit.backend:process}") String backend,
             @Value("${gateway.rate-limit.permits:120}") int permits,
             @Value("${gateway.rate-limit.window-seconds:60}") int windowSeconds,
             Clock clock) {
+        // entry-gateway has no JDBC; shared gateway limit is Scale-4c+. Fail closed on jdbc.
+        // 网关无 JDBC；共享网关限流留给 4c+。选 jdbc 则启动失败。
+        if (!"process".equalsIgnoreCase(backend.strip())) {
+            throw new IllegalStateException(
+                    "gateway.rate-limit.backend must be process (jdbc is not supported in entry-gateway; "
+                            + "use platform-app platform.rate-limit.backend=jdbc for shared submit limits). Got: "
+                            + backend);
+        }
         return new GatewayRateLimit(permits, Duration.ofSeconds(windowSeconds), clock);
     }
 

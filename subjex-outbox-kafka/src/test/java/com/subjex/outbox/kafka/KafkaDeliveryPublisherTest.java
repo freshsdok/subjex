@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.platform.contract.delivery.DeliveryAttempt;
 import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
 import com.subjex.platform.contract.task.OutboxEvent;
 import com.subjex.platform.contract.task.OutboxState;
 import com.subjex.platform.contract.task.TaskRecordedNotice;
@@ -72,7 +73,7 @@ class KafkaDeliveryPublisherTest {
     }
 
     private static KafkaDeliveryPublisher publisher(
-            MockProducer<String, byte[]> mock, DeliveryCircuitBreaker breaker) {
+            MockProducer<String, byte[]> mock, DeliveryCircuitBreakerPort breaker) {
         return new KafkaDeliveryPublisher(mock, "outbox.events", 1, breaker, telemetry(), Duration.ofSeconds(2));
     }
 

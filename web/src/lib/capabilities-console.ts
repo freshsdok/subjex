@@ -26,6 +26,16 @@ export function capabilityRunPath(capabilityId: string): string {
   return `/api/platform/capabilities/${encodeURIComponent(capabilityId)}/run`;
 }
 
+/** Issue AI write-back confirm ticket — 签发 AI 写回确认票。 */
+export function capabilityWriteTicketPath(capabilityId: string): string {
+  return `/api/platform/capabilities/${encodeURIComponent(capabilityId)}/write-ticket`;
+}
+
+/** Consume ticket + write-back (default noop) — 消费确认票并写回（默认 noop）。 */
+export function capabilityWriteBackPath(capabilityId: string): string {
+  return `/api/platform/capabilities/${encodeURIComponent(capabilityId)}/write-back`;
+}
+
 /** Known catalog kinds — 已知目录种类。 */
 export function isKnownCapabilityKind(kind: string): kind is "ALGORITHM" | "AI" {
   return kind === "ALGORITHM" || kind === "AI";

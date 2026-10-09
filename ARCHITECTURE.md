@@ -50,7 +50,7 @@
 目标形状：这五项留在模块化单体里，各自是一个端口，或一个不依赖宿主进程的模块。以后可以拆成独立进程，调用方仍然依赖原来的契约。它们互相不依赖。本节落地时 `platform-app` 与 `sample-consumer` 是仅有的两个进程（节点四加了 `entry-gateway`，见第 13 节）。不新增架构门禁：模块之间的禁止依赖靠依赖声明本身守住，`form-render` 不依赖 `platform-app` 或 `sample-consumer`，两个进程也不互相依赖。
 
 - 服务发现：契约 `ServiceRegistry`，操作仍是 `register` 与 `resolve`。`platform-app` 把端点留在共享库的 `service_endpoint` 表里，并用 `POST /registry/services` 与 `GET /registry/services` 给另一个进程。`sample-consumer` 经这个 HTTP 登记自己、解析 `platform-app`。HTTP 连不上时，`StaticServiceFallback` 仍用 `PLATFORM_APP_HOST` 与 `PLATFORM_APP_PORT`。人看的页面是 `GET /services`：一句话、服务名、地址、状态词 `up` 或 `unknown`。没有 Nacos，也没有单独的注册中心进程。 `platform-app` 在 Web 服务器启动后（`WebServerInitializedEvent`）用真正绑定的端口登记自己，不读 `server.port`，所以 `server.port=0` 登记的是随机端口；单独的管理端口不登记。
-- 配置中心：契约 `ConfigSource`。默认实现 `LocalApplicationConfig` 读本进程的应用配置。`ConfigOverrideStore` 是可写的覆盖层（platform-app 用表 `config_override`，测试仍可用 `MemoryConfigOverride`）。`OverridingConfigSource` 先查覆盖层，再查本地配置。`platform-app` 用 `GET/POST /config/entries` 给另一个进程读生效值或压过一个键。`sample-consumer` 经 `HttpConfigSource` 读生效值，连不上时仍用本地应用配置。人看的页面是 `GET /config`：一句话、键、生效值、来源词“本地文件”或“已存覆盖”。没有单独的配置服务器，也没有 Nacos/Apollo 客户端。详见第 10 节。
+- 配置中心：契约 `ConfigSource` + 生命周期端口 `ConfigCenterPort`（`ConfigCatalog` 实现）。默认底层 `LocalApplicationConfig`；可写覆盖层 `ConfigOverrideStore`（表 `config_override`，含 **namespace + revision**，Flyway V28；测试用 `MemoryConfigOverride`）。`OverridingConfigSource` 先覆盖后本地。跨进程经 `GET/POST /config/entries` 与 JSON `GET/PUT /api/v1/config`（可选 `namespace`，默认 `default`；`ETag` / `If-Match` / `If-None-Match`）。`HttpConfigSource` 可读条件 GET、写时带已知修订。控制台 `/config` 按命名空间列出键、生效值、来源、修订号。**这是库表 + HTTP 上的版本化命名空间覆盖层，不是 Nacos/Apollo，也不另起配置微服务。** 计划见 [`docs/config/independent-config-center-plan.md`](docs/config/independent-config-center-plan.md)。详见第 10 节。
 - Kubernetes：`deploy/k8s/` 里是 `platform-app`、`sample-consumer`（节点四起还有 `entry-gateway`）的 Deployment 和 Service，包含存活探针、就绪探针、资源请求和限制。没有 HPA。构建和测试不把这些文件应用到集群，也不构建镜像。没有 Docker 也能测试。人看的页面是 `GET /deploy`：一句话说明这些清单没有应用到任何集群，然后每个工作负载一行（名字、占位镜像、存活路径、就绪路径、用兆比字节写明的内存上限）。页面读构建时复制到 classpath 的同一份 YAML。没有集群状态，也没有应用按钮。
 - 低代码：本节落地时是一份声明式表单 `form-render/src/main/resources/forms/endpoint-publication.form.yaml`（节点六起是多表单目录，另有 `config-override.form.yaml`，并可提交落库，见第 15 节）。`FormRenderer` 把它变成校验过的字段列表。人看的页面是 `GET /forms`：一句话说明这是字段列表，不是设计器，然后每个字段一行（名字、类型、是否必填，中文在前、英文在后）。页面读的是同一份 YAML。没有界面设计器，也没有在线表单库。
 - 代码生成：`FormRecordGenerator` 读同一份表单，写出一个 Java 记录。生成结果检入 `EndpointPublication`。测试核对记录组件与表单字段一致。构建不运行注解处理器。人看的页面是 `GET /codegen`：一句话说明这一页展示从表单生成的类型，不是在浏览器里运行的生成器，然后是记录名和每个组件的类型（中文在前、英文在后）。名字和类型来自已检入的记录，并与同一份 YAML 经现有生成器核对。没有运行时写文件的按钮。
@@ -60,14 +60,14 @@
 仍推迟：
 
 - 独立的注册中心服务器（不引入 Nacos、Eureka、Consul）。跨进程登记只走 platform-app 的 HTTP，不另起进程。
-- 真实的配置服务器。
+- 独立配置微服务 / Nacos·Apollo 客户端（MVP 已用库表+HTTP 命名空间+修订；不另起配置进程）。
 - 把 Kubernetes 清单应用到集群，以及自动扩容。镜像名只是占位符。
 - 表单设计器，和在线表单运行时数据库。
 - 全量 CRUD 生成（控制器、表、迁移）。现在只生成与字段对应的记录，不生成校验注解。
 
 发现这一刀：两个进程共用 platform-app 上的 HTTP 登记簿。人打开 `/services` 看名单，不看运维控制台。状态词只有连得上才是 `up`，否则是 `unknown`。
 
-配置这一刀：两个进程共用 platform-app 上的覆盖层与 HTTP 条目（覆盖层起初在内存，节点二起在共享库表 `config_override`）。人打开 `/config` 看键、生效值和来源，不看巨型属性堆。来源词只有“本地文件”或“已存覆盖”。
+配置这一刀：两个进程共用 platform-app 上按命名空间版本化的覆盖层与 HTTP 条目（表 `config_override`：namespace + revision + ETag）。人打开控制台 `/config`（或 HTML `GET /config`）看键、生效值、来源与修订，可切换命名空间（至少 `default`），不看巨型属性堆，也不假装是 Nacos。
 
 清单这一刀：人打开 `/deploy` 看探针路径和内存上限，不看集群。存活路径与就绪路径分开写，避免进程还在跑却被当成已就绪。内存上限写成兆比字节，避免把 `m` 读成兆。
 
@@ -97,7 +97,7 @@
 
 - 服务端点、配置覆盖和具名锁都进共享库（Flyway `V3__shared_registry_config_lock.sql`）：`service_endpoint`、`config_override`、`platform_lock`。指向同一个库的进程看到同样的行，重启之后也一样。没有 Nacos；Java 进程不用 Redis（节点五起只有 `web/` 控制台用 Redis 存操作员会话，见第 14 节）。
 - `JdbcServiceRegistry` 实现 `ServiceRoster`（在 `ServiceRegistry` 上多一个全表读取）。`FallbackServiceRegistry` 仍包一层：主名册没有名字时用静态 host/port。`InProcessServiceRegistry` 只留给测试。
-- `JdbcConfigOverride` 实现 `ConfigOverrideStore`。本地应用配置仍是底层；覆盖层是表行。`MemoryConfigOverride` 只留给测试。人看的来源词是“本地文件”或“已存覆盖”。
+- `JdbcConfigOverride` 实现 `ConfigOverrideStore`（V28 起主键 `(namespace, config_key)`，列 `revision`）。本地应用配置仍是底层；覆盖层是表行。`MemoryConfigOverride` 只留给测试。人看的来源词是“本地文件”或“已存覆盖”；控制台另显示命名空间与修订号。配置中心 MVP（Item 5）在此表层加深，见 `docs/config/independent-config-center-plan.md`。
 - `JdbcRowLock` 实现 `DistributedLockPort`：一行写持有者和到期时间；释放只删自己的行，过期可被接手。`SingleProcessLock` 移到测试源码。
 - 证明：同一份 H2 库上两个仓库实例（或先后新建）能读到彼此写下的登记和覆盖；锁在两个实例之间互斥，过期后可接手。
 
@@ -156,16 +156,16 @@ Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; t
 
 - Prometheus：各进程在**管理端口**暴露 `/actuator/prometheus`（见 P2）；存活/就绪匿名且应限制在集群网段。
 - 追踪：默认丢弃导出器；配置 `PLATFORM_OTLP_ENDPOINT` 时改为 OTLP/HTTP。
-- **单副本门禁（P4）：** `deploy/k8s/platform-app.yaml` 默认 `replicas: 1`；compose 默认一个 `platform-app`。出箱熔断与限流是**进程内**状态——**不做**分布式熔断。同时跑两个副本只作为已知限制，不作为对外能力。
+- **单副本门禁（P4 → Scale-4d）：** `deploy/k8s/platform-app.yaml` 默认 `replicas: 1`；compose 默认一个 `platform-app`。对外宣称 `replicas > 1` **仅当**同时 `platform.rate-limit.backend=jdbc` 与 `platform.delivery.circuit-breaker.backend=jdbc`（默认仍为 `process`）。本地对象存储（`platform.storage.directory`）多副本不共享，除非挂共享卷。网关限流仍按进程。详见 `docs/release/single-replica-gate.md`。
 - 压测：`deploy/load/smoke-load.sh` 经网关打只读请求；不是基准测试。
 - 控制台会话（TD-1）：Redis 共享登录态（多控制台副本时）。网关限流仍进程内。会话只存加密 access/refresh（`SECURITY.md`）。
-- 不做：HPA、分布式熔断、完整 Grafana、跨区域。
+- 不做：HPA、跨区域、无共享后端时的多副本对外宣称、无 PVC 时的共享对象存储。
 
 ### English summary — Node 5: observability and single-replica gate
 
 - Prometheus on the management port (P2); probes anonymous but cluster-CIDR only.
 - Optional OTLP/HTTP when configured.
-- **P4:** default one `platform-app` replica. Breaker + rate-limit are in-process; dual replica is a known limit, not a product claim. No distributed breaker.
+- **P4 / Scale-4d:** default one `platform-app` replica. Advertise `replicas > 1` only when both rate-limit and delivery circuit-breaker backends are `jdbc`. Object store remains local disk without a shared volume. Gateway rate limits stay per process. See `docs/release/single-replica-gate.md`.
 - Smoke load via gateway; Redis console sessions; gateway rate limits stay in-process.
 
 ## 15. 节点六：低代码加深 / Node 6
@@ -186,11 +186,12 @@ Each operator page has a JSON twin under `/api/v1` for the `web/` Next.js app; t
 
 ## 16. 发布前状态 / Release status
 
-- 仍是 `0.1.0-SNAPSHOT`，没有 tag。全部模块 `mvn test` 应当通过（节点四复制规则造成的 4 个 ArchUnit 空规则失败已修，见 `docs/release-prep-progress.md`）。
-- CI 工作流已在本机落到 `.github/workflows/build.yml`（含 `web/` typecheck/test/build）；`docs/ci/` 仅指引。推送到远端写入该路径需要令牌带 `workflow` 权限；远端落地并跑绿之前仍视为 B2 未完成。
-- 已知安全与运行限制汇总在 `SECURITY.md`，版本内容在 `CHANGELOG.md`，完整评估在 `docs/pre-release-assessment.md`。
+- 仍是 `0.1.0-SNAPSHOT`，**尚未打 tag，本机 tip 尚未 squash-push**。全部模块 `mvn test` 应当通过（见 `docs/release-prep-progress.md`）。
+- CI 工作流在 `.github/workflows/build.yml`（含 `web/` + `image-scan`）。**厂商启动 / image-scan 需远端 Actions 再验**（本机曾无 Docker 跳过 `VendorStartupTest`；CI-fix-1 已修 MySQL V16 行大小与管理口探针）。
+- **O8 FULL PASS**（旧 `org_unit` 已 DROP）；预 alpha **items 1–5 + CI-fix-1 已在本地完成**；**docs收口**对齐本文件与检查表。下一动作：远端 CI 绿 → 再考虑 `v0.1.0-alpha.1`（仍非生产就绪）。
+- 已知限制：`SECURITY.md`；变更：`CHANGELOG.md`；检查表：`docs/release/v0.1.0-alpha.1-checklist.md`。
 
-Still `0.1.0-SNAPSHOT`, untagged. The full `mvn test` reactor is expected to pass. CI workflow is local at `.github/workflows/build.yml` (includes `web/`); pushing it needs the `workflow` scope. Known limits: `SECURITY.md`; contents: `CHANGELOG.md`.
+Still `0.1.0-SNAPSHOT`, **not tagged, not squash-pushed**. Local tip has O8 + capacity items 1–5 + CI-fix-1 + docs align. Remote Actions must re-verify VendorStartupTest / image-scan before cutting alpha. Not production-ready.
 
 ## 17. 低代码加深路线（有序） / Ordered low-code deepening
 
@@ -216,10 +217,10 @@ Node 6 delivered the multi-form catalog, submission store, second business form,
 
 Product direction: with declarations as the single source of truth, structured console authoring builds baseline system capability. Seven dimensions, people/org base (dim 0), **decided** dual-track promote, non-goals, and Z0–Z6 slices: [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) § Zero-code model.
 
-- **底座 / Base：** 租户隔离；**O1 冻结**六概念（Subject / Organization / Tenant / Membership / OrganizationRelation / TenantOrganization）——见 [`docs/ontology/README.md`](docs/ontology/README.md) 与 ADR [`docs/adr/0001-o1-organization-ontology.md`](docs/adr/0001-o1-organization-ontology.md)。运行时仍用旧 `org_unit`（**租户内薄组织 / legacy thin model**，O3 双读并存，兼容至 O7）；暂停对其结构性扩展。人员按**权限分层**；平台超管独立角色名；IdP/OIDC 为主；组织只约束权限范围（关系≠授权）。
-- **Base：** Tenant isolation; **O1 freeze** six concepts (see ontology pack + ADR 0001). Runtime still on legacy `org_unit` (**tenant-scoped thin model**, O3 dual-read, until O7); pause structural expansion. People by **permission tiers**; super-admin own role name; IdP/OIDC primary; org supplies scope only (relationship ≠ authorization).
-- **上下文权限 / Context AuthZ：** **AX-1+AX-2+AX-3 已落地**——可解释 `AccessDecision`；组织范围仅「本部门及下级」；`PolicyEngine` 端口（Cedar/Casbin 子集形状），首适配 `SqlRbacPolicyEngine`→`AccessChecker`；无自研 DSL、不加角色名、不上 Zanzibar；完整 Cedar/Casbin 依赖后置换入。
-- **Context AuthZ：** **AX-1+AX-2+AX-3 landed** — explainable `AccessDecision`; org scope self+descendants; `PolicyEngine` port (Cedar/Casbin subset shape), first adapter `SqlRbacPolicyEngine`→`AccessChecker`; no custom DSL, no new role names, no Zanzibar; full Cedar/Casbin jars later swap-ins.
+- **底座 / Base：** 租户隔离；**O1 冻结**六概念（Subject / Organization / Tenant / Membership / OrganizationRelation / TenantOrganization）——见 [`docs/ontology/README.md`](docs/ontology/README.md) 与 ADR 0001。**O8 FULL PASS**：运行时只走本体表；Flyway V24 已 **DROP** 旧 `org_unit` / `org_membership`；零代码字段仅 `subjectRef` / `organizationRef`。人员按**权限分层**；平台超管独立角色名；IdP/OIDC 为主；组织只约束权限范围（关系≠授权）。
+- **Base：** Tenant isolation; **O1 freeze** six concepts. **O8 FULL PASS:** runtime is ontology-only; legacy thin `org_unit` / `org_membership` **dropped** (V24); field kinds `subjectRef` / `organizationRef` only. People by **permission tiers**; super-admin own role name; IdP/OIDC primary; org = scope only.
+- **上下文权限 / Context AuthZ：** **AX-1+AX-2+AX-3 + AuthZ-1d 已落地**——可解释 `AccessDecision`；组织范围「本部门及下级」；`PolicyEngine` 默认 **`platform.authz.engine=cedar`**（`CedarPolicyEngine` + baseline.cedar）；`sql` 作无原生库环境逃生。无自研 DSL、不加角色名、不上 Zanzibar。
+- **Context AuthZ：** **AX-1..3 + AuthZ-1d landed** — explainable `AccessDecision`; org scope self+descendants; default **`platform.authz.engine=cedar`**; `sql` escape hatch without natives. No custom DSL / Zanzibar.
 - **七维 / Seven dims：** 数据 · **页面（结构化构建器 + 常用组件积木）** · 流程 · 权限/租户 · 动作/副作用 · 算法目录 · AI 目录（经 `model-gateway`，关键写回需确认）。
 - **Seven dims：** Data · **pages (structured builder + common visual component blocks)** · flow · permission/tenant · actions · algorithm catalog · AI catalog (`model-gateway`; confirm before critical writes).
 - **页面 UX / Page UX：** **已拍板**——首波用结构化**页面构建器/配置器**（非自由画布）；具体首波积木见下方「首波页面积木」。
@@ -232,24 +233,20 @@ Product direction: with declarations as the single source of truth, structured c
 - **Schema：** **Decided** — field/schema changes follow **strict DB management** (controlled migrations) via dual-track promote; **no** casual online DDL.
 - **热加载与迁移绑定 / Hot-reload bind：** **已拍板**——已晋升**声明元数据**可热加载（实现：库内 `PROMOTED` 覆盖 classpath，非重建 jar）；**改表**走**迁移队列**，迁移完成后才切换声明，二者绑定。
 - **Hot-reload bind：** **Decided** — promoted declaration **metadata** may hot-reload (impl: DB `PROMOTED` overlay over classpath, not jar rebuild); **schema/table** changes use a **migration queue** and declaration switches only after migration completes — **bound together**.
-- **首波页面积木 / First-wave page blocks：** **已拍板**——通用窗体组件、ListTable、FormFields（按实体）、DetailReadonly、Section/Tabs、SubmitBar、选人占位（O1 起收敛为 **SubjectPicker / OrganizationPicker**；旧 UserPicker/OrgPicker 名过渡）、流程分拣器。
-- **First-wave page blocks：** **Decided** — generic form components, ListTable, FormFields, DetailReadonly, Section/Tabs, SubmitBar, pickers converging to **SubjectPicker / OrganizationPicker** (legacy UserPicker/OrgPicker names transitional), flow sorter/router.
+- **首波页面积木 / First-wave page blocks：** **已拍板且 O8 后现行**——通用窗体组件、ListTable、FormFields、DetailReadonly、Section/Tabs、SubmitBar、**SubjectPicker / OrganizationPicker**（旧 UserPicker/OrgPicker id **已删除**）、流程分拣器。
+- **First-wave page blocks：** **Decided and current after O8** — generic form components, ListTable, FormFields, DetailReadonly, Section/Tabs, SubmitBar, **SubjectPicker / OrganizationPicker** (legacy UserPicker/OrgPicker **removed**), flow sorter/router.
 - **Z1 样例 / Z1 samples：** **已拍板**——通用引擎先吃**新样例**和/或**并行只读适配 `service_note`**；旧 JDBC 可暂留再删。
 - **Z1 samples：** **Decided** — generic engine first eats a **new sample** and/or **parallel read-adapts `service_note`**; old JDBC may remain then delete.
-- **HTTP Basic：** **已拍板**——更安全默认（非 `local` 关闭）；与 Z1 改 curl/文档；实现可稍后。
-- **HTTP Basic：** **Decided** — safer default (**off** outside `local`); update curl/docs with Z1; implementation may follow later.
+- **HTTP Basic：** **已落地（Basic-1）**——默认关（`platform.auth.http-basic-enabled=false`）；`local` 打开；脚本可设 `PLATFORM_AUTH_HTTP_BASIC_ENABLED=true`。控制台主路径 Bearer。
+- **HTTP Basic：** **Landed (Basic-1)** — off by default; on under `local`; opt-in via env for scripts. Console uses Bearer.
 - **真相 / Truth：** **已拍板双轨 B**（**租户隔离**控制台草稿 → 晋升进**内部 git** YAML，自建/平台内置，**不依赖 GitHub**）；不以「仅改 YAML」为产品路径。首波交付含通用运行时（Z1–Z2）与声明库 + 页面构建器（Z3–Z4，可与 Z1 重叠）。
 - **Truth：** **Dual-track B decided** (**tenant-scoped** console drafts → promote into **internal git** YAML; self-hosted / in-platform; **not** GitHub-dependent); YAML-only is not the product path. First wave includes generic runtime (Z1–Z2) and declaration store + page builder (Z3–Z4; Z1↔Z3 overlap OK).
-- **优先级 / Priority：** **已拍板 R1** — Z1 → 薄人员/组织（树+membership+只读）→ Z2（组件积木 + 预留选人/选部门）→ Z3/Z4；SCIM/复杂兼岗后置。
-- **Priority：** **R1 decided** — Z1 → thin people/org (tree + membership + read-only) → Z2 (component blocks + reserve User/Org pickers) → Z3/Z4; SCIM / complex dual-role deferred.
-- **Thin-org-1：** Flyway V13 `org_unit`/`org_membership`；`org.read`；预留 `platform.super-admin`（本片零普通权限、未分配主体）；JDBC 只读目录。
-- **Thin-org-1：** Flyway V13 `org_unit`/`org_membership`; `org.read`; reserved `platform.super-admin` (zero ordinary permissions this slice; no subject assigned); JDBC read directory.
-- **Thin-org-2：** 只读 `GET /api/v1/org/units|memberships`（`org.read`）；无写接口/控制台/SCIM；超管仍未分配。薄组织基线齐，下一片 Z2。
-- **Thin-org-2：** Read-only `GET /api/v1/org/units|memberships` (`org.read`); no writes/console/SCIM; super-admin still unused. Thin-org baseline complete → Z2 next.
-- **O1 Model Freeze：** 文档冻结六概念；旧 `org_unit`/`org_membership` 标为历史薄模型；O1 通过前不写新表 Flyway。详见 `docs/ontology/`。
-- **O1 Model Freeze：** Docs freeze six concepts; legacy thin `org_unit`/`org_membership`; no new-table Flyway until O1 review PASS. See `docs/ontology/`.
-- **Z2-3：** 详情优先 `GET /records/{id}`；选人/选部门接薄组织只读（无租户文本回退）；表单 JSON `entityKey`。**Z2 基线齐** → 下一片 Z3。
-- **Z2-3：** Detail prefers `GET /records/{id}`; thin live User/Org pickers (text fallback); forms JSON `entityKey`. **Z2 baseline landed** → Z3 next.
+- **优先级 / Priority：** **已拍板 R1（已走过）** — Z1 → 薄人员/组织（历史，已由 O1–O8 本体替换）→ Z2 → Z3/Z4 → Z5；SCIM/复杂兼岗后置。
+- **Priority：** **R1 decided (executed)** — Z1 → thin people/org (**historical**; replaced by O1–O8 ontology) → Z2 → Z3/Z4 → Z5; SCIM / dual-role deferred.
+- **Thin-org / O1–O8（历史收口）：** V13 薄组织 → O2 本体表 → O3 双读 → O7 DROP 旧表 → **O8 FULL PASS**（无 map 正式消费者；Subject/Organization pickers only）。现行 API：`/api/v1/organizations`（旧 `/api/v1/org/**` 为兼容薄适配）。
+- **Thin-org / O1–O8 (closed):** V13 thin tables → O2 ontology → O3 dual-read → O7 DROP → **O8 FULL PASS**. Current API: `/api/v1/organizations` (legacy `/api/v1/org/**` thin adapter only).
+- **Z2-3：** 详情优先 `GET /records/{id}`；**SubjectPicker / OrganizationPicker**；表单 JSON `entityKey`。**Z2 基线齐**（随后 Z3–Z5 / MQ / RT 已落地，见路线图）。
+- **Z2-3：** Detail prefers `GET /records/{id}`; **SubjectPicker / OrganizationPicker**; forms `entityKey`. **Z2 baseline landed** (Z3–Z5 / MQ / RT followed — see roadmap).
 - **Z3-1：** Flyway V14 `declaration_revision`（租户草稿修订，YAML 文本）；`declaration.read`/`write`；`JdbcDeclarationStore`。尚无 HTTP / 目录覆盖 / 晋升（Z3-2 / Z5）。
 - **Z3-1：** Flyway V14 `declaration_revision` (tenant draft revisions, YAML text); `declaration.read`/`write`; `JdbcDeclarationStore`. No HTTP / catalog overlay / promote yet (Z3-2 / Z5).
 - **Z3-2：** 声明草稿 HTTP + `EffectiveDeclarationService`（库内 DRAFT 覆盖 classpath）+ `/effective`；运行时目录仍 classpath。

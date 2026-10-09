@@ -42,7 +42,13 @@ public class AuditPage {
     static final Map<String, String[]> ACTION_WORDS = Map.of(
             "config.override", new String[] {"覆盖配置", "override config"},
             "registry.register", new String[] {"登记服务", "register service"},
-            "submit-task", new String[] {"提交任务", "submit task"});
+            "submit-task", new String[] {"提交任务", "submit task"},
+            "declaration.migrate.enqueue", new String[] {"迁移入队", "migration enqueue"},
+            "declaration.migrate.review", new String[] {"迁移审阅", "migration review"},
+            "declaration.migrate.apply", new String[] {"迁移执行", "migration apply"},
+            "declaration.migrate.cancel", new String[] {"迁移取消", "migration cancel"},
+            "capability.ai.preview", new String[] {"AI 预览", "AI preview"},
+            "capability.ai.confirm", new String[] {"AI 写回确认", "AI write confirm"});
 
     /** Plain words for outcomes — 结果的白话。 */
     static final Map<String, String[]> OUTCOME_WORDS = Map.of(

@@ -3,6 +3,8 @@ package com.subjex.platform.app;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.connection.ConfiguredConnection;
 import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
+import com.subjex.platform.app.delivery.JdbcDeliveryCircuitBreakerPort;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
 import com.subjex.platform.contract.delivery.DeliveryPort;
 import com.subjex.platform.contract.delivery.DeliveryTransport;
@@ -29,8 +31,14 @@ import com.subjex.platform.app.org.legacy.JdbcOrgDirectory;
 import com.subjex.platform.app.organization.JdbcOrganizationStore;
 import com.subjex.platform.app.organization.OrganizationScopeResolver;
 import com.subjex.platform.app.organization.OrganizationOntologyBackfill;
+import com.subjex.platform.app.capability.AiWriteBackSink;
+import com.subjex.platform.app.capability.AiWriteConfirmGate;
 import com.subjex.platform.app.capability.CapabilityCatalog;
 import com.subjex.platform.app.capability.CapabilityRunner;
+import com.subjex.platform.app.capability.InMemoryAiWriteConfirmGate;
+import com.subjex.platform.app.capability.ModelCompletionClient;
+import com.subjex.platform.app.capability.ModelCompletionClients;
+import com.subjex.platform.app.capability.NoOpAiWriteBackSink;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
@@ -42,6 +50,7 @@ import com.subjex.platform.app.jdbc.JdbcRowLock;
 import com.subjex.platform.app.jdbc.JdbcServiceRegistry;
 import com.subjex.platform.app.jdbc.JdbcIdempotencyPort;
 import com.subjex.platform.app.jdbc.JdbcTaskMessagePort;
+import com.subjex.platform.app.ratelimit.JdbcRateLimitPort;
 import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
 import com.subjex.platform.app.security.JdbcOperatorAdmin;
 import com.subjex.platform.app.security.JdbcTenantAdmin;
@@ -61,11 +70,12 @@ import com.subjex.platform.app.security.OperatorOidcService;
 import com.subjex.platform.app.security.JdbcOperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.PolicyEngine;
-import com.subjex.platform.app.security.SqlRbacPolicyEngine;
+import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.app.config.ConfigCatalog;
+import com.subjex.platform.contract.config.ConfigCenterPort;
 import com.subjex.platform.contract.config.ConfigListing;
 import com.subjex.platform.contract.config.ConfigSource;
 import com.subjex.platform.contract.config.LocalApplicationConfig;
@@ -139,6 +149,12 @@ public class PlatformWiring {
         return new ConfigCatalog(configListing, configOverrideStore);
     }
 
+    /** Item 5 lifecycle surface — same catalog instance (Config-5a). / 项 5 生命周期面——与目录同一实例。 */
+    @Bean
+    ConfigCenterPort configCenterPort(ConfigCatalog configCatalog) {
+        return configCatalog;
+    }
+
     /**
      * Endpoints in table service_endpoint — 端点在 service_endpoint 表里。
      */
@@ -203,8 +219,18 @@ public class PlatformWiring {
     }
 
     @Bean
-    RateLimitPort rateLimitPort(@Value("${platform.rate-limit.permits:60}") int permits, Clock clock) {
-        return new SingleProcessRateLimit(permits, Duration.ofMinutes(1), clock);
+    RateLimitPort rateLimitPort(
+            @Value("${platform.rate-limit.backend:process}") String backend,
+            @Value("${platform.rate-limit.permits:60}") int permits,
+            JdbcTemplate jdbc,
+            Clock clock) {
+        Duration window = Duration.ofMinutes(1);
+        return switch (backend.strip().toLowerCase()) {
+            case "process" -> new SingleProcessRateLimit(permits, window, clock);
+            case "jdbc" -> new JdbcRateLimitPort(jdbc, permits, window, clock);
+            default -> throw new IllegalArgumentException(
+                    "platform.rate-limit.backend must be process or jdbc, got: " + backend);
+        };
     }
 
     @Bean
@@ -394,9 +420,20 @@ public class PlatformWiring {
     }
 
     @Bean
-    DeliveryCircuitBreaker deliveryCircuitBreaker(
-            @Value("${platform.delivery.breaker-failure-threshold:3}") int failureThreshold) {
-        return new DeliveryCircuitBreaker(failureThreshold);
+    DeliveryCircuitBreakerPort deliveryCircuitBreakerPort(
+            @Value("${platform.delivery.circuit-breaker.backend:process}") String backend,
+            @Value("${platform.delivery.breaker-failure-threshold:3}") int failureThreshold,
+            @Value("${platform.delivery.circuit-breaker.destination-key:outbox}") String destinationKey,
+            JdbcTemplate jdbc,
+            Clock clock) {
+        Duration cooldown = Duration.ofSeconds(30);
+        return switch (backend.strip().toLowerCase()) {
+            case "process" -> new DeliveryCircuitBreaker(failureThreshold, cooldown, clock);
+            case "jdbc" -> new JdbcDeliveryCircuitBreakerPort(
+                    jdbc, destinationKey, failureThreshold, cooldown, clock);
+            default -> throw new IllegalArgumentException(
+                    "platform.delivery.circuit-breaker.backend must be process or jdbc, got: " + backend);
+        };
     }
 
     /**
@@ -414,7 +451,7 @@ public class PlatformWiring {
             @Value("${platform.delivery.tls.truststore-password:}") String truststorePassword,
             @Value("${platform.delivery.allow-insecure:false}") boolean allowInsecure,
             Environment environment,
-            DeliveryCircuitBreaker breaker,
+            DeliveryCircuitBreakerPort breaker,
             OpenTelemetry openTelemetry,
             Clock clock) {
         SecretPlaceholderGuard.refusePlaceholdersOutsideLocal(
@@ -497,9 +534,35 @@ public class PlatformWiring {
         return new CapabilityCatalog();
     }
 
+    /**
+     * AI completion client: stub (default) or http (needs env secrets; transport gated).
+     * AI 补全客户端：默认 stub；http 需环境密钥（传输层未全开）。
+     */
     @Bean
-    CapabilityRunner capabilityRunner(CapabilityCatalog capabilityCatalog) {
-        return new CapabilityRunner(capabilityCatalog);
+    ModelCompletionClient modelCompletionClient(
+            @Value("${platform.ai.completion.mode:stub}") String mode,
+            @Value("${platform.ai.completion.http.base-url:}") String httpBaseUrl,
+            @Value("${platform.ai.completion.http.api-key:}") String httpApiKey,
+            @Value("${platform.ai.completion.http.model:}") String httpModel) {
+        return ModelCompletionClients.forMode(mode, httpBaseUrl, httpApiKey, httpModel);
+    }
+
+    @Bean
+    CapabilityRunner capabilityRunner(
+            CapabilityCatalog capabilityCatalog, ModelCompletionClient modelCompletionClient) {
+        return new CapabilityRunner(capabilityCatalog, modelCompletionClient);
+    }
+
+    /** AI write-back confirm gate (in-memory tickets) — AI 写回确认门闩（进程内票）。 */
+    @Bean
+    AiWriteConfirmGate aiWriteConfirmGate(Clock clock) {
+        return new InMemoryAiWriteConfirmGate(clock);
+    }
+
+    /** Default AI write-back sink: noop (no DB) — 默认写回落点：noop 不落库。 */
+    @Bean
+    AiWriteBackSink aiWriteBackSink() {
+        return new NoOpAiWriteBackSink();
     }
 
     /**
@@ -583,12 +646,16 @@ public class PlatformWiring {
     }
 
     /**
-     * Policy engine port (SQL RBAC first; Cedar/Casbin subset shape) —
-     * 策略引擎端口（首适配 SQL RBAC；Cedar/Casbin 子集形状）。
+     * Policy engine port — AuthZ-1d: {@code platform.authz.engine=cedar|sql} (default {@code cedar}).
+     * Cedar unavailable with engine=cedar → fail-closed at startup. SQL remains selectable.
+     * 策略引擎：默认 Cedar；可用 sql 回退；选 cedar 但 FFI 不可用则启动失败。
      */
     @Bean
-    PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess operatorTenantAccess) {
-        return new SqlRbacPolicyEngine(tenantGuard, operatorTenantAccess);
+    PolicyEngine policyEngine(
+            TenantGuard tenantGuard,
+            OperatorTenantAccess operatorTenantAccess,
+            @Value("${platform.authz.engine:cedar}") String authzEngine) {
+        return PolicyEngineFactory.create(authzEngine, tenantGuard, operatorTenantAccess);
     }
 
     /**

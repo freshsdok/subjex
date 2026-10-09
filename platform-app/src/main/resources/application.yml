@@ -42,6 +42,22 @@ platform:
     # 按登录名口令失败锁定。环境变量可覆盖阈值与时长。
     lockout-max-failures: ${PLATFORM_AUTH_LOCKOUT_MAX_FAILURES:5}
     lockout-duration: ${PLATFORM_AUTH_LOCKOUT_DURATION:PT15M}
+  # AuthZ-1d: PolicyEngine implementation. cedar (default) | sql. Env PLATFORM_AUTHZ_ENGINE.
+  # Cedar FFI required when cedar; set sql on arches without natives. Fail-closed if cedar selected but unavailable.
+  # 策略引擎实现。默认 cedar；无原生库的环境设 sql。选 cedar 不可用则启动失败关闭。
+  authz:
+    engine: ${PLATFORM_AUTHZ_ENGINE:cedar}
+  # AI completion (Item 3 DONE). Default stub — no API keys. HTTP mode needs SUBJEX_AI_HTTP_*;
+  # live vendor transport still gated (fail-closed). Write-back requires confirm ticket (noop sink).
+  # AI 补全（项 3 已完成）。默认 stub。http 需密钥且外呼仍门闩。写回须确认票（默认 noop）。
+  # See docs/ai/capability-real-ai-plan.md.
+  ai:
+    completion:
+      mode: ${PLATFORM_AI_COMPLETION_MODE:stub}
+      http:
+        base-url: ${SUBJEX_AI_HTTP_BASE_URL:}
+        api-key: ${SUBJEX_AI_HTTP_API_KEY:}
+        model: ${SUBJEX_AI_HTTP_MODEL:}
   # TOTP MFA (Slice D). required=false initially; set encryption-key in every shared environment.
   # TOTP 多因素（切片 D）。默认不强制；共享环境必须配置 encryption-key。
   mfa:
@@ -99,6 +115,11 @@ platform:
     hmac-secret: ${OUTBOX_HMAC_SECRET:}
     # Optional previous HMAC during rotation overlap / 轮换重叠期可选旧 HMAC
     hmac-secret-previous: ${OUTBOX_HMAC_SECRET_PREVIOUS:}
+    # process = per JVM (default); jdbc = shared delivery_circuit_breaker across replicas (Scale-4c)
+    # process = 每进程（默认）；jdbc = 多副本共用 delivery_circuit_breaker（Scale-4c）
+    circuit-breaker:
+      backend: ${PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND:process}
+      destination-key: ${PLATFORM_DELIVERY_CIRCUIT_BREAKER_DESTINATION_KEY:outbox}
     breaker-failure-threshold: 3
     # Background relay for PENDING outbox rows / PENDING 出箱行的后台重投
     relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:2000}
@@ -125,6 +146,9 @@ platform:
     # Empty keeps the discarding exporter / 空则继续用丢弃导出器
     otlp-endpoint: ${PLATFORM_OTLP_ENDPOINT:${OTEL_EXPORTER_OTLP_ENDPOINT:}}
   rate-limit:
+    # process = per JVM (default); jdbc = shared rate_limit_window across platform-app replicas (Scale-4b)
+    # process = 每进程（默认）；jdbc = 多副本共用 rate_limit_window（Scale-4b）
+    backend: ${PLATFORM_RATE_LIMIT_BACKEND:process}
     permits: 60
   # Tenant hard caps (P5). Over → 429 + audit. No billing.
   # 租户硬顶（P5）。超限 → 429 + 审计。不计费。

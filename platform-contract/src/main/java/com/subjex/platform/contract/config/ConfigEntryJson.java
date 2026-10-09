@@ -1,7 +1,7 @@
 package com.subjex.platform.contract.config;
 
 /**
- * ConfigEntryJson — 配置条目报文：键、值、来源三个字段。
+ * ConfigEntryJson — 配置条目报文：命名空间、键、值、来源、修订号。
  * <p>
  * Extra fields are ignored on read so older callers stay readable.
  * 多出来的字段读的时候忽略，旧调用方仍然可读。
@@ -11,9 +11,11 @@ final class ConfigEntryJson {
     private ConfigEntryJson() {}
 
     static String document(ConfigEntry entry) {
-        return "{\"key\":" + quote(entry.key())
+        return "{\"namespace\":" + quote(entry.namespace())
+                + ",\"key\":" + quote(entry.key())
                 + ",\"value\":" + quote(entry.value())
                 + ",\"source\":" + quote(entry.origin().apiWord())
+                + ",\"revision\":" + entry.revision()
                 + "}";
     }
 
@@ -26,6 +28,8 @@ final class ConfigEntryJson {
         String key = null;
         String value = null;
         String source = null;
+        String namespace = null;
+        Long revision = null;
         parser.skipWs();
         parser.expect('{');
         parser.skipWs();
@@ -42,6 +46,8 @@ final class ConfigEntryJson {
                     case "key" -> key = parser.string();
                     case "value" -> value = parser.string();
                     case "source" -> source = parser.string();
+                    case "namespace" -> namespace = parser.string();
+                    case "revision" -> revision = Long.parseLong(parser.numberText());
                     default -> parser.skipValue();
                 }
                 parser.skipWs();
@@ -61,13 +67,16 @@ final class ConfigEntryJson {
         if (key == null || value == null || source == null) {
             throw new IllegalArgumentException("config entry needs key, value, and source");
         }
-        return new ConfigEntry(key, value, ConfigOrigin.fromApiWord(source));
+        String ns = namespace == null || namespace.isBlank() ? ConfigNamespaces.DEFAULT : namespace;
+        long rev = revision == null ? 0L : revision;
+        return new ConfigEntry(ns, key, value, ConfigOrigin.fromApiWord(source), rev);
     }
 
     static OverrideRequest parseOverride(String body) {
         Parser parser = new Parser(body);
         String key = null;
         String value = null;
+        String namespace = null;
         parser.skipWs();
         parser.expect('{');
         parser.skipWs();
@@ -83,6 +92,7 @@ final class ConfigEntryJson {
                 switch (field) {
                     case "key" -> key = parser.string();
                     case "value" -> value = parser.string();
+                    case "namespace" -> namespace = parser.string();
                     default -> parser.skipValue();
                 }
                 parser.skipWs();
@@ -102,10 +112,14 @@ final class ConfigEntryJson {
         if (key == null || value == null) {
             throw new IllegalArgumentException("config override needs key and value");
         }
-        return new OverrideRequest(key, value);
+        return new OverrideRequest(key, value, namespace);
     }
 
-    record OverrideRequest(String key, String value) {}
+    record OverrideRequest(String key, String value, String namespace) {
+        OverrideRequest(String key, String value) {
+            this(key, value, null);
+        }
+    }
 
     private static String quote(String value) {
         StringBuilder out = new StringBuilder(value.length() + 2);

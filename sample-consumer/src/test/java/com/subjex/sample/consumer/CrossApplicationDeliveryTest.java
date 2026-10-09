@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
 import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
+import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
 import com.subjex.platform.contract.delivery.DeliveryAttempt;
 import com.subjex.platform.app.trace.DiscardingSpanExporter;
 import com.subjex.platform.contract.task.OutboxEvent;
@@ -104,7 +105,7 @@ class CrossApplicationDeliveryTest {
                 null);
     }
 
-    private OutboxSocketPublisher publisher(DeliveryCircuitBreaker breaker) {
+    private OutboxSocketPublisher publisher(DeliveryCircuitBreakerPort breaker) {
         SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
                 .setSampler(Sampler.alwaysOn())
                 .addSpanProcessor(SimpleSpanProcessor.create(new DiscardingSpanExporter()))

@@ -162,8 +162,8 @@ public class DeclarationDraftEndpoint {
             planned = migrationAutoEnqueue.planForEntityYaml(tid, key, yaml);
         }
         DeclarationRevision saved = store.saveDraft(tid, k, key, yaml, operator.subjectId());
-        migrationAutoEnqueue.enqueuePlanned(saved, planned);
-        return document(saved);
+        List<DeclarationMigration> enqueued = migrationAutoEnqueue.enqueuePlanned(saved, planned);
+        return document(saved, enqueued);
     }
 
     private void validateYaml(DeclarationKind kind, String pathKey, String yaml) {
@@ -217,6 +217,13 @@ public class DeclarationDraftEndpoint {
     }
 
     private static RevisionDocument document(DeclarationRevision row) {
+        return document(row, List.of());
+    }
+
+    private static RevisionDocument document(DeclarationRevision row, List<DeclarationMigration> enqueued) {
+        List<String> ids = enqueued == null || enqueued.isEmpty()
+                ? List.of()
+                : enqueued.stream().map(DeclarationMigration::migrationId).toList();
         return new RevisionDocument(
                 row.tenantId(),
                 row.kind().wireName(),
@@ -225,13 +232,18 @@ public class DeclarationDraftEndpoint {
                 row.yamlBody(),
                 row.draftState(),
                 row.updatedAt(),
-                row.updatedBySubjectId());
+                row.updatedBySubjectId(),
+                ids);
     }
 
     /** RevisionsDocument — 修订列表（每键最新或历史）。 */
     public record RevisionsDocument(List<RevisionDocument> revisions) {}
 
     /** RevisionDocument — 一次声明修订。 */
+    /**
+     * {@code enqueuedMigrationIds} — non-empty only on entity draft PUT when RT-4 auto-enqueued
+     * PENDING jobs (MigUX-2b). Empty on GET/list.
+     */
     public record RevisionDocument(
             String tenantId,
             String declarationKind,
@@ -240,7 +252,8 @@ public class DeclarationDraftEndpoint {
             String yamlBody,
             String draftState,
             Instant updatedAt,
-            String updatedBySubjectId) {}
+            String updatedBySubjectId,
+            List<String> enqueuedMigrationIds) {}
 
     /** SaveDraftRequest — 保存草稿正文。 */
     public record SaveDraftRequest(String yamlBody) {}

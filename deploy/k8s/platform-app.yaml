@@ -8,8 +8,12 @@ metadata:
   labels:
     app: platform-app
 spec:
-  # P4: single-replica gate — breaker/rate-limit are in-process (not a product claim for N>1).
-  # P4：单副本门禁——熔断/限流为进程内状态（多副本不作为对外能力）。
+  # P4/Scale-4d: default remains replicas: 1. Advertise N>1 only with BOTH
+  # PLATFORM_RATE_LIMIT_BACKEND=jdbc AND PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc
+  # (see docs/release/single-replica-gate.md and platform-app-shared-backends.snippet.yaml).
+  # Object store is still local disk unless a shared PVC is mounted.
+  # P4/Scale-4d：默认仍 replicas: 1。对外 N>1 须两个后端都为 jdbc（见单副本门禁文档与可选片段）。
+  # 对象存储仍是本地盘，除非挂共享 PVC。
   replicas: 1
   selector:
     matchLabels:

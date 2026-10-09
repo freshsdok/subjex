@@ -67,6 +67,36 @@ class HttpConfigSourceTest {
         }
     }
 
+    @Test
+    void conditionalReadAndOverrideHonorEtags() throws Exception {
+        try (ConfigServer server = ConfigServer.start("operator", "secret")) {
+            HttpConfigSource client = client(server, "operator", "secret");
+            client.override("platform.demo.message", "v1");
+            ConfigEntry first = client.read("platform.demo.message").orElseThrow();
+            assertEquals(1L, first.revision());
+            assertEquals(Optional.of(1L), client.knownRevision("platform.demo.message"));
+            assertTrue(client.readIfNoneMatch("platform.demo.message").isEmpty());
+            client.override("platform.demo.message", "v2");
+            assertEquals(Optional.of(2L), client.knownRevision("platform.demo.message"));
+            ConfigEntry second = client.read("platform.demo.message").orElseThrow();
+            assertEquals("v2", second.value());
+            assertEquals(2L, second.revision());
+        }
+    }
+
+    @Test
+    void staleIfMatchRejectsOverride() throws Exception {
+        try (ConfigServer server = ConfigServer.start("operator", "secret")) {
+            HttpConfigSource writer = client(server, "operator", "secret");
+            HttpConfigSource stale = client(server, "operator", "secret");
+            writer.override("platform.demo.message", "v1");
+            stale.read("platform.demo.message");
+            writer.override("platform.demo.message", "v2");
+            assertThrows(IllegalStateException.class, () -> stale.override("platform.demo.message", "lost"));
+            assertEquals("v2", writer.read("platform.demo.message").orElseThrow().value());
+        }
+    }
+
     private static HttpConfigSource client(ConfigServer server, String username, String password) {
         return new HttpConfigSource(server.root(), username, password, Duration.ofSeconds(2));
     }
@@ -84,6 +114,7 @@ class HttpConfigSourceTest {
     private static final class ConfigServer implements AutoCloseable {
         private final HttpServer server;
         private final ConcurrentHashMap<String, String> overrides = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, Long> revisions = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, String> local = new ConcurrentHashMap<>();
 
         private ConfigServer(HttpServer server) {
@@ -106,7 +137,16 @@ class HttpConfigSourceTest {
                     if ("POST".equals(exchange.getRequestMethod())) {
                         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                         ConfigEntryJson.OverrideRequest request = ConfigEntryJson.parseOverride(body);
+                        long current = config.revisions.getOrDefault(request.key(), 0L);
+                        String ifMatch = exchange.getRequestHeaders().getFirst(ConfigETags.HEADER_IF_MATCH);
+                        if (!ConfigETags.matchAllows(ifMatch, current)) {
+                            exchange.sendResponseHeaders(412, -1);
+                            return;
+                        }
+                        long next = current + 1L;
                         config.overrides.put(request.key(), request.value());
+                        config.revisions.put(request.key(), next);
+                        exchange.getResponseHeaders().set(ConfigETags.HEADER_ETAG, ConfigETags.ofRevision(next));
                         exchange.sendResponseHeaders(204, -1);
                         return;
                     }
@@ -123,8 +163,23 @@ class HttpConfigSourceTest {
                             exchange.sendResponseHeaders(404, -1);
                             return;
                         }
-                        byte[] bytes = ConfigEntryJson.document(entry.get()).getBytes(StandardCharsets.UTF_8);
+                        long revision = config.revisions.getOrDefault(key, entry.get().origin() == ConfigOrigin.OVERRIDE ? 1L : 0L);
+                        ConfigEntry withRev = new ConfigEntry(
+                                entry.get().namespace(),
+                                entry.get().key(),
+                                entry.get().value(),
+                                entry.get().origin(),
+                                revision);
+                        String etag = ConfigETags.ofRevision(revision);
+                        String ifNoneMatch = exchange.getRequestHeaders().getFirst(ConfigETags.HEADER_IF_NONE_MATCH);
+                        if (ConfigETags.noneMatchHits(ifNoneMatch, revision)) {
+                            exchange.getResponseHeaders().set(ConfigETags.HEADER_ETAG, etag);
+                            exchange.sendResponseHeaders(304, -1);
+                            return;
+                        }
+                        byte[] bytes = ConfigEntryJson.document(withRev).getBytes(StandardCharsets.UTF_8);
                         exchange.getResponseHeaders().set("Content-Type", "application/json");
+                        exchange.getResponseHeaders().set(ConfigETags.HEADER_ETAG, etag);
                         exchange.sendResponseHeaders(200, bytes.length);
                         exchange.getResponseBody().write(bytes);
                         return;

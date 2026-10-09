@@ -7,10 +7,11 @@ import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * SingleProcessRateLimit — 单进程限流：{@link RateLimitPort} 的唯一实现。
+ * SingleProcessRateLimit — 单进程限流：{@link RateLimitPort} 的进程内实现（默认）。
  * <p>
- * Counts inside this JVM for one window. It is not a second port and it is not a remote cache.
- * 在本 JVM 的一个时间窗里计数。它不是第二个端口，也不是远程缓存。
+ * Counts inside this JVM for one window. Shared across replicas when
+ * {@code platform.rate-limit.backend=jdbc} via {@link JdbcRateLimitPort}.
+ * 在本 JVM 的一个时间窗里计数。多副本共享时选 {@code jdbc} 后端见 {@link JdbcRateLimitPort}。
  */
 public final class SingleProcessRateLimit implements RateLimitPort {
 

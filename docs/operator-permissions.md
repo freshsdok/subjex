@@ -171,9 +171,11 @@ Refuse paths may audit `access.deny` with target `kind:id:denyReason`.
 
 拒绝原因见上。403 保留 `permission` 并附带决策字段（含结构化 `orgScope`）；可记审计 `access.deny`。
 
-Cedar/Casbin **subset port** landed (AX-3); jars deferred. Prefer `PolicyEngine` for new callers.
+Cedar/Casbin **subset port** landed (AX-3); **Cedar jars in use** (AuthZ-1d default). Prefer `PolicyEngine` for new callers; residual `AccessChecker` paths remain.
+**Decision (1a–1d):** **Cedar** default via `platform.authz.engine` (`cedar`|`sql`, env `PLATFORM_AUTHZ_ENGINE`) — see [`docs/authz/cedar-or-casbin-adr.md`](authz/cedar-or-casbin-adr.md). SQL retained as selectable fallback.
 
-Cedar/Casbin **子集端口**已落地（AX-3）；依赖后置。新调用方优先走 `PolicyEngine`。
+Cedar/Casbin **子集端口**已落地（AX-3）；**Cedar 依赖已启用**（1d 默认）。新调用方优先 `PolicyEngine`；仍有直连 `AccessChecker` 残留。
+**已拍板（1a–1d）：** 默认 **Cedar**（`platform.authz.engine`）；可选 `sql`——见 [`docs/authz/cedar-or-casbin-adr.md`](authz/cedar-or-casbin-adr.md)。
 
 ## Operator–tenant grants / 操作员—租户授权
 

@@ -26,6 +26,9 @@ gateway:
   # 直连网关的可信代理 IP/CIDR，逗号分隔；默认空 = 忽略 X-Forwarded-For，只用远端地址。
   trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:}
   rate-limit:
+    # process only — entry-gateway has no datasource (Scale-4b); jdbc rejected at startup
+    # 仅 process — 网关无数据源（Scale-4b）；选 jdbc 启动失败
+    backend: ${GATEWAY_RATE_LIMIT_BACKEND:process}
     permits: ${GATEWAY_RATE_LIMIT_PERMITS:120}
     window-seconds: ${GATEWAY_RATE_LIMIT_WINDOW_SECONDS:60}
 
