@@ -426,8 +426,8 @@ O8-push. [done] Squashed O8 inventory…O8-6 onto `github/main` as `1e431b2` (pa
 
 Locked order (owner): **1** AuthZ Cedar via PolicyEngine → **2** controlled migration UX → **3** real AI + mandatory confirm → **4** horizontal scale MVP (shared breaker/rate-limit) → **5** independent config center MVP → then CI fix + docs + alpha tag.
 已锁定顺序：1 AuthZ 接 Cedar → 2 受控迁移体验 → 3 真 AI+强制确认写 → 4 水平扩展 MVP → 5 独立配置中心 MVP → 再修 CI/文档/打 alpha。
-**Items 1–5 DONE locally** (2026-10-09 CST). **CI-fix-1 DONE** (`78520cc`). **Docs收口 DONE** (this slice). **Not squash-pushed; not tagged.** Next: remote CI verify → optional compose smoke → intentional `v0.1.0-alpha.1`.
-项 1–5 与 CI 修复、文档收口已在本地完成；**未 push、未打 tag**。下一动作：远端 CI 验绿 → 再考虑 alpha。
+**Items 1–5 + CI-fix + docs收口 DONE.** Squash-pushed to `github/main` as **`9446a74`** (parent `1949791` O8 note; tree `0b30dfe` = local `75883ba`). **No `v0.1.0-alpha.1` tag.** Next: watch Actions → optional compose smoke → intentional alpha cut when green.
+项 1–5 + CI + 文档已 squash 推送；**未打 alpha tag**。下一动作：看 CI → 再考虑打 tag。
 
 AuthZ-1a. [done] 2026-10-09 CST; chose **Cedar** (not Casbin); inventory; ADR `docs/authz/cedar-or-casbin-adr.md`. Local commit only (no push).
     选定 Cedar；盘点与 ADR。仅本地提交。
@@ -504,3 +504,6 @@ CI-fix-1. [done] 2026-10-09 CST; VendorStartupTest: V16 `sql_text` → **TEXT** 
 
 Docs-align-1. [done] 2026-10-09 CST; ARCHITECTURE §16/§18 (O8, Cedar default, Subject/Organization pickers, Basic-1 landed); lowcode-roadmap picker/O8 lines; CHANGELOG capacity 1–5 + CI-fix + P6 PASS (no DRILL-PENDING / Tag-blocked-on-drill lie); checklist tip reds = remote CI / image-scan / no tag; SECURITY §9 O8+Cedar; release-prep blockers refreshed. **Still no push / no alpha tag / not production-ready.** Next = remote verify then alpha cut when owner says so.
     文档对齐 O8/Cedar/能力轨/CI；检查表红项仅剩远端 CI 与未打 tag。仅本地提交。
+
+Capacity-push. [done] 2026-10-09 CST; squashed AuthZ→Config + CI-fix-1 + docs收口 onto `github/main` as `9446a74` (parent `1949791`; tree matches local `75883ba` / `0b30dfe`). Fast-forward only, never force. **No alpha tag.** Actions: https://github.com/freshsdok/subjex/actions/runs/37894895756
+    能力轨+CI+文档已 squash 推送；未打 tag。
