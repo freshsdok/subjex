@@ -414,7 +414,10 @@ O8-5. [done] 2026-10-09 CST; subjectRef/organizationRef only; deleted UserPicker
 O8-4. [done] 2026-10-09 CST; Organization API writes ontology-only (no backfill/map); JdbcOrgDirectory ontology-first reads; Backfill migration/legacy-only; formal map SQL → 0; next = **O8-6**. Local commit only. See `docs/ontology/o8-4-pass.md`.
     正式运行时退出 map/回填；下一片 O8-6。仅本地提交。
 
-O8-6. [done] 2026-10-09 CST; ArchUnit + O8 metric gates; E2E Relationship≠Authorization + scope without map; ATTR_ORG_UNIT_ID removed; **O8 FULL PASS**. See `docs/ontology/o8-full-pass.md`. Next optional = push squash / alpha tag (do not push).
-    O8 架构门禁与 E2E；五指标全绿；FULL PASS。可选下一步再 push。
+O8-6. [done] 2026-10-09 CST; ArchUnit + O8 metric gates; E2E Relationship≠Authorization + scope without map; ATTR_ORG_UNIT_ID removed; **O8 FULL PASS**. See `docs/ontology/o8-full-pass.md`.
+    O8 架构门禁与 E2E；五指标全绿；FULL PASS。
 
 O8. [DONE FULL PASS] 2026-10-09 CST; metrics ontology=1; legacy domain/SQL/policy/zero-code=0; V24 DROP; map no formal consumers; subjectRef/organizationRef only.
+
+O8-push. [done] Squashed O8 inventory…O8-6 onto `github/main` as `1e431b2` (parent `ae44c78` O7; tree `241dcbd` = local `8af9dd9`). Fast-forward only, never force. Local O8 commits remain as history.
+    已 squash 推到 GitHub main；本地 O8 提交链保留作历史。

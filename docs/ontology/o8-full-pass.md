@@ -58,4 +58,4 @@ Organization model migration meets all O8 DONE criteria. Formal production domai
 
 ## Next (optional)
 
-Push squash or alpha tag — **do not push** until explicitly asked.
+Pushed squash to `github/main` as `1e431b2` (2026-10-09 CST). Alpha tag still optional / do not tag until asked.
