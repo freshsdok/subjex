@@ -308,3 +308,21 @@ Cap-4. [done] Console `/capabilities`: catalog table + try-run panel (`GET/POST`
     Next options: Mac push of Cap-2..4; real model-gateway later.
     下一波可选：本机推送 Cap-2..4；真 model-gateway 后置。
 
+Explainable AccessDecision AX-1 — 可解释上下文权限（2026-10-09）:
+
+AX-1. [done] `AccessDecision` / `AccessResource` / `AccessAction` + `AccessChecker`; declaration API paths (forms/pages/entities/submit) return structured 403 with subject/tenant/resource/action/matchedPermission/denyReason (`orgScope` null for AX-2); backward-compatible `permission`; optional audit `access.deny`; unit + MockMvc tests; docs. Local commit only (no push). No org descendants / Cedar / collapsing Spring matchers.
+    可解释判定核心接声明路径；403 带决策字段；组织范围/外置策略后置。仅本地提交。
+    Next: AX-2 orgScope self+descendants.
+    下一片：AX-2 本部门及下级。
+
+Org scope AX-2 — 组织范围本部门及下级（2026-10-09）:
+
+AX-2. [done] `OrgScope` (SELF_AND_DESCENDANTS: roots + unitIds); `JdbcOrgDirectory.resolveSelfAndDescendants` / descendant BFS; `AccessDecision.orgScope` structured; `AccessChecker` deny `org_out_of_scope`; Org GET filter + write gate on `/api/v1/org/**`; FormProblemDocument + `access.deny` audit; tests. Local commit only (no push). No Zanzibar / other modes / Cedar-Casbin (AX-3) / generic entity org_unit filter.
+    本部门及下级范围接可解释判定与组织 API 竖切；无成员则不过滤。仅本地提交。不上 Zanzibar / 其它模式 / Cedar·Casbin（AX-3）/ 通用实体过滤。
+    Next options: AX-3 policy port (Cedar/Casbin subset adapter); Mac push of AX-1+AX-2.
+    下一波可选：AX-3 策略端口；本机推送 AX-1+AX-2。
+
+Policy engine port AX-3 — 策略引擎端口（2026-10-09）:
+
+AX-3. [done] `PolicyEngine` + `PolicyPrincipal` / `PolicyResource` / `PolicyContext`; `SqlRbacPolicyEngine` delegates to `AccessChecker` (no Cedar/Casbin Maven deps); Org membership write scope is a real caller; docs map Cedar/Casbin subset; unit tests mirror AccessChecker deny reasons. Local commit only (no push). No jars / no custom DSL / no Spring matcher rewrite.
+    策略端口对齐 Cedar/Casbin 子集形状；SQL 首适配；组织成员写已接线。仅本地提交。不引依赖 / 无自研 DSL / 不改 Spring matcher。

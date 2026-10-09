@@ -247,3 +247,13 @@ Or use the Operators console IdP bind form. Then open console `/login` →「使
 
 **Verify:** Unlinked IdP user → `/login?oidc=unlinked` (403 `oidc-unlinked` from platform). Linked → console session with Bearer (no TOTP prompt). Password login still challenges TOTP when enrolled.
 
+## Explainable context permission (AX-1 + AX-2 + AX-3) / 可解释上下文权限（AX-1 + AX-2 + AX-3）
+
+**Done / 已落地：** Internal `AccessDecision` + `AccessChecker` on declaration/form/entity/page paths; structured 403.
+**AX-2:** `OrgScope` (`SELF_AND_DESCENDANTS`), directory resolve + BFS descendants, org API list filter / write deny `org_out_of_scope`.
+**AX-3:** `PolicyEngine` port shaped for a Cedar/Casbin **subset**; first adapter `SqlRbacPolicyEngine` delegates to `AccessChecker` (no Cedar/Casbin Maven deps yet). Org membership write scope is a real caller.
+
+No new roles; no Zanzibar; no custom DSL. Full Cedar/Casbin engines are later swap-ins behind the port.
+
+**已落地：** 可解释判定 + 本部门及下级 + 策略端口（SQL 首适配）。不加角色；不上 Zanzibar；无自研 DSL。完整 Cedar/Casbin 后置换入。
+

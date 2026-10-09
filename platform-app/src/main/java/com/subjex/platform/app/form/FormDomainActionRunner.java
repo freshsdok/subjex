@@ -9,6 +9,8 @@ import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.security.AccessAction;
+import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
@@ -127,7 +129,14 @@ public final class FormDomainActionRunner {
         // Gate when the entity is scoped even if the form is not (form submission already gates form flag).
         // 实体隔离时即使表单未隔离也要门禁（表单标志已在提交接口检查）。
         DeclarationAccess.requireTenantWhenScoped(
-                tenantGuard, tenantAccess, operator, entity.tenantScoped(), tenantHeader);
+                tenantGuard,
+                tenantAccess,
+                operator,
+                entity.tenantScoped(),
+                tenantHeader,
+                AccessResource.of("entity", entityKey),
+                AccessAction.of("upsert"),
+                form.permission());
         Map<String, Object> values = new LinkedHashMap<>();
         for (EntityField field : entity.fields()) {
             if (accepted.containsKey(field.name())) {

@@ -174,6 +174,9 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - BC. [done] Cap-2: stubs `algo.normalizeWhitespace` + `ai.suggestTitlePreview` + domain-action wiring; local commit only.
 - BD. [done] Cap-3: flow `submit.capabilityId` + `POST /api/v1/capabilities/{id}/run` (`page.read`); local commit only.
 - BE. [done] Cap-4: thin console `/capabilities` catalog + try-run; local commit only.
+- BF. [done] AX-1: explainable `AccessDecision` / `AccessChecker` for declaration API paths; structured 403; local commit only.
+- BG. [done] AX-2: OrgScope self+descendants on AccessDecision + org API filter/deny; local commit only.
+- BH. [done] AX-3: PolicyEngine port (Cedar/Casbin subset shape) + SqlRbacPolicyEngine + Org membership caller; local commit only.
 
 
 ## Thin algo/AI progress / 薄算法·AI 进度

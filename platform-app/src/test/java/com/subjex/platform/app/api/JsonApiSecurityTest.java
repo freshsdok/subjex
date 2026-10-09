@@ -284,11 +284,18 @@ class JsonApiSecurityTest {
         mockMvc.perform(submit(path, body).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.kind").value("permission_denied"))
-                .andExpect(jsonPath("$.permission").value("registry.write"));
+                .andExpect(jsonPath("$.permission").value("registry.write"))
+                .andExpect(jsonPath("$.denyReason").value("permission_missing"))
+                .andExpect(jsonPath("$.resourceKind").value("form"))
+                .andExpect(jsonPath("$.resourceId").value("endpoint-publication"))
+                .andExpect(jsonPath("$.action").value("submit"))
+                .andExpect(jsonPath("$.allowed").value(false))
+                .andExpect(jsonPath("$.matchedPermission").value(org.hamcrest.Matchers.nullValue()));
         mockMvc.perform(submit(path, body).with(httpBasic(BARE, BARE_PASSWORD)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.kind").value("permission_denied"))
-                .andExpect(jsonPath("$.permission").value("registry.write"));
+                .andExpect(jsonPath("$.permission").value("registry.write"))
+                .andExpect(jsonPath("$.denyReason").value("permission_missing"));
 
         mockMvc.perform(submit(path, "{\"values\":{\"serviceName\":\"\",\"host\":\"10.0.0.8\",\"port\":8080}}")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))

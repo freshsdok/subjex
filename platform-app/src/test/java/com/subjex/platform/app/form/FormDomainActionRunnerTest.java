@@ -29,6 +29,7 @@ import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import com.subjex.platform.app.security.AccessDecisionDeniedException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.List;
 import java.util.Map;
@@ -164,9 +165,10 @@ class FormDomainActionRunnerTest {
         RenderedForm form = form("scoped-note", DomainActionKey.ENTITY_RECORD_UPSERT, "scoped-note");
         OperatorPrincipal operator = new OperatorPrincipal(
                 "op", "hash", "id-1", "sub-1", Set.of("page.read"), true);
+        when(tenantAccess.isGranted(operator, "acme")).thenReturn(true);
         String summary = runner.apply(form, Map.of("id", "1", "title", "Hi"), "acme", operator);
         assertEquals("scoped-note:1", summary);
-        verify(tenantAccess).requireGranted(operator, "acme");
+        verify(tenantAccess).isGranted(operator, "acme");
         verify(genericEntities).save(eq(scoped), any(), eq("acme"));
     }
 
@@ -190,7 +192,7 @@ class FormDomainActionRunnerTest {
                 """);
         when(effective.runtimeEntity(isNull(), eq("scoped-note"))).thenReturn(Optional.of(scoped));
         RenderedForm form = form("scoped-note", DomainActionKey.ENTITY_RECORD_UPSERT, "scoped-note");
-        assertThrows(TenantMissingException.class, () -> runner.apply(form, Map.of("id", "1", "title", "Hi")));
+        assertThrows(AccessDecisionDeniedException.class, () -> runner.apply(form, Map.of("id", "1", "title", "Hi")));
         verify(genericEntities, never()).save(any(), any(), any());
     }
 

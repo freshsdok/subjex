@@ -219,6 +219,8 @@ Product direction: with declarations as the single source of truth, structured c
 
 - **底座 / Base：** 租户隔离；租户内 `org_unit`；人员按**权限分层**（非主拆两套登录账号）；平台超管为**独立角色名**（如 `platform.super-admin`），与其他账号/角色隔离；IdP/OIDC 为主；组织只约束权限范围。
 - **Base：** Tenant isolation; in-tenant `org_unit`; people split by **permission tiers** (not separate login account types as the primary axis); platform **super-admin** is its **own role name** (e.g. `platform.super-admin`), isolated from all other accounts/roles; IdP/OIDC primary; org supplies scope only.
+- **上下文权限 / Context AuthZ：** **AX-1+AX-2+AX-3 已落地**——可解释 `AccessDecision`；组织范围仅「本部门及下级」；`PolicyEngine` 端口（Cedar/Casbin 子集形状），首适配 `SqlRbacPolicyEngine`→`AccessChecker`；无自研 DSL、不加角色名、不上 Zanzibar；完整 Cedar/Casbin 依赖后置换入。
+- **Context AuthZ：** **AX-1+AX-2+AX-3 landed** — explainable `AccessDecision`; org scope self+descendants; `PolicyEngine` port (Cedar/Casbin subset shape), first adapter `SqlRbacPolicyEngine`→`AccessChecker`; no custom DSL, no new role names, no Zanzibar; full Cedar/Casbin jars later swap-ins.
 - **七维 / Seven dims：** 数据 · **页面（结构化构建器 + 常用组件积木）** · 流程 · 权限/租户 · 动作/副作用 · 算法目录 · AI 目录（经 `model-gateway`，关键写回需确认）。
 - **Seven dims：** Data · **pages (structured builder + common visual component blocks)** · flow · permission/tenant · actions · algorithm catalog · AI catalog (`model-gateway`; confirm before critical writes).
 - **页面 UX / Page UX：** **已拍板**——首波用结构化**页面构建器/配置器**（非自由画布）；具体首波积木见下方「首波页面积木」。

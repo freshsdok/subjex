@@ -4,6 +4,8 @@ import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.declaration.TenantDeclarationContext;
+import com.subjex.platform.app.security.AccessAction;
+import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
@@ -75,8 +77,15 @@ public class FormsApiEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = resolveForm(formKey, operator, tenantId);
-        DeclarationAccess.requirePermission(operator, form.permission());
-        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, form.tenantScoped(), tenantId);
+        DeclarationAccess.require(
+                operator,
+                form.permission(),
+                form.tenantScoped(),
+                tenantId,
+                tenantGuard,
+                tenantAccess,
+                AccessResource.of("form", formKey),
+                AccessAction.of("read"));
         List<FieldDocument> fields = form.fields().stream()
                 .map(field -> new FieldDocument(
                         field.name(),

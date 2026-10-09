@@ -5,6 +5,8 @@ import com.subjex.form.render.FormField;
 import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.form.FormSubmissionStore.FormSubmissionRow;
+import com.subjex.platform.app.security.AccessAction;
+import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
@@ -74,8 +76,15 @@ public class FormSubmissionEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = forms.require(formKey);
-        DeclarationAccess.requirePermission(operator, form.permission());
-        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, form.tenantScoped(), tenantId);
+        DeclarationAccess.require(
+                operator,
+                form.permission(),
+                form.tenantScoped(),
+                tenantId,
+                tenantGuard,
+                tenantAccess,
+                AccessResource.of("form", formKey),
+                AccessAction.of("submit"));
         Map<String, Object> rawValues = document == null || document.values() == null
                 ? Map.of()
                 : document.values();
@@ -104,8 +113,15 @@ public class FormSubmissionEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = forms.require(formKey);
-        DeclarationAccess.requirePermission(operator, form.permission());
-        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, form.tenantScoped(), tenantId);
+        DeclarationAccess.require(
+                operator,
+                form.permission(),
+                form.tenantScoped(),
+                tenantId,
+                tenantGuard,
+                tenantAccess,
+                AccessResource.of("form", formKey),
+                AccessAction.of("read"));
         List<FormSubmissionHistoryDocument> rows = submissions.listByFormKey(formKey, HISTORY_LIMIT).stream()
                 .map(row -> new FormSubmissionHistoryDocument(
                         row.submissionId(),

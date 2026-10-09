@@ -18,14 +18,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.subjex.platform.app.security.AccessDecision;
 import com.subjex.platform.app.security.LocalOperatorSeeder;
 import com.subjex.platform.app.security.OperatorActionAudit;
+import com.subjex.platform.app.security.OrgScope;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
+import com.subjex.platform.app.security.SqlRbacPolicyEngine;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -221,11 +226,72 @@ class OrgWriteSecurityTest {
         verify(audit, never()).record(any(), eq("org.membership.remove"), anyString(), any());
     }
 
+
+    @Test
+    void scopedWriteOutsideScopeIs403() throws Exception {
+        OrgScope scope = OrgScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
+        when(directory.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID)).thenReturn(scope);
+        when(directory.unitExists("acme", "u-root")).thenReturn(true);
+
+        mockMvc.perform(put(OrgApiEndpoint.PATH + "/units/u-root")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unitName\":\"Root\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.kind").value("permission_denied"))
+                .andExpect(jsonPath("$.denyReason").value(AccessDecision.DENY_ORG_OUT_OF_SCOPE))
+                .andExpect(jsonPath("$.orgScope.mode").value(OrgScope.MODE_SELF_AND_DESCENDANTS))
+                .andExpect(jsonPath("$.orgScope.rootUnitIds[0]").value("u-eng"));
+        verify(directory, never()).upsertUnit(anyString(), anyString(), any(), anyString(), any());
+
+        mockMvc.perform(put(OrgApiEndpoint.PATH + "/memberships")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subjectId\":\"sub-a\",\"orgUnitId\":\"u-root\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.denyReason").value(AccessDecision.DENY_ORG_OUT_OF_SCOPE));
+        verify(directory, never()).upsertMembership(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void scopedWriteInsideScopeSucceeds() throws Exception {
+        OrgScope scope = OrgScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
+        when(directory.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID)).thenReturn(scope);
+        when(directory.unitExists("acme", "u-eng")).thenReturn(true);
+        when(directory.upsertUnit(eq("acme"), eq("u-eng"), eq("u-root"), eq("Eng"), isNull()))
+                .thenReturn(new OrgUnit("acme", "u-eng", "u-root", "Eng", "ACTIVE"));
+        when(directory.upsertMembership(eq("acme"), eq("sub-b"), eq("u-team"), isNull()))
+                .thenReturn(new OrgMembership("acme", "sub-b", "u-team", "ACTIVE"));
+
+        mockMvc.perform(put(OrgApiEndpoint.PATH + "/units/u-eng")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parentOrgUnitId\":\"u-root\",\"unitName\":\"Eng\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orgUnitId").value("u-eng"));
+
+        mockMvc.perform(put(OrgApiEndpoint.PATH + "/memberships")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subjectId\":\"sub-b\",\"orgUnitId\":\"u-team\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orgUnitId").value("u-team"));
+    }
+
     @TestConfiguration
     static class GuardConfiguration {
         @Bean
         TenantGuard tenantGuard() {
             return new DenyWhenTenantMissing();
+        }
+
+        @Bean
+        PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
+            return new SqlRbacPolicyEngine(tenantGuard, tenantAccess);
         }
     }
 }

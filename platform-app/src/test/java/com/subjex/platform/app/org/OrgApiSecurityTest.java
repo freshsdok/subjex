@@ -12,8 +12,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.subjex.platform.app.security.LocalOperatorSeeder;
+import com.subjex.platform.app.security.OrgScope;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
+import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
+import com.subjex.platform.app.security.SqlRbacPolicyEngine;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.List;
@@ -152,11 +157,62 @@ class OrgApiSecurityTest {
                 .andExpect(jsonPath("$.reason").value("tenantId required"));
     }
 
+
+    @Test
+    void scopedActorSeesOnlyUnitsInScope() throws Exception {
+        OrgScope scope = OrgScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
+        when(directory.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID)).thenReturn(scope);
+        when(directory.listUnits("acme"))
+                .thenReturn(List.of(
+                        new OrgUnit("acme", "u-root", null, "Root", "ACTIVE"),
+                        new OrgUnit("acme", "u-eng", "u-root", "Eng", "ACTIVE"),
+                        new OrgUnit("acme", "u-team", "u-eng", "Team", "ACTIVE")));
+        when(directory.listMemberships("acme"))
+                .thenReturn(List.of(
+                        new OrgMembership("acme", "sub-a", "u-root", "ACTIVE"),
+                        new OrgMembership("acme", "sub-b", "u-eng", "ACTIVE")));
+
+        mockMvc.perform(get(OrgApiEndpoint.PATH + "/units")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.units.length()").value(2))
+                .andExpect(jsonPath("$.units[0].orgUnitId").value("u-eng"))
+                .andExpect(jsonPath("$.units[1].orgUnitId").value("u-team"));
+
+        mockMvc.perform(get(OrgApiEndpoint.PATH + "/memberships")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.memberships.length()").value(1))
+                .andExpect(jsonPath("$.memberships[0].orgUnitId").value("u-eng"));
+    }
+
+    @Test
+    void unscopedActorSeesFullTenantList() throws Exception {
+        when(directory.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID)).thenReturn(null);
+        when(directory.listUnits("acme"))
+                .thenReturn(List.of(
+                        new OrgUnit("acme", "u-root", null, "Root", "ACTIVE"),
+                        new OrgUnit("acme", "u-eng", "u-root", "Eng", "ACTIVE")));
+
+        mockMvc.perform(get(OrgApiEndpoint.PATH + "/units")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.units.length()").value(2));
+    }
+
     @TestConfiguration
     static class GuardConfiguration {
         @Bean
         TenantGuard tenantGuard() {
             return new DenyWhenTenantMissing();
+        }
+
+        @Bean
+        PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
+            return new SqlRbacPolicyEngine(tenantGuard, tenantAccess);
         }
     }
 }

@@ -51,6 +51,8 @@ import com.subjex.platform.app.security.HttpOidcTokenClient;
 import com.subjex.platform.app.security.OperatorOidcService;
 import com.subjex.platform.app.security.JdbcOperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
+import com.subjex.platform.app.security.SqlRbacPolicyEngine;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
@@ -486,6 +488,15 @@ public class PlatformWiring {
     @Bean
     JdbcOrgDirectory jdbcOrgDirectory(JdbcTemplate jdbc) {
         return new JdbcOrgDirectory(jdbc);
+    }
+
+    /**
+     * Policy engine port (SQL RBAC first; Cedar/Casbin subset shape) —
+     * 策略引擎端口（首适配 SQL RBAC；Cedar/Casbin 子集形状）。
+     */
+    @Bean
+    PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess operatorTenantAccess) {
+        return new SqlRbacPolicyEngine(tenantGuard, operatorTenantAccess);
     }
 
     /**

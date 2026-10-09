@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.subjex.form.render.DomainActionKey;
@@ -101,7 +102,13 @@ class DeclarationSecurityTest {
                         .content(body)
                         .with(httpBasic(VIEWER, VIEWER_PASSWORD))
                         .header(TenantEnforcementFilter.TENANT_HEADER, "acme"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.kind").value("permission_denied"))
+                .andExpect(jsonPath("$.denyReason").value("permission_missing"))
+                .andExpect(jsonPath("$.resourceKind").value("form"))
+                .andExpect(jsonPath("$.resourceId").value("tenant-note"))
+                .andExpect(jsonPath("$.action").value("submit"))
+                .andExpect(jsonPath("$.allowed").value(false));
         verify(formSubmissionStore, never()).save(anyString(), anyInt(), anyString(), anyString(), any(), anyString());
     }
 
@@ -109,7 +116,14 @@ class DeclarationSecurityTest {
     void tenantScopedFormWithoutTenantHeaderIsDenied() throws Exception {
         String detail = JsonApi.BASE + "/forms/tenant-note";
         mockMvc.perform(get(detail).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.kind").value("permission_denied"))
+                .andExpect(jsonPath("$.denyReason").value("tenant_missing"))
+                .andExpect(jsonPath("$.resourceKind").value("form"))
+                .andExpect(jsonPath("$.resourceId").value("tenant-note"))
+                .andExpect(jsonPath("$.action").value("read"))
+                .andExpect(jsonPath("$.matchedPermission").isNotEmpty())
+                .andExpect(jsonPath("$.allowed").value(false));
         mockMvc.perform(get(detail)
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD))
                         .header(TenantEnforcementFilter.TENANT_HEADER, "acme"))

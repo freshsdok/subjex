@@ -126,6 +126,55 @@ Bootstrap and `local` seed still grant tenant `*` to the provisioned operator so
 
 开通与 `local` 种子仍给开通的操作员写租户通配 `*`，本机任务流可继续用。
 
+
+## Explainable context checks (AX-1 + AX-2 + AX-3) / 可解释上下文判定（AX-1 + AX-2 + AX-3）
+
+Declaration and form/entity/page API paths evaluate through `AccessChecker` → `AccessDecision`:
+**subjectId**, **tenantId**, **orgScope** (`OrgScope` or null), **resource** (kind+id), **action**,
+**matchedPermission**, **allowed**, **denyReason**.
+
+声明与表单/实体/页面 API 经 `AccessChecker` 产出 `AccessDecision`（上列字段）。
+
+### Policy engine port (AX-3) / 策略引擎端口（AX-3）
+
+`PolicyEngine.evaluate(principal, requiredPermission, action, resource, context)` → `AccessDecision`.
+
+| Subset field | Cedar | Casbin | Subjex |
+| --- | --- | --- | --- |
+| Subject | `principal` | `sub` | `PolicyPrincipal` (subjectId + permissionNames) |
+| Action | `action` | `act` | `AccessAction` + `requiredPermission` (permission = Casbin act subset) |
+| Resource | `resource` | `obj` | `PolicyResource` (kind/id + attrs e.g. orgUnitId, tenantId) |
+| Context / domain | `context` | domain | `PolicyContext` (tenantId, tenantScoped, OrgScope) |
+
+First adapter: `SqlRbacPolicyEngine` → existing `AccessChecker` / SQL RBAC (no fork). Wired in `PlatformWiring`; org membership write scope uses the port. **No Cedar/Casbin jars yet** — full engines are later swap-ins. No custom DSL.
+
+首适配器 `SqlRbacPolicyEngine` 委托 `AccessChecker`；组织成员写范围已接端口。尚未引入 Cedar/Casbin 依赖；完整引擎后置换入；无自研 DSL。
+
+### Org scope (AX-2) / 组织范围（AX-2）
+
+Mode **`SELF_AND_DESCENDANTS`** only: roots = caller's **ACTIVE** `org_membership` units in the tenant;
+`unitIds` = roots + descendants via `org_unit.parent_org_unit_id` (in-memory BFS, H2-safe).
+No ACTIVE memberships → `orgScope` null / unspecified → **no org filter** (platform operators without org rows stay unscoped).
+No new role names for scope. No Zanzibar.
+
+仅模式「本部门及下级」；无 ACTIVE 成员则不过滤。不加角色名表达范围；不上 Zanzibar。
+
+Org vertical: `GET /api/v1/org/units|memberships` filters to `unitIds` when scoped; PUT/DELETE deny with
+`org_out_of_scope` when the target unit is outside scope (creates must attach under an in-scope parent).
+
+组织竖切：有范围时 GET 过滤；写越界结构化拒绝 `org_out_of_scope`。
+
+Deny reasons: `permission_blank`, `permission_missing`, `tenant_missing`, `tenant_not_granted`, `org_out_of_scope`.
+HTTP 403 returns `FormProblemDocument` with `kind: permission_denied`, backward-compatible `permission`,
+plus decision fields including structured `orgScope` (`mode`, `rootUnitIds`, `unitIds`).
+Refuse paths may audit `access.deny` with target `kind:id:denyReason`.
+
+拒绝原因见上。403 保留 `permission` 并附带决策字段（含结构化 `orgScope`）；可记审计 `access.deny`。
+
+Cedar/Casbin **subset port** landed (AX-3); jars deferred. Prefer `PolicyEngine` for new callers.
+
+Cedar/Casbin **子集端口**已落地（AX-3）；依赖后置。新调用方优先走 `PolicyEngine`。
+
 ## Operator–tenant grants / 操作员—租户授权
 
 Table `operator_tenant_grant (subject_id, tenant_id)`. Wildcard `*` means every tenant. Tenant-scoped filters and declaration `tenantScoped` checks call `OperatorTenantAccess` after `TenantGuard` — fail-closed when the grant is missing.

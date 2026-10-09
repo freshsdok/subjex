@@ -4,6 +4,8 @@ import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.declaration.TenantDeclarationContext;
+import com.subjex.platform.app.security.AccessAction;
+import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
@@ -143,8 +145,15 @@ public class GenericEntityEndpoint {
         RenderedEntity entity = effective
                 .runtimeEntity(tenantId, entityKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        DeclarationAccess.requirePermission(operator, entity.permission());
-        DeclarationAccess.requireTenantWhenScoped(tenantGuard, tenantAccess, operator, entity.tenantScoped(), tenantId);
+        DeclarationAccess.require(
+                operator,
+                entity.permission(),
+                entity.tenantScoped(),
+                tenantId,
+                tenantGuard,
+                tenantAccess,
+                AccessResource.of("entity", entityKey),
+                AccessAction.of("access"));
         return entity;
     }
 

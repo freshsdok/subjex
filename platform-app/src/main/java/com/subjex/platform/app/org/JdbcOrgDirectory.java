@@ -1,7 +1,16 @@
 package com.subjex.platform.app.org;
 
+import com.subjex.platform.app.security.OrgScope;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -9,8 +18,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * JdbcOrgDirectory — 组织目录：按租户列出并写入组织单元与成员关系。
  * <p>
  * Pure JDBC ({@link JdbcTemplate} only). Writes need {@code org.write} at the HTTP layer.
+ * Resolves org scope (self + descendants) for explainable access decisions (AX-2).
  * Spring-free class; bean in {@code PlatformWiring}.
  * 纯 JDBC（只用 {@link JdbcTemplate}）。写操作由 HTTP 层核对 {@code org.write}。
+ * 解析组织范围（本部门及下级）供可解释判定（AX-2）。
  * 无 Spring 注解；Bean 在 {@code PlatformWiring}。
  */
 public final class JdbcOrgDirectory {
@@ -79,6 +90,92 @@ public final class JdbcOrgDirectory {
                         row.getString("membership_state")),
                 tid,
                 sid);
+    }
+
+    /**
+     * Resolve {@link OrgScope#MODE_SELF_AND_DESCENDANTS} for a subject in a tenant.
+     * Roots = ACTIVE membership unit ids; expanded = roots + all descendants via parent links.
+     * Returns {@code null} when the subject has no ACTIVE memberships (unspecified / no filter).
+     * 解析主体在租户内的「本部门及下级」范围。无 ACTIVE 成员则返回 null（未指定/不过滤）。
+     */
+    public OrgScope resolveSelfAndDescendants(String tenantId, String subjectId) {
+        String tid = requireTenantId(tenantId);
+        String sid = requireNonBlank(subjectId, "subjectId");
+        List<String> roots = jdbc.query(
+                """
+                SELECT org_unit_id
+                FROM org_membership
+                WHERE tenant_id = ? AND subject_id = ? AND membership_state = ?
+                ORDER BY org_unit_id
+                """,
+                (row, n) -> row.getString("org_unit_id"),
+                tid,
+                sid,
+                STATE_ACTIVE);
+        if (roots.isEmpty()) {
+            return null;
+        }
+        Set<String> expanded = expandSelfAndDescendants(tid, roots);
+        return OrgScope.selfAndDescendants(roots, expanded);
+    }
+
+    /**
+     * One root plus all descendants in the tenant tree (in-memory BFS; H2-safe).
+     * 一个根及其全部下级（内存 BFS；兼容 H2）。
+     */
+    public Set<String> descendantUnitIds(String tenantId, String rootUnitId) {
+        String tid = requireTenantId(tenantId);
+        String root = requireNonBlank(rootUnitId, "rootUnitId");
+        return expandSelfAndDescendants(tid, List.of(root));
+    }
+
+    /**
+     * Expand many roots to self + descendants — 展开多个根为自身及下级。
+     */
+    public Set<String> expandSelfAndDescendants(String tenantId, Collection<String> rootUnitIds) {
+        String tid = requireTenantId(tenantId);
+        Set<String> roots = new HashSet<>();
+        if (rootUnitIds != null) {
+            for (String id : rootUnitIds) {
+                if (id != null && !id.isBlank()) {
+                    roots.add(id.trim());
+                }
+            }
+        }
+        if (roots.isEmpty()) {
+            return Set.of();
+        }
+        Map<String, List<String>> childrenByParent = childrenIndex(tid);
+        Set<String> out = new HashSet<>();
+        ArrayDeque<String> queue = new ArrayDeque<>(roots);
+        while (!queue.isEmpty()) {
+            String current = queue.removeFirst();
+            if (!out.add(current)) {
+                continue;
+            }
+            List<String> children = childrenByParent.get(current);
+            if (children != null) {
+                for (String child : children) {
+                    if (!out.contains(child)) {
+                        queue.addLast(child);
+                    }
+                }
+            }
+        }
+        return Set.copyOf(out);
+    }
+
+    private Map<String, List<String>> childrenIndex(String tenantId) {
+        List<OrgUnit> units = listUnits(tenantId);
+        Map<String, List<String>> children = new HashMap<>();
+        for (OrgUnit unit : units) {
+            String parent = unit.parentOrgUnitId();
+            if (parent == null || parent.isBlank()) {
+                continue;
+            }
+            children.computeIfAbsent(parent, k -> new ArrayList<>()).add(unit.orgUnitId());
+        }
+        return children;
     }
 
     /**
@@ -226,7 +323,14 @@ public final class JdbcOrgDirectory {
         return deleted > 0;
     }
 
-    private java.util.Optional<OrgUnit> findUnit(String tenantId, String orgUnitId) {
+    /** Whether a unit row exists in the tenant — 租户内是否已有该单元行。 */
+    public boolean unitExists(String tenantId, String orgUnitId) {
+        String tid = requireTenantId(tenantId);
+        String uid = requireNonBlank(orgUnitId, "orgUnitId");
+        return findUnit(tid, uid).isPresent();
+    }
+
+    private Optional<OrgUnit> findUnit(String tenantId, String orgUnitId) {
         List<OrgUnit> rows = jdbc.query(
                 """
                 SELECT tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state

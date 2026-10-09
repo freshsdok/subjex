@@ -2,11 +2,14 @@ package com.subjex.platform.app.org;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.platform.app.security.H2PlatformTables;
+import com.subjex.platform.app.security.OrgScope;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -120,5 +123,33 @@ class JdbcOrgDirectoryTest {
         assertTrue(directory.removeMembership("acme", "sub-a", "u-root"));
         assertFalse(directory.removeMembership("acme", "sub-a", "u-root"));
         assertTrue(directory.listMembershipsForSubject("acme", "sub-a").isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void resolvesSelfAndDescendantsForActiveMembership(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcOrgDirectory directory = new JdbcOrgDirectory(jdbc);
+
+        directory.upsertUnit("acme", "u-root", null, "Root", "ACTIVE");
+        directory.upsertUnit("acme", "u-eng", "u-root", "Engineering", "ACTIVE");
+        directory.upsertUnit("acme", "u-team", "u-eng", "Team", "ACTIVE");
+        directory.upsertUnit("acme", "u-sales", "u-root", "Sales", "ACTIVE");
+        directory.upsertMembership("acme", "sub-eng", "u-eng", "ACTIVE");
+        directory.upsertMembership("acme", "sub-disabled", "u-eng", "DISABLED");
+
+        OrgScope scope = directory.resolveSelfAndDescendants("acme", "sub-eng");
+        assertEquals(OrgScope.MODE_SELF_AND_DESCENDANTS, scope.mode());
+        assertEquals(List.of("u-eng"), scope.rootUnitIds());
+        assertEquals(List.of("u-eng", "u-team"), scope.unitIds());
+        assertTrue(scope.contains("u-team"));
+        assertFalse(scope.contains("u-root"));
+        assertFalse(scope.contains("u-sales"));
+
+        Set<String> fromRoot = directory.descendantUnitIds("acme", "u-root");
+        assertTrue(fromRoot.containsAll(Set.of("u-root", "u-eng", "u-team", "u-sales")));
+
+        assertNull(directory.resolveSelfAndDescendants("acme", "sub-disabled"));
+        assertNull(directory.resolveSelfAndDescendants("acme", "sub-missing"));
     }
 }
