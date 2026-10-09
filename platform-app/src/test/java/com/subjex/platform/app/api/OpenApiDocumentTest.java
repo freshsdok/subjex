@@ -8,8 +8,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.admin.AuditApiEndpoint;
 import com.subjex.platform.app.codegen.CodegenApiEndpoint;
 import com.subjex.platform.app.config.ConfigApiEndpoint;
@@ -58,7 +58,7 @@ import org.springdoc.core.properties.SpringDocConfigProperties;
 import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -166,7 +166,7 @@ class OpenApiDocumentTest {
         assertThat(mapped).contains(JsonApi.BASE + "/me", JsonApi.BASE + "/config/{key}");
 
         Set<String> documented = new TreeSet<>();
-        document.path("paths").fieldNames().forEachRemaining(documented::add);
+        documented.addAll(document.path("paths").propertyNames());
         assertThat(documented).containsAll(mapped);
 
         JsonNode override = document.path("paths").path(JsonApi.BASE + "/config/{key}").path("put").path("responses");

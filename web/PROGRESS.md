@@ -513,3 +513,6 @@ CI-fix-2. [done] 2026-10-09 CST; `GatewayHttpFlowTest.actuatorStaysLocal` → ma
 
 CI-fix-3. [done] 2026-10-09 CST; P1 Trivy deps on Boot **3.5.16** (last OSS 3.5): `tomcat.version=10.1.60`, `jackson-bom.version=2.21.7`, `postgresql.version=42.7.14`. Reactor tests green (VendorStartup excluded locally). **Residual:** spring-webmvc 6.2.19 CRITICAL → needs Framework 7.0.9 / Boot 4 (Jackson 3); Framework 7-on-3.5 tests break; Boot 4.0.8 POM needs testcontainers 2.x rename. Documented in `docs/release/image-scan.md`. **Ask owner:** Boot 4 track vs written P1 waiver before alpha tag. Next = squash-push overrides (image-scan may still red on spring CRITICAL).
     Tomcat/Jackson/PG 已升；spring-webmvc CRITICAL 需 Boot 4 或书面豁免。
+
+Boot4-1. [done] 2026-10-09 CST; Spring Boot **4.0.8** + Framework 7.0.9; testcontainers 2.x rename; Jackson 3 (`tools.jackson` / `JacksonException`); Boot 4 package moves + `spring-boot-starter-webmvc-test` / `security-test`; jackson `datatype.datetime`; Kafka MockProducer Partitioner; consumer autoconfigure.exclude FQCNs. Plan `docs/release/boot4-migration.md`. Local `mvn test` green excl. VendorStartup. Next = squash-push → CI image-scan (expect spring-webmvc CRITICAL gone) → Boot4-2 polish / alpha when green. **No tag yet.**
+    Boot 4.0.8 切片完成；待 squash 推送看 image-scan。未打 tag。

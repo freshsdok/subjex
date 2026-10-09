@@ -1,6 +1,6 @@
 package com.subjex.platform.app;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.connection.ConfiguredConnection;
 import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
 import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;

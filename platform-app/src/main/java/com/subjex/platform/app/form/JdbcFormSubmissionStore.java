@@ -1,7 +1,7 @@
 package com.subjex.platform.app.form;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.jdbc.PlatformTables;
 import java.time.Clock;
 import java.util.List;
@@ -114,7 +114,7 @@ public final class JdbcFormSubmissionStore implements FormSubmissionStore {
     private String writeJson(Map<String, Object> values) {
         try {
             return json.writeValueAsString(values);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new IllegalArgumentException("values cannot be written as JSON", ex);
         }
     }

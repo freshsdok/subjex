@@ -1,7 +1,7 @@
 package com.subjex.sample.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.contract.delivery.OutboxHmac;
 import com.subjex.platform.contract.delivery.OutboxSocketFrame;
 import com.subjex.platform.contract.task.TaskRecordedNotice;
@@ -163,7 +163,7 @@ public final class OutboxSocketListener implements SmartLifecycle {
             try {
                 TaskRecordedNotice notice = objectMapper.readValue(frame.eventBody(), TaskRecordedNotice.class);
                 accepted = take(notice, frame);
-            } catch (JsonProcessingException ex) {
+            } catch (JacksonException ex) {
                 accepted = false;
             }
         }

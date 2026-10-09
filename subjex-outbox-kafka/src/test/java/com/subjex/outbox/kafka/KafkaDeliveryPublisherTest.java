@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import org.apache.kafka.clients.producer.MockProducer;
+import org.apache.kafka.clients.producer.RoundRobinPartitioner;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -28,7 +29,7 @@ class KafkaDeliveryPublisherTest {
 
     @Test
     void publishWritesKeyHeadersAndBodyThenMarksPublished() {
-        MockProducer<String, byte[]> mock = new MockProducer<>(true, new StringSerializer(), new ByteArraySerializer());
+        MockProducer<String, byte[]> mock = new MockProducer<>(true, new RoundRobinPartitioner(), new StringSerializer(), new ByteArraySerializer());
         KafkaDeliveryPublisher publisher = publisher(mock, new DeliveryCircuitBreaker(3));
         String body = "{\"eventId\":\"event-1\",\"tenantId\":\"tenant-north\"}";
         DeliveryAttempt attempt = publisher.deliver(event(body), false);
@@ -45,7 +46,7 @@ class KafkaDeliveryPublisherTest {
 
     @Test
     void sendFailureStaysPendingAndOpensBreakerWithoutMarkingPublished() {
-        MockProducer<String, byte[]> mock = new MockProducer<>(true, new StringSerializer(), new ByteArraySerializer());
+        MockProducer<String, byte[]> mock = new MockProducer<>(true, new RoundRobinPartitioner(), new StringSerializer(), new ByteArraySerializer());
         mock.sendException = new RuntimeException("broker down");
         DeliveryCircuitBreaker breaker = new DeliveryCircuitBreaker(1, Duration.ofHours(1), java.time.Clock.systemUTC());
         KafkaDeliveryPublisher publisher = publisher(mock, breaker);
@@ -61,7 +62,7 @@ class KafkaDeliveryPublisherTest {
 
     @Test
     void relaySemanticsDoNotDoublePublishOnRetryAfterSuccess() {
-        MockProducer<String, byte[]> mock = new MockProducer<>(true, new StringSerializer(), new ByteArraySerializer());
+        MockProducer<String, byte[]> mock = new MockProducer<>(true, new RoundRobinPartitioner(), new StringSerializer(), new ByteArraySerializer());
         KafkaDeliveryPublisher publisher = publisher(mock, new DeliveryCircuitBreaker(3));
         OutboxEvent row = event("{\"eventId\":\"event-1\"}");
         assertEquals(OutboxState.PUBLISHED, publisher.deliver(row, false).result().eventState());

@@ -1,6 +1,6 @@
 package com.subjex.sample.consumer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.contract.config.ConfigSource;
 import com.subjex.platform.contract.delivery.OutboxTls;
 import com.subjex.platform.contract.delivery.OutboxTransportPolicy;
@@ -25,7 +25,7 @@ import java.time.Duration;
 import java.util.Optional;
 import javax.net.ssl.SSLContext;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.context.WebServerApplicationContext;
+import org.springframework.boot.web.server.context.WebServerApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;

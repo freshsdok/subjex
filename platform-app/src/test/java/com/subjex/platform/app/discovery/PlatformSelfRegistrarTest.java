@@ -11,9 +11,9 @@ import com.subjex.platform.contract.discovery.PlatformServiceNames;
 import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import com.subjex.platform.contract.discovery.ServiceRegistry;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.web.context.WebServerApplicationContext;
-import org.springframework.boot.web.context.WebServerInitializedEvent;
-import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
+import org.springframework.boot.web.server.context.WebServerApplicationContext;
+import org.springframework.boot.web.server.context.WebServerInitializedEvent;
+import org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.WebServer;
 
 /**

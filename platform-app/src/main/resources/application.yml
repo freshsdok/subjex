@@ -13,8 +13,11 @@ spring:
     enabled: true
     locations: classpath:db/migration
   jackson:
-    serialization:
-      write-dates-as-timestamps: false
+    # Boot 4 / Jackson 3: WRITE_DATES_AS_TIMESTAMPS moved to DateTimeFeature (not SerializationFeature).
+    # Boot 4 / Jackson 3：日期时间戳开关改到 datatype.datetime。
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
 
 # JSON API description — JSON 接口说明：只描述 /api/v1，规格本身也要已登录的操作员才能取。
 springdoc:

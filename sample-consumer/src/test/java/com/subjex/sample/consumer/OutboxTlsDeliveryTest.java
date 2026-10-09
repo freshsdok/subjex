@@ -2,7 +2,7 @@ package com.subjex.sample.consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
 import com.subjex.platform.contract.delivery.DeliveryCircuitBreaker;
 import com.subjex.platform.contract.delivery.DeliveryAttempt;

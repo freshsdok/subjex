@@ -3,7 +3,7 @@ package com.subjex.platform.app.form;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.form.FormSubmissionStore.FormSubmissionRow;
 import com.subjex.platform.app.security.H2PlatformTables;
 import java.time.Clock;

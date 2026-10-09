@@ -3,7 +3,7 @@ package com.subjex.platform.app.discovery;
 import com.subjex.platform.contract.discovery.PlatformServiceNames;
 import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import com.subjex.platform.contract.discovery.ServiceRegistry;
-import org.springframework.boot.web.context.WebServerInitializedEvent;
+import org.springframework.boot.web.server.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
 
 /**

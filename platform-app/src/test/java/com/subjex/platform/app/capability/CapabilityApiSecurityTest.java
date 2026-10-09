@@ -20,7 +20,7 @@ import com.subjex.platform.contract.tenant.TenantGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -222,8 +222,8 @@ class CapabilityApiSecurityTest {
 
         // Parse fields via second call shape — use MockMvc result JSON paths by re-requesting is hard;
         // extract with simple string ops for ticketId
-        com.fasterxml.jackson.databind.JsonNode node =
-                new com.fasterxml.jackson.databind.ObjectMapper().readTree(ticketJson);
+        tools.jackson.databind.JsonNode node =
+                new tools.jackson.databind.ObjectMapper().readTree(ticketJson);
         String body = String.format(
                 "{\"ticketId\":\"%s\",\"inputDigest\":\"%s\",\"previewDigest\":\"%s\",\"expiresAt\":\"%s\",\"previewText\":%s}",
                 node.get("ticketId").asText(),

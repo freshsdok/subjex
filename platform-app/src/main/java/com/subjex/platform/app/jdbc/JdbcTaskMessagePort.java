@@ -1,7 +1,7 @@
 package com.subjex.platform.app.jdbc;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.contract.delivery.DeliveryAttempt;
 import com.subjex.platform.contract.delivery.DeliveryPort;
 import com.subjex.platform.app.task.IdempotencyConflict;
@@ -375,7 +375,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
     private String writeNotice(TaskRecordedNotice notice) {
         try {
             return objectMapper.writeValueAsString(notice);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new IllegalStateException("could not write task recorded notice", ex);
         }
     }

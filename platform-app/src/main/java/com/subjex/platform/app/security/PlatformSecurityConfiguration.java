@@ -2,7 +2,6 @@ package com.subjex.platform.app.security;
 
 import com.subjex.platform.contract.tenant.TenantGuard;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -182,7 +181,9 @@ public class PlatformSecurityConfiguration {
     }
 
     @Bean
-    @Order(SecurityProperties.DEFAULT_FILTER_ORDER + 10)
+    // Boot 3 used SecurityProperties.DEFAULT_FILTER_ORDER (-100) + 10; Boot 4 dropped the constant.
+    // Boot 3 用 SecurityProperties.DEFAULT_FILTER_ORDER(-100)+10；Boot 4 去掉了该常量。
+    @Order(-90)
     TenantEnforcementFilter tenantEnforcementFilter(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
         return new TenantEnforcementFilter(tenantGuard, tenantAccess);
     }
