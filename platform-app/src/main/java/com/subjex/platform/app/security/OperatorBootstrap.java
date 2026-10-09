@@ -24,7 +24,7 @@ public final class OperatorBootstrap {
     public static final int MIN_PASSWORD_LENGTH = 8;
 
     /** Default role when none is given — 未指定时的默认角色。 */
-    public static final String DEFAULT_ROLE = "platform-operator";
+    public static final String DEFAULT_ROLE = PlatformRoles.OPERATOR;
 
     private static final Logger LOG = LoggerFactory.getLogger(OperatorBootstrap.class);
 
@@ -54,6 +54,11 @@ public final class OperatorBootstrap {
                     "operator password must be at least " + MIN_PASSWORD_LENGTH + " characters");
         }
         String role = (roleName == null || roleName.isBlank()) ? DEFAULT_ROLE : roleName.trim();
+        if (PlatformRoles.SUPER_ADMIN.equals(role)) {
+            throw new IllegalArgumentException(
+                    "ordinary bootstrap cannot mint break-glass role " + PlatformRoles.SUPER_ADMIN
+                            + "; use platform.operator.super-admin-bootstrap instead");
+        }
         String login = loginName.trim();
         String hash = passwordEncoder.encode(password);
         transaction.executeWithoutResult(status -> {

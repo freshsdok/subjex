@@ -1,6 +1,8 @@
 package com.subjex.platform.app.org;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.platform.app.security.H2PlatformTables;
@@ -10,7 +12,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * JdbcOrgDirectoryTest — 组织目录：列表按 id 排序，且租户隔离。
+ * JdbcOrgDirectoryTest — 组织目录：列表按 id 排序、租户隔离，以及写路径校验。
  */
 class JdbcOrgDirectoryTest {
 
@@ -60,5 +62,63 @@ class JdbcOrgDirectoryTest {
         assertEquals(1, forSubject.size());
         assertEquals("u-root", forSubject.get(0).orgUnitId());
         assertTrue(directory.listMembershipsForSubject("acme", "sub-missing").isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void upsertsUnitsMembershipsAndValidatesParents(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcOrgDirectory directory = new JdbcOrgDirectory(jdbc);
+
+        OrgUnit root = directory.upsertUnit("acme", "u-root", null, "Root", null);
+        assertEquals("ACTIVE", root.unitState());
+        assertEquals(null, root.parentOrgUnitId());
+
+        OrgUnit eng = directory.upsertUnit("acme", "u-eng", "u-root", "Engineering", "ACTIVE");
+        assertEquals("u-root", eng.parentOrgUnitId());
+
+        OrgUnit renamed = directory.upsertUnit("acme", "u-eng", "u-root", "Eng Renamed", "DISABLED");
+        assertEquals("Eng Renamed", renamed.unitName());
+        assertEquals("DISABLED", renamed.unitState());
+        assertEquals(2, directory.listUnits("acme").size());
+
+        OrgUnit reactivated = directory.setUnitState("acme", "u-eng", "ACTIVE");
+        assertEquals("ACTIVE", reactivated.unitState());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> directory.upsertUnit("acme", "u-x", "missing-parent", "X", "ACTIVE"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> directory.upsertUnit("acme", "u-cross", "u-other", "Cross", "ACTIVE"));
+
+        jdbc.update(
+                "INSERT INTO org_unit (tenant_id, org_unit_id, parent_org_unit_id, unit_name, unit_state) VALUES (?,?,?,?,?)",
+                "other", "u-other", null, "Other", "ACTIVE");
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> directory.upsertUnit("acme", "u-cross", "u-other", "Cross", "ACTIVE"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> directory.upsertUnit("acme", "u-self", "u-self", "Self", "ACTIVE"));
+        assertThrows(IllegalArgumentException.class, () -> directory.upsertUnit("acme", "u-blank", null, "  ", null));
+        assertThrows(IllegalArgumentException.class, () -> directory.upsertUnit("", "u-a", null, "A", null));
+
+        OrgMembership membership =
+                directory.upsertMembership("acme", "sub-a", "u-root", null);
+        assertEquals("ACTIVE", membership.membershipState());
+        OrgMembership updated =
+                directory.upsertMembership("acme", "sub-a", "u-root", "DISABLED");
+        assertEquals("DISABLED", updated.membershipState());
+        assertEquals(1, directory.listMembershipsForSubject("acme", "sub-a").size());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> directory.upsertMembership("acme", "sub-a", "missing-unit", "ACTIVE"));
+
+        assertTrue(directory.removeMembership("acme", "sub-a", "u-root"));
+        assertFalse(directory.removeMembership("acme", "sub-a", "u-root"));
+        assertTrue(directory.listMembershipsForSubject("acme", "sub-a").isEmpty());
     }
 }

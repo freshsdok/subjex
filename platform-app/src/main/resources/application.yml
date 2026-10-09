@@ -74,6 +74,11 @@ platform:
     login: ${PLATFORM_OPERATOR_LOGIN:}
     password: ${PLATFORM_OPERATOR_PASSWORD:}
     role: ${PLATFORM_OPERATOR_ROLE:platform-operator}
+    # Break-glass super-admin bootstrap (OFF by default). Never enable in compose/k8s defaults.
+    # 破窗超管开通（默认关闭）。切勿在 compose/k8s 默认打开。
+    super-admin-bootstrap: false
+    super-admin-login: ${PLATFORM_SUPER_ADMIN_LOGIN:}
+    super-admin-password: ${PLATFORM_SUPER_ADMIN_PASSWORD:}
   connection:
     vendor: ${PLATFORM_CONNECTION_VENDOR:postgresql}
   discovery:

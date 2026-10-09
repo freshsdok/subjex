@@ -44,7 +44,7 @@ class JdbcOperatorDirectoryTest {
         assertEquals(LocalOperatorSeeder.SUBJECT_ID, operator.subjectId());
         assertEquals(Set.of("admin.read", "page.read", "config.read", "config.write", "declaration.migrate",
                 "declaration.promote", "declaration.read", "declaration.write", "operator.manage", "org.read",
-                "tenant.manage", "registry.read", "registry.write", "task.write"), operator.permissionNames());
+                "org.write", "tenant.manage", "registry.read", "registry.write", "task.write"), operator.permissionNames());
         assertTrue(encoder.matches("change-me", operator.getPassword()));
         assertTrue(operator.getPassword().startsWith("{bcrypt}"));
     }

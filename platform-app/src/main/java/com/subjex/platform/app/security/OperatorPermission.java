@@ -30,6 +30,8 @@ public enum OperatorPermission {
     TENANT_MANAGE("tenant.manage"),
     /** List org_unit tree and memberships (read-only) — 列出组织树与成员关系（只读）。 */
     ORG_READ("org.read"),
+    /** Create, update, or disable org units and memberships — 创建、更新或停用组织单元与成员关系。 */
+    ORG_WRITE("org.write"),
     /** List and read tenant declaration drafts — 列出并读取租户声明草稿。 */
     DECLARATION_READ("declaration.read"),
     /** Save tenant declaration drafts — 保存租户声明草稿。 */

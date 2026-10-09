@@ -13,9 +13,12 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
  * <p>
  * account → operator_credential gives the password hash. account → subject_identity in tenant {@code platform}
  * gives the acting identity and subject. subject_role → role_permission gives the permission names.
- * The operator is enabled only when the account is ACTIVE and that identity is ACTIVE.
+ * Subjects that hold {@link PlatformRoles#SUPER_ADMIN} get the full {@code platform_permission} catalog
+ * at load time (no {@code role_permission} rows for that role). The operator is enabled only when the
+ * account is ACTIVE and that identity is ACTIVE.
  * account → operator_credential 给出口令摘要。account → 租户 {@code platform} 里的 subject_identity 给出行动身份和主体。
- * subject_role → role_permission 给出权限名。只有账号和该身份都是 ACTIVE 时，操作员才可用。
+ * subject_role → role_permission 给出权限名。持有 {@link PlatformRoles#SUPER_ADMIN} 的主体在加载时得到完整
+ * {@code platform_permission} 目录（该角色无 {@code role_permission} 行）。只有账号和该身份都是 ACTIVE 时，操作员才可用。
  */
 public final class JdbcOperatorDirectory implements UserDetailsService {
 
@@ -57,7 +60,25 @@ public final class JdbcOperatorDirectory implements UserDetailsService {
             throw new UsernameNotFoundException("operator is unknown");
         }
         SignIn signIn = found.get(0);
-        Set<String> permissions = new HashSet<>(jdbc.queryForList(
+        Set<String> permissions = loadPermissions(signIn.subjectId());
+        boolean active = "ACTIVE".equals(signIn.accountState()) && "ACTIVE".equals(signIn.identityState());
+        return new OperatorPrincipal(
+                signIn.loginName(), signIn.passwordHash(), signIn.identityId(), signIn.subjectId(), permissions, active);
+    }
+
+    private Set<String> loadPermissions(String subjectId) {
+        Integer superAdminRoles = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM subject_role WHERE subject_id = ? AND role_name = ?",
+                Integer.class,
+                subjectId,
+                PlatformRoles.SUPER_ADMIN);
+        if (superAdminRoles != null && superAdminRoles > 0) {
+            // Break-glass: expand to full catalog without touching role_permission.
+            // 破窗：展开为完整目录，不写入 role_permission。
+            return new HashSet<>(jdbc.queryForList(
+                    "SELECT permission_name FROM platform_permission", String.class));
+        }
+        return new HashSet<>(jdbc.queryForList(
                 """
                 SELECT DISTINCT rp.permission_name
                 FROM subject_role sr
@@ -65,10 +86,7 @@ public final class JdbcOperatorDirectory implements UserDetailsService {
                 WHERE sr.subject_id = ?
                 """,
                 String.class,
-                signIn.subjectId()));
-        boolean active = "ACTIVE".equals(signIn.accountState()) && "ACTIVE".equals(signIn.identityState());
-        return new OperatorPrincipal(
-                signIn.loginName(), signIn.passwordHash(), signIn.identityId(), signIn.subjectId(), permissions, active);
+                subjectId));
     }
 
     private record SignIn(

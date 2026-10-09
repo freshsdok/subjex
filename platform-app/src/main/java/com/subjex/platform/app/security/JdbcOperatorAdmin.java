@@ -63,6 +63,11 @@ public final class JdbcOperatorAdmin {
                     "operator password must be at least " + OperatorBootstrap.MIN_PASSWORD_LENGTH + " characters");
         }
         String role = (roleName == null || roleName.isBlank()) ? OperatorBootstrap.DEFAULT_ROLE : roleName.trim();
+        if (PlatformRoles.SUPER_ADMIN.equals(role)) {
+            throw new IllegalArgumentException(
+                    "cannot assign break-glass role " + PlatformRoles.SUPER_ADMIN
+                            + " via ordinary operator create; use dedicated super-admin bootstrap");
+        }
         String login = loginName.trim();
         return transaction.execute(status -> {
             Integer roles = jdbc.queryForObject(

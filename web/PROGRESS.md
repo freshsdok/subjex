@@ -259,3 +259,31 @@ Blocks-2. [done] Section card wrapper (title/hint/className); Tabs client tablis
     Next options: org write+console; migration generator auto-`tenant_id`.
     下一波可选：组织写+控制台；迁移生成器自动加 tenant_id。
 
+Org write APIs — 组织写接口（2026-10-09）:
+
+Org-W1. [done] Flyway `V18__org_write.sql` (`org.write` → platform-operator only), `OperatorPermission.ORG_WRITE`, `JdbcOrgDirectory` upsert unit/membership + remove + setUnitState, `OrgApiEndpoint` PUT units/memberships + DELETE memberships (tenant grant + audit `org.unit.upsert` / `org.membership.upsert|remove`), security PUT/DELETE need `org.write`; H2 + MockMvc tests. Local commit only (no push). No console UI / SCIM / super-admin break-glass.
+    V18 `org.write`；JDBC 写路径；PUT/DELETE HTTP + 租户授权与审计；安全与测例。仅本地提交。不开控制台 / SCIM / 超管破窗。
+    Next was Org-W2 (see below).
+    下一片为 Org-W2（见下）。
+
+Org console thin page — 组织控制台薄页（2026-10-09）:
+
+Org-W2. [done] Console `/org`: tenant cookie `subjex_org_tenant` (select when `admin.read`, else free-text); units + memberships tables via platform proxy; `org.read` gate / `org.write` forms with review→confirm (PUT units/memberships, DELETE memberships, disable/enable); nav `navOrg` + zh/en phrases; vitest cookie/id helpers. Local commit only (no push). No super-admin break-glass / SCIM / tree designer.
+    控制台 `/org`：租户 cookie；单元与成员表；读写门禁与两步确认写操作；导航与中英文；辅助单测。仅本地提交。不开超管破窗 / SCIM / 树设计器。
+    Next was SA-1 (see below).
+    下一片为 SA-1（见下）。
+
+Super-admin break-glass — 超管破窗（2026-10-09）:
+
+SA-1. [done] `PlatformRoles.SUPER_ADMIN`; directory expands full `platform_permission` catalog when subject holds `platform.super-admin` (role_permission stays 0); ordinary `JdbcOperatorAdmin.create` / `OperatorBootstrap` refuse the role; dedicated `SuperAdminBootstrap` + `platform.operator.super-admin-bootstrap` (off by default, exits after upsert, fixed ids + `*` grant); docs + H2 tests. Local commit only (no push). No console badge / MFA special-case / SCIM / auto-seed on local / V19 role_permission.
+    `PlatformRoles.SUPER_ADMIN`；名录破窗展开完整权限目录；普通创建/开通拒绝该角色；专用超管开通开关默认关；文档与 H2 测例。仅本地提交。不开控制台徽章 / MFA 特例 / SCIM / local 自动种子 / V19 授权行。
+    Next was Mig-TID (see below).
+    下一片为 Mig-TID（见下）。
+
+Migration generator tenant_id — 迁移生成器自动 tenant_id（2026-10-09）:
+
+Mig-TID. [done] `EntityMigrationGenerator` auto-appends `tenant_id VARCHAR(64) NOT NULL` when `tenantScoped: true` and no field already maps to that column; no duplicate; PK stays single-column; docs + generator tests. Local commit only (no push). No GenericEntityStore / composite PK rewrite / ALTER / sample YAML flips.
+    隔离且字段未含 `tenant_id` 时自动加列；不重复；主键仍单列；文档与测例。仅本地提交。不改通用存储 / 复合主键 / ALTER / 样例 YAML。
+    Next: deepen algo/AI as needed; console badge deferred; idle until next product slice.
+    下一片：视需求加深算法/AI；控制台徽章延后；空闲待下一产品片。
+

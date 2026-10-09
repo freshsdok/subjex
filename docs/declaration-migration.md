@@ -28,8 +28,8 @@ Reading an old submission: use the form YAML (or git tag/commit) whose `version`
 
 ## Entity YAML → migration drafts / 实体 YAML → 迁移草稿
 
-When `tenantScoped: true`, the physical table **must** include `tenant_id VARCHAR(64) NOT NULL` (index/PK as the author chooses). Generic CRUD stamps and filters that column; the migration generator does not yet auto-add it.
-`tenantScoped: true` 时表必须含 `tenant_id VARCHAR(64) NOT NULL`（索引/主键自定）。通用 CRUD 盖章与过滤该列；迁移生成器尚未自动加列。
+When `tenantScoped: true`, the physical table **must** include `tenant_id VARCHAR(64) NOT NULL` (index/PK as the author chooses). Generic CRUD stamps and filters that column. `EntityMigrationGenerator` **does** auto-add `tenant_id VARCHAR(64) NOT NULL` when the field list omits it (still a single PRIMARY KEY on the entity PK; authors may edit indexes/PK in the draft).
+`tenantScoped: true` 时表必须含 `tenant_id VARCHAR(64) NOT NULL`（索引/主键自定）。通用 CRUD 盖章与过滤该列。字段列表未写该列时，`EntityMigrationGenerator` **会**自动追加 `tenant_id VARCHAR(64) NOT NULL`（主键仍为实体单列；草稿中可人工改索引/主键）。
 
 
 When entity fields change:

@@ -167,6 +167,10 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - AV. [done] Blocks-1: FormFields + FlowSorter runtime (DeclaredSubmitForm + explicit list.blocks); local commit only.
 - AW. [done] Lockout-1: login failure lockout (5 / 15m, 429 `login-lockout`); local commit only.
 - AX. [done] Blocks-2: Section + Tabs runtime (detail Fields/Raw + list Section wrap); local commit only.
+- AY. [done] Org-W1: org.write + PUT/DELETE org units/memberships + audit; local commit only.
+- AZ. [done] Org-W2: thin org console `/org` (units/memberships, review→confirm writes); local commit only.
+- BA. [done] SA-1: platform.super-admin break-glass bootstrap + directory expansion (role_permission stays empty); local commit only.
+- BB. [done] Mig-TID: EntityMigrationGenerator auto-adds tenant_id when tenantScoped and field list omits it; local commit only.
 
 
 ## Thin algo/AI progress / 薄算法·AI 进度
@@ -369,7 +373,7 @@ Do in order unless the owner renumbers. **First wave still Z1–Z4** (dual-track
 | --- | --- | --- | --- |
 | Z0 | Docs / 文档 | Zero-code model + **dual-track decided** in roadmap + `ARCHITECTURE.md`. | done (docs) |
 | Z1 | Generic entity CRUD / 通用实体 CRUD | Metadata-driven table + REST by `entityKey`; **new sample and/or parallel read-adapt `service_note`** (old JDBC may remain then delete) — **new entity → zero Java**. Reserve `userRef`/`orgRef` kinds. Schema/field evolution only via **migration queue** bound to declaration cutover (hot-reload metadata only after migration completes). HTTP Basic **off** outside `local` (**Basic-1 done**). | **R1 #1 / baseline landed** (Z1-1..3; bespoke write **removed**, generic owns service-note writes) |
-| thin org | Thin people/org base / 薄人员组织底座 | `org_unit` tree + membership + **read-only** APIs; wire **permission tiers** (console vs business work); **`platform.super-admin` (own role name)** out of ordinary grants; **no** mandatory second account type; **no** SCIM / complex dual-role yet. | **R1 #2 / baseline landed** (Thin-org-1..2) |
+| thin org | Thin people/org base / 薄人员组织底座 | `org_unit` tree + membership + **read + write** APIs (`org.read` / `org.write`) + **console `/org`**; wire **permission tiers** (console vs business work); **`platform.super-admin` (own role name)** out of ordinary grants; **no** mandatory second account type; **no** SCIM / complex dual-role yet. | **R1 #2 / write + thin console** (Thin-org-1..2 + Org-W1..W2) |
 | Z2 | Generic flow pages / 通用流程页 | list/detail/new/edit fully declaration-driven; first-wave blocks: **generic form components**, **ListTable**, **FormFields**, **DetailReadonly**, **Section/Tabs**, **SubmitBar**, **UserPicker/OrgPicker** (thin live), **flow sorter/router** — **new business page → zero bespoke front-end**. | **R1 #3 / baseline landed** (Z2-1..3; detail GET + thin pickers + forms entityKey) |
 | Z3 | Declaration store / 声明存储 | `declaration_revision` (or equivalent) + **tenant-scoped** drafts; load order: DB overlay over classpath. May overlap Z1 **after** Z1 baseline lands. | **R1 #4 / baseline landed** (Z3-1..3) |
 | Z4 | Console page builder / configurator / 控制台页面构建器 | **Structured builder** (not free canvas): compose pages from **most-used visual component blocks**; wizards also cover entity/form/flow/permission; writes drafts in Z3. | **R1 #4 / first wave** |

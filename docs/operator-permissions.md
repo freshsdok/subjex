@@ -4,11 +4,11 @@
 
 Flyway `V2__operator_permission.sql` adds the catalog. It writes no person and no password.
 Flyway `V6__operator_management.sql` adds `operator.manage` and `operator_tenant_grant`.
-Flyway `V7__tenant_manage.sql` adds `tenant.manage`. Flyway `V13__org_unit.sql` adds `org.read` and reserves role `platform.super-admin` (no ordinary grants).
+Flyway `V7__tenant_manage.sql` adds `tenant.manage`. Flyway `V13__org_unit.sql` adds `org.read` and reserves role `platform.super-admin` (no ordinary grants). Flyway `V18__org_write.sql` adds `org.write` (granted to `platform-operator` only).
 
 Flyway `V2__operator_permission.sql` 加入目录，不写入任何人，也不写入任何口令。
 `V6__operator_management.sql` 增加 `operator.manage` 与 `operator_tenant_grant`。
-`V7__tenant_manage.sql` 增加 `tenant.manage`。`V13__org_unit.sql` 增加 `org.read`，并预留角色 `platform.super-admin`（无普通授权）。
+`V7__tenant_manage.sql` 增加 `tenant.manage`。`V13__org_unit.sql` 增加 `org.read`，并预留角色 `platform.super-admin`（无普通授权）。`V18__org_write.sql` 增加 `org.write`（仅授予 `platform-operator`）。
 
 | Table / 表 | One row is / 一行是 |
 | --- | --- |
@@ -36,15 +36,16 @@ An operator is an `account` → `subject_identity` in the reserved tenant `platf
 | `task.write` | `/tasks/**` (needs `X-Tenant-Id` **and** an `operator_tenant_grant` for that tenant or `*`; missing either is 403) |
 | `operator.manage` | `/api/v1/operators/**` except `POST .../me/password` (list/create/disable/enable/change other password/tenant grants) |
 | `tenant.manage` | `POST/PATCH /api/v1/tenants/**` (create/rename/disable/enable); list/get use `admin.read` |
-| `org.read` | `GET /api/v1/org/units`, `GET /api/v1/org/memberships` (read-only; `tenantId` required) |
+| `org.read` | `GET /api/v1/org/units`, `GET /api/v1/org/memberships` (`tenantId` required); console `/org` |
+| `org.write` | `PUT /api/v1/org/units/{orgUnitId}`, `PUT/DELETE /api/v1/org/memberships` (`tenantId` + operator–tenant grant; audited); console `/org` write forms |
 
-Roles: `platform-operator` holds all ten (including `operator.manage`, `tenant.manage`, and `org.read`). `platform-reader` holds `admin.read`, `page.read`, `config.read`, `org.read`, `registry.read`. Reserved role `platform.super-admin` is isolated break-glass and holds **no** ordinary permissions in this slice. A signed-in operator without the permission gets 403; no login or a wrong password gets 401.
+Roles: `platform-operator` holds the full catalog (including `operator.manage`, `tenant.manage`, `org.read`, and `org.write`). `platform-reader` holds `admin.read`, `page.read`, `config.read`, `declaration.read`, `org.read`, `registry.read` (no `org.write`). Role `platform.super-admin` is **isolated break-glass**: keep `role_permission` empty for it; when a subject holds that role, `JdbcOperatorDirectory` expands authorities to the **full** `platform_permission` catalog at load time (no catalog rows are inserted). Ordinary `JdbcOperatorAdmin.create` and `OperatorBootstrap` **refuse** to mint or assign this role. A signed-in operator without the permission gets 403; no login or a wrong password gets 401.
 
-角色：`platform-operator` 拥有全部十项（含 `operator.manage`、`tenant.manage`、`org.read`）。`platform-reader` 含 `admin.read`、`page.read`、`config.read`、`org.read`、`registry.read`。预留角色 `platform.super-admin` 为隔离破窗，本片**无**普通权限。已登录但缺权限得 403；未登录或口令错误得 401。
+角色：`platform-operator` 拥有完整目录（含 `operator.manage`、`tenant.manage`、`org.read`、`org.write`）。`platform-reader` 含 `admin.read`、`page.read`、`config.read`、`declaration.read`、`org.read`、`registry.read`（无 `org.write`）。`platform.super-admin` 为**隔离破窗**：对该角色保持 `role_permission` 为空；主体持有该角色时，`JdbcOperatorDirectory` 在加载时将授权展开为完整 `platform_permission` 目录（不插入目录行）。普通 `JdbcOperatorAdmin.create` 与 `OperatorBootstrap` **拒绝**签发或分配该角色。已登录但缺权限得 403；未登录或口令错误得 401。
 
-Permission **tiers** (not separate login account types) separate console vs business operators; reserved `platform.super-admin` remains an isolated unused role until break-glass is wired.
+Permission **tiers** (not separate login account types) separate console vs business operators; break-glass uses the dedicated super-admin bootstrap below.
 
-权限**分层**（非主拆两套登录账号）区分控制台与业务操作员；预留 `platform.super-admin` 在破窗接线前保持隔离未用。
+权限**分层**（非主拆两套登录账号）区分控制台与业务操作员；破窗使用下方专用超管开通。
 
 ## Local operator (local only) / 本地操作员（只用于本地）
 
@@ -71,6 +72,24 @@ Properties (when the flag is on): `platform.operator.login` / `platform.operator
 
 属性（仅在打开开关时）：登录名 / 口令 / 角色。**不要**在 compose 或 k8s Deployment 默认里打开该开关——用一次性 Job 或手工跑一次，再正常启动。
 
+### Break-glass super-admin bootstrap / 破窗超管开通
+
+Dedicated one-shot path for role `platform.super-admin` (**off by default**). Ordinary bootstrap / `operator.manage` create **cannot** assign this role. Upserts fixed ids (`account-super-admin` / `subject-super-admin` / `identity-super-admin`), writes `subject_role` + tenant grant `*`, leaves `role_permission` empty, prints loud `BOOTSTRAP SUPER-ADMIN` warnings, then **exits**.
+
+专用一次性路径，角色 `platform.super-admin`（**默认关闭**）。普通开通 / `operator.manage` 创建**不能**分配该角色。幂等写入固定标识，写 `subject_role` 与租户通配 `*`，保持 `role_permission` 为空，打印醒目警告后**退出**。
+
+```bash
+export PLATFORM_SUPER_ADMIN_LOGIN=break-glass
+export PLATFORM_SUPER_ADMIN_PASSWORD='a-long-enough-secret'
+java -jar platform-app.jar \
+  --platform.operator.super-admin-bootstrap=true \
+  --spring.main.web-application-type=none
+```
+
+Properties: `platform.operator.super-admin-login` / `platform.operator.super-admin-password`. Do **not** set `platform.operator.super-admin-bootstrap=true` in compose or k8s defaults.
+
+属性：登录名 / 口令。**不要**在 compose 或 k8s 默认打开该开关。
+
 ### Hand-written SQL (still works) / 手写 SQL（仍可用）
 
 Insert rows yourself if you cannot run the jar. The hash must carry its encoder id; `{bcrypt}` with a `$2a$`/`$2b$`/`$2y$` hash works (for example `htpasswd -bnBC 12 "" 'the-password' | tr -d ':\n'`).
@@ -96,7 +115,7 @@ sample-consumer 用 `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD` 登�
 | Method + path | Who | Notes |
 | --- | --- | --- |
 | `GET /api/v1/operators` | `operator.manage` | List login, state, role |
-| `POST /api/v1/operators` | `operator.manage` | Create (login, password ≥ 8, role); no tenant grants until assigned |
+| `POST /api/v1/operators` | `operator.manage` | Create (login, password ≥ 8, role); refuses `platform.super-admin`; no tenant grants until assigned |
 | `POST /api/v1/operators/me/password` | any signed-in | Body: `currentPassword`, `newPassword` |
 | `POST /api/v1/operators/{login}/password` | `operator.manage` | Body: `newPassword` |
 | `POST /api/v1/operators/{login}/disable` | `operator.manage` | Sets `account_state=DISABLED`; cannot disable self |

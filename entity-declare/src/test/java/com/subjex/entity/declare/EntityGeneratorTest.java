@@ -1,6 +1,7 @@
 package com.subjex.entity.declare;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -141,6 +142,82 @@ class EntityGeneratorTest {
         assertTrue(record.contains("String status"));
         assertTrue(record.contains("String dueDate"));
         assertTrue(record.contains("String link"));
+    }
+
+    @Test
+    void migrationDraftAutoAppendsTenantIdWhenScopedAndOmitted() {
+        RenderedEntity entity = new EntityRenderer().render("""
+                entityKey: scoped-ticket
+                tableName: scoped_ticket
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 200
+                """);
+        String sql = new EntityMigrationGenerator().sql(entity);
+        assertEquals(1, countOccurrences(sql, "tenant_id VARCHAR(64) NOT NULL"));
+        assertTrue(sql.contains("PRIMARY KEY (ticket_id)"));
+        assertTrue(sql.contains("CREATE TABLE scoped_ticket"));
+        assertTrue(sql.contains("Scoped table: needs tenant_id"));
+    }
+
+    @Test
+    void migrationDraftDoesNotAutoAppendTenantIdWhenUnscoped() throws IOException {
+        RenderedEntity entity = new EntityRenderer().render(EntityRendererTest.entityYaml());
+        assertFalse(entity.tenantScoped());
+        String sql = new EntityMigrationGenerator().sql(entity);
+        assertFalse(sql.contains("tenant_id"));
+        assertTrue(sql.contains("PRIMARY KEY (note_id)"));
+    }
+
+    @Test
+    void migrationDraftDoesNotDuplicateExplicitTenantIdWhenScoped() {
+        RenderedEntity entity = new EntityRenderer().render("""
+                entityKey: scoped-with-tenant
+                tableName: scoped_with_tenant
+                version: 1
+                permission: page.read
+                tenantScoped: true
+                fields:
+                  - name: id
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: tenantId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: false
+                    maxLength: 100
+                """);
+        String sql = new EntityMigrationGenerator().sql(entity);
+        String body = createTableBody(sql);
+        assertEquals(1, countOccurrences(body, "tenant_id"));
+        assertTrue(body.contains("tenant_id VARCHAR(64) NOT NULL"));
+        assertTrue(body.contains("PRIMARY KEY (id)"));
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int from = 0;
+        while (true) {
+            int at = haystack.indexOf(needle, from);
+            if (at < 0) {
+                return count;
+            }
+            count++;
+            from = at + needle.length();
+        }
     }
 
 }
