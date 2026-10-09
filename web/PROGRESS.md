@@ -426,8 +426,8 @@ O8-push. [done] Squashed O8 inventory…O8-6 onto `github/main` as `1e431b2` (pa
 
 Locked order (owner): **1** AuthZ Cedar via PolicyEngine → **2** controlled migration UX → **3** real AI + mandatory confirm → **4** horizontal scale MVP (shared breaker/rate-limit) → **5** independent config center MVP → then CI fix + docs + alpha tag.
 已锁定顺序：1 AuthZ 接 Cedar → 2 受控迁移体验 → 3 真 AI+强制确认写 → 4 水平扩展 MVP → 5 独立配置中心 MVP → 再修 CI/文档/打 alpha。
-**Items 1–5 + CI-fix + docs收口 DONE.** Squash-pushed to `github/main` as **`9446a74`** (parent `1949791` O8 note; tree `0b30dfe` = local `75883ba`). **No `v0.1.0-alpha.1` tag.** Next: watch Actions → optional compose smoke → intentional alpha cut when green.
-项 1–5 + CI + 文档已 squash 推送；**未打 alpha tag**。下一动作：看 CI → 再考虑打 tag。
+**Items 1–5 + CI-fix + docs收口 DONE.** Capacity squash `9446a74` was red (gateway actuator MockMvc + trivy-action `0.28.0` removed). **CI-fix-2** follows. **No `v0.1.0-alpha.1` tag.**
+项 1–5 已推；`9446a74` CI 红，修 CI-fix-2。**未打 alpha tag**。
 
 AuthZ-1a. [done] 2026-10-09 CST; chose **Cedar** (not Casbin); inventory; ADR `docs/authz/cedar-or-casbin-adr.md`. Local commit only (no push).
     选定 Cedar；盘点与 ADR。仅本地提交。
@@ -507,3 +507,6 @@ Docs-align-1. [done] 2026-10-09 CST; ARCHITECTURE §16/§18 (O8, Cedar default, 
 
 Capacity-push. [done] 2026-10-09 CST; squashed AuthZ→Config + CI-fix-1 + docs收口 onto `github/main` as `9446a74` (parent `1949791`; tree matches local `75883ba` / `0b30dfe`). Fast-forward only, never force. **No alpha tag.** Actions: https://github.com/freshsdok/subjex/actions/runs/37894895756
     能力轨+CI+文档已 squash 推送；未打 tag。
+
+CI-fix-2. [done] 2026-10-09 CST; `GatewayHttpFlowTest.actuatorStaysLocal` → management port (P2 `RANDOM_PORT` + `management.server.port=0` + HttpClient; business `/actuator` 404, no upstream). Trivy pin `aquasecurity/trivy-action@v0.36.0` (non-`v` tags removed after supply-chain remediation; `0.28.0` unresolved). Local GatewayHttpFlowTest 4/0/0. Next = squash-push then watch Actions (no alpha tag).
+    网关探针改管理口；Trivy 钉 `v0.36.0`。下一片 squash 推送。

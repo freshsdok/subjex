@@ -81,7 +81,7 @@ jobs:
             *) echo "expected uid 10001, got $user"; exit 1 ;;
           esac
       - name: Trivy scan (HIGH,CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ matrix.image }}
           format: table

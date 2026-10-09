@@ -10,6 +10,10 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -19,17 +23,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalManagementPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * GatewayHttpFlowTest — 网关 HTTP 流程测试：转发上游正文与状态码；限流超限回 429 且不再打上游；
- * 默认不采信伪造的 X-Forwarded-For。
+ * 默认不采信伪造的 X-Forwarded-For。Actuator 走管理口（P2），不进上游代理。
  */
-@SpringBootTest(properties = {
-    "gateway.rate-limit.permits=2",
-    "gateway.rate-limit.window-seconds=60",
-    "gateway.upstream.base-url=http://127.0.0.1:9"
-})
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "gateway.rate-limit.permits=2",
+            "gateway.rate-limit.window-seconds=60",
+            "gateway.upstream.base-url=http://127.0.0.1:9",
+            // P2: probes on management port, not business port (same as VendorStartupTest).
+            "management.server.port=0"
+        })
 @AutoConfigureMockMvc
 class GatewayHttpFlowTest {
 
@@ -38,6 +48,12 @@ class GatewayHttpFlowTest {
 
     @Autowired
     private UpstreamSettings upstreamSettings;
+
+    @LocalServerPort
+    private int serverPort;
+
+    @LocalManagementPort
+    private int managementPort;
 
     private HttpServer server;
     private final AtomicInteger hits = new AtomicInteger();
@@ -120,8 +136,22 @@ class GatewayHttpFlowTest {
     @Test
     void actuatorStaysLocal() throws Exception {
         int before = hits.get();
-        mockMvc.perform(get("/actuator/health/liveness"))
-                .andExpect(status().isOk());
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> liveness = client.send(
+                HttpRequest.newBuilder(URI.create(
+                                "http://127.0.0.1:" + managementPort + "/actuator/health/liveness"))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, liveness.statusCode(), "liveness on management port (P2)");
+        // Business port must not proxy /actuator/* upstream (UpstreamProxyFilter skips it).
+        HttpResponse<String> business = client.send(
+                HttpRequest.newBuilder(URI.create(
+                                "http://127.0.0.1:" + serverPort + "/actuator/health/liveness"))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(404, business.statusCode(), "actuator not on business port when management port is set");
         assertEquals(before, hits.get());
     }
 }
