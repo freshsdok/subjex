@@ -6,8 +6,12 @@ package com.subjex.platform.app.capability;
 public enum CapabilityId {
     /** SHA-256 hex of inputText — inputText 的 SHA-256 十六进制。 */
     ALGO_HASH_FINGERPRINT("algo.hashFingerprint", CapabilityKind.ALGORITHM),
+    /** Trim + collapse whitespace runs — 去首尾并压扁内部空白。 */
+    ALGO_NORMALIZE_WHITESPACE("algo.normalizeWhitespace", CapabilityKind.ALGORITHM),
     /** Template summarize preview; no write — 模板摘要预览；不写库。 */
-    AI_SUMMARIZE_PREVIEW("ai.summarizePreview", CapabilityKind.AI);
+    AI_SUMMARIZE_PREVIEW("ai.summarizePreview", CapabilityKind.AI),
+    /** Template title suggestion preview; no write — 模板标题建议预览；不写库。 */
+    AI_SUGGEST_TITLE_PREVIEW("ai.suggestTitlePreview", CapabilityKind.AI);
 
     private final String id;
     private final CapabilityKind kind;

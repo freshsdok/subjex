@@ -128,6 +128,10 @@ public class PlatformSecurityConfiguration {
                                 "/api/v1/deploy", "/api/v1/forms", "/api/v1/pages", "/api/v1/codegen", "/api/v1/language", "/api/v1/skins",
                                 "/api/v1/capabilities")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                        // Capability try-run: same page.read as list (stubs / preview only).
+                        // 能力试跑：与目录相同 page.read（桩/预览）。
+                        .requestMatchers(HttpMethod.POST, "/api/v1/capabilities/*/run")
+                                .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         .requestMatchers("/admin", "/admin/**", "/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.POST, "/config/entries")

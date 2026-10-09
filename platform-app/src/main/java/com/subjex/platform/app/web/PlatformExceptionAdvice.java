@@ -1,5 +1,6 @@
 package com.subjex.platform.app.web;
 
+import com.subjex.platform.app.capability.CapabilityRejected;
 import com.subjex.platform.app.declaration.DeclarationAlreadyPromoted;
 import com.subjex.platform.app.declaration.DeclarationMigrationApplyFailed;
 import com.subjex.platform.app.declaration.DeclarationMigrationNotReady;
@@ -80,6 +81,11 @@ public class PlatformExceptionAdvice {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new FormProblemDocument(
                         "permission_denied", List.of(), ex.permission(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(CapabilityRejected.class)
+    ResponseEntity<Map<String, String>> capabilityRejected(CapabilityRejected ex) {
+        return ResponseEntity.badRequest().body(Map.of("reason", ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

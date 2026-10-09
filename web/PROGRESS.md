@@ -284,6 +284,27 @@ Migration generator tenant_id — 迁移生成器自动 tenant_id（2026-10-09�
 
 Mig-TID. [done] `EntityMigrationGenerator` auto-appends `tenant_id VARCHAR(64) NOT NULL` when `tenantScoped: true` and no field already maps to that column; no duplicate; PK stays single-column; docs + generator tests. Local commit only (no push). No GenericEntityStore / composite PK rewrite / ALTER / sample YAML flips.
     隔离且字段未含 `tenant_id` 时自动加列；不重复；主键仍单列；文档与测例。仅本地提交。不改通用存储 / 复合主键 / ALTER / 样例 YAML。
-    Next: deepen algo/AI as needed; console badge deferred; idle until next product slice.
-    下一片：视需求加深算法/AI；控制台徽章延后；空闲待下一产品片。
+    Next was Cap-2 (see below).
+    下一片为 Cap-2（见下）。
+
+Capability stubs Cap-2 — 能力桩加深（2026-10-09）:
+
+Cap-2. [done] Stubs `algo.normalizeWhitespace` (trim + collapse) + `ai.suggestTitlePreview` (first line / ~60 chars, no store write); domain actions `capability.algo.normalizeWhitespace` / `capability.ai.suggestTitlePreview`; catalog + runner + FormDomainActionRunner arms; tests. Local commit only (no push). No POST invoke / flow YAML / console UI / real gateway.
+    桩：空白归一化 + 标题建议预览；领域动作挂接；目录/执行器/表单动作与测例。仅本地提交。不开 POST invoke / 流程 YAML / 控制台 / 真网关。
+    Next was Cap-3 (see below).
+    下一片为 Cap-3（见下）。
+
+Capability Cap-3 — 流程挂接 + 试跑 API（2026-10-09）:
+
+Cap-3. [done] Flow `submit.capabilityId` (optional `algo.`/`ai.` + camelCase, fail-closed format); Pages API exposes it; `POST /api/v1/capabilities/{id}/run` with `{inputText}` → `{capabilityId,result}` under `page.read`; catalog fail-closed; stubs only. Local commit only (no push). Cap-4 console UI / real gateway out of scope.
+    流程可选 `submit.capabilityId`；Pages 暴露；试跑 POST（`page.read`）；仍为桩。仅本地提交。Cap-4 控制台 / 真网关后置。
+    Next was Cap-4 (see below).
+    下一片为 Cap-4（见下）。
+
+Capability Cap-4 — 能力控制台薄页（2026-10-09）:
+
+Cap-4. [done] Console `/capabilities`: catalog table + try-run panel (`GET/POST` via platform proxy); `page.read` gate; stub note (no store write / no model-gateway); nav `navCapabilities` + zh/en; vitest title/path helpers. Local commit only (no push). Real gateway / catalog editing out of scope.
+    控制台 `/capabilities`：目录表 + 试跑面板；`page.read` 门禁；桩说明；导航与中英文；辅助单测。仅本地提交。真网关 / 目录编辑后置。
+    Next options: Mac push of Cap-2..4; real model-gateway later.
+    下一波可选：本机推送 Cap-2..4；真 model-gateway 后置。
 

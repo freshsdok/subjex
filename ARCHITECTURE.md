@@ -261,8 +261,8 @@ Product direction: with declarations as the single source of truth, structured c
 - **Z5-2：** POST promote + GET promote history; `declaration.promote` / audit / 409 already PROMOTED; local commit only.
 - **Z5-3：** 控制台 `/declarations` 晋升（审阅→确认、git SHA、晋升历史）；**Z5 基线齐**，双轨晋升闭环。仅本地提交（不依赖 GitHub）。
 - **Z5-3：** Console `/declarations` promote (review→confirm, git SHA, history); **Z5 baseline landed**, dual-track promote loop closed. Local commit only (not GitHub-dependent).
-- **Thin algo/AI：** `capabilities/algorithm-catalog.yaml` + `ai-catalog.yaml`；`CapabilityCatalog`/`CapabilityRunner` 桩（`algo.hashFingerprint`、`ai.summarizePreview`）；领域动作 `capability.algo.hashFingerprint` / `capability.ai.summarizePreview`；`GET /api/v1/capabilities`（`page.read`）；AI 桩不写库、不依赖 model-gateway 模块。仅本地提交。
-- **Thin algo/AI：** Algorithm/AI YAML catalogs; stub runner; domain actions; `GET /api/v1/capabilities` (`page.read`); AI stub does not write / no model-gateway hard dep. Local commit only.
+- **Thin algo/AI：** `capabilities/algorithm-catalog.yaml` + `ai-catalog.yaml`；`CapabilityCatalog`/`CapabilityRunner` 桩（含 `normalizeWhitespace` / `suggestTitlePreview`）；领域动作；`GET/POST /api/v1/capabilities`（列表 + 试跑，`page.read`）；流程可选 `submit.capabilityId`；控制台 `/capabilities`；AI 桩不写库、不依赖 model-gateway。仅本地提交。
+- **Thin algo/AI：** Algorithm/AI YAML catalogs; stub runner + domain actions; `GET/POST /api/v1/capabilities` (list + try-run, `page.read`); flow `submit.capabilityId`; console `/capabilities`; AI stub does not write / no model-gateway hard dep. Local commit only.
 - **MQ-1：** Flyway V16 `declaration_migration` 队列 + `declaration.migrate`；HTTP 入队/列表/审阅。仅本地提交。
 - **MQ-1：** Flyway V16 `declaration_migration` queue + `declaration.migrate`; HTTP enqueue/list/review. Local commit only.
 - **MQ-2：** 执行 REVIEWED 实体 DDL（失败关闭：单语句 `ALTER TABLE`/`CREATE TABLE`，拒 DROP/TRUNCATE）；`POST …/migrations/{id}/apply`；实体晋升与同修订迁移绑定（未 APPLIED/CANCELLED → 409；无行可晋升）。仅本地提交。

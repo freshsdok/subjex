@@ -7,10 +7,12 @@ package com.subjex.page.declare;
  * {@code entityKey} is optional; when set, the flow is tied to an entity-declare key (list/detail APIs).
  * {@code version} is required (integer ≥ 1, fail-closed).
  * {@code permission} is required (fail-closed); {@code tenantScoped} defaults to false when omitted.
+ * Submit may carry optional {@code capabilityId}; see {@link SubmitPageSpec}.
  * {@code formKey} 可选；有值时提交页按该表单字段渲染。
  * {@code entityKey} 可选；有值时流程绑定 entity-declare 键（列表/详情 API）。
  * {@code version} 必填（整数 ≥ 1，缺则拒绝）。
  * {@code permission} 必填（缺则拒绝）；{@code tenantScoped} 省略时默认为 false。
+ * 提交段可带可选 {@code capabilityId}；见 {@link SubmitPageSpec}。
  */
 public record RenderedFlow(
         String flowKey,

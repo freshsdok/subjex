@@ -11,7 +11,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * CapabilityRunnerTest — 能力桩：哈希确定性；AI 预览固定模板且不依赖外部。
+ * CapabilityRunnerTest — 能力桩：哈希/空白归一确定性；AI 预览固定模板且不依赖外部。
  */
 class CapabilityRunnerTest {
 
@@ -27,6 +27,16 @@ class CapabilityRunnerTest {
     }
 
     @Test
+    void normalizeWhitespaceTrimsAndCollapses() {
+        assertEquals(
+                "hello world",
+                runner.run("algo.normalizeWhitespace", Map.of("inputText", "  hello   world  ")));
+        assertEquals(
+                "a b c",
+                runner.run("algo.normalizeWhitespace", Map.of("inputText", "a\t\nb   c")));
+    }
+
+    @Test
     void summarizePreviewReturnsTemplateWithoutWriting() {
         String out = runner.run("ai.summarizePreview", Map.of("inputText", "short note"));
         assertTrue(out.startsWith("[ai.summarizePreview] model-gateway stub preview:"));
@@ -34,10 +44,24 @@ class CapabilityRunnerTest {
     }
 
     @Test
+    void suggestTitlePreviewUsesFirstLineOrSixtyChars() {
+        String multi = runner.run("ai.suggestTitlePreview", Map.of("inputText", "First line\nSecond line"));
+        assertEquals("[ai.suggestTitlePreview] model-gateway stub title: First line", multi);
+        String longLine = "x".repeat(70);
+        String clipped = runner.run("ai.suggestTitlePreview", Map.of("inputText", longLine));
+        assertTrue(clipped.startsWith("[ai.suggestTitlePreview] model-gateway stub title: "));
+        assertTrue(clipped.endsWith("…"));
+        assertEquals(60 + "[ai.suggestTitlePreview] model-gateway stub title: ".length() + 1, clipped.length());
+    }
+
+    @Test
     void blankInputTextIsRejected() {
         assertThrows(
                 CapabilityRejected.class,
                 () -> runner.run("algo.hashFingerprint", Map.of("inputText", "  ")));
+        assertThrows(
+                CapabilityRejected.class,
+                () -> runner.run("algo.normalizeWhitespace", Map.of("inputText", "\t")));
     }
 
     @Test

@@ -31,7 +31,9 @@ public final class CapabilityRunner {
         String inputText = requiredText(inputs, "inputText");
         return switch (id) {
             case ALGO_HASH_FINGERPRINT -> hashFingerprint(inputText);
+            case ALGO_NORMALIZE_WHITESPACE -> normalizeWhitespace(inputText);
             case AI_SUMMARIZE_PREVIEW -> summarizePreview(inputText);
+            case AI_SUGGEST_TITLE_PREVIEW -> suggestTitlePreview(inputText);
         };
     }
 
@@ -46,12 +48,35 @@ public final class CapabilityRunner {
     }
 
     /**
+     * Trim already applied by {@link #requiredText}; collapse internal whitespace runs to single spaces.
+     * requiredText 已去首尾；此处将内部连续空白压成单空格。
+     */
+    private static String normalizeWhitespace(String inputText) {
+        return inputText.replaceAll("\\s+", " ");
+    }
+
+    /**
      * Fixed template preview; does not call model-gateway or mutate stores.
      * 固定模板预览；不调网关、不写库。
      */
     private static String summarizePreview(String inputText) {
         String clipped = inputText.length() > 80 ? inputText.substring(0, 80) + "…" : inputText;
         return "[ai.summarizePreview] model-gateway stub preview: " + clipped;
+    }
+
+    /**
+     * Title suggestion from first line or ~60 chars; preview only, no store write.
+     * 取首行或约 60 字作标题建议；仅预览，不写库。
+     */
+    private static String suggestTitlePreview(String inputText) {
+        String firstLine = inputText;
+        int newline = inputText.indexOf('\n');
+        if (newline >= 0) {
+            firstLine = inputText.substring(0, newline);
+        }
+        firstLine = firstLine.strip();
+        String clipped = firstLine.length() > 60 ? firstLine.substring(0, 60) + "…" : firstLine;
+        return "[ai.suggestTitlePreview] model-gateway stub title: " + clipped;
     }
 
     private static String requiredText(Map<String, Object> inputs, String name) {

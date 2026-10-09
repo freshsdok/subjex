@@ -91,8 +91,12 @@ public final class FormDomainActionRunner {
             case ENTITY_RECORD_UPSERT -> upsertEntityRecord(form, accepted, tenantHeader, operator);
             case CAPABILITY_ALGO_HASH_FINGERPRINT ->
                     capabilities.run("algo.hashFingerprint", accepted);
+            case CAPABILITY_ALGO_NORMALIZE_WHITESPACE ->
+                    capabilities.run("algo.normalizeWhitespace", accepted);
             case CAPABILITY_AI_SUMMARIZE_PREVIEW ->
                     capabilities.run("ai.summarizePreview", accepted);
+            case CAPABILITY_AI_SUGGEST_TITLE_PREVIEW ->
+                    capabilities.run("ai.suggestTitlePreview", accepted);
         };
     }
 

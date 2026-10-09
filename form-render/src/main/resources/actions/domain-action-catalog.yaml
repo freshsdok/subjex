@@ -33,9 +33,21 @@ actions:
     fields:
       - name: inputText
         required: true
+  - key: capability.algo.normalizeWhitespace
+    titleEn: Normalize whitespace (algorithm stub)
+    titleZh: 空白归一化（算法桩）
+    fields:
+      - name: inputText
+        required: true
   - key: capability.ai.summarizePreview
     titleEn: Summarize preview (AI stub)
     titleZh: 摘要预览（AI 桩）
+    fields:
+      - name: inputText
+        required: true
+  - key: capability.ai.suggestTitlePreview
+    titleEn: Suggest title preview (AI stub)
+    titleZh: 标题建议预览（AI 桩）
     fields:
       - name: inputText
         required: true

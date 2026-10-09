@@ -28,11 +28,13 @@ public final class PageRenderer {
     private static final Pattern FIELD_NAME = Pattern.compile("[a-z][A-Za-z0-9]*");
 
     private static final Pattern PERMISSION = Pattern.compile("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+");
+    /** Flow submit capability id format — 流程提交能力 id 格式（algo.|ai. + camelCase）。 */
+    private static final Pattern CAPABILITY_ID = Pattern.compile("(algo|ai)\\.[a-z][A-Za-z0-9]*");
     private static final Set<String> FLOW_KEYS = Set.of(
             "flowKey", "titleEn", "titleZh", "formKey", "entityKey", "version", "permission", "tenantScoped", "list", "detail", "submit");
     private static final Set<String> LIST_KEYS = Set.of("path", "apiPath", "itemsKey", "blocks");
     private static final Set<String> DETAIL_KEYS = Set.of("path", "apiPath", "itemsKey", "idField", "blocks");
-    private static final Set<String> SUBMIT_KEYS = Set.of("path", "apiPath", "redirectTo", "blocks");
+    private static final Set<String> SUBMIT_KEYS = Set.of("path", "apiPath", "redirectTo", "blocks", "capabilityId");
 
     /** First-wave page-block catalog ids — 首波页面积木目录 id（与 page-block-catalog.yaml 对齐）。 */
     private static final Set<String> CATALOG_BLOCK_IDS = Set.of(
@@ -113,7 +115,20 @@ public final class PageRenderer {
         String apiPath = apiPath(text(required(section, "apiPath"), "apiPath"));
         String redirectTo = consolePath(text(required(section, "redirectTo"), "redirectTo"), "redirectTo");
         List<String> blocks = parseBlocks(section, "submit");
-        return new SubmitPageSpec(path, apiPath, redirectTo, blocks);
+        String capabilityId = optionalCapabilityId(section);
+        return new SubmitPageSpec(path, apiPath, redirectTo, blocks, capabilityId);
+    }
+
+    private static String optionalCapabilityId(Map<?, ?> section) {
+        String value = optionalText(section, "capabilityId");
+        if (value == null) {
+            return null;
+        }
+        if (!CAPABILITY_ID.matcher(value).matches()) {
+            throw new PageDefinitionRejected(
+                    "capabilityId must be algo. or ai. followed by a camelCase segment");
+        }
+        return value;
     }
 
     private static String consolePath(String path, String label) {

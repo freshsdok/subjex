@@ -7,3 +7,8 @@ capabilities:
     titleZh: 摘要预览
     summaryEn: Returns a fixed template preview string; does not write. Confirm before critical writes when gateway is wired.
     summaryZh: 返回固定模板预览字符串，不写库。接入网关后关键写回须确认。
+  - id: ai.suggestTitlePreview
+    titleEn: Suggest title preview
+    titleZh: 标题建议预览
+    summaryEn: Returns a fixed template title suggestion from the first line or ~60 chars; does not write.
+    summaryZh: 按首行或约 60 字返回固定模板标题建议，不写库。

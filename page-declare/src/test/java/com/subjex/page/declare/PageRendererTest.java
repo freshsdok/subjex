@@ -37,6 +37,7 @@ class PageRendererTest {
         assertTrue(flow.list().blocks().isEmpty());
         assertTrue(flow.detail().blocks().isEmpty());
         assertTrue(flow.submit().blocks().isEmpty());
+        assertNull(flow.submit().capabilityId());
     }
 
 
@@ -311,6 +312,111 @@ class PageRendererTest {
                   path: /pages/demo-item/new
                   apiPath: /api/v1/demo/items
                   redirectTo: /pages/demo-item
+                """;
+        assertThrows(PageDefinitionRejected.class, () -> renderer.render(yaml));
+    }
+
+
+    @Test
+    void submitCapabilityIdIsAcceptedWhenWellFormed() {
+        String yaml = """
+                flowKey: demo-item
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                list:
+                  path: /pages/demo-item
+                  apiPath: /api/v1/demo/items
+                detail:
+                  path: /pages/demo-item/{id}
+                  apiPath: /api/v1/demo/items
+                  idField: itemId
+                submit:
+                  path: /pages/demo-item/new
+                  apiPath: /api/v1/demo/items
+                  redirectTo: /pages/demo-item
+                  capabilityId: algo.hashFingerprint
+                """;
+        RenderedFlow flow = renderer.render(yaml);
+        assertEquals("algo.hashFingerprint", flow.submit().capabilityId());
+    }
+
+    @Test
+    void submitCapabilityIdAiPrefixIsAccepted() {
+        String yaml = """
+                flowKey: demo-item
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                list:
+                  path: /pages/demo-item
+                  apiPath: /api/v1/demo/items
+                detail:
+                  path: /pages/demo-item/{id}
+                  apiPath: /api/v1/demo/items
+                  idField: itemId
+                submit:
+                  path: /pages/demo-item/new
+                  apiPath: /api/v1/demo/items
+                  redirectTo: /pages/demo-item
+                  capabilityId: ai.suggestTitlePreview
+                """;
+        assertEquals("ai.suggestTitlePreview", renderer.render(yaml).submit().capabilityId());
+    }
+
+    @Test
+    void submitCapabilityIdBadFormatIsRejected() {
+        String base = """
+                flowKey: demo-item
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                list:
+                  path: /pages/demo-item
+                  apiPath: /api/v1/demo/items
+                detail:
+                  path: /pages/demo-item/{id}
+                  apiPath: /api/v1/demo/items
+                  idField: itemId
+                submit:
+                  path: /pages/demo-item/new
+                  apiPath: /api/v1/demo/items
+                  redirectTo: /pages/demo-item
+                  capabilityId: %s
+                """;
+        for (String bad : List.of(
+                "hashFingerprint",
+                "algo.hash_fingerprint",
+                "algo.",
+                "foo.bar",
+                "algo.HashFingerprint")) {
+            assertThrows(PageDefinitionRejected.class, () -> renderer.render(base.formatted(bad)));
+        }
+    }
+
+    @Test
+    void submitUnknownKeyIsStillRejected() {
+        String yaml = """
+                flowKey: demo-item
+                titleEn: Demo
+                titleZh: 演示
+                version: 1
+                permission: page.read
+                list:
+                  path: /pages/demo-item
+                  apiPath: /api/v1/demo/items
+                detail:
+                  path: /pages/demo-item/{id}
+                  apiPath: /api/v1/demo/items
+                  idField: itemId
+                submit:
+                  path: /pages/demo-item/new
+                  apiPath: /api/v1/demo/items
+                  redirectTo: /pages/demo-item
+                  notARealKey: true
                 """;
         assertThrows(PageDefinitionRejected.class, () -> renderer.render(yaml));
     }

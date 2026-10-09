@@ -171,15 +171,21 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 - AZ. [done] Org-W2: thin org console `/org` (units/memberships, review→confirm writes); local commit only.
 - BA. [done] SA-1: platform.super-admin break-glass bootstrap + directory expansion (role_permission stays empty); local commit only.
 - BB. [done] Mig-TID: EntityMigrationGenerator auto-adds tenant_id when tenantScoped and field list omits it; local commit only.
+- BC. [done] Cap-2: stubs `algo.normalizeWhitespace` + `ai.suggestTitlePreview` + domain-action wiring; local commit only.
+- BD. [done] Cap-3: flow `submit.capabilityId` + `POST /api/v1/capabilities/{id}/run` (`page.read`); local commit only.
+- BE. [done] Cap-4: thin console `/capabilities` catalog + try-run; local commit only.
 
 
 ## Thin algo/AI progress / 薄算法·AI 进度
 
 - [done] Classpath catalogs: `platform-app/.../capabilities/algorithm-catalog.yaml`, `ai-catalog.yaml`.
-- [done] Java: `CapabilityKind`, `CapabilityId`, `CapabilityCatalog` (fail-closed), `CapabilityRunner` stubs (`algo.hashFingerprint` SHA-256, `ai.summarizePreview` template; no store write; no vendor SDK / no platform-app→model-gateway hard dep).
-- [done] Domain actions: `capability.algo.hashFingerprint`, `capability.ai.summarizePreview` (`inputText`) wired in `FormDomainActionRunner`.
+- [done] Java: `CapabilityKind`, `CapabilityId`, `CapabilityCatalog` (fail-closed), `CapabilityRunner` stubs (`algo.hashFingerprint` SHA-256, `algo.normalizeWhitespace`, `ai.summarizePreview` / `ai.suggestTitlePreview` templates; no store write; no vendor SDK / no platform-app→model-gateway hard dep).
+- [done] Domain actions: `capability.algo.hashFingerprint`, `capability.algo.normalizeWhitespace`, `capability.ai.summarizePreview`, `capability.ai.suggestTitlePreview` (`inputText`) wired in `FormDomainActionRunner`.
 - [done] `GET /api/v1/capabilities` with `page.read`.
 - [done] Tests: catalog, runner, FormDomainActionRunner arms, CapabilityApiSecurityTest.
+- Cap-2: two more stubs + domain-action arms (still fake).
+- [done] Cap-3: flow YAML optional `submit.capabilityId` (`algo.`/`ai.` + camelCase); Pages JSON exposes it; `POST /api/v1/capabilities/{capabilityId}/run` body `{inputText}` → `{capabilityId,result}` (`page.read`); catalog fail-closed; stubs only.
+- [done] Cap-4: console `/capabilities` catalog table + try-run panel (`page.read`); stub note; no catalog editing / no model-gateway.
 - Local commit only (no push).
 
 
@@ -210,7 +216,7 @@ java -cp "entity-declare/target/entity-declare-0.1.0-SNAPSHOT.jar:$(mvn -pl enti
 
 ## Domain action notes (post-stage #2) / 领域动作说明（阶段后第 2 项）
 
-- Catalog: `form-render` checked-in `actions/domain-action-catalog.yaml` + `DomainActionKey` enum (`registry.register`, `config.override`, entity saves, `capability.algo.hashFingerprint`, `capability.ai.summarizePreview`); each action lists required form field names.
+- Catalog: `form-render` checked-in `actions/domain-action-catalog.yaml` + `DomainActionKey` enum (`registry.register`, `config.override`, entity saves, `capability.algo.hashFingerprint`, `capability.algo.normalizeWhitespace`, `capability.ai.summarizePreview`, `capability.ai.suggestTitlePreview`); each action lists required form field names.
 - Form YAML required `domainAction` (fail-closed at render); required catalog fields must exist on the form. Samples bumped to `version: 2`.
 - Runtime: `FormDomainActionRunner` switches on the declared key (not `formKey`). Catalog JSON exposes `domainAction` on form index/detail.
 - New form reusing an existing key: YAML only. New key: add enum + catalog row + one switch arm.
@@ -311,7 +317,7 @@ Rejected as default sequencing: R2 (org-first for strong approval demos); R3 (st
 
 **已拍板：首波页面积木**（负责人确认）——首波组件目录含：**通用窗体组件**；**ListTable**；**FormFields**（按实体字段生成）；**DetailReadonly**；**Section / Tabs**；**SubmitBar**；**UserPicker / OrgPicker** 占位（薄组织后再接真数据）；**流程分拣器**。非自由画布；v1 不做图表 / 大型富文本编辑器。
 
-**Decided / 已拍板：algorithm / AI thin first wave** (owner confirmed) — first wave includes only a **thin layer**: capability **catalog + 1–2 stubs** (wireable from flow/action), **not** full algorithm or AI engines.
+**Decided / 已拍板：algorithm / AI thin first wave** (owner confirmed) — first wave includes only a **thin layer**: capability **catalog + stubs** (wireable from flow/action; flows may declare `submit.capabilityId`; console can `POST .../capabilities/{id}/run`), **not** full algorithm or AI engines.
 
 **已拍板：算法/AI 首波薄层**（负责人确认）——首波仅**目录 + 1～2 个桩**（可从流程/动作挂接），不做完整算法/AI 引擎。
 

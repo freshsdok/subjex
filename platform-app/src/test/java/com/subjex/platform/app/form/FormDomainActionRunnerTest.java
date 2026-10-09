@@ -211,6 +211,20 @@ class FormDomainActionRunnerTest {
         verify(genericEntities, never()).save(any(), any(), any());
     }
 
+    @Test
+    void runsAlgoNormalizeWhitespaceCapability() {
+        RenderedForm form = form("any", DomainActionKey.CAPABILITY_ALGO_NORMALIZE_WHITESPACE, null);
+        assertEquals("hello world", runner.apply(form, Map.of("inputText", "  hello   world  ")));
+    }
+
+    @Test
+    void runsAiSuggestTitlePreviewWithoutStoreMutation() {
+        RenderedForm form = form("any", DomainActionKey.CAPABILITY_AI_SUGGEST_TITLE_PREVIEW, null);
+        String summary = runner.apply(form, Map.of("inputText", "Ticket subject\nBody"));
+        assertEquals("[ai.suggestTitlePreview] model-gateway stub title: Ticket subject", summary);
+        verify(genericEntities, never()).save(any(), any(), any());
+    }
+
     private static RenderedForm form(String formKey, DomainActionKey action, String entityKey) {
         return new RenderedForm(
                 formKey,

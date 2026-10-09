@@ -15,12 +15,14 @@ class DomainActionCatalogTest {
 
     @Test
     void listsCheckedInActions() {
-        assertEquals(5, catalog.list().size());
+        assertEquals(7, catalog.list().size());
         assertTrue(catalog.knows("registry.register"));
         assertTrue(catalog.knows("config.override"));
         assertTrue(catalog.knows("entity.record.upsert"));
         assertTrue(catalog.knows("capability.algo.hashFingerprint"));
+        assertTrue(catalog.knows("capability.algo.normalizeWhitespace"));
         assertTrue(catalog.knows("capability.ai.summarizePreview"));
+        assertTrue(catalog.knows("capability.ai.suggestTitlePreview"));
         DomainActionSpec register = catalog.require("registry.register");
         assertEquals(DomainActionKey.REGISTRY_REGISTER, register.key());
         assertTrue(register.requiredFields().contains("serviceName"));
@@ -37,9 +39,15 @@ class DomainActionCatalogTest {
         DomainActionSpec hash = catalog.require("capability.algo.hashFingerprint");
         assertEquals(DomainActionKey.CAPABILITY_ALGO_HASH_FINGERPRINT, hash.key());
         assertTrue(hash.requiredFields().contains("inputText"));
+        DomainActionSpec normalize = catalog.require("capability.algo.normalizeWhitespace");
+        assertEquals(DomainActionKey.CAPABILITY_ALGO_NORMALIZE_WHITESPACE, normalize.key());
+        assertTrue(normalize.requiredFields().contains("inputText"));
         DomainActionSpec summarize = catalog.require("capability.ai.summarizePreview");
         assertEquals(DomainActionKey.CAPABILITY_AI_SUMMARIZE_PREVIEW, summarize.key());
         assertTrue(summarize.requiredFields().contains("inputText"));
+        DomainActionSpec title = catalog.require("capability.ai.suggestTitlePreview");
+        assertEquals(DomainActionKey.CAPABILITY_AI_SUGGEST_TITLE_PREVIEW, title.key());
+        assertTrue(title.requiredFields().contains("inputText"));
     }
 
     @Test

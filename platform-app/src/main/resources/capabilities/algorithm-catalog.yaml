@@ -7,3 +7,8 @@ capabilities:
     titleZh: 哈希指纹
     summaryEn: SHA-256 hex digest of inputText (deterministic stub).
     summaryZh: 对 inputText 做 SHA-256 十六进制摘要（确定性桩）。
+  - id: algo.normalizeWhitespace
+    titleEn: Normalize whitespace
+    titleZh: 空白归一化
+    summaryEn: Trim and collapse internal whitespace runs to single spaces (deterministic stub).
+    summaryZh: 去首尾空白并将内部连续空白压成单空格（确定性桩）。

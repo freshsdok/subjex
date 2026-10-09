@@ -18,8 +18,12 @@ public enum DomainActionKey {
     ENTITY_RECORD_UPSERT("entity.record.upsert"),
     /** Deterministic SHA-256 fingerprint of inputText — inputText 的确定性 SHA-256 指纹。 */
     CAPABILITY_ALGO_HASH_FINGERPRINT("capability.algo.hashFingerprint"),
+    /** Deterministic whitespace normalize of inputText — inputText 确定性空白归一化。 */
+    CAPABILITY_ALGO_NORMALIZE_WHITESPACE("capability.algo.normalizeWhitespace"),
     /** AI summarize preview stub (no store write) — AI 摘要预览桩（不写库）。 */
-    CAPABILITY_AI_SUMMARIZE_PREVIEW("capability.ai.summarizePreview");
+    CAPABILITY_AI_SUMMARIZE_PREVIEW("capability.ai.summarizePreview"),
+    /** AI title suggestion preview stub (no store write) — AI 标题建议预览桩（不写库）。 */
+    CAPABILITY_AI_SUGGEST_TITLE_PREVIEW("capability.ai.suggestTitlePreview");
 
     private final String key;
 

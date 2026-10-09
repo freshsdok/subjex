@@ -97,7 +97,8 @@ public class PagesApiEndpoint {
                         flow.submit().path(),
                         flow.submit().apiPath(),
                         flow.submit().redirectTo(),
-                        flow.submit().blocks()));
+                        flow.submit().blocks(),
+                        flow.submit().capabilityId()));
     }
 
     private RenderedFlow resolveFlow(String flowKey, OperatorPrincipal operator, String tenantId) {
@@ -157,5 +158,5 @@ public class PagesApiEndpoint {
     /**
      * SubmitSpecDocument — 提交页描述。
      */
-    public record SubmitSpecDocument(String path, String apiPath, String redirectTo, List<String> blocks) {}
+    public record SubmitSpecDocument(String path, String apiPath, String redirectTo, List<String> blocks, String capabilityId) {}
 }
