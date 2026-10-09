@@ -29,11 +29,11 @@ fields:
     required: true
     maxLength: 32
   - name: assignee
-    kind: text
+    kind: subjectRef
     required: false
     maxLength: 64
-  - name: orgUnit
-    kind: text
+  - name: organization
+    kind: organizationRef
     required: false
     maxLength: 64
 effects:
@@ -55,7 +55,7 @@ describe("form-wizard — 表单向导", () => {
       "title",
       "status",
       "assignee",
-      "orgUnit",
+      "organization",
     ]);
     expect(state.effects).toEqual([
       {

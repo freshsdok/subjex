@@ -365,26 +365,29 @@ class FormRendererTest {
     }
 
     @Test
-    void legacyUserRefAliasStillParsesAsSubjectRef() {
-        String yaml = """
-                formKey: legacy-user-ref
-                titleEn: Legacy
-                titleZh: 旧别名
-                version: 1
-                permission: page.read
-                domainAction: entity.record.upsert
-                entityKey: legacy-user-ref
-                fields:
-                  - name: id
-                    kind: text
-                    required: true
-                    maxLength: 32
-                  - name: assignee
-                    kind: userRef
-                    required: false
-                """;
-        RenderedForm form = renderer.render(yaml);
-        assertEquals(FieldKind.SUBJECT_REF, form.fields().get(1).kind());
+    void rejectsLegacyUserRefAndOrgRefAliases() {
+        for (String bad : new String[] {"userRef", "orgRef"}) {
+            String yaml = """
+                    formKey: legacy-ref
+                    titleEn: Legacy
+                    titleZh: 旧别名
+                    version: 1
+                    permission: page.read
+                    domainAction: entity.record.upsert
+                    entityKey: legacy-ref
+                    fields:
+                      - name: id
+                        kind: text
+                        required: true
+                        maxLength: 32
+                      - name: assignee
+                        kind: %s
+                        required: false
+                    """.formatted(bad);
+            FormDefinitionRejected ex =
+                    assertThrows(FormDefinitionRejected.class, () -> renderer.render(yaml));
+            assertTrue(ex.getMessage().contains("subjectRef") || ex.getMessage().contains("organizationRef"));
+        }
     }
 
 

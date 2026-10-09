@@ -1,4 +1,4 @@
-package com.subjex.platform.app.org;
+package com.subjex.platform.app.org.legacy;
 
 /**
  * OrgUnit — 租户内组织单元（部门/团队）一行。
@@ -8,5 +8,6 @@ package com.subjex.platform.app.org;
  * 树按 {@code tenantId} 隔离。{@code parentOrgUnitId} 为空即根。
  * 不用租户行冒充部门。
  */
+@Deprecated(since = "O8-3", forRemoval = false)
 public record OrgUnit(
         String tenantId, String orgUnitId, String parentOrgUnitId, String unitName, String unitState) {}

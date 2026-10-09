@@ -47,7 +47,7 @@ class GenericEntityStoreTest {
         assertEquals("t-a", listed.get(0).get("ticketId"));
         assertEquals("t-b", listed.get(1).get("ticketId"));
         assertEquals("Alpha", store.findById(demoTicket, "t-a").orElseThrow().get("title"));
-        assertEquals("org-1", store.findById(demoTicket, "t-a").orElseThrow().get("orgUnit"));
+        assertEquals("org-1", store.findById(demoTicket, "t-a").orElseThrow().get("organization"));
         assertEquals("u-1", store.findById(demoTicket, "t-b").orElseThrow().get("assignee"));
 
         store.save(demoTicket, ticket("t-a", "Alpha-2", "closed", "u-2", "org-2"));
@@ -55,7 +55,7 @@ class GenericEntityStoreTest {
         assertEquals("Alpha-2", again.get("title"));
         assertEquals("closed", again.get("status"));
         assertEquals("u-2", again.get("assignee"));
-        assertEquals("org-2", again.get("orgUnit"));
+        assertEquals("org-2", again.get("organization"));
         assertEquals(2, store.list(demoTicket, 10).size());
 
         assertTrue(store.deleteById(demoTicket, "t-b"));
@@ -109,13 +109,13 @@ class GenericEntityStoreTest {
     }
 
     private static Map<String, Object> ticket(
-            String ticketId, String title, String status, String assignee, String orgUnit) {
+            String ticketId, String title, String status, String assignee, String organization) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("ticketId", ticketId);
         row.put("title", title);
         row.put("status", status);
         row.put("assignee", assignee);
-        row.put("orgUnit", orgUnit);
+        row.put("organization", organization);
         return row;
     }
 

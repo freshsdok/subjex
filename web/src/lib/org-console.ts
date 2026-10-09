@@ -28,7 +28,7 @@ export function orgTenantCookieWrite(tenantId: string): string {
 }
 
 /**
- * Normalize org unit / subject id for forms — 规范化组织单元或主体 ID。
+ * Normalize organization / subject id for forms — 规范化组织或主体 ID。
  * Reject blank, whitespace, or slash. 拒绝空串、空白或斜杠。
  */
 export function normalizeOrgId(raw: string | undefined | null): string | null {

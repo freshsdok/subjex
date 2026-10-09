@@ -1,6 +1,6 @@
 package com.subjex.platform.app.form;
 
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.security.OrganizationScope;
 import java.util.List;
 
 /**
@@ -8,9 +8,9 @@ import java.util.List;
  * <p>
  * {@code kind} is {@code validation} (with {@code fieldErrors}) or {@code permission_denied}
  * (with {@code permission} for backward compatibility plus explainable decision fields).
- * {@code orgScope} is the structured scope (mode + roots + unitIds) when present.
+ * {@code orgScope} is the structured scope (mode + rootOrganizationIds + organizationIds) when present.
  * {@code kind} 为 {@code validation}（带 {@code fieldErrors}）或 {@code permission_denied}
- * （保留 {@code permission}，并带可解释判定字段）。{@code orgScope} 有则带模式与单元集合。
+ * （保留 {@code permission}，并带可解释判定字段）。{@code orgScope} 有则带模式与组织 id 集合。
  */
 public record FormProblemDocument(
         String kind,
@@ -19,7 +19,7 @@ public record FormProblemDocument(
         String message,
         String subjectId,
         String tenantId,
-        OrgScope orgScope,
+        OrganizationScope orgScope,
         String resourceKind,
         String resourceId,
         String action,

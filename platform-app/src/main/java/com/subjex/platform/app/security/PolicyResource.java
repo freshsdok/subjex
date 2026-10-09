@@ -7,14 +7,15 @@ import java.util.Objects;
 /**
  * PolicyResource — 策略引擎资源（Cedar resource / Casbin obj 子集）。
  * <p>
- * {@code kind} + {@code id} plus optional attributes ({@link #ATTR_ORG_UNIT_ID}, {@link #ATTR_TENANT_ID}).
- * No custom DSL — flat string attributes only.
+ * {@code kind} + {@code id} plus optional attributes ({@link #ATTR_ORGANIZATION_ID},
+ * {@link #ATTR_TENANT_ID}). No custom DSL — flat string attributes only.
  * kind+id，另加可选属性。无自研 DSL，仅扁平字符串属性。
  */
 public record PolicyResource(String kind, String id, Map<String, String> attributes) {
 
-    /** Org unit id for scope checks — 组织范围用的单元标识。 */
-    public static final String ATTR_ORG_UNIT_ID = "orgUnitId";
+    /** Canonical organization id for scope checks (O8-2). */
+    public static final String ATTR_ORGANIZATION_ID = "organizationId";
+
 
     /** Optional tenant on the resource — 资源上可选租户。 */
     public static final String ATTR_TENANT_ID = "tenantId";
@@ -49,8 +50,9 @@ public record PolicyResource(String kind, String id, Map<String, String> attribu
         return attributes.get(key.trim());
     }
 
-    public String orgUnitId() {
-        return attribute(ATTR_ORG_UNIT_ID);
+    /** Organization id for scope checks — only {@link #ATTR_ORGANIZATION_ID}. */
+    public String organizationId() {
+        return attribute(ATTR_ORGANIZATION_ID);
     }
 
     private static Map<String, String> normalize(Map<String, String> raw) {

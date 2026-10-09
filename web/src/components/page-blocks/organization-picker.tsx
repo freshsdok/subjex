@@ -109,6 +109,3 @@ export function OrganizationPicker({
     </label>
   );
 }
-
-/** @deprecated O6: use OrganizationPicker — 请用 OrganizationPicker */
-export const OrgPicker = OrganizationPicker;

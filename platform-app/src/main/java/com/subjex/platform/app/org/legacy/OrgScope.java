@@ -1,5 +1,6 @@
-package com.subjex.platform.app.security;
+package com.subjex.platform.app.org.legacy;
 
+import com.subjex.platform.app.security.OrganizationScope;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -7,55 +8,54 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * OrgScope — organization scope for authorization (O4).
+ * OrgScope — <strong>deprecated</strong> legacy mirror of {@link OrganizationScope}.
+ * Prefer {@link OrganizationScope}. Kept only for {@code JdbcOrgDirectory} /
+ * {@code /api/v1/org/**} until O8-3 isolates the legacy package.
+ * Field names aligned with OrganizationScope in O8-2 ({@code rootOrganizationIds} /
+ * {@code organizationIds}).
  * <p>
- * Modes: {@link #MODE_NONE}, {@link #MODE_UNRESTRICTED}, {@link #MODE_SELF},
- * {@link #MODE_SELF_AND_DESCENDANTS}, {@link #MODE_EXPLICIT}. Derived at Context time from
- * Membership + OrganizationRelation (or explicit grant) — never stored on Membership.
- * Null on {@link AccessDecision} / {@link PolicyContext} means <em>unspecified</em>;
- * {@link AccessChecker} treats unspecified + resource org id as fail-closed (not UNRESTRICTED).
- * <p>
- * 组织范围（O4）。由 Membership + OrganizationRelation（或显式授予）在 Context 推导；
- * 决策/上下文上 null = 未指定；带资源组织 id 时 fail-closed，不等于 UNRESTRICTED。
+ * 已弃用；正式用 {@link OrganizationScope}。仅旧目录/旧 API 暂留至 O8-3。
  */
-public record OrgScope(String mode, List<String> rootUnitIds, List<String> unitIds) {
+@Deprecated(since = "O8-1", forRemoval = false)
+public record OrgScope(String mode, List<String> rootOrganizationIds, List<String> organizationIds) {
 
-    public static final String MODE_NONE = "NONE";
-    public static final String MODE_UNRESTRICTED = "UNRESTRICTED";
-    public static final String MODE_SELF = "SELF";
-    public static final String MODE_SELF_AND_DESCENDANTS = "SELF_AND_DESCENDANTS";
-    public static final String MODE_EXPLICIT = "EXPLICIT";
+    public static final String MODE_NONE = OrganizationScope.MODE_NONE;
+    public static final String MODE_UNRESTRICTED = OrganizationScope.MODE_UNRESTRICTED;
+    public static final String MODE_SELF = OrganizationScope.MODE_SELF;
+    public static final String MODE_SELF_AND_DESCENDANTS = OrganizationScope.MODE_SELF_AND_DESCENDANTS;
+    public static final String MODE_EXPLICIT = OrganizationScope.MODE_EXPLICIT;
 
     private static final Set<String> KNOWN_MODES = Set.of(
             MODE_NONE, MODE_UNRESTRICTED, MODE_SELF, MODE_SELF_AND_DESCENDANTS, MODE_EXPLICIT);
 
     public OrgScope {
         mode = normalizeMode(mode);
-        rootUnitIds = List.copyOf(normalizeIds(rootUnitIds));
-        unitIds = List.copyOf(normalizeIds(unitIds));
+        rootOrganizationIds = List.copyOf(normalizeIds(rootOrganizationIds));
+        organizationIds = List.copyOf(normalizeIds(organizationIds));
         if (MODE_NONE.equals(mode) || MODE_UNRESTRICTED.equals(mode)) {
-            rootUnitIds = List.of();
-            unitIds = List.of();
+            rootOrganizationIds = List.of();
+            organizationIds = List.of();
         }
     }
 
-    /** Explicit empty scope — deny org-scoped resources. */
+    /** Convert to canonical {@link OrganizationScope} (Legacy → New). */
+    public OrganizationScope toOrganizationScope() {
+        return new OrganizationScope(mode, rootOrganizationIds, organizationIds);
+    }
+
     public static OrgScope none() {
         return new OrgScope(MODE_NONE, List.of(), List.of());
     }
 
-    /** Explicit platform / break-glass grant — never implied by missing data. */
     public static OrgScope unrestricted() {
         return new OrgScope(MODE_UNRESTRICTED, List.of(), List.of());
     }
 
-    /** Only organizations where the subject has ACTIVE Membership. */
     public static OrgScope self(Collection<String> membershipOrgIds) {
         List<String> ids = List.copyOf(normalizeIds(membershipOrgIds));
         return new OrgScope(MODE_SELF, ids, ids);
     }
 
-    /** SELF plus CONTAINS closure. */
     public static OrgScope selfAndDescendants(Collection<String> roots, Collection<String> expanded) {
         return new OrgScope(
                 MODE_SELF_AND_DESCENDANTS,
@@ -63,10 +63,17 @@ public record OrgScope(String mode, List<String> rootUnitIds, List<String> unitI
                 List.copyOf(normalizeIds(expanded)));
     }
 
-    /** Caller- or policy-supplied organization id set. */
     public static OrgScope explicit(Collection<String> organizationIds) {
         List<String> ids = List.copyOf(normalizeIds(organizationIds));
         return new OrgScope(MODE_EXPLICIT, ids, ids);
+    }
+
+    /** Bridge from canonical scope (legacy adapters). */
+    public static OrgScope fromOrganizationScope(OrganizationScope scope) {
+        if (scope == null) {
+            return null;
+        }
+        return new OrgScope(scope.mode(), scope.rootOrganizationIds(), scope.organizationIds());
     }
 
     public boolean isNone() {
@@ -77,12 +84,8 @@ public record OrgScope(String mode, List<String> rootUnitIds, List<String> unitI
         return MODE_UNRESTRICTED.equals(mode);
     }
 
-    /**
-     * Whether {@code orgUnitId} / organization id is inside this scope.
-     * UNRESTRICTED → true for any non-blank id; NONE → false; others → membership in unitIds.
-     */
-    public boolean contains(String orgUnitId) {
-        if (orgUnitId == null || orgUnitId.isBlank()) {
+    public boolean contains(String organizationId) {
+        if (organizationId == null || organizationId.isBlank()) {
             return false;
         }
         if (isUnrestricted()) {
@@ -91,18 +94,14 @@ public record OrgScope(String mode, List<String> rootUnitIds, List<String> unitI
         if (isNone()) {
             return false;
         }
-        return unitIds.contains(orgUnitId.trim());
+        return organizationIds.contains(organizationId.trim());
     }
 
-    /**
-     * Short summary for logs / flat displays.
-     * Example: {@code SELF_AND_DESCENDANTS roots=[u-eng] units=[u-eng,u-team]}.
-     */
     public String summary() {
         if (isNone() || isUnrestricted()) {
             return mode;
         }
-        return mode + " roots=" + rootUnitIds + " units=" + unitIds;
+        return mode + " roots=" + rootOrganizationIds + " orgs=" + organizationIds;
     }
 
     private static String normalizeMode(String raw) {

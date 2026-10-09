@@ -1,4 +1,4 @@
-package com.subjex.platform.app.org;
+package com.subjex.platform.app.org.legacy;
 
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR_PASSWORD;
@@ -14,7 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.subjex.platform.app.security.LocalOperatorSeeder;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.org.legacy.OrgScope;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.app.security.OperatorTenantAccess;

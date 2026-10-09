@@ -89,19 +89,11 @@ export const PAGE_BLOCK_IDS: readonly string[] = PAGE_BLOCKS_CATALOG.map((entry)
 
 export const PAGE_BLOCK_ID_SET: ReadonlySet<string> = new Set(PAGE_BLOCK_IDS);
 
-/** O6 transition: old flow YAML may still list UserPicker/OrgPicker — 过渡期旧积木 id。 */
-export const LEGACY_PAGE_BLOCK_ALIASES: ReadonlySet<string> = new Set([
-  "UserPicker",
-  "OrgPicker",
-]);
-
 export function isPageBlockId(value: string): boolean {
-  return PAGE_BLOCK_ID_SET.has(value) || LEGACY_PAGE_BLOCK_ALIASES.has(value);
+  return PAGE_BLOCK_ID_SET.has(value);
 }
 
-/** Canonical block id (maps legacy aliases) — 规范积木 id。 */
+/** Canonical block id (O8-5: no legacy aliases) — 规范积木 id（无旧别名）。 */
 export function canonicalPageBlockId(value: string): string {
-  if (value === "UserPicker") return "SubjectPicker";
-  if (value === "OrgPicker") return "OrganizationPicker";
   return value;
 }

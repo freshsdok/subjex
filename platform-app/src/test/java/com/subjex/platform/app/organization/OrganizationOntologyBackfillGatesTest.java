@@ -5,11 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.subjex.platform.app.org.JdbcOrgDirectory;
-import com.subjex.platform.app.org.OrgMembership;
-import com.subjex.platform.app.org.OrgUnit;
+import com.subjex.platform.app.org.legacy.JdbcOrgDirectory;
+import com.subjex.platform.app.org.legacy.OrgMembership;
+import com.subjex.platform.app.org.legacy.OrgUnit;
 import com.subjex.platform.app.security.H2PlatformTables;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.org.legacy.OrgScope;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -101,7 +101,7 @@ class OrganizationOntologyBackfillGatesTest {
                         .collect(Collectors.toSet()));
 
         OrgScope scope = directory.resolveSelfAndDescendants("acme", "sub-a");
-        assertEquals(Set.of("u-root", "u-eng"), new HashSet<>(scope.unitIds()));
+        assertEquals(Set.of("u-root", "u-eng"), new HashSet<>(scope.organizationIds()));
     }
 
     @ParameterizedTest
@@ -130,8 +130,9 @@ class OrganizationOntologyBackfillGatesTest {
 
         assertEquals("Sales", directory.listUnits("tenant-a").get(0).unitName());
         assertEquals("Sales", directory.listUnits("tenant-b").get(0).unitName());
-        assertEquals("sales", directory.listUnits("tenant-a").get(0).orgUnitId());
-        assertEquals("sales", directory.listUnits("tenant-b").get(0).orgUnitId());
+        // O8-4 ontology-first: legacy wire id is organization_id (map alias still in table)
+        assertEquals(orgA, directory.listUnits("tenant-a").get(0).orgUnitId());
+        assertEquals(orgB, directory.listUnits("tenant-b").get(0).orgUnitId());
     }
 
     private static boolean tableExists(JdbcTemplate jdbc, String tableName) throws Exception {

@@ -1,4 +1,4 @@
-package com.subjex.platform.app.org;
+package com.subjex.platform.app.org.legacy;
 
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.organization.OrganizationApiEndpoint;

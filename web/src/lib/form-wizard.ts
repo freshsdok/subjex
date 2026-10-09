@@ -13,10 +13,8 @@ export const FORM_FIELD_KINDS = [
 ] as const;
 export type FormWizardFieldKind = (typeof FORM_FIELD_KINDS)[number];
 
-/** O6: map legacy wire names to canonical kinds — 旧字段种类 → 规范名。 */
+/** Accept only canonical form field kinds (O8-5) — 仅接受规范表单字段种类。 */
 export function normalizeFormFieldKind(raw: string): FormWizardFieldKind | null {
-  if (raw === "userRef") return "subjectRef";
-  if (raw === "orgRef") return "organizationRef";
   if ((FORM_FIELD_KINDS as readonly string[]).includes(raw)) {
     return raw as FormWizardFieldKind;
   }

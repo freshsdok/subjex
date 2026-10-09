@@ -46,9 +46,6 @@ public final class PageRenderer {
             "SubmitBar",
             "SubjectPicker",
             "OrganizationPicker",
-            // O6: legacy block ids still accepted during transition
-            "UserPicker",
-            "OrgPicker",
             "FlowSorter");
 
     /**

@@ -110,6 +110,3 @@ export function SubjectPicker({
     </label>
   );
 }
-
-/** @deprecated O6: use SubjectPicker — 请用 SubjectPicker */
-export const UserPicker = SubjectPicker;

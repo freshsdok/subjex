@@ -1,4 +1,4 @@
-package com.subjex.platform.app.org;
+package com.subjex.platform.app.org.legacy;
 
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR_PASSWORD;
@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.subjex.platform.app.security.AccessDecision;
 import com.subjex.platform.app.security.LocalOperatorSeeder;
 import com.subjex.platform.app.security.OperatorActionAudit;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.org.legacy.OrgScope;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.SqlRbacPolicyEngine;
@@ -245,7 +245,7 @@ class OrgWriteSecurityTest {
                 .andExpect(jsonPath("$.kind").value("permission_denied"))
                 .andExpect(jsonPath("$.denyReason").value(AccessDecision.DENY_ORG_OUT_OF_SCOPE))
                 .andExpect(jsonPath("$.orgScope.mode").value(OrgScope.MODE_SELF_AND_DESCENDANTS))
-                .andExpect(jsonPath("$.orgScope.rootUnitIds[0]").value("u-eng"));
+                .andExpect(jsonPath("$.orgScope.rootOrganizationIds[0]").value("u-eng"));
         verify(directory, never()).upsertUnit(anyString(), anyString(), any(), anyString(), any());
 
         mockMvc.perform(put(OrgApiEndpoint.PATH + "/memberships")

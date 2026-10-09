@@ -14,10 +14,8 @@ export const ENTITY_FIELD_KINDS = [
 ] as const;
 export type EntityWizardFieldKind = (typeof ENTITY_FIELD_KINDS)[number];
 
-/** O6: map legacy wire names to canonical kinds — 旧字段种类 → 规范名。 */
+/** Accept only canonical entity field kinds (O8-5) — 仅接受规范实体字段种类。 */
 export function normalizeEntityFieldKind(raw: string): EntityWizardFieldKind | null {
-  if (raw === "userRef") return "subjectRef";
-  if (raw === "orgRef") return "organizationRef";
   if ((ENTITY_FIELD_KINDS as readonly string[]).includes(raw)) {
     return raw as EntityWizardFieldKind;
   }

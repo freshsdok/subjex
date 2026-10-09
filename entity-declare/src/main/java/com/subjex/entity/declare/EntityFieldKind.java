@@ -5,14 +5,13 @@ package com.subjex.entity.declare;
  * <p>
  * {@code text} becomes a string column. {@code integer} becomes a whole-number column.
  * {@code boolean} is JDBC BOOLEAN. {@code enum} / {@code date} / refs are VARCHAR.
- * Canonical refs (O6): {@code subjectRef} / {@code organizationRef} / {@code entityRef}.
- * Legacy aliases {@code userRef} / {@code orgRef} still parse to the same kinds.
- * Never invent {@code organizationUnitRef} / {@code tenantOrgUnitRef}.
+ * Canonical refs (O8-5): {@code subjectRef} / {@code organizationRef} / {@code entityRef} only.
+ * Never invent {@code organizationUnitRef} / {@code tenantOrgUnitRef}; do not accept
+ * legacy {@code userRef} / {@code orgRef}.
  * <p>
  * {@code text} 成为字符串列。{@code integer} 成为整数列。
  * {@code boolean} 为 JDBC BOOLEAN。{@code enum} / {@code date} / 引用为 VARCHAR。
- * 规范引用（O6）：{@code subjectRef} / {@code organizationRef} / {@code entityRef}。
- * 旧别名 {@code userRef} / {@code orgRef} 仍解析为同一种类。禁止 organizationUnitRef/tenantOrgUnitRef。
+ * 规范引用（O8-5）：仅 {@code subjectRef} / {@code organizationRef} / {@code entityRef}。
  */
 public enum EntityFieldKind {
     TEXT,
@@ -40,15 +39,20 @@ public enum EntityFieldKind {
         if ("date".equals(kind)) {
             return DATE;
         }
-        // Canonical + legacy alias (O6 dual-accept) — 规范名 + 过渡期旧名
-        if ("subjectRef".equals(kind) || "userRef".equals(kind)) {
+        if ("subjectRef".equals(kind)) {
             return SUBJECT_REF;
         }
-        if ("organizationRef".equals(kind) || "orgRef".equals(kind)) {
+        if ("organizationRef".equals(kind)) {
             return ORGANIZATION_REF;
         }
         if ("entityRef".equals(kind)) {
             return ENTITY_REF;
+        }
+        if ("userRef".equals(kind) || "orgRef".equals(kind)) {
+            throw new EntityDefinitionRejected(
+                    "field kind "
+                            + kind
+                            + " is not allowed; use subjectRef or organizationRef (O8-5)");
         }
         if ("organizationUnitRef".equals(kind) || "tenantOrgUnitRef".equals(kind)) {
             throw new EntityDefinitionRejected(
@@ -57,12 +61,11 @@ public enum EntityFieldKind {
                             + " is not allowed; use organizationRef (never organizationUnitRef/tenantOrgUnitRef)");
         }
         throw new EntityDefinitionRejected(
-                "field kind is not text, integer, boolean, enum, date, subjectRef, organizationRef, or entityRef"
-                        + " (legacy aliases userRef/orgRef still accepted)");
+                "field kind is not text, integer, boolean, enum, date, subjectRef, organizationRef, or entityRef");
     }
 
     /**
-     * Canonical YAML / API wire name — 声明与 API 规范落库名（不含旧别名）。
+     * Canonical YAML / API wire name — 声明与 API 规范落库名。
      */
     public String wireName() {
         return switch (this) {

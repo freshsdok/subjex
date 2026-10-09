@@ -1,7 +1,6 @@
 package com.subjex.platform.app.organization;
 
 import com.subjex.platform.app.api.JsonApi;
-import com.subjex.platform.app.org.JdbcOrgDirectory;
 import com.subjex.platform.app.security.AccessAction;
 import com.subjex.platform.app.security.AccessDecision;
 import com.subjex.platform.app.security.AccessDecisionDeniedException;
@@ -10,7 +9,7 @@ import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorPermission;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.security.OrganizationScope;
 import com.subjex.platform.app.security.PolicyContext;
 import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.PolicyPrincipal;
@@ -33,11 +32,11 @@ import org.springframework.web.server.ResponseStatusException;
  * OrganizationApiEndpoint — O5 Organization ontology JSON API.
  * <p>
  * Paths under {@code /api/v1/organizations}. Needs {@code org.read} / {@code org.write}
- * (same as legacy {@code /api/v1/org/**}). Writes hit ontology tables then reverse
- * write-through to legacy {@code org_unit}/{@code org_membership} for O3 dual-read.
- * Scope uses organization ids ({@link JdbcOrgDirectory#resolveOrganizationSelfAndDescendants}).
+ * (same as legacy {@code /api/v1/org/**}). Writes hit ontology tables only (O8-4: no map /
+ * {@link OrganizationOntologyBackfill} on the happy path). Scope from
+ * {@link OrganizationScopeResolver} (Membership + CONTAINS; no map).
  * <p>
- * O5 组织本体 JSON。权限与旧 {@code /api/v1/org} 相同；写落新表并反向写透旧表。
+ * O5/O8-4 组织本体 JSON。写只落本体表；范围经 OrganizationScopeResolver（不经 map）。
  */
 @RestController
 public class OrganizationApiEndpoint {
@@ -45,22 +44,19 @@ public class OrganizationApiEndpoint {
     public static final String PATH = JsonApi.BASE + "/organizations";
 
     private final JdbcOrganizationStore store;
-    private final OrganizationOntologyBackfill backfill;
-    private final JdbcOrgDirectory directory;
+    private final OrganizationScopeResolver scopeResolver;
     private final OperatorTenantAccess tenantAccess;
     private final OperatorActionAudit audit;
     private final PolicyEngine policyEngine;
 
     public OrganizationApiEndpoint(
             JdbcOrganizationStore store,
-            OrganizationOntologyBackfill backfill,
-            JdbcOrgDirectory directory,
+            OrganizationScopeResolver scopeResolver,
             OperatorTenantAccess tenantAccess,
             OperatorActionAudit audit,
             PolicyEngine policyEngine) {
         this.store = Objects.requireNonNull(store, "store");
-        this.backfill = Objects.requireNonNull(backfill, "backfill");
-        this.directory = Objects.requireNonNull(directory, "directory");
+        this.scopeResolver = Objects.requireNonNull(scopeResolver, "scopeResolver");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
@@ -71,7 +67,7 @@ public class OrganizationApiEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestParam(value = "tenantId", required = false) String tenantId) {
         String tid = requireTenantIdParam(tenantId);
-        OrgScope scope = resolveScope(operator, tid);
+        OrganizationScope scope = resolveScope(operator, tid);
         List<OrganizationDocument> organizations = store.listOrganizationsLinkedToTenant(tid).stream()
                 .filter(o -> inScopeOrUnspecified(scope, o.organizationId()))
                 .map(o -> toDocument(tid, o))
@@ -85,7 +81,7 @@ public class OrganizationApiEndpoint {
             @PathVariable("organizationId") String organizationId,
             @RequestParam(value = "tenantId", required = false) String tenantId) {
         String tid = requireTenantIdParam(tenantId);
-        OrgScope scope = resolveScope(operator, tid);
+        OrganizationScope scope = resolveScope(operator, tid);
         Organization org = store.listOrganizationsLinkedToTenant(tid).stream()
                 .filter(o -> o.organizationId().equals(organizationId.trim()))
                 .findFirst()
@@ -115,12 +111,11 @@ public class OrganizationApiEndpoint {
             throw new IllegalArgumentException("body required");
         }
         String oid = requireNonBlank(organizationId, "organizationId");
-        OrgScope scope = resolveScope(operator, tid);
+        OrganizationScope scope = resolveScope(operator, tid);
         requireOrganizationWritable(operator, tid, scope, oid, body.parentOrganizationId());
         Organization saved = store.upsertOrganization(oid, body.organizationName(), body.organizationState());
         store.upsertTenantOrganization(tid, oid, JdbcOrganizationStore.STATE_ACTIVE);
         store.setContainsParent(oid, body.parentOrganizationId());
-        backfill.syncOrganizationToLegacy(tid, saved, body.parentOrganizationId());
         audit.record(operator, "organization.upsert", tid + "/" + saved.organizationId(), AuditOutcome.ALLOWED);
         return toDocument(tid, saved);
     }
@@ -131,7 +126,7 @@ public class OrganizationApiEndpoint {
             @RequestParam(value = "tenantId", required = false) String tenantId,
             @RequestParam(value = "subjectId", required = false) String subjectId) {
         String tid = requireTenantIdParam(tenantId);
-        OrgScope scope = resolveScope(operator, tid);
+        OrganizationScope scope = resolveScope(operator, tid);
         List<MembershipDocument> memberships = store.listMembershipsForTenant(tid, subjectId).stream()
                 .filter(m -> inScopeOrUnspecified(scope, m.organizationId()))
                 .map(m -> membershipDocument(tid, m))
@@ -148,7 +143,7 @@ public class OrganizationApiEndpoint {
         if (body == null) {
             throw new IllegalArgumentException("body required");
         }
-        OrgScope scope = resolveScope(operator, tid);
+        OrganizationScope scope = resolveScope(operator, tid);
         requireMembershipOrganizationInScope(operator, tid, scope, body.organizationId());
         if (!store.organizationExists(body.organizationId())) {
             throw new IllegalArgumentException("organization not found");
@@ -161,7 +156,6 @@ public class OrganizationApiEndpoint {
         }
         Membership saved =
                 store.upsertMembership(body.subjectId(), body.organizationId(), body.membershipState());
-        backfill.syncMembershipToLegacy(tid, saved);
         audit.record(
                 operator,
                 "organization.membership.upsert",
@@ -177,12 +171,11 @@ public class OrganizationApiEndpoint {
             @RequestParam(value = "subjectId", required = false) String subjectId,
             @RequestParam(value = "organizationId", required = false) String organizationId) {
         String tid = requireTenant(operator, tenantId);
-        OrgScope scope = resolveScope(operator, tid);
+        OrganizationScope scope = resolveScope(operator, tid);
         requireMembershipOrganizationInScope(operator, tid, scope, organizationId);
         if (!store.endMembership(subjectId, organizationId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        backfill.endMembershipToLegacy(tid, subjectId, organizationId);
         audit.record(
                 operator,
                 "organization.membership.remove",
@@ -205,20 +198,20 @@ public class OrganizationApiEndpoint {
                 tenantId, row.subjectId(), row.organizationId(), row.membershipState());
     }
 
-    private OrgScope resolveScope(OperatorPrincipal operator, String tenantId) {
+    private OrganizationScope resolveScope(OperatorPrincipal operator, String tenantId) {
         if (operator == null || operator.subjectId() == null || operator.subjectId().isBlank()) {
-            return OrgScope.none();
+            return OrganizationScope.none();
         }
-        return directory.resolveOrganizationSelfAndDescendants(tenantId, operator.subjectId());
+        return scopeResolver.resolveSelfAndDescendants(tenantId, operator.subjectId());
     }
 
     private void requireOrganizationWritable(
             OperatorPrincipal operator,
             String tenantId,
-            OrgScope scope,
+            OrganizationScope scope,
             String organizationId,
             String parentOrganizationId) {
-        OrgScope effective = scope == null ? OrgScope.none() : scope;
+        OrganizationScope effective = scope == null ? OrganizationScope.none() : scope;
         if (effective.isUnrestricted()) {
             return;
         }
@@ -251,20 +244,20 @@ public class OrganizationApiEndpoint {
     }
 
     private void requireMembershipOrganizationInScope(
-            OperatorPrincipal operator, String tenantId, OrgScope scope, String organizationId) {
-        OrgScope effective = scope == null ? OrgScope.none() : scope;
+            OperatorPrincipal operator, String tenantId, OrganizationScope scope, String organizationId) {
+        OrganizationScope effective = scope == null ? OrganizationScope.none() : scope;
         String oid = organizationId == null ? "" : organizationId.trim();
         policyEngine.require(
                 PolicyPrincipal.from(operator),
                 OperatorPermission.ORG_WRITE.permissionName(),
                 AccessAction.of("write"),
                 PolicyResource.of("membership", oid)
-                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, oid)
+                        .withAttribute(PolicyResource.ATTR_ORGANIZATION_ID, oid)
                         .withAttribute(PolicyResource.ATTR_TENANT_ID, tenantId),
                 PolicyContext.of(tenantId, false, effective));
     }
 
-    private static boolean inScopeOrUnspecified(OrgScope scope, String organizationId) {
+    private static boolean inScopeOrUnspecified(OrganizationScope scope, String organizationId) {
         if (scope == null) {
             return false;
         }

@@ -17,7 +17,7 @@ blocks:
     titleEn: Form fields (from entity/form)
     titleZh: 表单字段（来自实体/表单）
     summaryEn: Renders form/entity fields (text/number/date/enum/boolean; subjectRef/organizationRef via pickers). Used by declared submit.
-    summaryZh: 按表单/实体字段渲染控件（文本/数字/日期/枚举/布尔；subjectRef/organizationRef 走选人/选部门）。声明式提交页使用。
+    summaryZh: 按表单/实体字段渲染控件（文本/数字/日期/枚举/布尔；subjectRef/organizationRef 走 SubjectPicker/OrganizationPicker）。声明式提交页使用。
     status: runtime
   - id: DetailReadonly
     titleEn: Detail (read-only)

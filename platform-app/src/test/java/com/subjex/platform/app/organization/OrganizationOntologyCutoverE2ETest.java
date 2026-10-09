@@ -10,11 +10,22 @@ import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.form.render.FieldKind;
 import com.subjex.form.render.FormRenderer;
 import com.subjex.form.render.RenderedForm;
-import com.subjex.platform.app.org.JdbcOrgDirectory;
-import com.subjex.platform.app.org.OrgMembership;
-import com.subjex.platform.app.org.OrgUnit;
+import com.subjex.platform.app.org.legacy.JdbcOrgDirectory;
+import com.subjex.platform.app.security.AccessAction;
+import com.subjex.platform.app.security.AccessChecker;
+import com.subjex.platform.app.security.AccessDecision;
+import com.subjex.platform.app.security.AccessResource;
+import com.subjex.platform.app.security.OperatorPrincipal;
+import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.OrganizationScope;
+import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
+import com.subjex.platform.contract.tenant.TenantGuard;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import com.subjex.platform.app.org.legacy.OrgMembership;
+import com.subjex.platform.app.org.legacy.OrgUnit;
 import com.subjex.platform.app.security.H2PlatformTables;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.org.legacy.OrgScope;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -31,18 +42,18 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * O7 E2E gate: backfill → org directory/API shapes → auth scope on Membership+Relation →
- * declaration subjectRef/organizationRef → console path smoke.
+ * O7/O8-6 E2E: backfill → org surface → auth scope → Relationship≠Authorization →
+ * scope without map → declaration refs → console path smoke.
  * <p>
  * Pre-DROP: seeds legacy {@code org_unit}/{@code org_membership} then backfills.
- * Post-DROP: seeds via {@link JdbcOrgDirectory} ontology adapters + map.
- * O7 端到端门禁；DROP 前后均可跑（自动检测旧表是否存在）。
+ * Post-DROP: seeds via {@link JdbcOrgDirectory} ontology adapters.
+ * O7/O8-6 端到端；DROP 前后均可跑。
  */
 class OrganizationOntologyCutoverE2ETest {
 
     @ParameterizedTest
     @EnumSource(H2PlatformTables.Mode.class)
-    @DisplayName("E2E-01 Ontology cutover: backfill, org surface, auth scope, declaration, console")
+    @DisplayName("E2E-01 Ontology cutover + O8-6 Relationship≠Authorization + scope without map")
     void E2E_01_ontologyCutover(H2PlatformTables.Mode mode) throws Exception {
         JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
         JdbcOrganizationStore store = new JdbcOrganizationStore(jdbc);
@@ -125,8 +136,8 @@ class OrganizationOntologyCutoverE2ETest {
         // --- authorization scope from Membership + OrganizationRelation ---
         OrgScope scope = directory.resolveSelfAndDescendants("acme", "sub-eng");
         assertEquals(OrgScope.MODE_SELF_AND_DESCENDANTS, scope.mode());
-        assertEquals(List.of("u-eng"), scope.rootUnitIds());
-        assertEquals(Set.of("u-eng", "u-team"), new HashSet<>(scope.unitIds()));
+        assertEquals(List.of("u-eng"), scope.rootOrganizationIds());
+        assertEquals(Set.of("u-eng", "u-team"), new HashSet<>(scope.organizationIds()));
         assertFalse(scope.contains("u-root"));
         assertTrue(directory.resolveSelfAndDescendants("acme", "sub-missing").isNone());
 
@@ -180,6 +191,35 @@ class OrganizationOntologyCutoverE2ETest {
                 """);
         assertEquals(FieldKind.SUBJECT_REF, form.fields().get(1).kind());
         assertEquals(FieldKind.ORGANIZATION_REF, form.fields().get(2).kind());
+
+        // --- E2E-02 Relationship ≠ Authorization (Membership alone does not grant org.write) ---
+        OperatorPrincipal noPerm = new OperatorPrincipal(
+                "login-e2e", "hash", "identity-e2e", "sub-eng", java.util.Set.of(), true);
+        OperatorTenantAccess tenantAccess = mock(OperatorTenantAccess.class);
+        when(tenantAccess.isGranted(noPerm, "acme")).thenReturn(true);
+        TenantGuard tenantGuard = new DenyWhenTenantMissing();
+        AccessDecision denied = AccessChecker.evaluate(
+                noPerm,
+                "org.write",
+                true,
+                "acme",
+                tenantGuard,
+                tenantAccess,
+                AccessResource.of("organization", engOrgId),
+                AccessAction.of("write"),
+                directory.resolveSelfAndDescendants("acme", "sub-eng").toOrganizationScope(),
+                engOrgId);
+        assertFalse(denied.allowed());
+        assertEquals(AccessDecision.DENY_PERMISSION_MISSING, denied.denyReason());
+
+        // --- E2E-03 Scope without map (OrganizationScopeResolver; no map SQL) ---
+        OrganizationScopeResolver scopeResolver = new OrganizationScopeResolver(store);
+        OrganizationScope formalScope = scopeResolver.resolveSelfAndDescendants("acme", "sub-eng");
+        assertEquals(OrganizationScope.MODE_SELF_AND_DESCENDANTS, formalScope.mode());
+        assertTrue(formalScope.contains(engOrgId));
+        assertTrue(formalScope.contains(teamOrgId));
+        assertFalse(formalScope.contains(
+                backfill.findOrganizationId("acme", "u-root").orElse("u-root")));
 
         // --- console path smoke (source under web/) ---
         Path console = resolveConsolePath();

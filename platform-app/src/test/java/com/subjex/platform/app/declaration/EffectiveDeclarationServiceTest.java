@@ -49,11 +49,11 @@ class EffectiveDeclarationServiceTest {
                 required: true
                 maxLength: 32
               - name: assignee
-                kind: userRef
+                kind: subjectRef
                 required: false
                 maxLength: 64
-              - name: orgUnit
-                kind: orgRef
+              - name: organization
+                kind: organizationRef
                 required: false
                 maxLength: 64
             """;

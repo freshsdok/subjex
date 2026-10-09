@@ -1,7 +1,7 @@
 # Demo ticket entity — 演示工单实体（Z1 通用引擎样例）
 # New sample for the generic entity engine; does not replace service-note.
 # 通用实体引擎新样例；不替换 service-note。
-# O6: subjectRef / organizationRef (legacy userRef/orgRef still parse).
+# O8-5: subjectRef / organizationRef only.
 entityKey: demo-ticket
 tableName: demo_ticket
 version: 1
@@ -24,7 +24,7 @@ fields:
     kind: subjectRef
     required: false
     maxLength: 64
-  - name: orgUnit
+  - name: organization
     kind: organizationRef
     required: false
     maxLength: 64

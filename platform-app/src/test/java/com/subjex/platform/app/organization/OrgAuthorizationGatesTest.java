@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.subjex.platform.app.org.JdbcOrgDirectory;
+import com.subjex.platform.app.org.legacy.JdbcOrgDirectory;
 import com.subjex.platform.app.security.AccessAction;
 import com.subjex.platform.app.security.AccessChecker;
 import com.subjex.platform.app.security.AccessDecision;
@@ -14,7 +14,8 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.org.legacy.OrgScope;
+import com.subjex.platform.app.security.OrganizationScope;
 import com.subjex.platform.app.security.PolicyContext;
 import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.PolicyPrincipal;
@@ -78,7 +79,7 @@ class OrgAuthorizationGatesTest {
                 tenantAccess,
                 resource,
                 action,
-                derived,
+                derived.toOrganizationScope(),
                 "u-eng");
         assertFalse(decision.allowed());
         assertEquals(AccessDecision.DENY_PERMISSION_MISSING, decision.denyReason());
@@ -108,10 +109,10 @@ class OrgAuthorizationGatesTest {
     @EnumSource(H2PlatformTables.Mode.class)
     @DisplayName("AUTH-03 NONE != UNRESTRICTED")
     void AUTH_03_noneNotUnrestricted(H2PlatformTables.Mode mode) {
-        assertFalse(OrgScope.none().contains("u-any"));
-        assertTrue(OrgScope.unrestricted().contains("u-any"));
-        assertFalse(OrgScope.none().isUnrestricted());
-        assertFalse(OrgScope.unrestricted().isNone());
+        assertFalse(OrganizationScope.none().contains("u-any"));
+        assertTrue(OrganizationScope.unrestricted().contains("u-any"));
+        assertFalse(OrganizationScope.none().isUnrestricted());
+        assertFalse(OrganizationScope.unrestricted().isNone());
 
         OperatorPrincipal operator = operator("sub-1", Set.of("org.write"));
         AccessDecision noneDeny = AccessChecker.evaluate(
@@ -123,7 +124,7 @@ class OrgAuthorizationGatesTest {
                 null,
                 resource,
                 action,
-                OrgScope.none(),
+                OrganizationScope.none(),
                 "u-eng");
         AccessDecision unrestrictedAllow = AccessChecker.evaluate(
                 operator,
@@ -134,7 +135,7 @@ class OrgAuthorizationGatesTest {
                 null,
                 resource,
                 action,
-                OrgScope.unrestricted(),
+                OrganizationScope.unrestricted(),
                 "u-eng");
         assertFalse(noneDeny.allowed());
         assertEquals(AccessDecision.DENY_ORG_OUT_OF_SCOPE, noneDeny.denyReason());
@@ -154,9 +155,9 @@ class OrgAuthorizationGatesTest {
                 "org.write",
                 AccessAction.of("write"),
                 PolicyResource.of("org_unit", "u-eng")
-                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, "u-eng")
+                        .withAttribute(PolicyResource.ATTR_ORGANIZATION_ID, "u-eng")
                         .withAttribute(PolicyResource.ATTR_TENANT_ID, "other"),
-                PolicyContext.of("acme", false, OrgScope.unrestricted()));
+                PolicyContext.of("acme", false, OrganizationScope.unrestricted()));
         assertFalse(mismatch.allowed());
         assertEquals(AccessDecision.DENY_TENANT_MISMATCH, mismatch.denyReason());
 

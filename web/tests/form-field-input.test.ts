@@ -27,8 +27,6 @@ describe("form-field-input — 表单字段控件辅助", () => {
     expect(fieldControlKind({ name: "a", kind: "text", required: false })).toBe("text");
     expect(fieldControlKind({ name: "a", kind: "subjectRef", required: false })).toBe("text");
     expect(fieldControlKind({ name: "a", kind: "organizationRef", required: false })).toBe("text");
-    expect(fieldControlKind({ name: "a", kind: "userRef", required: false })).toBe("text");
-    expect(fieldControlKind({ name: "a", kind: "orgRef", required: false })).toBe("text");
   });
 
   it("labels kinds in zh — 中文种类文案", () => {
@@ -39,8 +37,6 @@ describe("form-field-input — 表单字段控件辅助", () => {
     expect(fieldKindLabel("enum", phrases)).toBe("枚举");
     expect(fieldKindLabel("subjectRef", phrases)).toBe("选主体");
     expect(fieldKindLabel("organizationRef", phrases)).toBe("选组织");
-    expect(fieldKindLabel("userRef", phrases)).toBe("选主体");
-    expect(fieldKindLabel("orgRef", phrases)).toBe("选组织");
   });
 
   it("defaults boolean empty to false — 布尔初始为 false", () => {
@@ -118,10 +114,8 @@ describe("form-field-input — 表单字段控件辅助", () => {
   it("picks subject/organization pickers by kind or name — 按 kind 或字段名选主体/组织", () => {
     expect(fieldPickerRole({ name: "assignee", kind: "text", required: false })).toBe("subject");
     expect(fieldPickerRole({ name: "owner", kind: "subjectRef", required: false })).toBe("subject");
-    expect(fieldPickerRole({ name: "owner", kind: "userRef", required: false })).toBe("subject");
-    expect(fieldPickerRole({ name: "orgUnit", kind: "text", required: false })).toBe("organization");
+    expect(fieldPickerRole({ name: "organization", kind: "text", required: false })).toBe("organization");
     expect(fieldPickerRole({ name: "dept", kind: "organizationRef", required: false })).toBe("organization");
-    expect(fieldPickerRole({ name: "dept", kind: "orgRef", required: false })).toBe("organization");
     expect(fieldPickerRole({ name: "title", kind: "text", required: false })).toBeNull();
   });
 });

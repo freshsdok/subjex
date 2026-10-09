@@ -10,7 +10,7 @@ package com.subjex.platform.app.security;
 public record AccessDecision(
         String subjectId,
         String tenantId,
-        OrgScope orgScope,
+        OrganizationScope orgScope,
         AccessResource resource,
         AccessAction action,
         String matchedPermission,
@@ -18,7 +18,7 @@ public record AccessDecision(
         String denyReason) {
 
     /** Org scope not evaluated / unspecified — 未评估组织范围。 */
-    public static final OrgScope ORG_SCOPE_UNSPECIFIED = null;
+    public static final OrganizationScope ORG_SCOPE_UNSPECIFIED = null;
 
     public static final String DENY_PERMISSION_BLANK = "permission_blank";
     public static final String DENY_PERMISSION_MISSING = "permission_missing";
@@ -40,7 +40,7 @@ public record AccessDecision(
     public static AccessDecision allow(
             String subjectId,
             String tenantId,
-            OrgScope orgScope,
+            OrganizationScope orgScope,
             AccessResource resource,
             AccessAction action,
             String matchedPermission) {
@@ -68,7 +68,7 @@ public record AccessDecision(
     public static AccessDecision deny(
             String subjectId,
             String tenantId,
-            OrgScope orgScope,
+            OrganizationScope orgScope,
             AccessResource resource,
             AccessAction action,
             String matchedPermission,
@@ -84,11 +84,14 @@ public record AccessDecision(
                 denyReason);
     }
 
+
+
     /** Copy with org scope attached (keeps allow/deny) — 附带组织范围的副本。 */
-    public AccessDecision withOrgScope(OrgScope scope) {
+    public AccessDecision withOrgScope(OrganizationScope scope) {
         return new AccessDecision(
                 subjectId, tenantId, scope, resource, action, matchedPermission, allowed, denyReason);
     }
+
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();

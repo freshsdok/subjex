@@ -25,8 +25,9 @@ import com.subjex.platform.app.declaration.JdbcDeclarationPromoteApprovalStore;
 import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.platform.app.page.PageCatalog;
-import com.subjex.platform.app.org.JdbcOrgDirectory;
+import com.subjex.platform.app.org.legacy.JdbcOrgDirectory;
 import com.subjex.platform.app.organization.JdbcOrganizationStore;
+import com.subjex.platform.app.organization.OrganizationScopeResolver;
 import com.subjex.platform.app.organization.OrganizationOntologyBackfill;
 import com.subjex.platform.app.capability.CapabilityCatalog;
 import com.subjex.platform.app.capability.CapabilityRunner;
@@ -551,8 +552,19 @@ public class PlatformWiring {
     }
 
     /**
-     * O3 backfill org_unit → organization (idempotent; no cross-tenant merge) —
-     * O3 回填（幂等；禁止跨租户合并）。
+     * O8-1 organization scope from Membership + CONTAINS (no map / JdbcOrgDirectory) —
+     * O8-1 组织范围（Membership + CONTAINS；不经 map / 旧目录）。
+     */
+    @Bean
+    OrganizationScopeResolver organizationScopeResolver(JdbcOrganizationStore jdbcOrganizationStore) {
+        return new OrganizationScopeResolver(jdbcOrganizationStore);
+    }
+
+    /**
+     * O8-4: migration / legacy-adapter only — not injected into OrganizationApiEndpoint.
+     * Flyway V24 and explicit upgrade call {@code backfillAll}/{@code backfillTenant};
+     * {@code JdbcOrgDirectory} uses write-through helpers. Formal API/Policy/scope do not.
+     * O8-4：仅迁移与旧目录；正式 Organization API 不注入。
      */
     @Bean
     OrganizationOntologyBackfill organizationOntologyBackfill(
@@ -561,8 +573,9 @@ public class PlatformWiring {
     }
 
     /**
-     * Org directory with O3 dual-read / write-through —
-     * 组织目录（O3 双读 / 写透）。
+     * O8-3 legacy-only: {@code /api/v1/org/**} adapter (JdbcOrgDirectory).
+     * New Organization API / Policy / OrganizationScopeResolver must not use this bean.
+     * 仅旧 API；新组织 API / 策略 / 范围解析器不得依赖。
      */
     @Bean
     JdbcOrgDirectory jdbcOrgDirectory(JdbcTemplate jdbc, JdbcOrganizationStore jdbcOrganizationStore) {

@@ -389,3 +389,32 @@ O5. [done] `/api/v1/organizations` + memberships; console `/org`; legacy `/api/v
 
 O6. [done] Zero-code: `subjectRef`/`organizationRef` (dual-accept userRef/orgRef); SubjectPicker + OrganizationPicker; wizards/samples write canonical; DECL-01/02 green; no O7 DROP. Local commit only (no push).
     零代码引用与选人积木收敛；门禁 DECL 绿；不删旧表。仅本地提交。
+
+O7. [done] E2E-01 cutover; Flyway V24 DROP `org_unit`/`org_membership`; remap kept; deprecated `/api/v1/org/**` thin adapter via `JdbcOrgDirectory`; see `docs/ontology/o7-e2e-pass.md`. (PROGRESS catch-up; work landed before O8.)
+    E2E 门禁与旧表 DROP；映射保留；旧 API 薄适配。进度补记。
+
+O8-Inventory. [done] 2026-10-09 CST; HEAD `226e808`; wrote `docs/ontology/o8-inventory.md`. Gate baseline: Production ontology count=2, Legacy domain consumers=8, Legacy SQL consumers=2, Policy legacy dependency=7, Zero-code legacy refs=13. Next slice = **O8-1** (Policy直连新模型). Local commit only (no push).
+    O8 盘点完成；五门禁基线见上；下一片 O8-1。仅本地提交。
+
+
+O8-1. [done] 2026-10-09 CST; `OrganizationScope` + `OrganizationScopeResolver` (Membership+CONTAINS, no map); Organization API + AccessChecker/PolicyContext on OrganizationScope; OrgScope deprecated for legacy `/org`; tests 75 green (focused). Next = **O8-2** (field/JSON renames). Local commit only (no push). See `docs/ontology/o8-1-pass.md`.
+    OrganizationScope 与本体范围解析；新 API/策略不经 map；旧 OrgScope 仅旧 API。下一片 O8-2。仅本地提交。
+
+
+O8-2. [done] 2026-10-09 CST; OrganizationScope JSON `rootOrganizationIds`/`organizationIds`; OrgScope field names aligned; PolicyResource organizationId-only (ATTR_ORG_UNIT_ID deprecated unused); tests 87 green. Next = **O8-3** (Legacy isolation). Local commit only (no push). See `docs/ontology/o8-2-pass.md`.
+    组织范围字段命名收口；策略 JSON 用 organization*；下一片 O8-3。仅本地提交。
+
+
+O8-3. [done] 2026-10-09 CST; moved OrgUnit/OrgMembership/JdbcOrgDirectory/OrgApiEndpoint/OrgScope → `org.legacy`; Backfill decoupled; LegacyPackageBoundaryTest; next = **O8-5** (frontend/zero-code per inventory order). Local commit only. See `docs/ontology/o8-3-pass.md`.
+    旧模型隔离到 org.legacy；新包禁止依赖；下一片 O8-5。仅本地提交。
+
+O8-5. [done] 2026-10-09 CST; subjectRef/organizationRef only; deleted UserPicker/OrgPicker; demo field organization + V25 rename; phrases 组织; zero-code legacy refs 13→0; next = **O8-4** (map/backfill). Local commit only. See `docs/ontology/o8-5-pass.md`.
+    零代码别名清零；控制台组织文案；下一片 O8-4。仅本地提交。
+
+O8-4. [done] 2026-10-09 CST; Organization API writes ontology-only (no backfill/map); JdbcOrgDirectory ontology-first reads; Backfill migration/legacy-only; formal map SQL → 0; next = **O8-6**. Local commit only. See `docs/ontology/o8-4-pass.md`.
+    正式运行时退出 map/回填；下一片 O8-6。仅本地提交。
+
+O8-6. [done] 2026-10-09 CST; ArchUnit + O8 metric gates; E2E Relationship≠Authorization + scope without map; ATTR_ORG_UNIT_ID removed; **O8 FULL PASS**. See `docs/ontology/o8-full-pass.md`. Next optional = push squash / alpha tag (do not push).
+    O8 架构门禁与 E2E；五指标全绿；FULL PASS。可选下一步再 push。
+
+O8. [DONE FULL PASS] 2026-10-09 CST; metrics ontology=1; legacy domain/SQL/policy/zero-code=0; V24 DROP; map no formal consumers; subjectRef/organizationRef only.

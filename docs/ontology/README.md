@@ -1,7 +1,7 @@
 # Ontology — O1 Model Freeze / 本体模型冻结（O1）
 
-**Status:** O1–**O7 complete**. Legacy `org_unit` / `org_membership` **DROPPED** (Flyway V24). Remap kept; deprecated `/api/v1/org/**` is a thin adapter.  
-**状态：** O1–O7 完成。旧表已 DROP（V24）；映射保留；旧 API 为薄适配器。
+**Status:** O1–O8 **FULL PASS**. See [`o8-full-pass.md`](o8-full-pass.md). Legacy tables DROPPED (V24); map kept without formal consumers.
+**状态：** O1–O7 完成；**O8 盘点**已记（消费者仍在）。旧表已 DROP；映射与旧 API 适配器仍在。
 
 **Baseline:** Owner V1.0 ontology revision (2026-10).  
 **基线：** 业主 V1.0 本体修订。
@@ -32,6 +32,10 @@
 | [`o6-zero-code.md`](o6-zero-code.md) | O6 subjectRef/organizationRef + SubjectPicker/OrganizationPicker |
 | [`o3-dual-read.md`](o3-dual-read.md) | O3 backfill + dual-read (historical; tables dropped in O7) |
 | [`o7-e2e-pass.md`](o7-e2e-pass.md) | O7 E2E-PASS + legacy removal notes |
+| [`o8-inventory.md`](o8-inventory.md) | O8 inventory of leftover OrgUnit consumers |
+| [`o8-1-pass.md`](o8-1-pass.md) | O8-1 OrganizationScope from Membership+CONTAINS |
+| [`o8-2-pass.md`](o8-2-pass.md) | O8-2 OrganizationScope field naming |
+| [`o8-3-pass.md`](o8-3-pass.md) | O8-3 isolate OrgUnit legacy package |
 
 ## Locks / 锁定
 
@@ -46,6 +50,7 @@
 O1 Model Freeze  →  O2 Persistence  →  O3 Compatibility & Backfill
                  →  O4 Authorization  →  O5 API / Console
                  →  O6 Zero-code      →  O7 Legacy Removal
+                 →  O8 Consumer cleanup (inventory → policy → scope → legacy → UI → map → gates)
 ```
 
 ## Cross-links / 交叉引用

@@ -9,7 +9,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * EntityCatalogTest — 实体目录测试：加载 classpath 样例；subjectRef/organizationRef 解析（含旧别名）；未知 kind 仍拒绝。
+ * EntityCatalogTest — 实体目录测试：加载 classpath 样例；subjectRef/organizationRef 解析；拒绝旧别名与未知 kind。
  */
 class EntityCatalogTest {
 
@@ -23,7 +23,9 @@ class EntityCatalogTest {
         assertTrue(ticket.isPresent());
         assertEquals("demo_ticket", ticket.get().tableName());
         assertEquals(5, ticket.get().fields().size());
+        assertEquals("assignee", ticket.get().fields().get(3).name());
         assertEquals(EntityFieldKind.SUBJECT_REF, ticket.get().fields().get(3).kind());
+        assertEquals("organization", ticket.get().fields().get(4).name());
         assertEquals(EntityFieldKind.ORGANIZATION_REF, ticket.get().fields().get(4).kind());
         assertEquals(64, ticket.get().fields().get(3).maxLength());
         assertEquals(64, ticket.get().fields().get(4).maxLength());
@@ -60,27 +62,26 @@ class EntityCatalogTest {
     }
 
     @Test
-    void legacyUserRefAndOrgRefAliasesStillParse() {
-        String yaml = """
-                entityKey: legacy-ref
-                tableName: legacy_ref
-                version: 1
-                permission: page.read
-                fields:
-                  - name: itemId
-                    kind: text
-                    required: true
-                    maxLength: 32
-                  - name: owner
-                    kind: userRef
-                    required: false
-                  - name: dept
-                    kind: orgRef
-                    required: false
-                """;
-        RenderedEntity entity = new EntityRenderer().render(yaml);
-        assertEquals(EntityFieldKind.SUBJECT_REF, entity.fields().get(1).kind());
-        assertEquals(EntityFieldKind.ORGANIZATION_REF, entity.fields().get(2).kind());
+    void rejectsLegacyUserRefAndOrgRefAliases() {
+        for (String bad : new String[] {"userRef", "orgRef"}) {
+            String yaml = """
+                    entityKey: legacy-ref
+                    tableName: legacy_ref
+                    version: 1
+                    permission: page.read
+                    fields:
+                      - name: itemId
+                        kind: text
+                        required: true
+                        maxLength: 32
+                      - name: owner
+                        kind: %s
+                        required: false
+                    """.formatted(bad);
+            EntityDefinitionRejected ex =
+                    assertThrows(EntityDefinitionRejected.class, () -> new EntityRenderer().render(yaml));
+            assertTrue(ex.getMessage().contains("subjectRef") || ex.getMessage().contains("organizationRef"));
+        }
     }
 
     @Test

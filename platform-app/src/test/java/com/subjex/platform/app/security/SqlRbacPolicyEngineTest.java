@@ -89,7 +89,7 @@ class SqlRbacPolicyEngineTest {
                 "task.write",
                 AccessAction.of("write"),
                 PolicyResource.of("task", "t1"),
-                PolicyContext.of("acme", true, null));
+                PolicyContext.of("acme", true, (OrganizationScope) null));
         assertFalse(decision.allowed());
         assertEquals(AccessDecision.DENY_TENANT_NOT_GRANTED, decision.denyReason());
         assertEquals("task.write", decision.matchedPermission());
@@ -107,21 +107,21 @@ class SqlRbacPolicyEngineTest {
                 "task.write",
                 AccessAction.of("write"),
                 PolicyResource.of("task", "t1"),
-                PolicyContext.of("acme", true, null));
+                PolicyContext.of("acme", true, (OrganizationScope) null));
         assertTrue(decision.allowed());
         assertEquals("acme", decision.tenantId());
     }
 
     @Test
     void deniesWhenResourceOrgUnitOutsideScope() {
-        OrgScope scope = OrgScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
+        OrganizationScope scope = OrganizationScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
         PolicyPrincipal principal = PolicyPrincipal.of("subject-1", Set.of("org.write"));
         AccessDecision decision = engine.evaluate(
                 principal,
                 "org.write",
                 AccessAction.of("write"),
                 PolicyResource.of("org_membership", "u-root")
-                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, "u-root"),
+                        .withAttribute(PolicyResource.ATTR_ORGANIZATION_ID, "u-root"),
                 PolicyContext.of("acme", false, scope));
         assertFalse(decision.allowed());
         assertEquals(AccessDecision.DENY_ORG_OUT_OF_SCOPE, decision.denyReason());
@@ -160,9 +160,9 @@ class SqlRbacPolicyEngineTest {
                 "org.write",
                 AccessAction.of("write"),
                 PolicyResource.of("org_unit", "u-eng")
-                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, "u-eng")
+                        .withAttribute(PolicyResource.ATTR_ORGANIZATION_ID, "u-eng")
                         .withAttribute(PolicyResource.ATTR_TENANT_ID, "other"),
-                PolicyContext.of("acme", false, OrgScope.unrestricted()));
+                PolicyContext.of("acme", false, OrganizationScope.unrestricted()));
         assertFalse(decision.allowed());
         assertEquals(AccessDecision.DENY_TENANT_MISMATCH, decision.denyReason());
     }
@@ -175,8 +175,8 @@ class SqlRbacPolicyEngineTest {
                 "org.write",
                 AccessAction.of("write"),
                 PolicyResource.of("org_membership", "u-root")
-                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, "u-root"),
-                PolicyContext.of("acme", false, null));
+                        .withAttribute(PolicyResource.ATTR_ORGANIZATION_ID, "u-root"),
+                PolicyContext.of("acme", false, (OrganizationScope) null));
         assertFalse(decision.allowed());
         assertEquals(AccessDecision.DENY_ORG_SCOPE_MISSING, decision.denyReason());
     }

@@ -5,12 +5,13 @@
 -- 继续在此重生；表变更时再复制/改编进 platform-app/db/migration。
 -- Shared by MySQL 8.4 and PostgreSQL 16 style (no vendor-only types).
 -- MySQL 8.4 与 PostgreSQL 16 共用风格（无厂商专有类型）。
+-- O8-5: field organization → column organization (V12 historical org_unit renamed in V25).
 
 CREATE TABLE demo_ticket (
   ticket_id VARCHAR(64) NOT NULL,
   title VARCHAR(200) NOT NULL,
   status VARCHAR(32) NOT NULL,
   assignee VARCHAR(64),
-  org_unit VARCHAR(64),
+  organization VARCHAR(64),
   PRIMARY KEY (ticket_id)
 );

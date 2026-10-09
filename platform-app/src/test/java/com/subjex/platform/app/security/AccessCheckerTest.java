@@ -107,7 +107,7 @@ class AccessCheckerTest {
     @Test
     void deniesWhenResourceOrgUnitOutsideScope() {
         OperatorPrincipal operator = operator("subject-1", Set.of("org.write"));
-        OrgScope scope = OrgScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
+        OrganizationScope scope = OrganizationScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
         AccessDecision decision = AccessChecker.evaluate(
                 operator,
                 "org.write",
@@ -128,7 +128,7 @@ class AccessCheckerTest {
     @Test
     void allowsWhenResourceOrgUnitInsideScope() {
         OperatorPrincipal operator = operator("subject-1", Set.of("org.write"));
-        OrgScope scope = OrgScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
+        OrganizationScope scope = OrganizationScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng", "u-team"));
         AccessDecision decision = AccessChecker.require(
                 operator,
                 "org.write",
@@ -193,7 +193,7 @@ class AccessCheckerTest {
                 null,
                 AccessResource.of("org_unit", "u-root"),
                 AccessAction.of("write"),
-                OrgScope.unrestricted(),
+                OrganizationScope.unrestricted(),
                 "u-root");
         assertTrue(decision.allowed());
         assertTrue(decision.orgScope().isUnrestricted());
@@ -211,7 +211,7 @@ class AccessCheckerTest {
                 null,
                 AccessResource.of("org_unit", "u-root"),
                 AccessAction.of("write"),
-                OrgScope.none(),
+                OrganizationScope.none(),
                 "u-root");
         assertFalse(decision.allowed());
         assertEquals(AccessDecision.DENY_ORG_OUT_OF_SCOPE, decision.denyReason());
@@ -219,7 +219,7 @@ class AccessCheckerTest {
 
     @Test
     void requireOrgScopeThrowsWithDecision() {
-        OrgScope scope = OrgScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng"));
+        OrganizationScope scope = OrganizationScope.selfAndDescendants(List.of("u-eng"), List.of("u-eng"));
         AccessDecision base = AccessDecision.allow(
                 "subject-1", "acme", scope, resource, action, "org.write");
         AccessDecisionDeniedException ex = assertThrows(

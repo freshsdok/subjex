@@ -39,16 +39,16 @@ public final class AccessChecker {
                 tenantAccess,
                 resource,
                 action,
-                null,
+                (OrganizationScope) null,
                 null);
     }
 
     /**
      * Full evaluate with optional org scope + resource unit — 带可选组织范围与资源单元的完整判定。
      * <p>
-     * When {@code resourceOrgUnitId} is non-blank: null/unspecified scope → fail-closed
-     * {@link AccessDecision#DENY_ORG_SCOPE_MISSING}; {@link OrgScope#MODE_NONE} →
-     * {@link AccessDecision#DENY_ORG_OUT_OF_SCOPE}; {@link OrgScope#MODE_UNRESTRICTED} → allow;
+     * When {@code resourceOrganizationId} is non-blank: null/unspecified scope → fail-closed
+     * {@link AccessDecision#DENY_ORG_SCOPE_MISSING}; {@link OrganizationScope#MODE_NONE} →
+     * {@link AccessDecision#DENY_ORG_OUT_OF_SCOPE}; {@link OrganizationScope#MODE_UNRESTRICTED} → allow;
      * otherwise the unit must be inside the scope. Blank resource unit skips the org filter.
      * 资源组织 id 非空时：未指定 fail-closed；NONE 拒绝；UNRESTRICTED 放行；否则须落在范围内。
      */
@@ -61,8 +61,8 @@ public final class AccessChecker {
             OperatorTenantAccess tenantAccess,
             AccessResource resource,
             AccessAction action,
-            OrgScope orgScope,
-            String resourceOrgUnitId) {
+            OrganizationScope orgScope,
+            String resourceOrganizationId) {
         Objects.requireNonNull(resource, "resource");
         Objects.requireNonNull(action, "action");
         String subjectId = operator == null ? null : operator.subjectId();
@@ -98,7 +98,7 @@ public final class AccessChecker {
         if (!afterTenant.allowed()) {
             return afterTenant;
         }
-        return applyOrgScope(afterTenant, orgScope, resourceOrgUnitId);
+        return applyOrgScope(afterTenant, orgScope, resourceOrganizationId);
     }
 
     /**
@@ -122,7 +122,7 @@ public final class AccessChecker {
                 resource,
                 action,
                 matchedPermission,
-                null,
+                (OrganizationScope) null,
                 null);
     }
 
@@ -135,8 +135,8 @@ public final class AccessChecker {
             AccessResource resource,
             AccessAction action,
             String matchedPermission,
-            OrgScope orgScope,
-            String resourceOrgUnitId) {
+            OrganizationScope orgScope,
+            String resourceOrganizationId) {
         Objects.requireNonNull(resource, "resource");
         Objects.requireNonNull(action, "action");
         String subjectId = operator == null ? null : operator.subjectId();
@@ -159,7 +159,7 @@ public final class AccessChecker {
         if (!afterTenant.allowed()) {
             return afterTenant;
         }
-        return applyOrgScope(afterTenant, orgScope, resourceOrgUnitId);
+        return applyOrgScope(afterTenant, orgScope, resourceOrganizationId);
     }
 
     /**
@@ -167,20 +167,20 @@ public final class AccessChecker {
      * 权限与租户通过后附带范围；资源单元存在时缺失范围 fail-closed。
      */
     public static AccessDecision applyOrgScope(
-            AccessDecision decision, OrgScope orgScope, String resourceOrgUnitId) {
+            AccessDecision decision, OrganizationScope orgScope, String resourceOrganizationId) {
         Objects.requireNonNull(decision, "decision");
         AccessDecision withScope = orgScope == null ? decision : decision.withOrgScope(orgScope);
         if (!withScope.allowed()) {
             return withScope;
         }
-        if (resourceOrgUnitId == null || resourceOrgUnitId.isBlank()) {
+        if (resourceOrganizationId == null || resourceOrganizationId.isBlank()) {
             return withScope;
         }
         if (orgScope == null) {
             return AccessDecision.deny(
                     withScope.subjectId(),
                     withScope.tenantId(),
-                    null,
+                    (OrganizationScope) null,
                     withScope.resource(),
                     withScope.action(),
                     withScope.matchedPermission(),
@@ -189,7 +189,7 @@ public final class AccessChecker {
         if (orgScope.isUnrestricted()) {
             return withScope;
         }
-        if (orgScope.isNone() || !orgScope.contains(resourceOrgUnitId)) {
+        if (orgScope.isNone() || !orgScope.contains(resourceOrganizationId)) {
             return AccessDecision.deny(
                     withScope.subjectId(),
                     withScope.tenantId(),
@@ -223,7 +223,7 @@ public final class AccessChecker {
                 tenantAccess,
                 resource,
                 action,
-                null,
+                (OrganizationScope) null,
                 null);
     }
 
@@ -236,8 +236,8 @@ public final class AccessChecker {
             OperatorTenantAccess tenantAccess,
             AccessResource resource,
             AccessAction action,
-            OrgScope orgScope,
-            String resourceOrgUnitId) {
+            OrganizationScope orgScope,
+            String resourceOrganizationId) {
         AccessDecision decision = evaluate(
                 operator,
                 permission,
@@ -248,7 +248,7 @@ public final class AccessChecker {
                 resource,
                 action,
                 orgScope,
-                resourceOrgUnitId);
+                resourceOrganizationId);
         if (!decision.allowed()) {
             throw new AccessDecisionDeniedException(decision, permission);
         }
@@ -260,8 +260,8 @@ public final class AccessChecker {
      * 在已允许决策上做失败关闭的组织范围核对。
      */
     public static AccessDecision requireOrgScope(
-            AccessDecision allowedDecision, OrgScope orgScope, String resourceOrgUnitId, String requiredPermission) {
-        AccessDecision decision = applyOrgScope(allowedDecision, orgScope, resourceOrgUnitId);
+            AccessDecision allowedDecision, OrganizationScope orgScope, String resourceOrganizationId, String requiredPermission) {
+        AccessDecision decision = applyOrgScope(allowedDecision, orgScope, resourceOrganizationId);
         if (!decision.allowed()) {
             throw new AccessDecisionDeniedException(
                     decision, requiredPermission == null || requiredPermission.isBlank() ? "permission" : requiredPermission);
@@ -278,7 +278,7 @@ public final class AccessChecker {
             OperatorTenantAccess tenantAccess,
             AccessResource resource,
             AccessAction action,
-            OrgScope orgScope) {
+            OrganizationScope orgScope) {
         Objects.requireNonNull(tenantGuard, "tenantGuard");
         Objects.requireNonNull(tenantAccess, "tenantAccess");
         try {

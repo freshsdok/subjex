@@ -1,4 +1,4 @@
-package com.subjex.platform.app.org;
+package com.subjex.platform.app.org.legacy;
 
 /**
  * OrgMembership — 主体在租户内对某组织单元的简单成员关系。
@@ -6,5 +6,6 @@ package com.subjex.platform.app.org;
  * No primary/secondary dual-role in this slice.
  * 本片无主/兼岗双角色。
  */
+@Deprecated(since = "O8-3", forRemoval = false)
 public record OrgMembership(
         String tenantId, String subjectId, String orgUnitId, String membershipState) {}

@@ -8,10 +8,9 @@ import java.util.Set;
  * SqlRbacPolicyEngine — {@link PolicyEngine} 首适配器：委托现有 {@link AccessChecker} / SQL RBAC。
  * <p>
  * Does not fork permission or org-scope logic. Bridges {@link PolicyPrincipal} to a lightweight
- * {@link OperatorPrincipal} for AccessChecker. Resource {@link PolicyResource#ATTR_ORG_UNIT_ID}
- * feeds org-scope checks. Context vs resource tenant mismatch → {@link AccessDecision#DENY_TENANT_MISMATCH}.
+ * {@link OperatorPrincipal} for AccessChecker. Resource {@link PolicyResource#organizationId()} feeds organization-scope checks. Context vs resource tenant mismatch → {@link AccessDecision#DENY_TENANT_MISMATCH}.
  * No Cedar/Casbin dependency.
- * 不复制权限/组织逻辑；主体桥到轻量 OperatorPrincipal；资源 orgUnitId 供范围核对；租户不一致拒绝。
+ * 不复制权限/组织逻辑；主体桥到轻量 OperatorPrincipal；资源 organizationId 供范围核对；租户不一致拒绝。
  */
 public final class SqlRbacPolicyEngine implements PolicyEngine {
 
@@ -63,7 +62,7 @@ public final class SqlRbacPolicyEngine implements PolicyEngine {
                 AccessResource.of(resource.kind(), resource.id()),
                 action,
                 ctx.orgScope(),
-                resource.orgUnitId());
+                resource.organizationId());
     }
 
     /**

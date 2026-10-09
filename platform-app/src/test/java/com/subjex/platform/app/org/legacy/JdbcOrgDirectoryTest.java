@@ -1,4 +1,4 @@
-package com.subjex.platform.app.org;
+package com.subjex.platform.app.org.legacy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.platform.app.security.H2PlatformTables;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.org.legacy.OrgScope;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -126,8 +126,8 @@ class JdbcOrgDirectoryTest {
 
         OrgScope scope = directory.resolveSelfAndDescendants("acme", "sub-eng");
         assertEquals(OrgScope.MODE_SELF_AND_DESCENDANTS, scope.mode());
-        assertEquals(List.of("u-eng"), scope.rootUnitIds());
-        assertEquals(List.of("u-eng", "u-team"), scope.unitIds());
+        assertEquals(List.of("u-eng"), scope.rootOrganizationIds());
+        assertEquals(List.of("u-eng", "u-team"), scope.organizationIds());
         assertTrue(scope.contains("u-team"));
         assertFalse(scope.contains("u-root"));
         assertFalse(scope.contains("u-sales"));
@@ -140,7 +140,7 @@ class JdbcOrgDirectoryTest {
 
         OrgScope selfOnly = directory.resolveSelf("acme", "sub-eng");
         assertEquals(OrgScope.MODE_SELF, selfOnly.mode());
-        assertEquals(List.of("u-eng"), selfOnly.unitIds());
+        assertEquals(List.of("u-eng"), selfOnly.organizationIds());
         assertFalse(selfOnly.contains("u-team"));
     }
 }

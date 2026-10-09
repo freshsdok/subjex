@@ -9,7 +9,7 @@ import com.subjex.platform.contract.tenant.TenantGuard;
  * When {@code tenantScoped} is true, the tenant header must pass {@link TenantGuard}
  * and {@link OperatorTenantAccess} (operator–tenant grant).
  * Denied checks throw {@link AccessDecisionDeniedException} with a full decision record.
- * Org scope is applied when callers pass OrgScope (AX-2).
+ * Org scope is applied when callers pass OrganizationScope (AX-2 / O8).
  * 复用操作员已授予的权限名。权限缺失或空白即拒绝。
  * {@code tenantScoped} 为 true 时，租户头必须通过 {@link TenantGuard} 与 {@link OperatorTenantAccess}。
  * 拒绝抛出带完整决策的 {@link AccessDecisionDeniedException}。组织范围由调用方传入（AX-2）。

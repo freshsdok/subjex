@@ -37,10 +37,8 @@ export function fieldKindLabel(kind: string, phrases: PhraseBook): string {
     case "enum":
       return phrases.fieldKindEnum;
     case "subjectRef":
-    case "userRef": // legacy alias — 旧别名
       return phrases.fieldKindSubjectRef;
     case "organizationRef":
-    case "orgRef": // legacy alias — 旧别名
       return phrases.fieldKindOrganizationRef;
     default:
       return phrases.fieldKindText;
@@ -128,23 +126,15 @@ export function isRequiredFieldMissing(field: FormFieldInput, raw: string | unde
 export type FieldPickerRole = "subject" | "organization" | null;
 
 /**
- * Prefer subjectRef/organizationRef kinds (and legacy userRef/orgRef);
- * also special-case assignee / orgUnit field names so DeclaredSubmitForm and FormFields stay aligned.
- * 优先 kind（含旧别名）；并兼容 assignee / orgUnit 字段名。
+ * Prefer subjectRef/organizationRef kinds;
+ * also special-case assignee / organization field names so DeclaredSubmitForm and FormFields stay aligned.
+ * 优先 kind；并兼容 assignee / organization 字段名。
  */
 export function fieldPickerRole(field: FormFieldInput): FieldPickerRole {
-  if (
-    field.kind === "subjectRef" ||
-    field.kind === "userRef" ||
-    field.name === "assignee"
-  ) {
+  if (field.kind === "subjectRef" || field.name === "assignee") {
     return "subject";
   }
-  if (
-    field.kind === "organizationRef" ||
-    field.kind === "orgRef" ||
-    field.name === "orgUnit"
-  ) {
+  if (field.kind === "organizationRef" || field.name === "organization") {
     return "organization";
   }
   return null;

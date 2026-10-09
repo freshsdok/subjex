@@ -18,12 +18,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.subjex.platform.app.org.JdbcOrgDirectory;
-import com.subjex.platform.app.org.OrgApiEndpoint;
+import com.subjex.platform.app.org.legacy.JdbcOrgDirectory;
+import com.subjex.platform.app.org.legacy.OrgScope;
+import com.subjex.platform.app.org.legacy.OrgApiEndpoint;
 import com.subjex.platform.app.security.LocalOperatorSeeder;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorTenantAccess;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.security.OrganizationScope;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.SqlRbacPolicyEngine;
@@ -74,10 +75,10 @@ class OrganizationApiSecurityTest {
     private JdbcOrganizationStore store;
 
     @MockitoBean
-    private OrganizationOntologyBackfill backfill;
+    private JdbcOrgDirectory directory;
 
     @MockitoBean
-    private JdbcOrgDirectory directory;
+    private OrganizationScopeResolver scopeResolver;
 
     @MockitoBean
     private OperatorActionAudit audit;
@@ -105,10 +106,10 @@ class OrganizationApiSecurityTest {
                     "INSERT INTO operator_credential (account_id, password_hash) VALUES ('account-bare-o5', ?)",
                     passwordEncoder.encode(BARE_PASSWORD));
         }
-        when(directory.resolveOrganizationSelfAndDescendants(anyString(), anyString()))
-                .thenReturn(OrgScope.unrestricted());
+        when(scopeResolver.resolveSelfAndDescendants(anyString(), anyString()))
+                .thenReturn(OrganizationScope.unrestricted());
         when(directory.resolveSelfAndDescendants(anyString(), anyString()))
-                .thenReturn(OrgScope.unrestricted());
+                .thenReturn(com.subjex.platform.app.org.legacy.OrgScope.unrestricted());
     }
 
     @Test
@@ -182,11 +183,6 @@ class OrganizationApiSecurityTest {
                 eq("organization.upsert"),
                 eq("acme/org-root"),
                 eq(AuditOutcome.ALLOWED));
-        verify(backfill)
-                .syncOrganizationToLegacy(
-                        eq("acme"),
-                        eq(new Organization("org-root", "Root", "ACTIVE")),
-                        isNull());
 
         mockMvc.perform(put(OrganizationApiEndpoint.PATH + "/memberships")
                         .param("tenantId", "acme")
@@ -202,7 +198,6 @@ class OrganizationApiSecurityTest {
                         .param("organizationId", "org-root")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isOk());
-        verify(backfill).endMembershipToLegacy("acme", "sub-a", "org-root");
     }
 
     @Test
@@ -218,8 +213,9 @@ class OrganizationApiSecurityTest {
 
     @Test
     void scopedActorSeesOnlyOrganizationsInScope() throws Exception {
-        OrgScope scope = OrgScope.selfAndDescendants(List.of("org-eng"), List.of("org-eng", "org-team"));
-        when(directory.resolveOrganizationSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID))
+        OrganizationScope scope = OrganizationScope.selfAndDescendants(
+                List.of("org-eng"), List.of("org-eng", "org-team"));
+        when(scopeResolver.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID))
                 .thenReturn(scope);
         when(store.listOrganizationsLinkedToTenant("acme"))
                 .thenReturn(List.of(

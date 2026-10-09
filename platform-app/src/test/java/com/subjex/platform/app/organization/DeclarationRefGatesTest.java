@@ -64,25 +64,47 @@ class DeclarationRefGatesTest {
         assertEquals(FieldKind.SUBJECT_REF, form.fields().get(1).kind());
         assertEquals("subjectRef", form.fields().get(1).kind().wireName());
 
-        // Legacy alias still maps to Subject — not Organization
-        RenderedEntity legacy = entities.render("""
-                entityKey: decl-user-alias
-                tableName: decl_user_alias
-                version: 1
-                permission: page.read
-                fields:
-                  - name: id
-                    kind: text
-                    required: true
-                    maxLength: 8
-                  - name: owner
-                    kind: userRef
-                    required: false
-                """);
-        assertEquals(EntityFieldKind.SUBJECT_REF, legacy.fields().get(1).kind());
-        assertEquals(EntityFieldKind.SUBJECT_REF, legacy.fields().get(1).kind());
-        // Must not be organization
-        assertTrue(legacy.fields().get(1).kind() != EntityFieldKind.ORGANIZATION_REF);
+        // O8-5: legacy userRef/orgRef rejected — use subjectRef/organizationRef only
+        EntityDefinitionRejected legacyUser =
+                assertThrows(
+                        EntityDefinitionRejected.class,
+                        () -> entities.render("""
+                                entityKey: decl-user-alias
+                                tableName: decl_user_alias
+                                version: 1
+                                permission: page.read
+                                fields:
+                                  - name: id
+                                    kind: text
+                                    required: true
+                                    maxLength: 8
+                                  - name: owner
+                                    kind: userRef
+                                    required: false
+                                """));
+        assertTrue(legacyUser.getMessage().contains("subjectRef"));
+
+        FormDefinitionRejected legacyOrg =
+                assertThrows(
+                        FormDefinitionRejected.class,
+                        () -> forms.render("""
+                                formKey: decl-org-alias
+                                titleEn: Decl
+                                titleZh: 别名
+                                version: 1
+                                permission: page.read
+                                domainAction: entity.record.upsert
+                                entityKey: decl-org-alias
+                                fields:
+                                  - name: id
+                                    kind: text
+                                    required: true
+                                    maxLength: 8
+                                  - name: dept
+                                    kind: orgRef
+                                    required: false
+                                """));
+        assertTrue(legacyOrg.getMessage().contains("organizationRef"));
     }
 
     @Test

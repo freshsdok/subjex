@@ -1,4 +1,4 @@
-package com.subjex.platform.app.org;
+package com.subjex.platform.app.org.legacy;
 
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.security.AccessAction;
@@ -9,7 +9,7 @@ import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorPermission;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
-import com.subjex.platform.app.security.OrgScope;
+import com.subjex.platform.app.security.OrganizationScope;
 import com.subjex.platform.app.security.PolicyContext;
 import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.PolicyPrincipal;
@@ -202,7 +202,7 @@ public class OrgApiEndpoint {
         AccessDecision decision = AccessDecision.deny(
                 operator == null ? null : operator.subjectId(),
                 tenantId,
-                effective,
+                effective.toOrganizationScope(),
                 AccessResource.of("org_unit", uid),
                 AccessAction.of("write"),
                 OperatorPermission.ORG_WRITE.permissionName(),
@@ -219,9 +219,9 @@ public class OrgApiEndpoint {
                 OperatorPermission.ORG_WRITE.permissionName(),
                 AccessAction.of("write"),
                 PolicyResource.of("org_membership", uid)
-                        .withAttribute(PolicyResource.ATTR_ORG_UNIT_ID, uid)
+                        .withAttribute(PolicyResource.ATTR_ORGANIZATION_ID, uid)
                         .withAttribute(PolicyResource.ATTR_TENANT_ID, tenantId),
-                PolicyContext.of(tenantId, false, effective));
+                PolicyContext.of(tenantId, false, effective.toOrganizationScope()));
     }
 
     private static boolean inScopeOrUnspecified(OrgScope scope, String orgUnitId) {
