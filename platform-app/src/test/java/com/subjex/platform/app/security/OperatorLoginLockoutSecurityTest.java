@@ -21,8 +21,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * OperatorLoginLockoutSecurityTest — Lockout-1：N 次失败 → 429；成功清除；锁定中正确口令仍 429。
+ * OperatorLoginLockoutSecurityTest — purpose/gate Lockout-1: N failures -> 429;
+ * success clears; correct password while locked still 429 (fail-closed).
+ * <p>
+ * 目的/门禁 Lockout-1：N 次失败 -> 429；成功清除；锁定中正确口令仍 429（失败关闭）。
  */
 @WebMvcTest(controllers = {OperatorAuthEndpoint.class})
 @Import({

@@ -50,6 +50,10 @@ public final class TenantEnforcementFilter extends OncePerRequestFilter {
                 || path.startsWith("/api/v1");
     }
 
+    /**
+     * Fail-closed: missing tenant / unauthenticated / not granted -> 403 -
+     * 失败关闭：缺租户、未认证、未授权 -> 403。
+     */
     @Override
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)

@@ -44,8 +44,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * OrgWriteSecurityTest — 组织写接口：401、无 org.write 403、操作员 200、缺 tenantId 400、跨租户父节点 400。
+ * OrgWriteSecurityTest — purpose: legacy org write AuthZ + membership/unit scope.
+ * Gates: org.write + tenant grant; out-of-scope write deny fail-closed (NONE never UNRESTRICTED).
+ * <p>
+ * 目的：旧组织写鉴权与单元/成员范围。门禁：org.write + 租户授权；越范围写失败关闭。
  */
 @WebMvcTest(controllers = OrgApiEndpoint.class)
 @Import({

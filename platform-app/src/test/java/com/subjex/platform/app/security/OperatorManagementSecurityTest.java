@@ -26,8 +26,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * Operator management API permissions and behaviours — 操作员管理接口的权限与行为。
+ * OperatorManagementSecurityTest — purpose: operator management API permissions/behaviours.
+ * Gates: {@code operator.manage} required; self-disable refuse; tenant grant replace audited.
+ * <p>
+ * 目的：操作员管理接口权限与行为。门禁：需 operator.manage；禁止自停用；租户授权替换可审计。
  */
 @WebMvcTest(controllers = {OperatorManagementEndpoint.class, OperatorSelfEndpoint.class})
 @Import({

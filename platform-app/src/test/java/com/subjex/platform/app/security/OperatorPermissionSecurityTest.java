@@ -41,8 +41,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * Permission per endpoint, and the audit a write leaves — 每个接口按权限放行，以及写入留下的审计。
+ * OperatorPermissionSecurityTest — purpose: HTTP actions gated by named OperatorPermission.
+ * Gates: missing permission -> 403 fail-closed; held permission allows matched routes.
+ * <p>
+ * 目的：HTTP 动作按具名 OperatorPermission 门禁。门禁：缺权限 -> 403 失败关闭；持有则放行匹配路由。
  */
 @WebMvcTest(controllers = {
     ConfigEntriesEndpoint.class, ServiceRegistryEndpoint.class, AdminReadEndpoint.class, AuditPage.class})

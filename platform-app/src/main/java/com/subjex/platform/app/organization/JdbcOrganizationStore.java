@@ -36,6 +36,7 @@ public final class JdbcOrganizationStore {
 
     // --- Organization ---
 
+    /** Insert or update an Organization row — 插入或更新组织行。 */
     public Organization upsertOrganization(String organizationId, String organizationName, String organizationState) {
         String id = requireNonBlank(organizationId, "organizationId");
         String name = requireNonBlank(organizationName, "organizationName");
@@ -74,6 +75,7 @@ public final class JdbcOrganizationStore {
         return new Organization(id, name, state);
     }
 
+    /** Find by id — 按 id 查找组织。 */
     public Optional<Organization> findOrganization(String organizationId) {
         String id = requireNonBlank(organizationId, "organizationId");
         List<Organization> rows = jdbc.query(
@@ -90,6 +92,7 @@ public final class JdbcOrganizationStore {
         return rows.stream().findFirst();
     }
 
+    /** List all organizations — 列出全部组织。 */
     public List<Organization> listOrganizations() {
         return jdbc.query(
                 """
@@ -103,12 +106,14 @@ public final class JdbcOrganizationStore {
                         row.getString("organization_state")));
     }
 
+    /** Existence check used by API write gates — API 写门禁用的存在性检查。 */
     public boolean organizationExists(String organizationId) {
         return findOrganization(organizationId).isPresent();
     }
 
     // --- Membership (no tenant) ---
 
+    /** Upsert Membership (no tenant on row) — 写入成员关系（行上无租户）。 */
     public Membership upsertMembership(String subjectId, String organizationId, String membershipState) {
         String sid = requireNonBlank(subjectId, "subjectId");
         String oid = requireNonBlank(organizationId, "organizationId");
@@ -149,6 +154,7 @@ public final class JdbcOrganizationStore {
         return new Membership(sid, oid, state);
     }
 
+    /** Memberships for one subject — 某主体的成员关系。 */
     public List<Membership> listMembershipsForSubject(String subjectId) {
         String sid = requireNonBlank(subjectId, "subjectId");
         return jdbc.query(
@@ -165,6 +171,7 @@ public final class JdbcOrganizationStore {
                 sid);
     }
 
+    /** Memberships for one organization — 某组织的成员关系。 */
     public List<Membership> listMembershipsForOrganization(String organizationId) {
         String oid = requireNonBlank(organizationId, "organizationId");
         return jdbc.query(
@@ -241,6 +248,7 @@ public final class JdbcOrganizationStore {
         return new OrganizationRelation(from, to, kind, state);
     }
 
+    /** List all organization relations — 列出全部组织关系。 */
     public List<OrganizationRelation> listRelations() {
         return jdbc.query(
                 """
@@ -295,6 +303,7 @@ public final class JdbcOrganizationStore {
 
     // --- TenantOrganization ---
 
+    /** Link tenant <-> organization — 挂接租户与组织。 */
     public TenantOrganization upsertTenantOrganization(String tenantId, String organizationId, String linkState) {
         String tid = requireNonBlank(tenantId, "tenantId");
         String oid = requireNonBlank(organizationId, "organizationId");
@@ -335,6 +344,7 @@ public final class JdbcOrganizationStore {
         return new TenantOrganization(tid, oid, state);
     }
 
+    /** TenantOrganization rows for a tenant — 某租户的 TenantOrganization 行。 */
     public List<TenantOrganization> listTenantOrganizationsForTenant(String tenantId) {
         String tid = requireNonBlank(tenantId, "tenantId");
         return jdbc.query(
@@ -351,6 +361,7 @@ public final class JdbcOrganizationStore {
                 tid);
     }
 
+    /** TenantOrganization rows for an organization — 某组织的 TenantOrganization 行。 */
     public List<TenantOrganization> listTenantOrganizationsForOrganization(String organizationId) {
         String oid = requireNonBlank(organizationId, "organizationId");
         return jdbc.query(

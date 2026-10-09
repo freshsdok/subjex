@@ -5,6 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
+/**
+ * TotpGeneratorTest — purpose: TOTP secret round-trip and verification window.
+ * Gates: generated secret verifies current code; wrong code fails closed.
+ * <p>
+ * 目的：TOTP 密钥往返与校验窗口。门禁：生成密钥可验证当前码；错误码失败关闭。
+ */
+
 class TotpGeneratorTest {
 
     @Test

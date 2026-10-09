@@ -17,7 +17,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Operator directory and the local seed — 操作员名录与本地种子。
+ * JdbcOperatorDirectoryTest — purpose: operator directory load + local seeder.
+ * Gates: seeded login resolves; unknown user fails closed (no principal).
+ * <p>
+ * 目的：操作员名录加载与本地种子。门禁：种子登录可解析；未知用户失败关闭。
  */
 class JdbcOperatorDirectoryTest {
 

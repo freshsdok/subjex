@@ -30,8 +30,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+
 /**
- * OperatorTokenAuthSecurityTest — Slice C：登录签发、Bearer 访问、刷新轮换、重放吊销、口令改后失效。
+ * OperatorTokenAuthSecurityTest — purpose: Slice C login/Bearer/refresh/logout lifecycle.
+ * Gates: Bearer access; refresh rotates; replay revoked; password change invalidates (fail-closed).
+ * <p>
+ * 目的：Slice C 登录/Bearer/刷新/登出生命周期。门禁：Bearer 访问；刷新轮换；重放吊销；改密后失效。
  */
 @WebMvcTest(controllers = {OperatorAuthEndpoint.class, OperatorSelfEndpoint.class, OperatorManagementEndpoint.class})
 @Import({

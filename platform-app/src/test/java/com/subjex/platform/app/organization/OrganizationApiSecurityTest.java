@@ -47,8 +47,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * OrganizationApiSecurityTest — O5 Organization API: 401/403/200 + legacy Deprecation headers.
+ * OrganizationApiSecurityTest — purpose: {@code /api/v1/organizations} AuthZ + scope filtering.
+ * Gates: org.read/org.write; out-of-scope deny fail-closed; tenant grant required on writes.
+ * Also covers legacy Deprecation headers on {@code /api/v1/org/**}.
+ * <p>
+ * 目的：组织本体 API 鉴权与范围过滤。门禁：org.read/org.write；越范围失败关闭；写需租户授权。
  */
 @WebMvcTest(controllers = {OrganizationApiEndpoint.class, OrgApiEndpoint.class})
 @Import({

@@ -12,7 +12,7 @@ import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * JdbcOrgDirectory — 组织目录：按租户列出并写入组织单元与成员关系（旧 API 形状）。
+ * JdbcOrgDirectory — legacy org directory: list/write units + memberships in old API shape.
  * <p>
  * O8-4: ontology-first. Reads project from {@code organization} / {@code tenant_organization} /
  * {@code membership} / CONTAINS using {@code organization_id} as the legacy wire {@code orgUnitId}
@@ -21,6 +21,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * write-through for legacy alias rows — not on formal Organization API / Policy / scope resolver.
  * <p>
  * Deprecated {@code /api/v1/org/**} thin adapter. Pure JDBC; bean in {@code PlatformWiring}.
+ * New code must not depend on this type (Legacy -> New only).
+ * <p>
+ * 旧组织目录：按租户列出/写入单元与成员（旧 API 形状）。O8-4 只读本体表；旧表已 DROP。
+ * 正式 Organization API / Policy / 范围解析不经本类。新代码勿依赖（只允许 Legacy->New）。
  */
 @Deprecated(since = "O8-3", forRemoval = false)
 public final class JdbcOrgDirectory {

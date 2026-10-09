@@ -44,19 +44,23 @@ public record OrgScope(String mode, List<String> rootOrganizationIds, List<Strin
         return new OrganizationScope(mode, rootOrganizationIds, organizationIds);
     }
 
+    /** Fail-closed empty scope — 失败关闭空范围。 */
     public static OrgScope none() {
         return new OrgScope(MODE_NONE, List.of(), List.of());
     }
 
+    /** Unrestricted — 无限制。 */
     public static OrgScope unrestricted() {
         return new OrgScope(MODE_UNRESTRICTED, List.of(), List.of());
     }
 
+    /** SELF roots only — 仅 SELF 根。 */
     public static OrgScope self(Collection<String> membershipOrgIds) {
         List<String> ids = List.copyOf(normalizeIds(membershipOrgIds));
         return new OrgScope(MODE_SELF, ids, ids);
     }
 
+    /** SELF + descendants — SELF 及下级。 */
     public static OrgScope selfAndDescendants(Collection<String> roots, Collection<String> expanded) {
         return new OrgScope(
                 MODE_SELF_AND_DESCENDANTS,
@@ -64,6 +68,7 @@ public record OrgScope(String mode, List<String> rootOrganizationIds, List<Strin
                 List.copyOf(normalizeIds(expanded)));
     }
 
+    /** Explicit allow-list — 显式白名单。 */
     public static OrgScope explicit(Collection<String> organizationIds) {
         List<String> ids = List.copyOf(normalizeIds(organizationIds));
         return new OrgScope(MODE_EXPLICIT, ids, ids);
@@ -77,10 +82,12 @@ public record OrgScope(String mode, List<String> rootOrganizationIds, List<Strin
         return new OrgScope(scope.mode(), scope.rootOrganizationIds(), scope.organizationIds());
     }
 
+    /** MODE_NONE — 是否 NONE。 */
     public boolean isNone() {
         return MODE_NONE.equals(mode);
     }
 
+    /** MODE_UNRESTRICTED — 是否无限制。 */
     public boolean isUnrestricted() {
         return MODE_UNRESTRICTED.equals(mode);
     }

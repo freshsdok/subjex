@@ -15,7 +15,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Operator bootstrap upsert — 操作员开通的幂等写入。
+ * OperatorBootstrapTest — purpose: idempotent operator bootstrap upsert.
+ * Gates: upsert creates then updates without duplicate subject; password hash stored.
+ * <p>
+ * 目的：操作员开通幂等写入。门禁：创建后再更新不重复主体；口令哈希落库。
  */
 class OperatorBootstrapTest {
 

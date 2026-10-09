@@ -17,7 +17,10 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * JdbcOperatorLoginLockoutTest — 失败计数达阈锁定、过期复位、成功清除。
+ * JdbcOperatorLoginLockoutTest — purpose: lockout counter/threshold/expiry/clear.
+ * Gates: N failures lock; lock expires; success clears (dual H2 MODE).
+ * <p>
+ * 目的：登录锁定计数/阈值/过期/清除。门禁：N 次失败锁定；到期解除；成功清除。
  */
 class JdbcOperatorLoginLockoutTest {
 

@@ -12,7 +12,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * O8-3: New API / Policy packages must not import org.legacy (Legacy → New only).
+ * LegacyPackageBoundaryTest — purpose/gate O8-3: New packages (organization/security/form)
+ * must not import {@code org.legacy} (Legacy -> New only; never New -> Legacy).
+ * <p>
+ * 目的/门禁 O8-3：新包不得 import org.legacy（只允许 Legacy->New）。
  */
 class LegacyPackageBoundaryTest {
 

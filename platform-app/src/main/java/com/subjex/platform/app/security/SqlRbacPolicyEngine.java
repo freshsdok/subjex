@@ -22,6 +22,10 @@ public final class SqlRbacPolicyEngine implements PolicyEngine {
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
     }
 
+    /**
+     * Delegates to AccessChecker; context/resource tenant mismatch -> DENY_TENANT_MISMATCH (fail-closed) -
+     * 委托 AccessChecker；上下文与资源租户不一致则 DENY_TENANT_MISMATCH（失败关闭）。
+     */
     @Override
     public AccessDecision evaluate(
             PolicyPrincipal principal,

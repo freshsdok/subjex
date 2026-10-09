@@ -17,7 +17,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * SA-1 break-glass: expansion, refuse ordinary mint, dedicated bootstrap — 破窗展开、拒绝普通签发、专用开通。
+ * SuperAdminBreakGlassTest — purpose/gate SA-1: break-glass expansion, refuse ordinary mint,
+ * dedicated bootstrap only. Super-admin must not be minted via normal operator create.
+ * <p>
+ * 目的/门禁 SA-1：破窗权限展开；拒绝普通签发；仅专用开通。不得经普通创建操作员铸超管。
  */
 class SuperAdminBreakGlassTest {
 

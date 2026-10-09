@@ -35,8 +35,11 @@ import org.springframework.web.server.ResponseStatusException;
  * (same as legacy {@code /api/v1/org/**}). Writes hit ontology tables only (O8-4: no map /
  * {@link OrganizationOntologyBackfill} on the happy path). Scope from
  * {@link OrganizationScopeResolver} (Membership + CONTAINS; no map).
+ * Out-of-scope reads/writes -> {@link AccessDecision#DENY_ORG_OUT_OF_SCOPE} (fail-closed);
+ * null actor -> {@link OrganizationScope#none()}, never silent UNRESTRICTED.
  * <p>
  * O5/O8-4 组织本体 JSON。写只落本体表；范围经 OrganizationScopeResolver（不经 map）。
+ * 越范围读/写失败关闭拒绝；无主体 -> NONE，绝不静默 UNRESTRICTED。
  */
 @RestController
 public class OrganizationApiEndpoint {
@@ -62,6 +65,7 @@ public class OrganizationApiEndpoint {
         this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
     }
 
+    /** List tenant-linked organizations filtered by scope — 列出租户关联组织并按范围过滤。 */
     @GetMapping(PATH)
     public OrganizationsDocument list(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -75,6 +79,7 @@ public class OrganizationApiEndpoint {
         return new OrganizationsDocument(organizations);
     }
 
+    /** Get one; out of scope -> DENY_ORG_OUT_OF_SCOPE — 读单个；越范围失败关闭。 */
     @GetMapping(PATH + "/{organizationId}")
     public OrganizationDocument getOne(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -100,6 +105,7 @@ public class OrganizationApiEndpoint {
         return toDocument(tid, org);
     }
 
+    /** Upsert organization; write scope fail-closed — 写入组织；写范围失败关闭。 */
     @PutMapping(PATH + "/{organizationId}")
     public OrganizationDocument upsert(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -120,6 +126,7 @@ public class OrganizationApiEndpoint {
         return toDocument(tid, saved);
     }
 
+    /** List memberships in scope — 列出范围内成员关系。 */
     @GetMapping(PATH + "/memberships")
     public MembershipsDocument memberships(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -134,6 +141,7 @@ public class OrganizationApiEndpoint {
         return new MembershipsDocument(memberships);
     }
 
+    /** Upsert membership; org must be in scope + linked to tenant — 写入成员；组织须在范围内且已挂租户。 */
     @PutMapping(PATH + "/memberships")
     public MembershipDocument upsertMembership(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -164,6 +172,7 @@ public class OrganizationApiEndpoint {
         return membershipDocument(tid, saved);
     }
 
+    /** End membership; out of scope deny — 结束成员；越范围拒绝。 */
     @DeleteMapping(PATH + "/memberships")
     public void removeMembership(
             @AuthenticationPrincipal OperatorPrincipal operator,
@@ -198,6 +207,10 @@ public class OrganizationApiEndpoint {
                 tenantId, row.subjectId(), row.organizationId(), row.membershipState());
     }
 
+    /**
+     * Resolve actor scope; null/blank subject -> NONE (fail-closed) -
+     * 解析主体范围；无主体 -> NONE（失败关闭）。
+     */
     private OrganizationScope resolveScope(OperatorPrincipal operator, String tenantId) {
         if (operator == null || operator.subjectId() == null || operator.subjectId().isBlank()) {
             return OrganizationScope.none();
@@ -205,6 +218,10 @@ public class OrganizationApiEndpoint {
         return scopeResolver.resolveSelfAndDescendants(tenantId, operator.subjectId());
     }
 
+    /**
+     * Fail-closed write gate for org upsert (existing must be in scope; create under in-scope parent) -
+     * 组织写入失败关闭：已存在须在范围内；新建须挂在范围内父节点下。
+     */
     private void requireOrganizationWritable(
             OperatorPrincipal operator,
             String tenantId,
@@ -243,6 +260,7 @@ public class OrganizationApiEndpoint {
         throw new AccessDecisionDeniedException(decision, OperatorPermission.ORG_WRITE.permissionName());
     }
 
+    /** Fail-closed membership write via PolicyEngine + org scope — 成员写经 PolicyEngine + 组织范围失败关闭。 */
     private void requireMembershipOrganizationInScope(
             OperatorPrincipal operator, String tenantId, OrganizationScope scope, String organizationId) {
         OrganizationScope effective = scope == null ? OrganizationScope.none() : scope;
@@ -257,6 +275,10 @@ public class OrganizationApiEndpoint {
                 PolicyContext.of(tenantId, false, effective));
     }
 
+    /**
+     * Null scope -> exclude (fail-closed; never treat unspecified as UNRESTRICTED) -
+     * null 范围视为不在范围内（失败关闭；未指定绝不当 UNRESTRICTED）。
+     */
     private static boolean inScopeOrUnspecified(OrganizationScope scope, String organizationId) {
         if (scope == null) {
             return false;

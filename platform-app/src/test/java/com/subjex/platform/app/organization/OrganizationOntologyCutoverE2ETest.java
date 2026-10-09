@@ -42,12 +42,10 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * O7/O8-6 E2E: backfill → org surface → auth scope → Relationship≠Authorization →
- * scope without map → declaration refs → console path smoke.
+ * OrganizationOntologyCutoverE2ETest — purpose: O8 cutover E2E (backfill/drop/ontology-first reads).
+ * Gates: after V24 legacy tables absent; directory/API serve ontology; scope fail-closed without membership.
  * <p>
- * Pre-DROP: seeds legacy {@code org_unit}/{@code org_membership} then backfills.
- * Post-DROP: seeds via {@link JdbcOrgDirectory} ontology adapters.
- * O7/O8-6 端到端；DROP 前后均可跑。
+ * 目的：O8 切换端到端（回填/DROP/本体优先读）。门禁：V24 后旧表不在；目录/API 走本体；无成员范围失败关闭。
  */
 class OrganizationOntologyCutoverE2ETest {
 

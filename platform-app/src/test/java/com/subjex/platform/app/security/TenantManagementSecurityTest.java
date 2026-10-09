@@ -28,8 +28,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * Tenant management API permissions and behaviours — 租户管理接口的权限与行为。
+ * TenantManagementSecurityTest — purpose: tenant management API permissions/behaviours.
+ * Gates: {@code tenant.manage} required; disable/enable audited; missing permission 403 fail-closed.
+ * <p>
+ * 目的：租户管理接口权限与行为。门禁：需 tenant.manage；停用/启用可审计；缺权限 403 失败关闭。
  */
 @WebMvcTest(controllers = TenantManagementEndpoint.class)
 @Import({

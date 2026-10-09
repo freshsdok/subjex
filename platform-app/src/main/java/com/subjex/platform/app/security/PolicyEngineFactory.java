@@ -21,6 +21,9 @@ public final class PolicyEngineFactory {
     private PolicyEngineFactory() {}
 
     /**
+     * Build engine from {@code platform.authz.engine}; cedar + missing FFI -> fail-closed startup -
+     * 按配置构建引擎；选 cedar 但 FFI 缺失则启动失败关闭。
+     *
      * @param engineName raw {@code platform.authz.engine} (null/blank → {@link #DEFAULT_ENGINE})
      */
     public static PolicyEngine create(

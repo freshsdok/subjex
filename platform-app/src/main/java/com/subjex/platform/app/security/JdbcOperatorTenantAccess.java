@@ -9,7 +9,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * JdbcOperatorTenantAccess — JDBC 实现的操作员—租户授权。
+ * JdbcOperatorTenantAccess — JDBC implementation of operator–tenant grants.
+ * <p>
+ * Fail-closed: blank operator/tenant -> not granted; {@link #requireGranted} throws
+ * {@link OperatorTenantNotGrantedException}. Wildcard {@link #ALL_TENANTS} ({@code *}) covers every id.
+ * JDBC 操作员—租户授权。失败关闭：空白操作员/租户视为未授权；{@code *} 通配全部租户。
  */
 public final class JdbcOperatorTenantAccess implements OperatorTenantAccess {
 
@@ -21,6 +25,7 @@ public final class JdbcOperatorTenantAccess implements OperatorTenantAccess {
         this.transaction = Objects.requireNonNull(transaction, "transaction");
     }
 
+    /** True when a grant row matches tenant or {@code *} — 存在租户或通配授权行则为 true。 */
     @Override
     public boolean isGranted(OperatorPrincipal operator, String tenantId) {
         if (operator == null || tenantId == null || tenantId.isBlank()) {
@@ -39,6 +44,7 @@ public final class JdbcOperatorTenantAccess implements OperatorTenantAccess {
         return count != null && count > 0;
     }
 
+    /** Fail-closed: missing grant -> {@link OperatorTenantNotGrantedException} — 无授权则抛异常。 */
     @Override
     public void requireGranted(OperatorPrincipal operator, String tenantId) {
         if (!isGranted(operator, tenantId)) {

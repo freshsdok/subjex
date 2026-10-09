@@ -32,8 +32,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * Operator–tenant grants on tenant-scoped paths — 租户作用域路径上的操作员—租户授权。
+ * OperatorTenantAuthorizationTest — purpose: operator–tenant grant checks.
+ * Gates: missing grant deny; {@code *} wildcard allows all; requireGranted throws fail-closed.
+ * <p>
+ * 目的：操作员—租户授权核对。门禁：无授权拒绝；{@code *} 通配全部；requireGranted 失败关闭抛异常。
  */
 @WebMvcTest(controllers = TaskSubmissionEndpoint.class)
 @Import({

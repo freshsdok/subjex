@@ -15,7 +15,10 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * JdbcOrgDirectoryTest — 组织目录：列表按 id 排序、租户隔离，以及写路径校验。
+ * JdbcOrgDirectoryTest — purpose: legacy directory list/write against ontology-first store.
+ * Gates: ordered lists; tenant isolation; write validation (dual H2 MODE).
+ * <p>
+ * 目的：旧目录在本体优先存储上的列表/写入。门禁：有序列表；租户隔离；写路径校验。
  */
 class JdbcOrgDirectoryTest {
 

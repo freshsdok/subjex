@@ -31,8 +31,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+
 /**
- * OperatorMfaSecurityTest — Slice D：TOTP 登记、登录挑战、恢复码一次性、关闭需口令+码。
+ * OperatorMfaSecurityTest — purpose: Slice D TOTP enroll/challenge/recovery/disable.
+ * Gates: MFA challenge required when enrolled; recovery codes one-shot; disable needs password+code.
+ * <p>
+ * 目的：Slice D TOTP 登记/挑战/恢复码/关闭。门禁：已登记须过挑战；恢复码一次性；关闭需口令+码。
  */
 @WebMvcTest(
         controllers = {

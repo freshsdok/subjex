@@ -28,6 +28,8 @@ public final class OrganizationScopeResolver {
 
     /**
      * {@link OrganizationScope#MODE_SELF} — ACTIVE membership organization ids linked to the tenant.
+     * Empty ACTIVE memberships -> {@link OrganizationScope#none()} (fail-closed).
+     * SELF：租户内 ACTIVE 成员组织 id；无成员 -> NONE（失败关闭）。
      */
     public OrganizationScope resolveSelf(String tenantId, String subjectId) {
         List<String> roots = activeMembershipOrganizationIds(tenantId, subjectId);
@@ -39,6 +41,8 @@ public final class OrganizationScopeResolver {
 
     /**
      * {@link OrganizationScope#MODE_SELF_AND_DESCENDANTS} — SELF roots plus ACTIVE CONTAINS closure.
+     * Empty ACTIVE memberships -> {@link OrganizationScope#none()} (fail-closed; never silent UNRESTRICTED).
+     * SELF_AND_DESCENDANTS：SELF 根 + ACTIVE CONTAINS 闭包；无成员 -> NONE（失败关闭，绝不静默 UNRESTRICTED）。
      */
     public OrganizationScope resolveSelfAndDescendants(String tenantId, String subjectId) {
         List<String> roots = activeMembershipOrganizationIds(tenantId, subjectId);

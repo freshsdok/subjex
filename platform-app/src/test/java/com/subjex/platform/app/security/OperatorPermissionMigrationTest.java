@@ -8,10 +8,10 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * The permission catalog migrates in both compatibility modes — 权限目录在两种兼容模式下都能迁移。
+ * OperatorPermissionMigrationTest — purpose: Flyway permission catalog shape after migrate.
+ * Gates: expected permission/role names present; no operator row from migration alone (dual H2 MODE).
  * <p>
- * H2 in PostgreSQL and MySQL mode runs V1 and V2 unchanged. The catalog holds roles and permissions but no person.
- * H2 的 PostgreSQL 与 MySQL 模式原样执行 V1 和 V2。目录里有角色和权限，但没有任何人。
+ * 目的：迁移后权限目录形态。门禁：预期权限/角色名存在；仅迁移不产生操作员行。
  */
 class OperatorPermissionMigrationTest {
 

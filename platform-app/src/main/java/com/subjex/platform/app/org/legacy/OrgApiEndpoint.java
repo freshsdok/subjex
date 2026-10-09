@@ -47,6 +47,7 @@ import org.springframework.web.server.ResponseStatusException;
  * {@link JdbcOrgDirectory#listMembershipsForSubject}.
  * <p>
  * 旧 org_unit JSON（O5 起弃用）。请改用 {@code /api/v1/organizations}。本控制器仍兼容；响应带弃用头。
+ * GET 需 org.read；写需 org.write + 租户授权。无 ACTIVE 成员 -> NONE（列表/写失败关闭，绝不静默 UNRESTRICTED）。
  */
 @Deprecated
 @RestController

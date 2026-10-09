@@ -24,13 +24,13 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+
 /**
- * HttpBasicDisabledSecurityTest — Basic-1：{@code platform.auth.http-basic-enabled=false} 时拒绝 Basic，Bearer 仍可用。
+ * HttpBasicDisabledSecurityTest — purpose/gate Basic-1: with {@code platform.auth.http-basic-enabled=false},
+ * Basic credentials must not authenticate; opaque Bearer from login still reaches {@code /api/v1/me}.
+ * Anonymous login and probes stay permitAll (safer non-local default).
  * <p>
- * Proves the safer default outside {@code local}: HTTP Basic credentials do not authenticate, while
- * opaque Bearer from {@code POST /api/v1/auth/login} still reaches {@code /api/v1/me}. Anonymous login
- * and probes stay permitAll.
- * 证明非 local 更安全默认：Basic 凭据无法通过；登录签发的 Bearer 仍可访问 {@code /me}。
+ * 目的/门禁 Basic-1：关闭 Basic 时凭据不得认证；登录签发的 Bearer 仍可访问 {@code /me}；登录与探针保持放行。
  */
 @WebMvcTest(controllers = {OperatorAuthEndpoint.class, OperatorSelfEndpoint.class})
 @Import({

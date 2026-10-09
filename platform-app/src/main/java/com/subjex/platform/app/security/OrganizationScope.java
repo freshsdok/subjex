@@ -42,14 +42,17 @@ public record OrganizationScope(
         }
     }
 
+    /** Fail-closed empty scope (MODE_NONE) — 失败关闭空范围（MODE_NONE）。 */
     public static OrganizationScope none() {
         return new OrganizationScope(MODE_NONE, List.of(), List.of());
     }
 
+    /** Unrestricted (break-glass / super-admin shapes) — 无限制（破窗/超管形态）。 */
     public static OrganizationScope unrestricted() {
         return new OrganizationScope(MODE_UNRESTRICTED, List.of(), List.of());
     }
 
+    /** SELF: membership org ids only — SELF：仅成员组织 id。 */
     public static OrganizationScope self(Collection<String> membershipOrganizationIds) {
         List<String> ids = List.copyOf(normalizeIds(membershipOrganizationIds));
         return new OrganizationScope(MODE_SELF, ids, ids);
@@ -63,16 +66,19 @@ public record OrganizationScope(
                 List.copyOf(normalizeIds(expanded)));
     }
 
+    /** Explicit allow-list of organization ids — 显式组织 id 白名单。 */
     public static OrganizationScope explicit(Collection<String> organizationIds) {
         List<String> ids = List.copyOf(normalizeIds(organizationIds));
         return new OrganizationScope(MODE_EXPLICIT, ids, ids);
     }
 
 
+    /** MODE_NONE — 是否 NONE。 */
     public boolean isNone() {
         return MODE_NONE.equals(mode);
     }
 
+    /** MODE_UNRESTRICTED — 是否无限制。 */
     public boolean isUnrestricted() {
         return MODE_UNRESTRICTED.equals(mode);
     }
@@ -94,6 +100,7 @@ public record OrganizationScope(
         return organizationIds.contains(organizationId.trim());
     }
 
+    /** Short explainability label — 可解释性短标签。 */
     public String summary() {
         if (isNone() || isUnrestricted()) {
             return mode;

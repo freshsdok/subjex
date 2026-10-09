@@ -13,7 +13,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * CedarPolicyEngineTest — AuthZ-1b fixture allow + deny; skips if FFI unavailable.
+ * CedarPolicyEngineTest — purpose: AuthZ-1b Cedar allow/deny via baseline policies.
+ * Gates: assumeTrue skips if FFI unavailable; held permission allows; missing denies (fail-closed).
+ * <p>
+ * 目的：AuthZ-1b Cedar 基线策略允许/拒绝。门禁：FFI 不可用则跳过；持有权限允许；缺失则失败关闭拒绝。
  */
 class CedarPolicyEngineTest {
 

@@ -31,8 +31,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+
 /**
- * OperatorOidcSecurityTest — Slice E：OIDC 回调签发平台令牌、未绑定拒绝、管理员绑定/解绑。
+ * OperatorOidcSecurityTest — purpose: Slice E OIDC callback issues platform tokens.
+ * Gates: unlinked IdP subject denied (fail-closed); admin bind/unbind; linked login succeeds.
+ * <p>
+ * 目的：Slice E OIDC 回调签发平台令牌。门禁：未绑定 IdP 主体失败关闭拒绝；管理员绑定/解绑；已绑定可登录。
  */
 @WebMvcTest(
         controllers = {

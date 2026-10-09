@@ -35,8 +35,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+
 /**
- * OrgApiSecurityTest — 组织只读接口：401 无凭据、403 无 org.read、有权限 200、缺 tenantId 400。
+ * OrgApiSecurityTest — purpose: deprecated {@code /api/v1/org/**} AuthZ + deprecation headers.
+ * Gates: org.read required; unauthenticated 401; missing tenant 400; prefer organizations successor.
+ * <p>
+ * 目的：弃用旧组织 API 鉴权与弃用头。门禁：需 org.read；未认证 401；缺租户 400。
  */
 @WebMvcTest(controllers = OrgApiEndpoint.class)
 @Import({

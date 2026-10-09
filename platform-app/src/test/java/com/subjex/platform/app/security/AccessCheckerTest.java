@@ -15,7 +15,12 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * AccessCheckerTest — 可解释判定：权限允许/拒绝、租户缺失/未授权。
+ * AccessCheckerTest — purpose: explainable allow/deny for permission + tenant + org scope.
+ * Gates: blank/missing permission deny; tenant missing/not-granted deny; org scope missing/out-of-scope
+ * fail-closed (never silent UNRESTRICTED).
+ * <p>
+ * 目的：权限/租户/组织范围的可解释允许与拒绝。门禁：空白/缺失权限拒绝；租户缺失/未授权拒绝；
+ * 组织范围缺失/越界失败关闭（绝不静默 UNRESTRICTED）。
  */
 class AccessCheckerTest {
 

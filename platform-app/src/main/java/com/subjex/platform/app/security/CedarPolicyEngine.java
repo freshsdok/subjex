@@ -32,12 +32,15 @@ import java.util.Set;
  * AuthZ-1d: selectable via {@code platform.authz.engine=cedar|sql} (default cedar).
  * Prefer {@link PolicyEngineFactory} for construction. Permission membership uses classpath policies
  * ({@code authz/baseline.cedar}); tenant grant + organization scope reuse
- * {@link AccessChecker} after Cedar allows. Native/FFI or policy load failure is fail-soft:
- * {@link AccessDecision#DENY_CEDAR_UNAVAILABLE} — the SQL default path stays untouched.
+ * {@link AccessChecker} after Cedar allows. Native/FFI or policy load failure at <em>evaluate</em>
+ * is fail-closed deny ({@link AccessDecision#DENY_CEDAR_UNAVAILABLE} / {@code DENY_CEDAR_ERROR});
+ * factory construction with {@code cedar} refuses startup if natives are missing (no silent SQL fallback).
  * <p>
  * FFI: uber jar loads natives via JNE; container images must match linux/amd64 or arm64.
  * See {@code docs/authz/cedar-or-casbin-adr.md}.
- * Cedar 适配器；1b 不切换默认 Bean；原生库失败软拒绝。
+ * <p>
+ * Cedar 适配器（默认引擎）。权限走 classpath 策略；租户授权与组织范围在 Cedar 允许后再经 AccessChecker。
+ * 判定时原生库/策略失败 -> 失败关闭拒绝；工厂选 cedar 但 FFI 不可用则启动失败，不静默回退 SQL。
  */
 public final class CedarPolicyEngine implements PolicyEngine {
 
@@ -85,10 +88,15 @@ public final class CedarPolicyEngine implements PolicyEngine {
         return nativeAvailable;
     }
 
+    /** Detail when {@link #isNativeAvailable()} is false — 原生库不可用时的原因。 */
     public Optional<String> nativeFailureMessage() {
         return Optional.ofNullable(nativeFailureMessage);
     }
 
+    /**
+     * Cedar permission then AccessChecker tenant/org gates; blank permission / unavailable / mismatch deny -
+     * 先 Cedar 权限，再 AccessChecker 租户/组织门禁；空白权限、不可用、租户不一致均拒绝。
+     */
     @Override
     public AccessDecision evaluate(
             PolicyPrincipal principal,

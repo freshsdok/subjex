@@ -126,6 +126,10 @@ public final class AccessChecker {
                 null);
     }
 
+    /**
+     * Tenant gate then org scope (permission already matched) -
+     * 租户门禁后再做组织范围（权限已命中）。
+     */
     public static AccessDecision evaluateTenantWhenScoped(
             OperatorPrincipal operator,
             boolean tenantScoped,
@@ -227,6 +231,9 @@ public final class AccessChecker {
                 null);
     }
 
+    /**
+     * Fail-closed evaluate with org scope - 带组织范围的失败关闭判定（拒绝抛异常）。
+     */
     public static AccessDecision require(
             OperatorPrincipal operator,
             String permission,

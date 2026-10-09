@@ -15,7 +15,10 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * SqlRbacPolicyEngineTest — 端口允许/拒绝与 AccessChecker 同形；未知权限拒绝原因不变。
+ * SqlRbacPolicyEngineTest — purpose: PolicyEngine SQL adapter mirrors AccessChecker decisions.
+ * Gates: allow when permission held; unknown permission deny reason stable; tenant mismatch deny.
+ * <p>
+ * 目的：PolicyEngine SQL 适配与 AccessChecker 同形。门禁：持有权限允许；未知权限拒绝原因稳定；租户不一致拒绝。
  */
 class SqlRbacPolicyEngineTest {
 
