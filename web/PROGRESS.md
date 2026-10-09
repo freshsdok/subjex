@@ -519,3 +519,6 @@ Boot4-1. [done] 2026-10-09 CST; Spring Boot **4.0.8** + Framework 7.0.9; testcon
 
 Boot4-2. [done] 2026-10-09 CST; CI tip d838f73 red (VendorStartup Flyway bean; Trivy Tomcat 11.0.24 + Jackson 2.21.5 HIGH). Fixes: `spring-boot-starter-flyway`; `tomcat.version=11.0.26`; `jackson-bom.version=3.1.7`; `jackson-2-bom.version=2.21.7`; springdoc **3.1.1**. Local tests; squash-push. **No tag.**
     Boot4-2：Flyway starter + Tomcat/Jackson 覆盖 + springdoc 3；待 squash 推送。未打 tag。
+
+Alpha-1. [done] 2026-10-09 CST; intentional cut after fully green CI on tip `e7dc268` (run 37899546752: test/web/image-scan). Annotated tag + GitHub **pre-release** `v0.1.0-alpha.1` (Boot 4.0.8; evaluation / not production-ready). Docs note on checklist/CHANGELOG/PROGRESS; docs-only squash follows. **Do not claim production-ready.**
+    已按 boot4-then-alpha 打评估版 tag；非生产就绪。
