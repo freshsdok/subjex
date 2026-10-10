@@ -28,6 +28,10 @@ Reading an old submission: use the form YAML (or git tag/commit) whose `version`
 
 ## Entity YAML → migration drafts / 实体 YAML → 迁移草稿
 
+> **Storage track note / 存储轨说明：** ADR [`adr/0002-entity-storage-hybrid-b.md`](adr/0002-entity-storage-hybrid-b.md) decides zero-code **default** hybrid B (core + jsonb); the CREATE/ALTER drafts below remain the **optional** physical-table track and today’s shipped Z1 path until a hybrid adapter lands.  
+> 零代码**默认**混合 B 见 ADR 0002；下文 CREATE/ALTER 草稿仍是**可选**物理表轨与当前已交付 Z1 路径（混合适配器落地前）。
+
+
 When `tenantScoped: true`, the physical table **must** include `tenant_id VARCHAR(64) NOT NULL` (index/PK as the author chooses). Generic CRUD stamps and filters that column. `EntityMigrationGenerator` **does** auto-add `tenant_id VARCHAR(64) NOT NULL` when the field list omits it (still a single PRIMARY KEY on the entity PK; authors may edit indexes/PK in the draft).
 `tenantScoped: true` 时表必须含 `tenant_id VARCHAR(64) NOT NULL`（索引/主键自定）。通用 CRUD 盖章与过滤该列。字段列表未写该列时，`EntityMigrationGenerator` **会**自动追加 `tenant_id VARCHAR(64) NOT NULL`（主键仍为实体单列；草稿中可人工改索引/主键）。
 

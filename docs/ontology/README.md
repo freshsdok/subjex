@@ -22,6 +22,7 @@
 | File | Content |
 | --- | --- |
 | [`../adr/0001-o1-organization-ontology.md`](../adr/0001-o1-organization-ontology.md) | ADR — why replace thin `org_unit` |
+| [`../adr/0002-entity-storage-hybrid-b.md`](../adr/0002-entity-storage-hybrid-b.md) | ADR — entity storage hybrid B default (+ optional per-entity tables) |
 | [`er-and-cardinality.md`](er-and-cardinality.md) | Mermaid ER + cardinality table |
 | [`lifecycle-id-state.md`](lifecycle-id-state.md) | Lifecycle, ID rules, state rules |
 | [`review-questions.md`](review-questions.md) | Ten review answers (gate for migration) |

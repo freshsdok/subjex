@@ -33,3 +33,8 @@ One pair only; **Context** (tenant, later descendant / membership) narrows candi
 ## Out of scope / 非本轮
 
 No O7 DROP of `org_unit` / `org_membership`. No HR / Position / SCIM.
+
+## Related / 相关
+
+Entity **row storage** default (hybrid B vs optional physical tables): [`../adr/0002-entity-storage-hybrid-b.md`](../adr/0002-entity-storage-hybrid-b.md) — docs decision only; not implemented in O6.
+实体行存储默认策略见 ADR 0002（文档决策；O6 未实现存储切换）。
