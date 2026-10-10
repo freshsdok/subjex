@@ -60,6 +60,9 @@ class GenericEntitySecurityTest {
     @MockitoBean
     private GenericEntityStore store;
 
+    @MockitoBean
+    private HybridEntityStore hybridStore;
+
     @Test
     void tenantScopedEntityWithoutHeaderIsDenied() throws Exception {
         when(effective.runtimeEntity(isNull(), eq("scoped-item"))).thenReturn(Optional.of(scopedEntity()));
@@ -87,6 +90,7 @@ class GenericEntitySecurityTest {
                 version: 1
                 permission: page.read
                 tenantScoped: true
+                storageMode: table
                 fields:
                   - name: id
                     kind: text

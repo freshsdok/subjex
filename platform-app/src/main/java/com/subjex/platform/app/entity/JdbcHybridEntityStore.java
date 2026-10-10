@@ -62,6 +62,7 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
         }
         String recordId = pkRaw.toString();
         String attrsJson = writeAttrs(accepted);
+        AttrsPayloadLimits.requireWithinLimits(accepted, attrsJson);
         Timestamp now = PlatformTables.timestamp(clock.instant());
         int updated = jdbc.update(
                 """
@@ -148,6 +149,24 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
 
     private RowMapper<Map<String, Object>> attrsMapper() {
         return (row, rowNum) -> readAttrs(row.getString("attrs"));
+    }
+
+
+    @Override
+    public boolean deleteById(RenderedEntity entity, String id, String tenantId) {
+        Objects.requireNonNull(entity, "entity");
+        Objects.requireNonNull(id, "id");
+        requireHybrid(entity);
+        String effectiveTenant = effectiveTenant(entity, tenantId);
+        return jdbc.update(
+                        """
+                        DELETE FROM entity_record
+                         WHERE tenant_id = ? AND entity_key = ? AND record_id = ?
+                        """,
+                        effectiveTenant,
+                        entity.entityKey(),
+                        id)
+                > 0;
     }
 
     private static void requireHybrid(RenderedEntity entity) {

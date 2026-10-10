@@ -19,6 +19,8 @@ import com.subjex.entity.declare.EntityCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.entity.JdbcHybridEntityStore;
+import com.subjex.platform.app.entity.EntityBlobStore;
+import com.subjex.platform.app.entity.JdbcEntityBlobStore;
 import com.subjex.platform.app.declaration.DeclarationMigrationApplyService;
 import com.subjex.platform.app.declaration.DeclarationMigrationAutoEnqueueService;
 import com.subjex.platform.app.declaration.DeclarationPromoteService;
@@ -534,6 +536,15 @@ public class PlatformWiring {
     @Bean
     HybridEntityStore hybridEntityStore(JdbcTemplate jdbc, Clock clock, ObjectMapper objectMapper) {
         return new JdbcHybridEntityStore(jdbc, clock, objectMapper);
+    }
+
+    /**
+     * Entity attachment metadata + ObjectStorage bytes (ES-2 / ADR 0002) —
+     * 实体附件元数据 + ObjectStorage 字节（ES-2）。
+     */
+    @Bean
+    EntityBlobStore entityBlobStore(JdbcTemplate jdbc, ObjectStorage objectStorage, Clock clock) {
+        return new JdbcEntityBlobStore(jdbc, objectStorage, clock);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.subjex.platform.app.entity;
 
+import com.subjex.entity.declare.EntityStorageMode;
 import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
@@ -29,16 +30,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * GenericEntityEndpoint — 通用实体 REST：按 {@code entityKey} 对元数据驱动的表做 CRUD。
+ * GenericEntityEndpoint — 通用实体 REST：按 {@code entityKey} 与 {@code storageMode} 路由 CRUD。
  * <p>
- * Paths under {@code /api/v1/entities/{entityKey}/records}. Does not replace the bespoke
- * {@code service-note/notes} list. When {@code tenantScoped: true}, requires {@code X-Tenant-Id}
- * (and operator–tenant grant) and isolates rows on physical {@code tenant_id}.
- * With non-blank {@code X-Tenant-Id}, resolves entity via {@link EffectiveDeclarationService#runtimeEntity}
- * (classpath: draft overlay when tableName+PK match; no-classpath: PROMOTED + APPLIED migration only).
- * 路径在 {@code /api/v1/entities/{entityKey}/records}。不替换专用的 {@code service-note/notes} 列表。
- * {@code tenantScoped: true} 时要求租户头与授权，并按物理列 {@code tenant_id} 隔离。
- * 带租户头时经 runtimeEntity（无 classpath 仅 PROMOTED+已 APPLIED 迁移）。
+ * Paths under {@code /api/v1/entities/{entityKey}/records}. Routes {@code storageMode=table} to
+ * {@link GenericEntityStore} and {@code hybrid} to {@link HybridEntityStore} (ES-2). Large payloads
+ * stay on {@link EntityBlobStore}, not in attrs. When {@code tenantScoped: true}, requires
+ * {@code X-Tenant-Id} (and operator–tenant grant).
+ * 路径在 {@code /api/v1/entities/{entityKey}/records}。table 轨走 {@link GenericEntityStore}，hybrid 走
+ * {@link HybridEntityStore}（ES-2）。大载荷用 {@link EntityBlobStore}。租户隔离须头与授权。
  */
 @RestController
 public class GenericEntityEndpoint {
@@ -53,17 +52,20 @@ public class GenericEntityEndpoint {
     private static final int MAX_LIMIT = 500;
 
     private final EffectiveDeclarationService effective;
-    private final GenericEntityStore store;
+    private final GenericEntityStore tableStore;
+    private final HybridEntityStore hybridStore;
     private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
 
     public GenericEntityEndpoint(
             EffectiveDeclarationService effective,
-            GenericEntityStore store,
+            GenericEntityStore tableStore,
+            HybridEntityStore hybridStore,
             TenantGuard tenantGuard,
             OperatorTenantAccess tenantAccess) {
         this.effective = Objects.requireNonNull(effective, "effective");
-        this.store = Objects.requireNonNull(store, "store");
+        this.tableStore = Objects.requireNonNull(tableStore, "tableStore");
+        this.hybridStore = Objects.requireNonNull(hybridStore, "hybridStore");
         this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
     }
@@ -88,8 +90,21 @@ public class GenericEntityEndpoint {
             throw new IllegalArgumentException("filterField and filterValue must be provided together");
         }
         String storeTenant = entity.tenantScoped() ? tenantId : null;
-        List<Map<String, Object>> records = store.list(
-                entity, capped, blankToNull(sort), ascending, blankToNull(filterField), filterValue, storeTenant);
+        List<Map<String, Object>> records;
+        if (entity.storageMode() == EntityStorageMode.HYBRID) {
+            if (blankToNull(sort) != null || blankToNull(filterField) != null) {
+                throw new IllegalArgumentException(
+                        "hybrid storageMode does not support sort/filter yet; omit sort and filterField");
+            }
+            if (!ascending) {
+                throw new IllegalArgumentException(
+                        "hybrid storageMode lists record_id ASC only; omit order or use asc");
+            }
+            records = hybridStore.list(entity, capped, storeTenant);
+        } else {
+            records = tableStore.list(
+                    entity, capped, blankToNull(sort), ascending, blankToNull(filterField), filterValue, storeTenant);
+        }
         return new RecordsDocument(records);
     }
 
@@ -102,7 +117,7 @@ public class GenericEntityEndpoint {
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedEntity entity = requireEntity(entityKey, operator, tenantId);
         String storeTenant = entity.tenantScoped() ? tenantId : null;
-        return store.findById(entity, id, storeTenant)
+        return findOne(entity, id, storeTenant)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
@@ -123,7 +138,11 @@ public class GenericEntityEndpoint {
         Map<String, Object> withPk = new LinkedHashMap<>(values);
         withPk.put(entity.primaryKey().name(), id);
         String storeTenant = entity.tenantScoped() ? tenantId : null;
-        store.save(entity, withPk, storeTenant);
+        if (entity.storageMode() == EntityStorageMode.HYBRID) {
+            hybridStore.save(entity, withPk, storeTenant);
+        } else {
+            tableStore.save(entity, withPk, storeTenant);
+        }
         return ResponseEntity.noContent().build();
     }
 
@@ -136,10 +155,21 @@ public class GenericEntityEndpoint {
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedEntity entity = requireEntity(entityKey, operator, tenantId);
         String storeTenant = entity.tenantScoped() ? tenantId : null;
-        if (!store.deleteById(entity, id, storeTenant)) {
+        boolean removed =
+                entity.storageMode() == EntityStorageMode.HYBRID
+                        ? hybridStore.deleteById(entity, id, storeTenant)
+                        : tableStore.deleteById(entity, id, storeTenant);
+        if (!removed) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         return ResponseEntity.noContent().build();
+    }
+
+    private java.util.Optional<Map<String, Object>> findOne(RenderedEntity entity, String id, String storeTenant) {
+        if (entity.storageMode() == EntityStorageMode.HYBRID) {
+            return hybridStore.findById(entity, id, storeTenant);
+        }
+        return tableStore.findById(entity, id, storeTenant);
     }
 
     private RenderedEntity requireEntity(String entityKey, OperatorPrincipal operator, String tenantId) {

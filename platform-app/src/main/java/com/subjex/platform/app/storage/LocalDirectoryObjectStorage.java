@@ -55,6 +55,18 @@ public final class LocalDirectoryObjectStorage implements ObjectStorage {
         }
     }
 
+
+    @Override
+    public void delete(String tenantId, String objectKey) {
+        Path objectPath = resolve(tenantId, objectKey);
+        try {
+            Files.deleteIfExists(objectPath);
+            Files.deleteIfExists(objectPath.resolveSibling(objectKey + ".type"));
+        } catch (IOException ex) {
+            throw new IllegalStateException("could not delete object " + objectKey, ex);
+        }
+    }
+
     private Path resolve(String tenantId, String objectKey) {
         if (tenantId == null || tenantId.isBlank() || objectKey == null || objectKey.isBlank()) {
             throw new IllegalArgumentException("tenant and object key are required");

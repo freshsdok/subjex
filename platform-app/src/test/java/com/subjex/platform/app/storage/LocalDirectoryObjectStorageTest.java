@@ -29,4 +29,13 @@ class LocalDirectoryObjectStorageTest {
         assertEquals("text/plain", found.get().mediaType());
         assertTrue(storage.find("tenant-other", "brief").isEmpty());
     }
+
+    @Test
+    void deleteRemovesObject() {
+        ObjectStorage storage = new LocalDirectoryObjectStorage(directory);
+        storage.put("tenant-north", "brief", "x".getBytes(StandardCharsets.UTF_8), "text/plain");
+        storage.delete("tenant-north", "brief");
+        assertTrue(storage.find("tenant-north", "brief").isEmpty());
+        storage.delete("tenant-north", "brief");
+    }
 }

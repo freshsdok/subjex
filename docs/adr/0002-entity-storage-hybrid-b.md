@@ -1,6 +1,6 @@
 # ADR 0002 — Entity row storage: hybrid B default (core columns + jsonb)
 
-- Status: **Accepted** (ES-1 landed: shared `entity_record` + `HybridEntityStore`; attachments still later)
+- Status: **Accepted** (ES-1 + ES-2: `entity_record` / `HybridEntityStore`; `entity_blob` + `ObjectStorage`; endpoint routes by `storageMode`)
 - Date: 2026-10-10 (Asia/Shanghai)
 - Scope: Zero-code / generic entity **physical row layout**; dual-track with optional per-entity tables
 

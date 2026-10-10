@@ -6,11 +6,11 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * HybridEntityStore — 混合轨实体存储（ADR 0002 / ES-1）：共享 {@code entity_record} 核心列 + attrs JSON。
+ * HybridEntityStore — 混合轨实体存储（ADR 0002）：共享 {@code entity_record} 核心列 + attrs JSON。
  * <p>
- * Sibling of {@link GenericEntityStore} (physical per-entity tables). Callers should route by
- * {@link com.subjex.entity.declare.RenderedEntity#storageMode()}. Attachments/blobs are out of scope for ES-1.
- * 与 {@link GenericEntityStore}（一实体一表）并列。按 storageMode 路由；附件/blob 不在 ES-1。
+ * Sibling of {@link GenericEntityStore} (physical per-entity tables). Callers route by
+ * {@link com.subjex.entity.declare.RenderedEntity#storageMode()}. Large payloads: {@link EntityBlobStore} (ES-2).
+ * 与 {@link GenericEntityStore}（一实体一表）并列。按 storageMode 路由；大载荷见 {@link EntityBlobStore}（ES-2）。
  */
 public interface HybridEntityStore {
 
@@ -29,4 +29,7 @@ public interface HybridEntityStore {
      * 按 entityKey 列出最多 limit 行，按 record_id 升序。
      */
     List<Map<String, Object>> list(RenderedEntity entity, int limit, String tenantId);
+
+    /** Delete by primary key; returns whether a row was removed — 按主键删除；返回是否删到行。 */
+    boolean deleteById(RenderedEntity entity, String id, String tenantId);
 }

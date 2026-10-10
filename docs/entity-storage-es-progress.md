@@ -14,10 +14,19 @@ Tracks ADR [`adr/0002-entity-storage-hybrid-b.md`](adr/0002-entity-storage-hybri
 - Tests: `HybridEntityStoreTest` insert/list (+ tenant isolation, table-mode reject, default hybrid).
 - **Not in ES-1:** migrate existing entities; endpoint/form auto-dispatch to hybrid; attachments/blobs.
 
-### ES-2 [next] — blob / attachment metadata
+### ES-2 [done] — blob / attachment metadata + ObjectStorage
 
-- Metadata/blob table + object-store port; keep large payloads out of `attrs`.
-- Wire GenericEntityEndpoint / form upsert to route by `storageMode` (optional small follow-up if not bundled).
+- Flyway `V31__entity_blob.sql`: blob_id, tenant_id, entity_key, record_id, field_name, content_type, byte_size, storage_key, checksum_sha256, created_at.
+- Reuses existing `ObjectStorage` / `LocalDirectoryObjectStorage`; added `delete`. Blank metadata tenant maps to object tenant `_platform_`.
+- `EntityBlobStore` + `JdbcEntityBlobStore` (put/find/list/delete/deleteForRecord); `AttrsPayloadLimits` on hybrid save (string/JSON caps; reject `byte[]` in attrs).
+- `GenericEntityEndpoint` routes by `storageMode` (table ↔ `GenericEntityStore`, hybrid ↔ `HybridEntityStore`); hybrid list is record_id ASC only (no sort/filter yet). `HybridEntityStore.deleteById` added.
+- Tests: `EntityBlobStoreTest`, ObjectStorage delete, hybrid large-string reject.
+
+### ES-3 [next] — hybrid list filters + form upsert route + blob HTTP (optional)
+
+- Hybrid sort/filter (or documented subset); `FormDomainActionRunner` route by `storageMode`.
+- Thin REST for blob upload/download bound to entity record + AuthZ; cascade blobs on record delete.
+- Optional: promote hot attrs path → core column notes.
 
 ## Notes / 说明
 
