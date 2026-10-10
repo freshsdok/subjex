@@ -20,7 +20,9 @@ import org.springframework.jdbc.core.RowMapper;
 /**
  * GenericEntityStore — 通用实体 JDBC 存储：按 {@link RenderedEntity} 元数据拼 SELECT/INSERT/UPDATE/DELETE。
  * <p>
- * Spring-free store class (uses {@link JdbcTemplate} only). New entity → YAML + Flyway, no bespoke Java.
+ * Spring-free store class (uses {@link JdbcTemplate} only). Physical-table track ({@code storageMode=table}).
+ * Hybrid shared-table track: {@link HybridEntityStore} (ADR 0002 / ES-1).
+ * 物理表轨（storageMode=table）。混合共享表轨见 {@link HybridEntityStore}。
  * Save is upsert (update then insert, retry update on race). List orders by primary-key column ASC.
  * When {@link RenderedEntity#tenantScoped()} is true, every SQL path filters/stamps the physical
  * {@code tenant_id} column (VARCHAR) from the caller tenant; client body keys {@code tenantId}/{@code tenant_id}

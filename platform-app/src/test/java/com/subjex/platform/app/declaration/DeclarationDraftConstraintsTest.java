@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.entity.declare.EntityField;
+import com.subjex.entity.declare.EntityStorageMode;
 import com.subjex.entity.declare.EntityFieldKind;
 import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.form.render.DeclaredEffect;
@@ -45,6 +46,7 @@ class DeclarationDraftConstraintsTest {
                 1,
                 "not.a.real.permission",
                 false,
+                EntityStorageMode.TABLE,
                 "X",
                 List.of(new EntityField("id", EntityFieldKind.TEXT, true, 64)));
         IllegalArgumentException ex =

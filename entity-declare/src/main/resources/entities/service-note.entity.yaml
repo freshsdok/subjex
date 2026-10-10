@@ -6,6 +6,7 @@ tableName: service_note
 version: 1
 permission: page.read
 tenantScoped: false
+storageMode: table
 fields:
   - name: noteId
     kind: text

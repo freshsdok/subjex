@@ -29,6 +29,7 @@ class EntityRendererTest {
         assertEquals(1, entity.version());
         assertEquals("page.read", entity.permission());
         assertFalse(entity.tenantScoped());
+        assertEquals(EntityStorageMode.TABLE, entity.storageMode());
         assertEquals("ServiceNote", entity.typeName());
         assertEquals(4, entity.fields().size());
         assertEquals(new EntityField("noteId", EntityFieldKind.TEXT, true, 64), entity.fields().get(0));

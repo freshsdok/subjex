@@ -336,9 +336,9 @@ Rejected as default sequencing: R2 (org-first for strong approval demos); R3 (st
 
 **已拍板：字段/schema 严格库管**（负责人确认）——改字段必须走版本化**受控迁移 / 迁移队列**，经双轨晋升审核落地；声明切换与迁移完成**绑定**（见上节热加载绑定）；**禁止**控制台随意在线 DDL。
 
-**Decided / 已拍板：entity row storage (ADR 0002)** — zero-code entities **default** to **hybrid B** (shared core columns + `attrs` jsonb); attachments/rich-text **externalized** (object store + metadata/blob table); **physical per-entity tables** remain an **optional** track for strong-constraint entities. See [`docs/adr/0002-entity-storage-hybrid-b.md`](adr/0002-entity-storage-hybrid-b.md). **No implementation in the ADR slice.**
+**Decided / 已拍板：entity row storage (ADR 0002)** — zero-code entities **default** to **hybrid B** (shared core columns + `attrs` jsonb); attachments/rich-text **externalized** (object store + metadata/blob table); **physical per-entity tables** remain an **optional** track for strong-constraint entities. See [`docs/adr/0002-entity-storage-hybrid-b.md`](adr/0002-entity-storage-hybrid-b.md). **ES-1:** Flyway `V30__entity_record` + `HybridEntityStore` / `storageMode` (samples stay `table`); next = blob/attachment metadata.
 
-**已拍板：实体行存储（ADR 0002）**——零代码实体**默认**混合 B（共享核心列 + `attrs` jsonb）；附件/富文本**外置**；一实体一表为强约束**可选轨**。见 ADR 0002。**本切片不实现存储。**
+**已拍板：实体行存储（ADR 0002）**——零代码实体**默认**混合 B；附件/富文本外置；一实体一表可选。见 ADR 0002。**ES-1** 已落 `entity_record` + HybridEntityStore；下一步 blob/附件元数据。
 
 ### Declaration truth & dual-track / 声明真相与双轨
 

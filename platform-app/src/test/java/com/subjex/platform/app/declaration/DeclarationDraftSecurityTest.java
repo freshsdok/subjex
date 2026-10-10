@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.subjex.entity.declare.EntityField;
+import com.subjex.entity.declare.EntityStorageMode;
 import com.subjex.entity.declare.EntityFieldKind;
 import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.platform.app.security.LocalOperatorSeeder;
@@ -326,6 +327,7 @@ class DeclarationDraftSecurityTest {
                 2,
                 "page.read",
                 false,
+                EntityStorageMode.TABLE,
                 "DemoTicket",
                 List.of(
                         new EntityField("ticketId", EntityFieldKind.TEXT, true, 64),

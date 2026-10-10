@@ -1,6 +1,6 @@
 # ADR 0002 — Entity row storage: hybrid B default (core columns + jsonb)
 
-- Status: **Accepted** (docs only — **no storage implementation yet**)
+- Status: **Accepted** (ES-1 landed: shared `entity_record` + `HybridEntityStore`; attachments still later)
 - Date: 2026-10-10 (Asia/Shanghai)
 - Scope: Zero-code / generic entity **physical row layout**; dual-track with optional per-entity tables
 
@@ -57,7 +57,7 @@ Keep today’s **one table per entity** path as an **opt-in** for **strong-const
 
 ## Non-goals this ADR / 本 ADR 明确不做
 
-- **No implementation** in this change (no Flyway, no store rewrite, no API break)
+- Original ADR slice was docs-only; **ES-1** adds Flyway `entity_record` + `HybridEntityStore` (no forced cutover)
 - No pure EAV-as-primary, no schema-per-tenant as default, no forced move of all existing tables in one cutover
 - Does not weaken dual-track promote or “no casual online DDL”
 

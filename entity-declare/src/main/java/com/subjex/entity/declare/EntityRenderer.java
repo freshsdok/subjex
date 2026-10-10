@@ -23,7 +23,7 @@ public final class EntityRenderer {
     private static final Pattern FIELD_NAME = Pattern.compile("[a-z][A-Za-z0-9]*");
     private static final Pattern PERMISSION = Pattern.compile("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+");
     private static final Set<String> ENTITY_KEYS =
-            Set.of("entityKey", "tableName", "version", "permission", "tenantScoped", "fields");
+            Set.of("entityKey", "tableName", "version", "permission", "tenantScoped", "storageMode", "fields");
     private static final Set<String> FIELD_KEYS =
             Set.of("name", "kind", "required", "maxLength", "enumValues", "refEntityKey");
 
@@ -50,6 +50,7 @@ public final class EntityRenderer {
         int version = requiredVersion(document);
         String permission = parsePermission(required(document, "permission"));
         boolean tenantScoped = optionalBoolean(document, "tenantScoped");
+        EntityStorageMode storageMode = EntityStorageMode.parseOptional(optionalText(document, "storageMode"));
         Object rawFields = required(document, "fields");
         if (!(rawFields instanceof List<?> fieldList) || fieldList.isEmpty()) {
             throw new EntityDefinitionRejected("fields must be a non-empty list");
@@ -62,7 +63,8 @@ public final class EntityRenderer {
             }
             fields.add(field(field, names));
         }
-        return new RenderedEntity(entityKey, tableName, version, permission, tenantScoped, typeName(entityKey), List.copyOf(fields));
+        return new RenderedEntity(
+                entityKey, tableName, version, permission, tenantScoped, storageMode, typeName(entityKey), List.copyOf(fields));
     }
 
     private static EntityField field(Map<?, ?> field, Set<String> names) {

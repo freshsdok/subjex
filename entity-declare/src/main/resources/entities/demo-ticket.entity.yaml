@@ -7,6 +7,7 @@ tableName: demo_ticket
 version: 1
 permission: page.read
 tenantScoped: false
+storageMode: table
 fields:
   - name: ticketId
     kind: text

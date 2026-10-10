@@ -17,6 +17,8 @@ import com.subjex.platform.app.discovery.TcpAddressProbe;
 import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.entity.declare.EntityCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.entity.HybridEntityStore;
+import com.subjex.platform.app.entity.JdbcHybridEntityStore;
 import com.subjex.platform.app.declaration.DeclarationMigrationApplyService;
 import com.subjex.platform.app.declaration.DeclarationMigrationAutoEnqueueService;
 import com.subjex.platform.app.declaration.DeclarationPromoteService;
@@ -524,6 +526,14 @@ public class PlatformWiring {
     @Bean
     GenericEntityStore genericEntityStore(JdbcTemplate jdbc) {
         return new GenericEntityStore(jdbc);
+    }
+
+    /**
+     * Hybrid B shared entity_record store (ADR 0002 / ES-1) — 混合 B 共享 entity_record 存储。
+     */
+    @Bean
+    HybridEntityStore hybridEntityStore(JdbcTemplate jdbc, Clock clock, ObjectMapper objectMapper) {
+        return new JdbcHybridEntityStore(jdbc, clock, objectMapper);
     }
 
     /**
