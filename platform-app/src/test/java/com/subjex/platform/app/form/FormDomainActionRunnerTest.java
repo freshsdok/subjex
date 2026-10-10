@@ -25,6 +25,7 @@ import com.subjex.platform.contract.config.ConfigNamespaces;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.contract.discovery.ServiceEndpoint;
@@ -50,6 +51,7 @@ class FormDomainActionRunnerTest {
     private final EntityCatalog entities = EntityCatalog.load(EntityCatalog.class.getClassLoader());
     private final EffectiveDeclarationService effective = mock(EffectiveDeclarationService.class);
     private final GenericEntityStore genericEntities = mock(GenericEntityStore.class);
+    private final HybridEntityStore hybridEntities = mock(HybridEntityStore.class);
     private final TenantGuard tenantGuard = new DenyWhenTenantMissing();
     private final OperatorTenantAccess tenantAccess = mock(OperatorTenantAccess.class);
     private final FormDomainActionRunner runner =
@@ -58,6 +60,7 @@ class FormDomainActionRunnerTest {
                     config,
                     effective,
                     genericEntities,
+                    hybridEntities,
                     new CapabilityRunner(new CapabilityCatalog()),
                     tenantGuard,
                     tenantAccess);
@@ -67,6 +70,29 @@ class FormDomainActionRunnerTest {
         when(effective.runtimeEntity(any(), eq("demo-ticket"))).thenAnswer(inv -> entities.find("demo-ticket"));
         when(effective.runtimeEntity(any(), eq("service-note"))).thenAnswer(inv -> entities.find("service-note"));
         when(effective.runtimeEntity(any(), eq("no-such-entity"))).thenReturn(Optional.empty());
+        when(effective.runtimeEntity(any(), eq("hybrid-asset")))
+                .thenReturn(Optional.of(hybridAssetEntity()));
+    }
+
+    private static RenderedEntity hybridAssetEntity() {
+        return new EntityRenderer()
+                .render(
+                        """
+                        entityKey: hybrid-asset
+                        tableName: hybrid_asset
+                        version: 1
+                        permission: page.read
+                        storageMode: hybrid
+                        fields:
+                          - name: assetId
+                            kind: text
+                            required: true
+                            maxLength: 64
+                          - name: title
+                            kind: text
+                            required: true
+                            maxLength: 200
+                        """);
     }
 
     @Test
@@ -152,6 +178,7 @@ class FormDomainActionRunnerTest {
                 version: 1
                 permission: page.read
                 tenantScoped: true
+                storageMode: table
                 fields:
                   - name: id
                     kind: text
@@ -181,6 +208,7 @@ class FormDomainActionRunnerTest {
                 version: 1
                 permission: page.read
                 tenantScoped: true
+                storageMode: table
                 fields:
                   - name: id
                     kind: text
@@ -226,6 +254,16 @@ class FormDomainActionRunnerTest {
         String summary = runner.apply(form, Map.of("inputText", "Ticket subject\nBody"));
         assertEquals("[ai.suggestTitlePreview] model-gateway stub title: Ticket subject", summary);
         verify(genericEntities, never()).save(any(), any(), any());
+    }
+
+
+    @Test
+    void upsertsHybridEntityViaHybridStore() {
+        RenderedForm form = form("hybrid-form", DomainActionKey.ENTITY_RECORD_UPSERT, "hybrid-asset");
+        String summary = runner.apply(form, Map.of("assetId", "a-1", "title", "Alpha"));
+        assertEquals("hybrid-asset:a-1", summary);
+        verify(hybridEntities).save(any(RenderedEntity.class), any(), isNull());
+        verify(genericEntities, never()).save(any(RenderedEntity.class), any(), any());
     }
 
     private static RenderedForm form(String formKey, DomainActionKey action, String entityKey) {

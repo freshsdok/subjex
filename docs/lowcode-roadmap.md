@@ -336,9 +336,9 @@ Rejected as default sequencing: R2 (org-first for strong approval demos); R3 (st
 
 **已拍板：字段/schema 严格库管**（负责人确认）——改字段必须走版本化**受控迁移 / 迁移队列**，经双轨晋升审核落地；声明切换与迁移完成**绑定**（见上节热加载绑定）；**禁止**控制台随意在线 DDL。
 
-**Decided / 已拍板：entity row storage (ADR 0002)** — zero-code entities **default** to **hybrid B** (shared core columns + `attrs` jsonb); attachments/rich-text **externalized** (object store + metadata/blob table); **physical per-entity tables** remain an **optional** track for strong-constraint entities. See [`docs/adr/0002-entity-storage-hybrid-b.md`](adr/0002-entity-storage-hybrid-b.md). **ES-1/ES-2:** `entity_record` + `HybridEntityStore`; `entity_blob` + `ObjectStorage`; endpoint routes by `storageMode`; next = hybrid filters / blob HTTP (ES-3).
+**Decided / 已拍板：entity row storage (ADR 0002)** — zero-code entities **default** to **hybrid B** (shared core columns + `attrs` jsonb); attachments/rich-text **externalized** (object store + metadata/blob table); **physical per-entity tables** remain an **optional** track for strong-constraint entities. See [`docs/adr/0002-entity-storage-hybrid-b.md`](adr/0002-entity-storage-hybrid-b.md). **ES-1…ES-3 DONE:** hybrid store + blobs + form/endpoint routing + blob REST; optional later = sample migration / hot-column promote / S3.
 
-**已拍板：实体行存储（ADR 0002）**——零代码实体**默认**混合 B；附件/富文本外置；一实体一表可选。见 ADR 0002。**ES-1/ES-2** 已落共享表、blob 元数据与 ObjectStorage；下一步 hybrid 筛选/blob HTTP（ES-3）。
+**已拍板：实体行存储（ADR 0002）**——零代码实体**默认**混合 B；附件/富文本外置；一实体一表可选。见 ADR 0002。**ES-1…ES-3 已完成**共享表、blob、路由与附件 REST；后续可选样例迁移/热列提升/S3。
 
 ### Declaration truth & dual-track / 声明真相与双轨
 

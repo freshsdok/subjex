@@ -31,6 +31,7 @@ import com.subjex.platform.app.declaration.JdbcDeclarationMigrationStore;
 import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.page.PageCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorTenantAccess;
@@ -173,6 +174,7 @@ class DeclarationSecurityTest {
                     configCatalog,
                     effectiveDeclarationService,
                     mock(GenericEntityStore.class),
+                    mock(HybridEntityStore.class),
                     new CapabilityRunner(new CapabilityCatalog()),
                     tenantGuard,
                     operatorTenantAccess);

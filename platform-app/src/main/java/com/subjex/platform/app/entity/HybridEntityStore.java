@@ -8,28 +8,36 @@ import java.util.Optional;
 /**
  * HybridEntityStore — 混合轨实体存储（ADR 0002）：共享 {@code entity_record} 核心列 + attrs JSON。
  * <p>
- * Sibling of {@link GenericEntityStore} (physical per-entity tables). Callers route by
- * {@link com.subjex.entity.declare.RenderedEntity#storageMode()}. Large payloads: {@link EntityBlobStore} (ES-2).
- * 与 {@link GenericEntityStore}（一实体一表）并列。按 storageMode 路由；大载荷见 {@link EntityBlobStore}（ES-2）。
+ * Sibling of {@link GenericEntityStore}. Large payloads: {@link EntityBlobStore}. List supports
+ * record_id order and equality filter on declared fields (PK in SQL; other fields scanned in-memory, capped).
+ * 与 {@link GenericEntityStore} 并列。大载荷见 {@link EntityBlobStore}。列表支持 record_id 排序与声明字段等值过滤。
  */
 public interface HybridEntityStore {
 
-    /**
-     * Upsert one hybrid row (attrs from declared fields) — upsert 一行（声明字段写入 attrs）。
-     *
-     * @param tenantId required when entity is tenantScoped; otherwise use platform sentinel (empty)
-     */
     void save(RenderedEntity entity, Map<String, Object> values, String tenantId);
 
-    /** Find by primary-key string — 按主键字符串查找。 */
     Optional<Map<String, Object>> findById(RenderedEntity entity, String id, String tenantId);
 
     /**
-     * List up to {@code limit} rows for this entityKey, ordered by record_id ASC —
-     * 按 entityKey 列出最多 limit 行，按 record_id 升序。
+     * List with optional equality filter; order by record_id —
+     * 可选等值过滤列表；按 record_id 排序。
+     *
+     * @param ascending record_id ASC when true, DESC when false
+     * @param filterField declared field name, or null
+     * @param filterValue raw filter string; required with filterField
      */
-    List<Map<String, Object>> list(RenderedEntity entity, int limit, String tenantId);
+    List<Map<String, Object>> list(
+            RenderedEntity entity,
+            int limit,
+            String tenantId,
+            boolean ascending,
+            String filterField,
+            String filterValue);
 
-    /** Delete by primary key; returns whether a row was removed — 按主键删除；返回是否删到行。 */
+    /** Convenience: record_id ASC, no filter — 便捷：record_id 升序、无过滤。 */
+    default List<Map<String, Object>> list(RenderedEntity entity, int limit, String tenantId) {
+        return list(entity, limit, tenantId, true, null, null);
+    }
+
     boolean deleteById(RenderedEntity entity, String id, String tenantId);
 }

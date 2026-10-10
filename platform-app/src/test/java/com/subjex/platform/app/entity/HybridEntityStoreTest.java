@@ -110,6 +110,29 @@ class HybridEntityStoreTest {
         assertTrue(entity.hybridStorage());
     }
 
+
+    @Test
+    void filtersByPrimaryKeyAndTitleAndOrdersDesc() {
+        HybridEntityStore store = newStore(H2PlatformTables.Mode.POSTGRESQL);
+        RenderedEntity entity = hybridAsset();
+        store.save(entity, asset("a-2", "Beta", 2), "tenant-a");
+        store.save(entity, asset("a-1", "Alpha", 1), "tenant-a");
+        store.save(entity, asset("a-3", "Alpha", 3), "tenant-a");
+
+        var byPk = store.list(entity, 10, "tenant-a", true, "assetId", "a-2");
+        assertEquals(1, byPk.size());
+        assertEquals("a-2", byPk.get(0).get("assetId"));
+
+        var byTitle = store.list(entity, 10, "tenant-a", true, "title", "Alpha");
+        assertEquals(2, byTitle.size());
+        assertEquals("a-1", byTitle.get(0).get("assetId"));
+        assertEquals("a-3", byTitle.get(1).get("assetId"));
+
+        var desc = store.list(entity, 10, "tenant-a", false, null, null);
+        assertEquals("a-3", desc.get(0).get("assetId"));
+        assertEquals("a-1", desc.get(2).get("assetId"));
+    }
+
     private HybridEntityStore newStore(H2PlatformTables.Mode mode) {
         return new JdbcHybridEntityStore(
                 new JdbcTemplate(H2PlatformTables.migrated(mode)), FIXED, new ObjectMapper());

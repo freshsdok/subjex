@@ -25,6 +25,7 @@ import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.entity.declare.EntityCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
+import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.capability.CapabilityCatalog;
 import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.form.FormDomainActionRunner;
@@ -217,6 +218,7 @@ class OpenApiDocumentTest {
                     configCatalog,
                     effectiveDeclarationService,
                     mock(GenericEntityStore.class),
+                    mock(HybridEntityStore.class),
                     new CapabilityRunner(new CapabilityCatalog()),
                     tenantGuard,
                     operatorTenantAccess);

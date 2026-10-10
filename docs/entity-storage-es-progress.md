@@ -22,11 +22,19 @@ Tracks ADR [`adr/0002-entity-storage-hybrid-b.md`](adr/0002-entity-storage-hybri
 - `GenericEntityEndpoint` routes by `storageMode` (table ↔ `GenericEntityStore`, hybrid ↔ `HybridEntityStore`); hybrid list is record_id ASC only (no sort/filter yet). `HybridEntityStore.deleteById` added.
 - Tests: `EntityBlobStoreTest`, ObjectStorage delete, hybrid large-string reject.
 
-### ES-3 [next] — hybrid list filters + form upsert route + blob HTTP (optional)
+### ES-3 [done] — form route + blob REST + cascade + hybrid filter
 
-- Hybrid sort/filter (or documented subset); `FormDomainActionRunner` route by `storageMode`.
-- Thin REST for blob upload/download bound to entity record + AuthZ; cascade blobs on record delete.
-- Optional: promote hot attrs path → core column notes.
+- `FormDomainActionRunner` routes `entity.record.upsert` by `storageMode` (table / hybrid).
+- `EntityBlobEndpoint`: list / upload (octet-stream) / download / delete under `/api/v1/entities/{entityKey}/records/{id}/blobs`; AuthZ = entity declaration permission; parent record must exist.
+- `GenericEntityEndpoint` delete cascades `EntityBlobStore.deleteForRecord`.
+- Hybrid list: `record_id` ASC/DESC; PK filter in SQL; other declared fields equality via capped in-memory scan (ES-3 interim).
+- Tests: form hybrid upsert, `EntityBlobEndpointTest`, hybrid filter/order, cascade deleteForRecord.
+
+### ADR 0002 implementation track — **DONE** (MVP)
+
+Core ADR decisions are now coded: hybrid default + shared table, optional physical tables, externalized blobs via ObjectStorage + metadata, CRUD/form routing by `storageMode`.
+
+**Optional later (not required for ADR DONE):** migrate sample entities off `table`; promote hot attrs → core columns; native jsonb; S3 ObjectStorage; GIN indexes; form multipart blob UX; tighten hybrid non-PK filter to SQL/json path.
 
 ## Notes / 说明
 

@@ -126,25 +126,107 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
         return rows.stream().findFirst();
     }
 
+    /** Cap for non-PK hybrid filter scan (ES-3 interim) — 非主键过滤扫描上限（ES-3 过渡）。 */
+    static final int FILTER_SCAN_CAP = 2000;
+
     @Override
-    public List<Map<String, Object>> list(RenderedEntity entity, int limit, String tenantId) {
+    public List<Map<String, Object>> list(
+            RenderedEntity entity,
+            int limit,
+            String tenantId,
+            boolean ascending,
+            String filterField,
+            String filterValue) {
         Objects.requireNonNull(entity, "entity");
         requireHybrid(entity);
         if (limit < 1) {
             throw new IllegalArgumentException("limit must be at least 1");
         }
+        boolean hasFilterField = filterField != null && !filterField.isBlank();
+        boolean hasFilterValue = filterValue != null;
+        if (hasFilterField != hasFilterValue) {
+            throw new IllegalArgumentException("filterField and filterValue must be provided together");
+        }
         String effectiveTenant = effectiveTenant(entity, tenantId);
-        return jdbc.query(
-                """
-                SELECT attrs FROM entity_record
-                 WHERE tenant_id = ? AND entity_key = ?
-                 ORDER BY record_id ASC
-                 LIMIT ?
-                """,
+        String orderDir = ascending ? "ASC" : "DESC";
+        if (!hasFilterField) {
+            return jdbc.query(
+                    "SELECT attrs FROM entity_record WHERE tenant_id = ? AND entity_key = ?"
+                            + " ORDER BY record_id "
+                            + orderDir
+                            + " LIMIT ?",
+                    attrsMapper(),
+                    effectiveTenant,
+                    entity.entityKey(),
+                    limit);
+        }
+        String fieldName = filterField.trim();
+        boolean pkFilter = entity.primaryKey().name().equals(fieldName);
+        if (pkFilter) {
+            return jdbc.query(
+                    "SELECT attrs FROM entity_record WHERE tenant_id = ? AND entity_key = ? AND record_id = ?"
+                            + " ORDER BY record_id "
+                            + orderDir
+                            + " LIMIT ?",
+                    attrsMapper(),
+                    effectiveTenant,
+                    entity.entityKey(),
+                    filterValue,
+                    limit);
+        }
+        resolveDeclaredField(entity, fieldName);
+        int scan = Math.min(Math.max(limit * 20, limit), FILTER_SCAN_CAP);
+        List<Map<String, Object>> scanned = jdbc.query(
+                "SELECT attrs FROM entity_record WHERE tenant_id = ? AND entity_key = ?"
+                        + " ORDER BY record_id "
+                        + orderDir
+                        + " LIMIT ?",
                 attrsMapper(),
                 effectiveTenant,
                 entity.entityKey(),
-                limit);
+                scan);
+        List<Map<String, Object>> matched = new java.util.ArrayList<>();
+        for (Map<String, Object> row : scanned) {
+            if (fieldEquals(row.get(fieldName), filterValue)) {
+                matched.add(row);
+                if (matched.size() >= limit) {
+                    break;
+                }
+            }
+        }
+        return matched;
+    }
+
+    private static void resolveDeclaredField(RenderedEntity entity, String fieldName) {
+        for (var field : entity.fields()) {
+            if (field.name().equals(fieldName)) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException("unknown filterField: " + fieldName);
+    }
+
+    private static boolean fieldEquals(Object actual, String rawFilter) {
+        if (actual == null) {
+            return false;
+        }
+        if (actual instanceof Boolean b) {
+            if ("true".equalsIgnoreCase(rawFilter.trim())) {
+                return b;
+            }
+            if ("false".equalsIgnoreCase(rawFilter.trim())) {
+                return !b;
+            }
+            return false;
+        }
+        if (actual instanceof Number n) {
+            try {
+                return n.intValue() == Integer.parseInt(rawFilter.trim());
+            } catch (NumberFormatException ex) {
+                return false;
+            }
+        }
+        return Objects.toString(actual, "").equals(rawFilter);
     }
 
     private RowMapper<Map<String, Object>> attrsMapper() {

@@ -115,6 +115,40 @@ class EntityBlobStoreTest {
         assertTrue(ex.getMessage().contains("EntityBlobStore"));
     }
 
+
+    @Test
+    void cascadeDeleteForRecordRemovesObjects() {
+        var mode = H2PlatformTables.Mode.POSTGRESQL;
+        var jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        EntityBlobStore store = new JdbcEntityBlobStore(jdbc, new LocalDirectoryObjectStorage(objectRoot), FIXED);
+        HybridEntityStore hybrid = new JdbcHybridEntityStore(jdbc, FIXED, new tools.jackson.databind.ObjectMapper());
+        var entity = new com.subjex.entity.declare.EntityRenderer()
+                .render(
+                        """
+                        entityKey: hybrid-asset
+                        tableName: hybrid_asset
+                        version: 1
+                        permission: page.read
+                        tenantScoped: true
+                        storageMode: hybrid
+                        fields:
+                          - name: assetId
+                            kind: text
+                            required: true
+                            maxLength: 64
+                          - name: title
+                            kind: text
+                            required: true
+                            maxLength: 200
+                        """);
+        hybrid.save(entity, java.util.Map.of("assetId", "a-1", "title", "T"), "tenant-a");
+        store.put("tenant-a", "hybrid-asset", "a-1", "file", "x".getBytes(StandardCharsets.UTF_8), "text/plain");
+        assertEquals(1, store.listForRecord("tenant-a", "hybrid-asset", "a-1").size());
+        assertTrue(hybrid.deleteById(entity, "a-1", "tenant-a"));
+        assertEquals(1, store.deleteForRecord("tenant-a", "hybrid-asset", "a-1"));
+        assertTrue(store.listForRecord("tenant-a", "hybrid-asset", "a-1").isEmpty());
+    }
+
     private EntityBlobStore newStore(H2PlatformTables.Mode mode) {
         return new JdbcEntityBlobStore(
                 new JdbcTemplate(H2PlatformTables.migrated(mode)),

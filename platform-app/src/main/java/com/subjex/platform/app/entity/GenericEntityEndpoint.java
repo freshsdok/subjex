@@ -33,11 +33,11 @@ import org.springframework.web.server.ResponseStatusException;
  * GenericEntityEndpoint — 通用实体 REST：按 {@code entityKey} 与 {@code storageMode} 路由 CRUD。
  * <p>
  * Paths under {@code /api/v1/entities/{entityKey}/records}. Routes {@code storageMode=table} to
- * {@link GenericEntityStore} and {@code hybrid} to {@link HybridEntityStore} (ES-2). Large payloads
+ * {@link GenericEntityStore} and {@code hybrid} to {@link HybridEntityStore}; record delete cascades {@link EntityBlobStore} (ES-3). Large payloads
  * stay on {@link EntityBlobStore}, not in attrs. When {@code tenantScoped: true}, requires
  * {@code X-Tenant-Id} (and operator–tenant grant).
  * 路径在 {@code /api/v1/entities/{entityKey}/records}。table 轨走 {@link GenericEntityStore}，hybrid 走
- * {@link HybridEntityStore}（ES-2）。大载荷用 {@link EntityBlobStore}。租户隔离须头与授权。
+ * {@link HybridEntityStore}；删记录级联附件（ES-3）。大载荷用 EntityBlobStore。租户隔离须头与授权。
  */
 @RestController
 public class GenericEntityEndpoint {
@@ -54,6 +54,7 @@ public class GenericEntityEndpoint {
     private final EffectiveDeclarationService effective;
     private final GenericEntityStore tableStore;
     private final HybridEntityStore hybridStore;
+    private final EntityBlobStore blobStore;
     private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
 
@@ -61,11 +62,13 @@ public class GenericEntityEndpoint {
             EffectiveDeclarationService effective,
             GenericEntityStore tableStore,
             HybridEntityStore hybridStore,
+            EntityBlobStore blobStore,
             TenantGuard tenantGuard,
             OperatorTenantAccess tenantAccess) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.tableStore = Objects.requireNonNull(tableStore, "tableStore");
         this.hybridStore = Objects.requireNonNull(hybridStore, "hybridStore");
+        this.blobStore = Objects.requireNonNull(blobStore, "blobStore");
         this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
     }
@@ -92,15 +95,13 @@ public class GenericEntityEndpoint {
         String storeTenant = entity.tenantScoped() ? tenantId : null;
         List<Map<String, Object>> records;
         if (entity.storageMode() == EntityStorageMode.HYBRID) {
-            if (blankToNull(sort) != null || blankToNull(filterField) != null) {
+            if (blankToNull(sort) != null && !"record_id".equals(blankToNull(sort))
+                    && !entity.primaryKey().name().equals(blankToNull(sort))) {
                 throw new IllegalArgumentException(
-                        "hybrid storageMode does not support sort/filter yet; omit sort and filterField");
+                        "hybrid storageMode sort supports primary key / record_id only");
             }
-            if (!ascending) {
-                throw new IllegalArgumentException(
-                        "hybrid storageMode lists record_id ASC only; omit order or use asc");
-            }
-            records = hybridStore.list(entity, capped, storeTenant);
+            records = hybridStore.list(
+                    entity, capped, storeTenant, ascending, blankToNull(filterField), filterValue);
         } else {
             records = tableStore.list(
                     entity, capped, blankToNull(sort), ascending, blankToNull(filterField), filterValue, storeTenant);
@@ -162,6 +163,10 @@ public class GenericEntityEndpoint {
         if (!removed) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
+        String blobTenant = entity.tenantScoped()
+                ? tenantId.trim()
+                : JdbcHybridEntityStore.PLATFORM_TENANT;
+        blobStore.deleteForRecord(blobTenant, entityKey, id);
         return ResponseEntity.noContent().build();
     }
 

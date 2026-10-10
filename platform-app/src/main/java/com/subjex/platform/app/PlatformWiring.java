@@ -595,6 +595,7 @@ public class PlatformWiring {
             ConfigCatalog configCatalog,
             EffectiveDeclarationService effectiveDeclarationService,
             GenericEntityStore genericEntityStore,
+            HybridEntityStore hybridEntityStore,
             CapabilityRunner capabilityRunner,
             TenantGuard tenantGuard,
             OperatorTenantAccess operatorTenantAccess) {
@@ -603,6 +604,7 @@ public class PlatformWiring {
                 configCatalog,
                 effectiveDeclarationService,
                 genericEntityStore,
+                hybridEntityStore,
                 capabilityRunner,
                 tenantGuard,
                 operatorTenantAccess);

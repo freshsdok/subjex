@@ -1,6 +1,6 @@
 # ADR 0002 — Entity row storage: hybrid B default (core columns + jsonb)
 
-- Status: **Accepted** (ES-1 + ES-2: `entity_record` / `HybridEntityStore`; `entity_blob` + `ObjectStorage`; endpoint routes by `storageMode`)
+- Status: **Accepted** — implementation track **DONE** through ES-3 (hybrid store, blobs, routing, blob REST)
 - Date: 2026-10-10 (Asia/Shanghai)
 - Scope: Zero-code / generic entity **physical row layout**; dual-track with optional per-entity tables
 
@@ -73,10 +73,10 @@ Keep today’s **one table per entity** path as an **opt-in** for **strong-const
 
 **Cost / follow-ups (later slices)**
 
-- Design shared table DDL + `GenericEntityStore` (or sibling) hybrid adapter
-- Rules for promoting a hot `attrs` path to a core/typed column
-- Migration guide for moving an optional-track table → hybrid (and reverse, rare)
-- Index / vacuum / jsonb size limits ops notes
+- ~~Design shared table DDL + hybrid adapter~~ → ES-1…ES-3 done
+- Rules for promoting a hot `attrs` path to a core/typed column (optional later)
+- Migration guide for optional-track table ↔ hybrid (optional later)
+- Index / vacuum / jsonb size limits ops notes (optional later)
 
 ## Links / 链接
 
