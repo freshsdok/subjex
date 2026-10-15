@@ -135,7 +135,7 @@ public final class EntityRenderer {
         return builder.toString();
     }
 
-    static String toSnakeCase(String camel) {
+    public static String toSnakeCase(String camel) {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < camel.length(); i++) {
             char c = camel.charAt(i);

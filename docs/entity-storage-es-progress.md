@@ -53,7 +53,7 @@ Core ADR decisions are now coded: hybrid default + shared table, optional physic
 - **Physical column:** `hp_<entityKey_underscored>_<field_snake>` on shared `entity_record` (nullable ADD for existing-row safety).
 - **MigUX:** `DeclarationMigrationAutoEnqueueService` enqueues `ALTER TABLE entity_record ADD COLUMN …` when a field newly gains `promote: true` (relative to PROMOTED/classpath baseline). Hybrid no longer auto-`CREATE`s per-entity tables; table track still does (explicit `storageMode: table`).
 - **Store:** `JdbcHybridEntityStore` writes promoted values to columns (stripped from `attrs`); reads merge column over attrs; filter on promoted field uses SQL equality.
-- **Not in HY-2:** demote/DROP column, NOT NULL backfill, GIN, document mode, S3, multipart. Follow-up **HY-2b** if needed (backfill attrs→column, demote).
+- **Not in HY-2:** demote/DROP, NOT NULL, GIN, document, S3, multipart (then done in later slices). **HY-2b** = demote + attrs backfill.
 
 ### DOC-1 [done] — selectable full-JSON `document` storageMode
 
@@ -99,6 +99,35 @@ Core ADR decisions are now coded: hybrid default + shared table, optional physic
   (HY-1 samples→hybrid → HY-2 promote → DOC-1 document → SHARED-1 jsonb/GIN → SHARED-2 S3 → SHARED-3 multipart).
 - **Not in SHARED-3:** resumable/chunked S3 multipart protocol; attachment field kind in form wizard;
   greenfield blob app.
+
+
+### HY-2b [done] — demote DROP + attrs→column backfill
+
+- **Demote:** removing `promote: true` enqueues `ALTER TABLE entity_record DROP COLUMN hp_*` (was refuse).
+  Apply allowlists only this DROP form; merges column→attrs before DROP.
+- **After ADD:** `HybridPromoteColumnMigrator.backfillFromAttrs` copies attrs→column (null only) and strips attrs key.
+- **Not in HY-2b:** NOT NULL after backfill; chunked upload / wizard storageMode are later slices.
+
+### WIZ-SM [done] — entity wizard storageMode picker
+
+- Console entity wizard: choose `hybrid` | `document` | `table` (default `hybrid`); parse/emit YAML.
+- 控制台实体向导可选存储轨；默认 hybrid。
+
+### CHUNK-1 [done] — chunked/resumable blob upload MVP
+
+- **API:** `POST …/blobs/uploads` (init) → `PUT …/uploads/{id}/chunks/{i}` → `POST …/complete`; `DELETE` abort.
+- **Store:** `LocalDirChunkedBlobUploadStore` temp chunks; assemble → `EntityBlobStore.put` (local or S3 ObjectStorage).
+- **Limits:** total ≤ 5 MiB; default chunk 256 KiB; session TTL 1h + purge on init.
+- **Console:** `EntityBlobPanel` uses chunked path when file > 256 KiB; proxy forwards octet-stream binary.
+- **Not in CHUNK-1:** true S3 multipart protocol; cross-replica shared chunk store; raising max above 5 MiB.
+
+### Squash on github/main — 已压到 github/main（2026-10-15 CST）
+
+- Remote `github/main` = `d753992` (FF from ES-3 `4c431ce`).
+- Squashed HY-1, HY-2, DOC-1, SHARED-1, SHARED-2, SHARED-3 into one commit:
+  `feat(entity-storage): HY→DOC→SHARED chain (hybrid deepen through console multipart)`.
+- Agreed HY→DOC→shared chain is on main. HY-2b + WIZ-SM + CHUNK-1 done locally (ahead of github/main d753992).
+- 约定链已上 main。HY-2b + 向导 + 分片上传已本地完成（尚未 squash-push）。
 
 ## Notes / 说明
 

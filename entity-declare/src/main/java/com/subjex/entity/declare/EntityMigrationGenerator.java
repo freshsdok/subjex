@@ -105,8 +105,8 @@ public final class EntityMigrationGenerator {
      * {@code ALTER TABLE entity_record ADD COLUMN} for a hybrid-promoted field (HY-2) —
      * hybrid 升格字段的 {@code ALTER TABLE entity_record ADD COLUMN}（HY-2）。
      * <p>
-     * Column is always nullable so existing rows do not block ADD (backfill / NOT NULL later).
-     * 列恒可空，避免已有行阻塞 ADD（回填 / NOT NULL 留后续）。
+     * Column is always nullable so existing rows do not block ADD; HY-2b backfills attrs→column on apply.
+     * 列恒可空，避免已有行阻塞 ADD；HY-2b 在 apply 时从 attrs 回填列。
      */
     public String addHybridPromotedColumnStatement(String entityKey, EntityField field) {
         if (entityKey == null || entityKey.isBlank()) {
@@ -124,6 +124,29 @@ public final class EntityMigrationGenerator {
                 + field.hybridPromotedColumnName(entityKey)
                 + " "
                 + sqlType(field);
+    }
+
+
+    /**
+     * {@code ALTER TABLE entity_record DROP COLUMN} for a demoted hybrid field (HY-2b) —
+     * hybrid 降格字段的 {@code ALTER TABLE entity_record DROP COLUMN}（HY-2b）。
+     * <p>
+     * Apply merges column values back into attrs before DROP (see HybridPromoteColumnMigrator).
+     * 执行前会把列值写回 attrs（见 HybridPromoteColumnMigrator）。
+     */
+    public String dropHybridPromotedColumnStatement(String entityKey, EntityField field) {
+        if (entityKey == null || entityKey.isBlank()) {
+            throw new IllegalArgumentException("entityKey required");
+        }
+        if (field == null) {
+            throw new IllegalArgumentException("field required");
+        }
+        // Use prior promote column name even when draft field already has promote=false —
+        // 草稿已 promote=false 时仍按字段名拼出原升格列名。
+        return "ALTER TABLE "
+                + ENTITY_RECORD_TABLE
+                + " DROP COLUMN "
+                + field.hybridPromotedColumnName(entityKey);
     }
 
     /**

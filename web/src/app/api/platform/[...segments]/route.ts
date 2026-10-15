@@ -65,10 +65,15 @@ async function forwardToPlatform(
   // SHARED-3: multipart must keep boundary Content-Type + binary body (not request.text()).
   // SHARED-3：multipart 须保留带 boundary 的 Content-Type，并用二进制体（不可 request.text()）。
   const inboundContentType = request.headers.get("content-type") ?? "";
-  const isMultipart = inboundContentType.toLowerCase().includes("multipart/form-data");
+  const ctLower = inboundContentType.toLowerCase();
+  const isMultipart = ctLower.includes("multipart/form-data");
+  // CHUNK-1: octet-stream chunk bodies must stay binary (not request.text()).
+  // CHUNK-1：分片 octet-stream 须保持二进制（不可 request.text()）。
+  const isOctetStream = ctLower.includes("application/octet-stream");
   let requestBody: ArrayBuffer | string | undefined;
   if (request.method !== "GET" && request.method !== "HEAD") {
-    requestBody = isMultipart ? await request.arrayBuffer() : await request.text();
+    requestBody =
+      isMultipart || isOctetStream ? await request.arrayBuffer() : await request.text();
   }
 
   async function callUpstream(accessToken: string): Promise<Response> {

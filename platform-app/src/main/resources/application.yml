@@ -177,6 +177,9 @@ platform:
       secret-key: ${PLATFORM_STORAGE_S3_SECRET_KEY:}
       # MinIO and many gateways need path-style — MinIO 等常需 path-style
       path-style-access: ${PLATFORM_STORAGE_S3_PATH_STYLE:true}
+    # CHUNK-1: temp dir for resumable chunk sessions (local assemble → ObjectStorage.put)
+    # CHUNK-1：分片会话临时目录（本地组装后 ObjectStorage.put）
+    chunk-upload-directory: ${PLATFORM_STORAGE_CHUNK_UPLOAD_DIRECTORY:object-store-chunks}
   # Internal (in-platform) git working tree for declaration promote (Z5). Non-bare; local commit only — not GitHub.
   # 声明晋升用的平台内 git 工作树（Z5）。非裸库；仅本地提交——不依赖 GitHub。
   declaration:

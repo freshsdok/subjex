@@ -3,6 +3,7 @@
 import type { PhraseBook } from "@/i18n/phrases";
 import {
   ENTITY_FIELD_KINDS,
+  ENTITY_STORAGE_MODES,
   addEntityField,
   entityKindClearsMaxLength,
   formatEnumValuesList,
@@ -123,6 +124,28 @@ export function EntityWizard({ phrases, value, keyLocked, disabled, onChange, on
             onChange={(event) => onChange({ ...value, tenantScoped: event.target.checked })}
           />
           <span>{phrases.declarationsWizardTenantScoped}</span>
+        </label>
+        <label className="flex flex-col gap-1 text-xs sm:col-span-2 lg:col-span-1">
+          <span className="text-muted">{phrases.declarationsWizardStorageMode}</span>
+          <select
+            value={value.storageMode || "hybrid"}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                storageMode: event.target.value as EntityWizardState["storageMode"],
+              })
+            }
+            className="rounded-md border border-border bg-surface px-2 py-1 font-mono disabled:opacity-70"
+            aria-label={phrases.declarationsWizardStorageMode}
+          >
+            {ENTITY_STORAGE_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {mode}
+              </option>
+            ))}
+          </select>
+          <span className="text-[10px] text-muted">{phrases.declarationsWizardStorageModeHint}</span>
         </label>
       </div>
 

@@ -56,3 +56,13 @@ Console multipart upload UX is **SHARED-3** (done): browser → `/api/platform` 
 `POST …/blobs` with part `file` (also still accepts `application/octet-stream`). Max 5 MiB. No resumable/chunked S3 multipart protocol.
 
 控制台 multipart（SHARED-3 已完成）：浏览器 → 代理透传 → `POST …/blobs` 部件 `file`（仍支持 octet-stream）。上限 5 MiB。无可续传分片 S3 协议。
+
+## Chunked upload / 分片上传（CHUNK-1）
+
+Sessions live under `platform.storage.chunk-upload-directory` (temp files). Complete assembles
+bytes then calls `ObjectStorage.put` — same path for `local` and `s3`. True AWS S3 multipart
+API is not used in this MVP.
+
+会话在 `chunk-upload-directory` 临时文件中；完成时组装后 `ObjectStorage.put`（local/s3 相同）。
+本 MVP 不调用 AWS S3 multipart API。
+

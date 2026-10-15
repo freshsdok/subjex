@@ -180,6 +180,19 @@ class DeclarationMigrationApplyServiceTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> DeclarationMigrationApplyService.validateSqlForApply("TRUNCATE TABLE t"));
+        // HY-2b: entity_record DROP COLUMN hp_* allowlisted; other DROP still refused.
+        // HY-2b：仅 entity_record 升格列 DROP 放行；其它 DROP 仍拒绝。
+        assertEquals(
+                "ALTER TABLE entity_record DROP COLUMN hp_demo_ticket_status",
+                DeclarationMigrationApplyService.validateSqlForApply(
+                        "ALTER TABLE entity_record DROP COLUMN hp_demo_ticket_status;"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> DeclarationMigrationApplyService.validateSqlForApply(
+                        "ALTER TABLE entity_record DROP COLUMN attrs"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> DeclarationMigrationApplyService.validateSqlForApply("DROP TABLE entity_record"));
     }
 
     private static DeclarationMigrationApplyService newApply(

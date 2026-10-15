@@ -20,8 +20,10 @@ import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.entity.AttrsJsonbQueries;
 import com.subjex.platform.app.entity.JdbcHybridEntityStore;
+import com.subjex.platform.app.entity.ChunkedBlobUploadStore;
 import com.subjex.platform.app.entity.EntityBlobStore;
 import com.subjex.platform.app.entity.JdbcEntityBlobStore;
+import com.subjex.platform.app.entity.LocalDirChunkedBlobUploadStore;
 import com.subjex.platform.app.declaration.DeclarationMigrationApplyService;
 import com.subjex.platform.app.declaration.DeclarationMigrationAutoEnqueueService;
 import com.subjex.platform.app.declaration.DeclarationPromoteService;
@@ -572,6 +574,17 @@ public class PlatformWiring {
     @Bean
     EntityBlobStore entityBlobStore(JdbcTemplate jdbc, ObjectStorage objectStorage, Clock clock) {
         return new JdbcEntityBlobStore(jdbc, objectStorage, clock);
+    }
+
+    /**
+     * CHUNK-1: local temp chunk sessions; assemble then EntityBlobStore.put (works for local|s3 ObjectStorage) —
+     * CHUNK-1：本地临时分片会话；组装后走 EntityBlobStore.put（local/s3 对象存储均可）。
+     */
+    @Bean
+    ChunkedBlobUploadStore chunkedBlobUploadStore(
+            @Value("${platform.storage.chunk-upload-directory:object-store-chunks}") String directory,
+            Clock clock) {
+        return new LocalDirChunkedBlobUploadStore(Path.of(directory), clock);
     }
 
     /**

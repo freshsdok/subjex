@@ -9,7 +9,9 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -27,6 +29,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -41,10 +44,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * EntityBlobEndpointTest — purpose: ES-3 blob upload/download REST with entity AuthZ;
- * SHARED-3 adds multipart/form-data upload.
+ * SHARED-3 multipart; CHUNK-1 chunked upload sessions.
  * Gates: missing record 404; download scoped to entity+record; permission via DeclarationAccess.
  * <p>
- * 目的：ES-3 附件上传/下载 REST + 实体鉴权；SHARED-3 增加 multipart 上传。
+ * 目的：ES-3 附件 REST + 鉴权；SHARED-3 multipart；CHUNK-1 分片上传。
  * 门禁：无记录 404；下载绑定实体与记录。
  */
 @WebMvcTest(controllers = EntityBlobEndpoint.class)
@@ -70,6 +73,9 @@ class EntityBlobEndpointTest {
 
     @MockitoBean
     private HybridEntityStore hybridStore;
+
+    @MockitoBean
+    private ChunkedBlobUploadStore chunkedUploads;
 
     @Test
     void uploadDownloadAndList() throws Exception {
@@ -170,6 +176,102 @@ class EntityBlobEndpointTest {
                         .content("x")
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isNotFound());
+    }
+
+
+    @Test
+    void chunkedUploadInitPutComplete() throws Exception {
+        when(effective.runtimeEntity(isNull(), eq("demo-ticket"))).thenReturn(Optional.of(tableTicket()));
+        when(tableStore.findById(any(), eq("t-1"), isNull())).thenReturn(Optional.of(Map.of("ticketId", "t-1")));
+        ChunkedBlobUploadSession session = new ChunkedBlobUploadSession(
+                "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                "",
+                "demo-ticket",
+                "t-1",
+                "attachment",
+                "application/octet-stream",
+                5,
+                256 * 1024,
+                1,
+                Set.of(),
+                Instant.parse("2026-10-15T14:00:00Z"));
+        when(chunkedUploads.init(eq(""), eq("demo-ticket"), eq("t-1"), eq("attachment"), any(), eq(5L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(session);
+        ChunkedBlobUploadSession withChunk = new ChunkedBlobUploadSession(
+                session.uploadId(),
+                session.blobTenant(),
+                session.entityKey(),
+                session.recordId(),
+                session.fieldName(),
+                session.contentType(),
+                session.totalBytes(),
+                session.chunkSize(),
+                session.chunkCount(),
+                Set.of(0),
+                session.createdAt());
+        when(chunkedUploads.find(session.uploadId())).thenReturn(Optional.of(session), Optional.of(withChunk));
+        when(chunkedUploads.putChunk(eq(session.uploadId()), eq(0), any())).thenReturn(withChunk);
+        when(chunkedUploads.assemble(session.uploadId())).thenReturn("hello".getBytes());
+        EntityBlobMetadata meta = new EntityBlobMetadata(
+                "blob-c1",
+                "",
+                "demo-ticket",
+                "t-1",
+                "attachment",
+                "application/octet-stream",
+                5,
+                "blob-c1",
+                "abc",
+                Instant.parse("2026-10-15T14:00:00Z"));
+        when(blobs.put(eq(""), eq("demo-ticket"), eq("t-1"), eq("attachment"), any(), any())).thenReturn(meta);
+
+        mockMvc.perform(post(JsonApi.BASE + "/entities/demo-ticket/records/t-1/blobs/uploads")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fieldName\":\"attachment\",\"contentType\":\"application/octet-stream\",\"totalBytes\":5}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uploadId").value(session.uploadId()))
+                .andExpect(jsonPath("$.chunkCount").value(1));
+
+        mockMvc.perform(put(JsonApi.BASE + "/entities/demo-ticket/records/t-1/blobs/uploads/"
+                                + session.uploadId()
+                                + "/chunks/0")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content("hello")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.receivedCount").value(1));
+
+        mockMvc.perform(post(JsonApi.BASE + "/entities/demo-ticket/records/t-1/blobs/uploads/"
+                                + session.uploadId()
+                                + "/complete")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.blobId").value("blob-c1"));
+    }
+
+    @Test
+    void chunkedUploadAbort() throws Exception {
+        when(effective.runtimeEntity(isNull(), eq("demo-ticket"))).thenReturn(Optional.of(tableTicket()));
+        when(tableStore.findById(any(), eq("t-1"), isNull())).thenReturn(Optional.of(Map.of("ticketId", "t-1")));
+        String uploadId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        ChunkedBlobUploadSession session = new ChunkedBlobUploadSession(
+                uploadId,
+                "",
+                "demo-ticket",
+                "t-1",
+                "attachment",
+                "application/octet-stream",
+                10,
+                256 * 1024,
+                1,
+                Set.of(),
+                Instant.parse("2026-10-15T14:00:00Z"));
+        when(chunkedUploads.find(uploadId)).thenReturn(Optional.of(session));
+
+        mockMvc.perform(delete(JsonApi.BASE + "/entities/demo-ticket/records/t-1/blobs/uploads/" + uploadId)
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isNoContent());
     }
 
     private static RenderedEntity tableTicket() {

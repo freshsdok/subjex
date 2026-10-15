@@ -567,3 +567,21 @@ SHARED-3. [done] 2026-10-15 CST; console multipart blob UX (EntityBlobEndpoint +
     **Agreed HY→DOC→shared chain complete** (HY-1→HY-2→DOC-1→SHARED-1→SHARED-2→SHARED-3). Local commit only (no push).
     控制台 multipart 附件完成；约定的 HY→DOC→shared 链已收口。仅本地提交。
 
+SQUASH. [done] 2026-10-15 CST; HY→DOC→SHARED chain squashed to github/main `d753992` (FF from `4c431ce`).
+    One commit covers HY-1/2, DOC-1, SHARED-1/2/3. Next = HY-2b demote/backfill → wizard storageMode → chunked upload.
+    链已压合上 main；下一片 HY-2b → 向导 → 分片上传。
+
+HY-2b. [done] 2026-10-15 CST; demote DROP COLUMN hp_* + attrs↔column backfill on apply.
+    Auto-enqueue demote; apply allowlists entity_record DROP COLUMN hp_* only; merge before DROP; backfill after ADD.
+    Local commit (after squash d753992 on main). Next = wizard storageMode picker → chunked upload.
+    降格 DROP + 回填完成；下一片向导 storageMode → 分片上传。
+
+WIZ-SM. [done] 2026-10-15 CST; entity wizard storageMode picker (hybrid|document|table, default hybrid).
+    parse/emit YAML + console select + phrases. Local commit. Next = chunked/resumable blob upload.
+    向导 storageMode 完成；下一片分片上传。
+
+CHUNK-1. [done] 2026-10-15 CST; chunked/resumable entity blob upload MVP.
+    POST uploads → PUT chunks/{i} → POST complete; LocalDirChunkedBlobUploadStore; assemble→EntityBlobStore.put.
+    Console panel uses chunked when file >256KiB; proxy octet-stream binary. Local only (no push).
+    分片可续传附件 MVP；仅本地提交。
+

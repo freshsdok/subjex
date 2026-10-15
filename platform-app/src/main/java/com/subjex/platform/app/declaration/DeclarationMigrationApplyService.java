@@ -1,20 +1,24 @@
 package com.subjex.platform.app.declaration;
 
+import com.subjex.platform.app.entity.HybridPromoteColumnMigrator;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * DeclarationMigrationApplyService — 对 REVIEWED 的实体迁移执行单条白名单 DDL（失败关闭校验）。
  * <p>
  * Accepts only {@code REVIEWED} + {@link DeclarationKind#ENTITY}. Validates {@code sqlText} fail-closed
- * (single statement; {@code ALTER TABLE} / {@code CREATE TABLE} only; rejects DROP/TRUNCATE/ALTER…DROP).
- * Runs in a DB transaction; {@code markApplied} on success; {@code markFailed} then rethrow on execute failure.
- * Form/flow apply is rejected (400). Promote cutover bind is separate ({@link DeclarationPromoteService}).
- * 仅受理 REVIEWED 的 entity。校验失败关闭；成功 markApplied；执行失败 markFailed 再抛出。
+ * (single statement; {@code ALTER TABLE} / {@code CREATE TABLE}; HY-2b also allows
+ * {@code ALTER TABLE entity_record DROP COLUMN hp_*}). Rejects TRUNCATE and other DROP forms.
+ * Runs in a DB transaction; on hybrid promote ADD, backfills attrs→column; on promote DROP, merges
+ * column→attrs first. {@code markApplied} on success; {@code markFailed} then rethrow on execute failure.
+ * 仅受理 REVIEWED 的 entity。HY-2b 允许升格列 DROP；升格 ADD 后回填；降格 DROP 前写回 attrs。
  */
 public final class DeclarationMigrationApplyService {
 
@@ -26,12 +30,22 @@ public final class DeclarationMigrationApplyService {
     private final JdbcDeclarationMigrationStore migrationStore;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
+    private final HybridPromoteColumnMigrator promoteMigrator;
 
     public DeclarationMigrationApplyService(
             JdbcDeclarationMigrationStore migrationStore, JdbcTemplate jdbc, TransactionTemplate transactions) {
+        this(migrationStore, jdbc, transactions, new ObjectMapper());
+    }
+
+    public DeclarationMigrationApplyService(
+            JdbcDeclarationMigrationStore migrationStore,
+            JdbcTemplate jdbc,
+            TransactionTemplate transactions,
+            ObjectMapper json) {
         this.migrationStore = Objects.requireNonNull(migrationStore, "migrationStore");
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
+        this.promoteMigrator = new HybridPromoteColumnMigrator(jdbc, Objects.requireNonNull(json, "json"));
     }
 
     /**
@@ -67,7 +81,16 @@ public final class DeclarationMigrationApplyService {
 
         try {
             DeclarationMigration applied = transactions.execute(status -> {
+                Optional<String> hpColumn = HybridPromoteColumnMigrator.parsePromotedColumn(sql);
+                if (HybridPromoteColumnMigrator.isHybridPromoteDrop(sql) && hpColumn.isPresent()) {
+                    // Demote: merge column → attrs, then DROP — 降格：先写回 attrs 再 DROP
+                    promoteMigrator.mergeIntoAttrs(key, hpColumn.get());
+                }
                 jdbc.execute(sql);
+                if (HybridPromoteColumnMigrator.isHybridPromoteAdd(sql) && hpColumn.isPresent()) {
+                    // Promote: ADD then attrs → column — 升格：ADD 后 attrs 回填列
+                    promoteMigrator.backfillFromAttrs(key, hpColumn.get());
+                }
                 return migrationStore.markApplied(id);
             });
             return Objects.requireNonNull(applied, "apply transaction returned null");
@@ -88,8 +111,9 @@ public final class DeclarationMigrationApplyService {
     /**
      * Fail-closed SQL gate for apply — 执行前失败关闭的 SQL 门禁。
      * <p>
-     * Single statement; allowlist prefix {@code ALTER TABLE} / {@code CREATE TABLE};
-     * reject DROP / TRUNCATE / {@code ALTER TABLE … DROP}.
+     * Single statement; allowlist {@code ALTER TABLE} / {@code CREATE TABLE};
+     * HY-2b: {@code ALTER TABLE entity_record DROP COLUMN hp_*} only other DROP form allowed.
+     * Reject TRUNCATE and non-hp DROP.
      */
     static String validateSqlForApply(String sqlText) {
         if (sqlText == null || sqlText.isBlank()) {
@@ -113,6 +137,9 @@ public final class DeclarationMigrationApplyService {
         }
         if (TRUNCATE_WORD.matcher(body).matches()) {
             throw new IllegalArgumentException("sqlText must not contain TRUNCATE");
+        }
+        if (HybridPromoteColumnMigrator.isHybridPromoteDrop(body)) {
+            return body;
         }
         if (ALTER_DROP.matcher(body).matches()) {
             throw new IllegalArgumentException("sqlText must not ALTER TABLE ... DROP");

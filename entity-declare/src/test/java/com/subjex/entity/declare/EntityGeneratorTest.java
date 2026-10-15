@@ -290,4 +290,31 @@ class EntityGeneratorTest {
                 new EntityMigrationGenerator().addHybridPromotedColumnStatement("demo-ticket", status));
     }
 
+    @Test
+    void dropHybridPromotedColumnStatementTargetsEntityRecord() {
+        EntityField status = new EntityRenderer()
+                .render("""
+                        entityKey: demo-ticket
+                        tableName: demo_ticket
+                        version: 1
+                        permission: page.read
+                        storageMode: hybrid
+                        fields:
+                          - name: ticketId
+                            kind: text
+                            required: true
+                            maxLength: 64
+                          - name: status
+                            kind: text
+                            required: false
+                            maxLength: 32
+                            promote: true
+                        """)
+                .fields()
+                .get(1);
+        assertEquals(
+                "ALTER TABLE entity_record DROP COLUMN hp_demo_ticket_status",
+                new EntityMigrationGenerator().dropHybridPromotedColumnStatement("demo-ticket", status));
+    }
+
 }

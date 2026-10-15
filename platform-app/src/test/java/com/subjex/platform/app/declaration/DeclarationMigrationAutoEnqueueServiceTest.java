@@ -322,6 +322,94 @@ class DeclarationMigrationAutoEnqueueServiceTest {
         assertTrue(f.auto.planForEntityYaml("acme", "doc-ticket", yaml).isEmpty());
     }
 
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void demotePromotedFieldEnqueuesDropColumn(H2PlatformTables.Mode mode) {
+        Fixture f = Fixture.open(mode);
+        // HY-2b: promote then demote → DROP COLUMN hp_* (classpath demo-ticket has no promote).
+        // HY-2b：先升格再降格 → DROP COLUMN。
+        String promotedYaml =
+                """
+                entityKey: demo-ticket
+                tableName: demo_ticket
+                version: 2
+                permission: page.read
+                tenantScoped: false
+                storageMode: hybrid
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 200
+                  - name: status
+                    kind: text
+                    required: true
+                    maxLength: 32
+                    promote: true
+                  - name: assignee
+                    kind: subjectRef
+                    required: false
+                    maxLength: 64
+                  - name: organization
+                    kind: organizationRef
+                    required: false
+                    maxLength: 64
+                """;
+        DeclarationRevision r1 =
+                f.store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", promotedYaml, "sub-a");
+        List<String> promotePlan = f.auto.planForEntityYaml("acme", "demo-ticket", promotedYaml);
+        assertEquals(1, promotePlan.size());
+        f.auto.enqueuePlanned(r1, promotePlan);
+        DeclarationMigration addJob = f.migrations.listForRevision(
+                        "acme", DeclarationKind.ENTITY, "demo-ticket", r1.revision())
+                .get(0);
+        f.migrations.markReviewed(addJob.migrationId());
+        f.migrations.markApplied(addJob.migrationId());
+        f.store.markPromoted("acme", DeclarationKind.ENTITY, "demo-ticket", r1.revision());
+        f.store.recordPromote(
+                "acme", DeclarationKind.ENTITY, "demo-ticket", r1.revision(), "sha-hy2b", "sub-a");
+
+        String demotedYaml =
+                """
+                entityKey: demo-ticket
+                tableName: demo_ticket
+                version: 3
+                permission: page.read
+                tenantScoped: false
+                storageMode: hybrid
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 200
+                  - name: status
+                    kind: text
+                    required: true
+                    maxLength: 32
+                  - name: assignee
+                    kind: subjectRef
+                    required: false
+                    maxLength: 64
+                  - name: organization
+                    kind: organizationRef
+                    required: false
+                    maxLength: 64
+                """;
+        List<String> planned = f.auto.planForEntityYaml("acme", "demo-ticket", demotedYaml);
+        assertEquals(1, planned.size());
+        assertEquals(
+                "ALTER TABLE entity_record DROP COLUMN hp_demo_ticket_status", planned.get(0));
+    }
+
     private record Fixture(
             JdbcDeclarationStore store,
             JdbcDeclarationMigrationStore migrations,

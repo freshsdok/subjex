@@ -21,6 +21,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -34,14 +35,19 @@ import org.springframework.web.server.ResponseStatusException;
  * EntityBlobEndpoint — 实体附件 REST（ES-3 / ADR 0002）：上传/下载/列举/删除，AuthZ 与实体声明权限一致。
  * <p>
  * Paths under {@code /api/v1/entities/{entityKey}/records/{id}/blobs}. Bytes via {@link EntityBlobStore};
- * never written into attrs. Upload: octet-stream or multipart/form-data (SHARED-3).
- * 路径见上。字节走 EntityBlobStore，不进 attrs。上传支持 octet-stream 或 multipart（SHARED-3）。
+ * never written into attrs. Upload: octet-stream, multipart (SHARED-3), or chunked sessions (CHUNK-1).
+ * 路径见上。字节走 EntityBlobStore。上传：octet-stream / multipart / 分片会话（CHUNK-1）。
  */
 @RestController
 public class EntityBlobEndpoint {
 
     public static final String BLOBS_PATH = JsonApi.BASE + "/entities/{entityKey}/records/{id}/blobs";
     public static final String BLOB_PATH = BLOBS_PATH + "/{blobId}";
+    /** Chunked upload sessions (CHUNK-1) — 分片上传会话。 */
+    public static final String UPLOADS_PATH = BLOBS_PATH + "/uploads";
+    public static final String UPLOAD_PATH = UPLOADS_PATH + "/{uploadId}";
+    public static final String CHUNK_PATH = UPLOAD_PATH + "/chunks/{chunkIndex}";
+    public static final String COMPLETE_PATH = UPLOAD_PATH + "/complete";
 
     private final EffectiveDeclarationService effective;
     private final EntityBlobStore blobs;
@@ -49,6 +55,7 @@ public class EntityBlobEndpoint {
     private final HybridEntityStore hybridStore;
     private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
+    private final ChunkedBlobUploadStore chunkedUploads;
 
     public EntityBlobEndpoint(
             EffectiveDeclarationService effective,
@@ -56,13 +63,15 @@ public class EntityBlobEndpoint {
             GenericEntityStore tableStore,
             HybridEntityStore hybridStore,
             TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess) {
+            OperatorTenantAccess tenantAccess,
+            ChunkedBlobUploadStore chunkedUploads) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.blobs = Objects.requireNonNull(blobs, "blobs");
         this.tableStore = Objects.requireNonNull(tableStore, "tableStore");
         this.hybridStore = Objects.requireNonNull(hybridStore, "hybridStore");
         this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
+        this.chunkedUploads = Objects.requireNonNull(chunkedUploads, "chunkedUploads");
     }
 
     /** List blob metadata for a record — 列出记录的附件元数据。 */
@@ -143,6 +152,117 @@ public class EntityBlobEndpoint {
         EntityBlobMetadata meta =
                 blobs.put(ctx.blobTenant(), entityKey, id, fieldName, body, type);
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(BlobMetadataDocument.from(meta));
+    }
+
+
+    /**
+     * CHUNK-1: start chunked upload session — 开启分片上传会话。
+     * <p>
+     * Body: {@code fieldName}, {@code contentType}, {@code totalBytes} (0..MAX_BYTES).
+     */
+    @PostMapping(value = UPLOADS_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public UploadInitDocument initChunkedUpload(
+            @PathVariable("entityKey") String entityKey,
+            @PathVariable("id") String id,
+            @RequestBody UploadInitRequest body,
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
+        Context ctx = requireContext(entityKey, id, operator, tenantId, true);
+        if (body == null) {
+            throw new IllegalArgumentException("body required");
+        }
+        String fieldName = body.fieldName() == null || body.fieldName().isBlank() ? "attachment" : body.fieldName().trim();
+        String type = body.contentType() == null || body.contentType().isBlank()
+                ? MediaType.APPLICATION_OCTET_STREAM_VALUE
+                : body.contentType().trim();
+        int semi = type.indexOf(';');
+        if (semi >= 0) {
+            type = type.substring(0, semi).trim();
+        }
+        ChunkedBlobUploadSession session = chunkedUploads.init(
+                ctx.blobTenant(),
+                entityKey,
+                id,
+                fieldName,
+                type,
+                body.totalBytes(),
+                JdbcEntityBlobStore.MAX_BYTES);
+        return UploadInitDocument.from(session);
+    }
+
+    /**
+     * CHUNK-1: put one chunk (octet-stream); same index retry is idempotent —
+     * 写入一分片；同下标重试可覆盖。
+     */
+    @PutMapping(value = CHUNK_PATH, consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ChunkAckDocument putChunk(
+            @PathVariable("entityKey") String entityKey,
+            @PathVariable("id") String id,
+            @PathVariable("uploadId") String uploadId,
+            @PathVariable("chunkIndex") int chunkIndex,
+            @RequestBody(required = false) byte[] body,
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
+        Context ctx = requireContext(entityKey, id, operator, tenantId, true);
+        ChunkedBlobUploadSession session = requireOwnedSession(ctx, entityKey, id, uploadId);
+        ChunkedBlobUploadSession updated = chunkedUploads.putChunk(session.uploadId(), chunkIndex, body);
+        return new ChunkAckDocument(
+                updated.uploadId(), chunkIndex, updated.receivedIndices().size(), updated.chunkCount());
+    }
+
+    /**
+     * CHUNK-1: assemble chunks → EntityBlobStore.put → abort session —
+     * 组装分片并写入附件存储，然后清理会话。
+     */
+    @PostMapping(value = COMPLETE_PATH, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<BlobMetadataDocument> completeChunkedUpload(
+            @PathVariable("entityKey") String entityKey,
+            @PathVariable("id") String id,
+            @PathVariable("uploadId") String uploadId,
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
+        Context ctx = requireContext(entityKey, id, operator, tenantId, true);
+        ChunkedBlobUploadSession session = requireOwnedSession(ctx, entityKey, id, uploadId);
+        byte[] assembled = chunkedUploads.assemble(session.uploadId());
+        try {
+            EntityBlobMetadata meta = blobs.put(
+                    ctx.blobTenant(),
+                    entityKey,
+                    id,
+                    session.fieldName(),
+                    assembled,
+                    session.contentType());
+            return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(BlobMetadataDocument.from(meta));
+        } finally {
+            chunkedUploads.abort(session.uploadId());
+        }
+    }
+
+    /** CHUNK-1: abort upload session — 中止并清理分片会话。 */
+    @DeleteMapping(UPLOAD_PATH)
+    public ResponseEntity<Void> abortChunkedUpload(
+            @PathVariable("entityKey") String entityKey,
+            @PathVariable("id") String id,
+            @PathVariable("uploadId") String uploadId,
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
+        Context ctx = requireContext(entityKey, id, operator, tenantId, true);
+        requireOwnedSession(ctx, entityKey, id, uploadId);
+        chunkedUploads.abort(uploadId);
+        return ResponseEntity.noContent().build();
+    }
+
+    private ChunkedBlobUploadSession requireOwnedSession(
+            Context ctx, String entityKey, String id, String uploadId) {
+        ChunkedBlobUploadSession session = chunkedUploads
+                .find(uploadId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!ctx.blobTenant().equals(session.blobTenant())
+                || !entityKey.equals(session.entityKey())
+                || !id.equals(session.recordId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        return session;
     }
 
     /** Download attachment bytes — 下载附件字节。 */
@@ -249,4 +369,23 @@ public class EntityBlobEndpoint {
 
     /** BlobsDocument — 附件元数据列表。 */
     public record BlobsDocument(List<BlobMetadataDocument> blobs) {}
+
+    /** CHUNK-1 init body — 分片上传初始化请求。 */
+    public record UploadInitRequest(String fieldName, String contentType, long totalBytes) {}
+
+    /** CHUNK-1 init reply — 分片上传初始化响应。 */
+    public record UploadInitDocument(
+            String uploadId, int chunkSize, int chunkCount, long totalBytes, int maxBytes) {
+        static UploadInitDocument from(ChunkedBlobUploadSession session) {
+            return new UploadInitDocument(
+                    session.uploadId(),
+                    session.chunkSize(),
+                    session.chunkCount(),
+                    session.totalBytes(),
+                    JdbcEntityBlobStore.MAX_BYTES);
+        }
+    }
+
+    /** CHUNK-1 chunk ack — 分片写入回执。 */
+    public record ChunkAckDocument(String uploadId, int chunkIndex, int receivedCount, int chunkCount) {}
 }

@@ -213,11 +213,11 @@ public final class DeclarationMigrationAutoEnqueueService {
     }
 
     /**
-     * Shared-record DDL (hybrid|document): enqueue {@code entity_record} ADD only for new hybrid {@code promote: true} —
-     * 共享表 DDL：仅 hybrid 新升格字段入队 entity_record ADD；document 不入队。
+     * Shared-record DDL (hybrid|document): enqueue {@code entity_record} ADD for new hybrid {@code promote: true},
+     * DROP COLUMN on demote (HY-2b) — 共享表 DDL：新升格 ADD；降格 DROP（HY-2b）；document 不入队升格列。
      * <p>
-     * No per-entity CREATE TABLE (shared store). Demote / DROP not planned this slice.
-     * 无实体表 CREATE（共享存储）。降格 / DROP 本片不做。
+     * No per-entity CREATE TABLE (shared store). NOT NULL after backfill still optional.
+     * 无实体表 CREATE。回填后 NOT NULL 仍可选。
      */
     List<String> planHybridPromoteSql(RenderedEntity draft, RenderedEntity baseline) {
         if (baseline != null) {
@@ -227,8 +227,8 @@ public final class DeclarationMigrationAutoEnqueueService {
                                 + draft.storageMode().name().toLowerCase()
                                 + "; refuse auto migration");
             }
-            // DOC-1: hybrid→document refuses while any field is still promote:true (no demote).
-            // DOC-1：仍有升格字段时拒绝 hybrid→document（无降格）。
+            // DOC-1: hybrid→document refuses while any field is still promote:true (demote fields first / HY-2b).
+            // DOC-1：仍有升格字段时拒绝 hybrid→document（须先降格 / HY-2b）。
             if (baseline.hybridStorage()
                     && draft.documentStorage()
                     && baseline.fields().stream().anyMatch(EntityField::promote)) {
@@ -276,10 +276,10 @@ public final class DeclarationMigrationAutoEnqueueService {
             if (prior != null) {
                 requireCompatibleField(prior, field);
                 if (prior.promote() && !field.promote()) {
-                    throw new IllegalArgumentException(
-                            "entity draft demotes promoted field "
-                                    + field.name()
-                                    + "; refuse auto migration (DROP not supported this slice)");
+                    // HY-2b: demote → DROP COLUMN (apply merges values into attrs first)
+                    // HY-2b：降格 → DROP COLUMN（apply 先把列值写回 attrs）
+                    adds.add(migrationGenerator.dropHybridPromotedColumnStatement(draft.entityKey(), prior));
+                    continue;
                 }
                 if (prior.promote() && field.promote()) {
                     continue; // column already planned/applied under prior promote

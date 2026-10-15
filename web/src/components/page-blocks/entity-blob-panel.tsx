@@ -6,6 +6,9 @@ import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 /** Max upload size — 与 JdbcEntityBlobStore.MAX_BYTES 对齐（5 MiB）。 */
 export const BLOB_MAX_BYTES = 5 * 1024 * 1024;
 
+/** Use chunked upload above this size (CHUNK-1) — 超过此大小走分片上传。 */
+export const BLOB_CHUNK_THRESHOLD = 256 * 1024;
+
 type BlobMeta = {
   blobId?: string;
   fieldName?: string;
@@ -17,9 +20,9 @@ type BlobMeta = {
 type BlobsReply = { blobs?: BlobMeta[] };
 
 /**
- * EntityBlobPanel — SHARED-3 console multipart upload for entity attachments.
- * Lists / uploads / downloads / deletes via /api/platform/.../blobs (proxy → EntityBlobEndpoint).
- * SHARED-3 控制台 multipart 附件：列表/上传/下载/删除，走平台代理到 EntityBlobEndpoint。
+ * EntityBlobPanel — SHARED-3 multipart + CHUNK-1 chunked upload for entity attachments.
+ * Lists / uploads / downloads / deletes via /api/platform/.../blobs.
+ * SHARED-3 multipart；CHUNK-1 大文件分片；经平台代理到 EntityBlobEndpoint。
  */
 export function EntityBlobPanel({
   entityKey,
@@ -75,6 +78,82 @@ export function EntityBlobPanel({
     void loadList();
   }, [loadList]);
 
+  async function uploadMultipart(name: string, chosen: File): Promise<Response | null> {
+    const form = new FormData();
+    form.append("file", chosen);
+    const url = `${basePath}?fieldName=${encodeURIComponent(name)}`;
+    return fetch(url, {
+      method: "POST",
+      headers: tenantHeaders(),
+      body: form,
+    }).catch(() => null);
+  }
+
+  /** CHUNK-1: init → PUT chunks → complete — 分片：初始化 → 写分片 → 完成。 */
+  async function uploadChunked(name: string, chosen: File): Promise<Response | null> {
+    const initHeaders: Record<string, string> = {
+      ...tenantHeaders(),
+      "content-type": "application/json",
+    };
+    const initReply = await fetch(`${basePath}/uploads`, {
+      method: "POST",
+      headers: initHeaders,
+      body: JSON.stringify({
+        fieldName: name,
+        contentType: chosen.type || "application/octet-stream",
+        totalBytes: chosen.size,
+      }),
+    }).catch(() => null);
+    if (!initReply || !initReply.ok) return initReply;
+    const initBody = (await initReply.json().catch(() => null)) as {
+      uploadId?: string;
+      chunkSize?: number;
+      chunkCount?: number;
+    } | null;
+    const uploadId = initBody?.uploadId;
+    const chunkSize = initBody?.chunkSize ?? BLOB_CHUNK_THRESHOLD;
+    const chunkCount = initBody?.chunkCount ?? 0;
+    if (!uploadId) {
+      return initReply;
+    }
+    try {
+      for (let index = 0; index < chunkCount; index++) {
+        const start = index * chunkSize;
+        const end = Math.min(start + chunkSize, chosen.size);
+        const slice = chosen.slice(start, end);
+        const buf = await slice.arrayBuffer();
+        const chunkReply = await fetch(
+          `${basePath}/uploads/${encodeURIComponent(uploadId)}/chunks/${index}`,
+          {
+            method: "PUT",
+            headers: {
+              ...tenantHeaders(),
+              "content-type": "application/octet-stream",
+            },
+            body: buf,
+          },
+        ).catch(() => null);
+        if (!chunkReply || !chunkReply.ok) {
+          await fetch(`${basePath}/uploads/${encodeURIComponent(uploadId)}`, {
+            method: "DELETE",
+            headers: tenantHeaders(),
+          }).catch(() => null);
+          return chunkReply;
+        }
+      }
+      return fetch(`${basePath}/uploads/${encodeURIComponent(uploadId)}/complete`, {
+        method: "POST",
+        headers: tenantHeaders(),
+      }).catch(() => null);
+    } catch {
+      await fetch(`${basePath}/uploads/${encodeURIComponent(uploadId)}`, {
+        method: "DELETE",
+        headers: tenantHeaders(),
+      }).catch(() => null);
+      return null;
+    }
+  }
+
   async function upload() {
     setNotice(null);
     setError(null);
@@ -87,17 +166,13 @@ export function EntityBlobPanel({
       return;
     }
     setBusy(true);
-    const form = new FormData();
-    form.append("file", file);
     const name = fieldName.trim() || "attachment";
-    // fieldName as query (also accepted as form field by Spring @RequestParam)
-    // fieldName 走 query（Spring @RequestParam 亦可读表单字段）
-    const url = `${basePath}?fieldName=${encodeURIComponent(name)}`;
-    const reply = await fetch(url, {
-      method: "POST",
-      headers: tenantHeaders(),
-      body: form,
-    }).catch(() => null);
+    // Small files: multipart; larger: CHUNK-1 chunked sessions.
+    // 小文件 multipart；更大走 CHUNK-1 分片会话。
+    const reply =
+      file.size > BLOB_CHUNK_THRESHOLD
+        ? await uploadChunked(name, file)
+        : await uploadMultipart(name, file);
     setBusy(false);
     if (!reply) {
       setError(fillPhrase(phrases.blobUploadFailed, { status: 0, reason: "" }));

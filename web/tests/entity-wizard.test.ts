@@ -42,6 +42,7 @@ describe("entity-wizard — 实体向导", () => {
     expect(state.version).toBe(1);
     expect(state.permission).toBe("page.read");
     expect(state.tenantScoped).toBe(false);
+    expect(state.storageMode).toBe("hybrid"); // omit → hybrid default
     expect(state.fields.map((f) => f.name)).toEqual([
       "ticketId",
       "title",
@@ -66,6 +67,7 @@ describe("entity-wizard — 实体向导", () => {
     const yaml = applyEntityWizardToYaml("", parsed);
     expect(yaml).toContain("entityKey: demo-ticket");
     expect(yaml).toContain("tableName: demo_ticket");
+    expect(yaml).toContain("storageMode: hybrid");
     expect(yaml).toContain("kind: subjectRef");
     expect(yaml).toContain("kind: organizationRef");
     expect(yaml).not.toContain("kind: userRef");
@@ -140,5 +142,25 @@ fields:
     const state = parseEntityWizardFromYaml("");
     expect(state.fields.length).toBeGreaterThan(0);
     expect(state.fields[0].name).toBe("id");
+  });
+
+  it("parses and emits storageMode — 解析并写出 storageMode", () => {
+    const yaml = `entityKey: doc-item
+tableName: doc_item
+version: 1
+permission: page.read
+tenantScoped: false
+storageMode: document
+fields:
+  - name: id
+    kind: text
+    required: true
+    maxLength: 64
+`;
+    const state = parseEntityWizardFromYaml(yaml);
+    expect(state.storageMode).toBe("document");
+    const out = applyEntityWizardToYaml("", { ...state, storageMode: "table" });
+    expect(out).toContain("storageMode: table");
+    expect(parseEntityWizardFromYaml(out).storageMode).toBe("table");
   });
 });

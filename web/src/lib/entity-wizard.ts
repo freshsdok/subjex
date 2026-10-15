@@ -14,6 +14,18 @@ export const ENTITY_FIELD_KINDS = [
 ] as const;
 export type EntityWizardFieldKind = (typeof ENTITY_FIELD_KINDS)[number];
 
+/** Entity storage track (DOC-1 / wizard) — 实体存储轨（DOC-1 / 向导）。 Default hybrid. */
+export const ENTITY_STORAGE_MODES = ["hybrid", "document", "table"] as const;
+export type EntityWizardStorageMode = (typeof ENTITY_STORAGE_MODES)[number];
+
+export function normalizeEntityStorageMode(raw: string): EntityWizardStorageMode | null {
+  const v = raw.trim().toLowerCase();
+  if ((ENTITY_STORAGE_MODES as readonly string[]).includes(v)) {
+    return v as EntityWizardStorageMode;
+  }
+  return null;
+}
+
 /** Accept only canonical entity field kinds (O8-5) — 仅接受规范实体字段种类。 */
 export function normalizeEntityFieldKind(raw: string): EntityWizardFieldKind | null {
   if ((ENTITY_FIELD_KINDS as readonly string[]).includes(raw)) {
@@ -39,11 +51,13 @@ export type EntityWizardState = {
   version: number;
   permission: string;
   tenantScoped: boolean;
+  /** hybrid (default) | document | table — 默认 hybrid。 */
+  storageMode: EntityWizardStorageMode;
   fields: EntityWizardField[];
 };
 
 const SCALAR =
-  /^(entityKey|tableName|version|permission|tenantScoped):\s*(.*?)\s*(?:#.*)?$/;
+  /^(entityKey|tableName|version|permission|tenantScoped|storageMode):\s*(.*?)\s*(?:#.*)?$/;
 const FIELD_START = /^ {2}-\s+name:\s*(\S+)\s*(?:#.*)?$/;
 const FIELD_PROP =
   /^ {4}(kind|required|maxLength|enumValues|refEntityKey):\s*(.*?)\s*(?:#.*)?$/;
@@ -119,6 +133,7 @@ export function emptyEntityWizard(entityKey = "example-key"): EntityWizardState 
     version: 1,
     permission: DEFAULT_DECLARATION_PERMISSION,
     tenantScoped: false,
+    storageMode: "hybrid",
     fields: [{ ...blankField("id"), required: true, maxLength: 64 }],
   };
 }
@@ -162,6 +177,9 @@ export function parseEntityWizardFromYaml(yaml: string): EntityWizardState {
       else if (key === "tenantScoped") {
         const b = parseBool(raw);
         if (b != null) state.tenantScoped = b;
+      } else if (key === "storageMode") {
+        const mode = normalizeEntityStorageMode(stripQuotes(raw));
+        if (mode) state.storageMode = mode;
       }
       continue;
     }
@@ -264,6 +282,7 @@ export function applyEntityWizardToYaml(_yaml: string, state: EntityWizardState)
     `version: ${version}`,
     `permission: ${permission}`,
     `tenantScoped: ${state.tenantScoped ? "true" : "false"}`,
+    `storageMode: ${state.storageMode || "hybrid"}`,
     "fields:",
   ];
   for (const field of fields) {
