@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DetailReadonly, Section, Tabs } from "@/components/page-blocks";
+import { DetailReadonly, EntityBlobPanel, Section, Tabs } from "@/components/page-blocks";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import {
@@ -14,6 +14,7 @@ type PageFlowDocument = {
   flowKey?: string;
   titleZh?: string;
   titleEn?: string;
+  entityKey?: string | null;
   detail?: { apiPath?: string; itemsKey?: string | null; idField?: string; blocks?: string[] };
 };
 
@@ -103,6 +104,15 @@ export default async function DeclaredDetailPage({
       ) : (
         detailBody
       )}
+      {/* SHARED-3: blob panel when flow declares entityKey — 流程声明了 entityKey 时显示附件面板 */}
+      {flowRead.body.entityKey ? (
+        <EntityBlobPanel
+          entityKey={flowRead.body.entityKey}
+          recordId={id}
+          phrases={phrases}
+          tenantId={tenantId}
+        />
+      ) : null}
     </section>
   );
 }

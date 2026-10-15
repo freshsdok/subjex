@@ -32,6 +32,7 @@ class DeclarationMigrationAutoEnqueueServiceTest {
             version: 1
             permission: page.read
             tenantScoped: true
+            storageMode: table
             fields:
               - name: ticketId
                 kind: text
@@ -50,6 +51,7 @@ class DeclarationMigrationAutoEnqueueServiceTest {
             version: 2
             permission: page.read
             tenantScoped: true
+            storageMode: table
             fields:
               - name: ticketId
                 kind: text
@@ -131,10 +133,10 @@ class DeclarationMigrationAutoEnqueueServiceTest {
 
     @ParameterizedTest
     @EnumSource(H2PlatformTables.Mode.class)
-    void classpathSampleAddFieldEnqueuesAlterNotCreate(H2PlatformTables.Mode mode) {
+    void classpathSamplePromoteEnqueuesEntityRecordAlter(H2PlatformTables.Mode mode) {
         Fixture f = Fixture.open(mode);
-        // demo-ticket exists on classpath; no tenant PROMOTED → baseline = classpath.
-        // classpath 有 demo-ticket；无租户 PROMOTED → 基线为 classpath。
+        // HY-2: hybrid classpath baseline; promote:true → ALTER entity_record hp_* column.
+        // HY-2：hybrid classpath 基线；promote:true → ALTER entity_record 升格列。
         String yaml =
                 """
                 entityKey: demo-ticket
@@ -142,6 +144,54 @@ class DeclarationMigrationAutoEnqueueServiceTest {
                 version: 2
                 permission: page.read
                 tenantScoped: false
+                storageMode: hybrid
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 200
+                  - name: status
+                    kind: text
+                    required: true
+                    maxLength: 32
+                    promote: true
+                  - name: assignee
+                    kind: subjectRef
+                    required: false
+                    maxLength: 64
+                  - name: organization
+                    kind: organizationRef
+                    required: false
+                    maxLength: 64
+                """;
+        List<String> planned = f.auto.planForEntityYaml("acme", "demo-ticket", yaml);
+        assertEquals(1, planned.size());
+        assertEquals(
+                "ALTER TABLE entity_record ADD COLUMN hp_demo_ticket_status VARCHAR(32)", planned.get(0));
+
+        DeclarationRevision draft =
+                f.store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", yaml, "sub-a");
+        List<DeclarationMigration> jobs = f.auto.enqueuePlanned(draft, planned);
+        assertEquals(1, jobs.size());
+        assertTrue(jobs.get(0).sqlText().startsWith("ALTER TABLE entity_record"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void hybridNewFieldWithoutPromoteEnqueuesNothing(H2PlatformTables.Mode mode) {
+        Fixture f = Fixture.open(mode);
+        String yaml =
+                """
+                entityKey: demo-ticket
+                tableName: demo_ticket
+                version: 2
+                permission: page.read
+                tenantScoped: false
+                storageMode: hybrid
                 fields:
                   - name: ticketId
                     kind: text
@@ -168,15 +218,7 @@ class DeclarationMigrationAutoEnqueueServiceTest {
                     required: false
                     maxLength: 32
                 """;
-        List<String> planned = f.auto.planForEntityYaml("acme", "demo-ticket", yaml);
-        assertEquals(1, planned.size());
-        assertEquals("ALTER TABLE demo_ticket ADD COLUMN priority VARCHAR(32)", planned.get(0));
-
-        DeclarationRevision draft =
-                f.store.saveDraft("acme", DeclarationKind.ENTITY, "demo-ticket", yaml, "sub-a");
-        List<DeclarationMigration> jobs = f.auto.enqueuePlanned(draft, planned);
-        assertEquals(1, jobs.size());
-        assertTrue(jobs.get(0).sqlText().startsWith("ALTER TABLE"));
+        assertTrue(f.auto.planForEntityYaml("acme", "demo-ticket", yaml).isEmpty());
     }
 
     @ParameterizedTest
@@ -190,6 +232,7 @@ class DeclarationMigrationAutoEnqueueServiceTest {
                 version: 1
                 permission: page.read
                 tenantScoped: false
+                storageMode: hybrid
                 fields:
                   - name: ticketId
                     kind: text
@@ -239,6 +282,7 @@ class DeclarationMigrationAutoEnqueueServiceTest {
                 version: 2
                 permission: page.read
                 tenantScoped: true
+                storageMode: table
                 fields:
                   - name: ticketId
                     kind: text
@@ -252,6 +296,30 @@ class DeclarationMigrationAutoEnqueueServiceTest {
                 IllegalArgumentException.class,
                 () -> f.auto.planForEntityYaml("acme", "repair-ticket", bad));
         assertTrue(ex.getMessage().contains("field kind") || ex.getMessage().contains("SQL type"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void documentNewEntityEnqueuesNothing(H2PlatformTables.Mode mode) {
+        Fixture f = Fixture.open(mode);
+        String yaml =
+                """
+                entityKey: doc-ticket
+                tableName: doc_ticket
+                version: 1
+                permission: page.read
+                storageMode: document
+                fields:
+                  - name: ticketId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: title
+                    kind: text
+                    required: true
+                    maxLength: 120
+                """;
+        assertTrue(f.auto.planForEntityYaml("acme", "doc-ticket", yaml).isEmpty());
     }
 
     private record Fixture(

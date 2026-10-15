@@ -1,7 +1,6 @@
 package com.subjex.platform.app.form;
 
 import com.subjex.entity.declare.EntityField;
-import com.subjex.entity.declare.EntityStorageMode;
 import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.form.render.DomainActionKey;
 import com.subjex.form.render.RenderedForm;
@@ -27,8 +26,8 @@ import java.util.Objects;
  * FormDomainActionRunner — 表单领域动作执行器：按声明的 {@code domainAction} 调用已有目录 / 实体存储。
  * <p>
  * {@code entity.record.upsert} routes by {@code storageMode}: table → {@link GenericEntityStore},
- * hybrid → {@link HybridEntityStore} (ES-3 / ADR 0002).
- * {@code entity.record.upsert} 按 storageMode 路由（ES-3）：table → GenericEntityStore，hybrid → HybridEntityStore。
+ * hybrid/document → {@link HybridEntityStore} (ES-3 / DOC-1).
+ * {@code entity.record.upsert} 按 storageMode 路由：table → GenericEntityStore，hybrid/document → HybridEntityStore。
  */
 public final class FormDomainActionRunner {
 
@@ -129,7 +128,7 @@ public final class FormDomainActionRunner {
         }
         String pkName = entity.primaryKey().name();
         String storeTenant = entity.tenantScoped() ? tenantHeader : null;
-        if (entity.storageMode() == EntityStorageMode.HYBRID) {
+        if (entity.sharedRecordStorage()) {
             hybridEntities.save(entity, values, storeTenant);
         } else {
             tableEntities.save(entity, values, storeTenant);

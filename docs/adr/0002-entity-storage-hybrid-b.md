@@ -1,6 +1,6 @@
 # ADR 0002 — Entity row storage: hybrid B default (core columns + jsonb)
 
-- Status: **Accepted** — implementation track **DONE** through ES-3 (hybrid store, blobs, routing, blob REST)
+- Status: **Accepted** — … + SHARED-1 (jsonb/GIN) + **SHARED-2** (S3-compatible ObjectStorage)
 - Date: 2026-10-10 (Asia/Shanghai)
 - Scope: Zero-code / generic entity **physical row layout**; dual-track with optional per-entity tables
 
@@ -45,15 +45,34 @@ Rich-text bodies follow the same rule when large: store pointer + optional excer
 
 附件/大富文本：对象存储 + 元数据/blob 表；禁止塞进 jsonb 主行。
 
+Object bytes: `ObjectStorage` SPI — default local directory; optional **`platform.storage.type=s3`** → `S3ObjectStorage` (SHARED-2, MinIO/AWS). Console multipart is a later slice.
+
+对象字节：`ObjectStorage` SPI——默认本地目录；可选 **`platform.storage.type=s3`** → `S3ObjectStorage`（SHARED-2）。控制台 multipart 后续切片。
+
+
+### PostgreSQL attrs indexing (SHARED-1) / PostgreSQL attrs 索引
+
+On PostgreSQL, `entity_record.attrs` is native **jsonb** with GIN **`jsonb_path_ops`** (Flyway V32) so hybrid/document equality filters can use `attrs @> '{"k":v}'`. MySQL keeps VARCHAR JSON text without GIN this slice.
+
+PostgreSQL 上 `attrs` 为原生 jsonb + GIN jsonb_path_ops（V32），hybrid/document 等值过滤可走 `@>`；MySQL 本片仍 VARCHAR 文本、无 GIN。
+
+
 ### Optional track — physical per-entity tables / 可选轨：实体物理表
 
 Keep today’s **one table per entity** path as an **opt-in** for **strong-constraint** entities (strict typed columns, unique constraints, heavy relational reporting, regulated schemas):
 
 - Still uses migration queue + promote bind (no casual console DDL)
 - Explicit declaration flag / product gate (to be named at implementation time)
-- Samples such as `service_note` may remain on this track until deliberately migrated
+- Samples `service-note` / `demo-ticket` migrated to hybrid in **HY-1**; keep this track for strong-constraint opt-in only
 
 强约束实体可继续走一实体一表（受控迁移）；须显式选择，不作零代码默认。
+
+### Selectable document track / 可选全 JSON 档（DOC-1）
+
+Zero-code may also choose **`storageMode: document`**: same shared `entity_record` as hybrid, but **all declaration fields stay in `attrs` JSON** — no `promote` / `hp_*` columns. Default remains **hybrid**. Physical `table` stays the strong-constraint opt-in.
+
+零代码可选 **`storageMode: document`**：与 hybrid 同用 `entity_record`，但字段几乎全在 `attrs`；不可升格。默认仍为 hybrid；`table` 仍为强约束可选轨。
+
 
 ## Non-goals this ADR / 本 ADR 明确不做
 
@@ -74,8 +93,10 @@ Keep today’s **one table per entity** path as an **opt-in** for **strong-const
 **Cost / follow-ups (later slices)**
 
 - ~~Design shared table DDL + hybrid adapter~~ → ES-1…ES-3 done
-- Rules for promoting a hot `attrs` path to a core/typed column (optional later)
+- ~~Migration of classpath samples off table~~ → HY-1 done
+- ~~Rules for promoting a hot `attrs` path to a typed column~~ → HY-2 (`promote: true` → `hp_*` on `entity_record`)
 - Migration guide for optional-track table ↔ hybrid (optional later)
+- ~~Native jsonb + GIN on attrs (PostgreSQL)~~ → SHARED-1 done
 - Index / vacuum / jsonb size limits ops notes (optional later)
 
 ## Links / 链接

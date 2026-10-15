@@ -1,15 +1,21 @@
 package com.subjex.platform.app.entity;
 
+import com.subjex.entity.declare.EntityField;
+import com.subjex.entity.declare.EntityFieldKind;
 import com.subjex.entity.declare.EntityStorageMode;
 import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.platform.app.jdbc.PlatformTables;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -18,11 +24,15 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * JdbcHybridEntityStore — JDBC 实现：读写共享表 {@code entity_record}（ES-1 / ADR 0002）。
+ * JdbcHybridEntityStore — JDBC 实现：读写共享表 {@code entity_record}（ES-1 / ADR 0002 / HY-2）。
  * <p>
  * Core columns: tenant_id, entity_key, record_id, record_state, attrs (JSON text), created_at, updated_at.
+ * HY-2: fields with {@code promote: true} also use typed {@code hp_<entity>_<field>} columns; attrs omit those
+ * keys on write; reads merge column values over attrs.
+ * DOC-1: also accepts storageMode=document (attrs-only; no promote columns).
+ * SHARED-1: on PostgreSQL, non-promoted equality filters use {@code attrs @> CAST(? AS jsonb)} (GIN).
  * Non-scoped entities stamp tenant_id as empty string (platform sentinel). Rejects storageMode=table.
- * 核心列见上；非隔离实体 tenant_id 盖空串；拒绝 table 轨调用。
+ * 核心列见上；HY-2 升格字段读写物理列；DOC-1 亦受理 document（仅 attrs）；非隔离实体 tenant_id 盖空串；拒绝 table 轨。
  */
 public final class JdbcHybridEntityStore implements HybridEntityStore {
 
@@ -35,6 +45,9 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
     /** Tenant sentinel for non-scoped entities — 非隔离实体的租户占位。 */
     public static final String PLATFORM_TENANT = "";
 
+    /** Fail-closed guard for dynamic promoted column identifiers — 升格列标识符失败关闭校验。 */
+    private static final Pattern PROMOTED_COLUMN = Pattern.compile("hp_[a-z][a-z0-9_]*");
+
     private static final TypeReference<LinkedHashMap<String, Object>> ATTRS_TYPE =
             new TypeReference<LinkedHashMap<String, Object>>() {};
 
@@ -42,12 +55,20 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
     private final Clock clock;
     private final ObjectMapper json;
     private final GenericEntityStore validator;
+    /** When true, non-promoted filters use PG jsonb containment (SHARED-1) — 为 true 时非升格过滤走 PG jsonb 包含。 */
+    private final boolean attrsJsonbSqlFilter;
 
+    /** Tests / H2: jsonb SQL filter off — 测试/H2：关闭 jsonb SQL 过滤。 */
     public JdbcHybridEntityStore(JdbcTemplate jdbc, Clock clock, ObjectMapper json) {
+        this(jdbc, clock, json, false);
+    }
+
+    public JdbcHybridEntityStore(JdbcTemplate jdbc, Clock clock, ObjectMapper json, boolean attrsJsonbSqlFilter) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.json = Objects.requireNonNull(json, "json");
         this.validator = new GenericEntityStore(jdbc);
+        this.attrsJsonbSqlFilter = attrsJsonbSqlFilter;
     }
 
     @Override
@@ -61,49 +82,49 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
             throw new IllegalArgumentException("primary key required: " + entity.primaryKey().name());
         }
         String recordId = pkRaw.toString();
-        String attrsJson = writeAttrs(accepted);
-        AttrsPayloadLimits.requireWithinLimits(accepted, attrsJson);
+        List<EntityField> promoted = promotedFields(entity);
+        Map<String, Object> attrsMap = attrsWithoutPromoted(accepted, promoted);
+        String attrsJson = writeAttrs(attrsMap);
+        AttrsPayloadLimits.requireWithinLimits(attrsMap, attrsJson);
         Timestamp now = PlatformTables.timestamp(clock.instant());
-        int updated = jdbc.update(
-                """
-                UPDATE entity_record
-                   SET record_state = ?, attrs = ?, updated_at = ?
-                 WHERE tenant_id = ? AND entity_key = ? AND record_id = ?
-                """,
-                STATE_ACTIVE,
-                attrsJson,
-                now,
-                effectiveTenant,
-                entity.entityKey(),
-                recordId);
+        List<Object> promotedValues = promotedJdbcValues(promoted, accepted);
+
+        String setPromoted = promotedSetClause(promoted, entity.entityKey());
+        String updateSql =
+                "UPDATE entity_record SET record_state = ?, attrs = ?, updated_at = ?"
+                        + setPromoted
+                        + " WHERE tenant_id = ? AND entity_key = ? AND record_id = ?";
+        List<Object> updateArgs = new ArrayList<>();
+        updateArgs.add(STATE_ACTIVE);
+        updateArgs.add(attrsJson);
+        updateArgs.add(now);
+        updateArgs.addAll(promotedValues);
+        updateArgs.add(effectiveTenant);
+        updateArgs.add(entity.entityKey());
+        updateArgs.add(recordId);
+        int updated = jdbc.update(updateSql, updateArgs.toArray());
         if (updated == 0) {
             try {
+                String insertCols = "tenant_id, entity_key, record_id, record_state, attrs, created_at, updated_at";
+                String insertQs = "?, ?, ?, ?, ?, ?, ?";
+                List<Object> insertArgs = new ArrayList<>();
+                insertArgs.add(effectiveTenant);
+                insertArgs.add(entity.entityKey());
+                insertArgs.add(recordId);
+                insertArgs.add(STATE_ACTIVE);
+                insertArgs.add(attrsJson);
+                insertArgs.add(now);
+                insertArgs.add(now);
+                for (int i = 0; i < promoted.size(); i++) {
+                    insertCols += ", " + requirePromotedColumn(promoted.get(i).hybridPromotedColumnName(entity.entityKey()));
+                    insertQs += ", ?";
+                    insertArgs.add(promotedValues.get(i));
+                }
                 jdbc.update(
-                        """
-                        INSERT INTO entity_record
-                          (tenant_id, entity_key, record_id, record_state, attrs, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        effectiveTenant,
-                        entity.entityKey(),
-                        recordId,
-                        STATE_ACTIVE,
-                        attrsJson,
-                        now,
-                        now);
+                        "INSERT INTO entity_record (" + insertCols + ") VALUES (" + insertQs + ")",
+                        insertArgs.toArray());
             } catch (DuplicateKeyException raced) {
-                jdbc.update(
-                        """
-                        UPDATE entity_record
-                           SET record_state = ?, attrs = ?, updated_at = ?
-                         WHERE tenant_id = ? AND entity_key = ? AND record_id = ?
-                        """,
-                        STATE_ACTIVE,
-                        attrsJson,
-                        now,
-                        effectiveTenant,
-                        entity.entityKey(),
-                        recordId);
+                jdbc.update(updateSql, updateArgs.toArray());
             }
         }
     }
@@ -114,12 +135,13 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
         Objects.requireNonNull(id, "id");
         requireHybrid(entity);
         String effectiveTenant = effectiveTenant(entity, tenantId);
+        List<EntityField> promoted = promotedFields(entity);
+        String select = selectClause(promoted, entity.entityKey());
         List<Map<String, Object>> rows = jdbc.query(
-                """
-                SELECT attrs FROM entity_record
-                 WHERE tenant_id = ? AND entity_key = ? AND record_id = ?
-                """,
-                attrsMapper(),
+                "SELECT "
+                        + select
+                        + " FROM entity_record WHERE tenant_id = ? AND entity_key = ? AND record_id = ?",
+                rowMapper(entity, promoted),
                 effectiveTenant,
                 entity.entityKey(),
                 id);
@@ -149,13 +171,18 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
         }
         String effectiveTenant = effectiveTenant(entity, tenantId);
         String orderDir = ascending ? "ASC" : "DESC";
+        List<EntityField> promoted = promotedFields(entity);
+        String select = selectClause(promoted, entity.entityKey());
+        RowMapper<Map<String, Object>> mapper = rowMapper(entity, promoted);
         if (!hasFilterField) {
             return jdbc.query(
-                    "SELECT attrs FROM entity_record WHERE tenant_id = ? AND entity_key = ?"
+                    "SELECT "
+                            + select
+                            + " FROM entity_record WHERE tenant_id = ? AND entity_key = ?"
                             + " ORDER BY record_id "
                             + orderDir
                             + " LIMIT ?",
-                    attrsMapper(),
+                    mapper,
                     effectiveTenant,
                     entity.entityKey(),
                     limit);
@@ -164,28 +191,67 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
         boolean pkFilter = entity.primaryKey().name().equals(fieldName);
         if (pkFilter) {
             return jdbc.query(
-                    "SELECT attrs FROM entity_record WHERE tenant_id = ? AND entity_key = ? AND record_id = ?"
+                    "SELECT "
+                            + select
+                            + " FROM entity_record WHERE tenant_id = ? AND entity_key = ? AND record_id = ?"
                             + " ORDER BY record_id "
                             + orderDir
                             + " LIMIT ?",
-                    attrsMapper(),
+                    mapper,
                     effectiveTenant,
                     entity.entityKey(),
                     filterValue,
                     limit);
         }
-        resolveDeclaredField(entity, fieldName);
+        EntityField filterDecl = resolveDeclaredField(entity, fieldName);
+        if (filterDecl.promote()) {
+            String col = requirePromotedColumn(filterDecl.hybridPromotedColumnName(entity.entityKey()));
+            return jdbc.query(
+                    "SELECT "
+                            + select
+                            + " FROM entity_record WHERE tenant_id = ? AND entity_key = ? AND "
+                            + col
+                            + " = ?"
+                            + " ORDER BY record_id "
+                            + orderDir
+                            + " LIMIT ?",
+                    mapper,
+                    effectiveTenant,
+                    entity.entityKey(),
+                    coerceFilterValue(filterDecl, filterValue),
+                    limit);
+        }
+        Object coerced = coerceFilterValue(filterDecl, filterValue);
+        if (attrsJsonbSqlFilter) {
+            // SHARED-1: GIN jsonb_path_ops containment — SHARED-1：GIN 包含查询
+            String containment = AttrsJsonbQueries.equalityContainmentJson(fieldName, coerced, json);
+            return jdbc.query(
+                    "SELECT "
+                            + select
+                            + " FROM entity_record WHERE tenant_id = ? AND entity_key = ? AND "
+                            + AttrsJsonbQueries.ATTRS_CONTAINS
+                            + " ORDER BY record_id "
+                            + orderDir
+                            + " LIMIT ?",
+                    mapper,
+                    effectiveTenant,
+                    entity.entityKey(),
+                    containment,
+                    limit);
+        }
         int scan = Math.min(Math.max(limit * 20, limit), FILTER_SCAN_CAP);
         List<Map<String, Object>> scanned = jdbc.query(
-                "SELECT attrs FROM entity_record WHERE tenant_id = ? AND entity_key = ?"
+                "SELECT "
+                        + select
+                        + " FROM entity_record WHERE tenant_id = ? AND entity_key = ?"
                         + " ORDER BY record_id "
                         + orderDir
                         + " LIMIT ?",
-                attrsMapper(),
+                mapper,
                 effectiveTenant,
                 entity.entityKey(),
                 scan);
-        List<Map<String, Object>> matched = new java.util.ArrayList<>();
+        List<Map<String, Object>> matched = new ArrayList<>();
         for (Map<String, Object> row : scanned) {
             if (fieldEquals(row.get(fieldName), filterValue)) {
                 matched.add(row);
@@ -197,13 +263,35 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
         return matched;
     }
 
-    private static void resolveDeclaredField(RenderedEntity entity, String fieldName) {
-        for (var field : entity.fields()) {
+    private static EntityField resolveDeclaredField(RenderedEntity entity, String fieldName) {
+        for (EntityField field : entity.fields()) {
             if (field.name().equals(fieldName)) {
-                return;
+                return field;
             }
         }
         throw new IllegalArgumentException("unknown filterField: " + fieldName);
+    }
+
+    private static Object coerceFilterValue(EntityField field, String rawFilter) {
+        return switch (field.kind()) {
+            case BOOLEAN -> {
+                if ("true".equalsIgnoreCase(rawFilter.trim())) {
+                    yield Boolean.TRUE;
+                }
+                if ("false".equalsIgnoreCase(rawFilter.trim())) {
+                    yield Boolean.FALSE;
+                }
+                throw new IllegalArgumentException("boolean filterValue must be true or false");
+            }
+            case INTEGER -> {
+                try {
+                    yield Integer.parseInt(rawFilter.trim());
+                } catch (NumberFormatException ex) {
+                    throw new IllegalArgumentException("integer filterValue required", ex);
+                }
+            }
+            default -> rawFilter;
+        };
     }
 
     private static boolean fieldEquals(Object actual, String rawFilter) {
@@ -229,11 +317,6 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
         return Objects.toString(actual, "").equals(rawFilter);
     }
 
-    private RowMapper<Map<String, Object>> attrsMapper() {
-        return (row, rowNum) -> readAttrs(row.getString("attrs"));
-    }
-
-
     @Override
     public boolean deleteById(RenderedEntity entity, String id, String tenantId) {
         Objects.requireNonNull(entity, "entity");
@@ -251,10 +334,93 @@ public final class JdbcHybridEntityStore implements HybridEntityStore {
                 > 0;
     }
 
+    private static List<EntityField> promotedFields(RenderedEntity entity) {
+        List<EntityField> out = new ArrayList<>();
+        for (EntityField field : entity.fields()) {
+            if (field.promote()) {
+                out.add(field);
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    private static Map<String, Object> attrsWithoutPromoted(
+            Map<String, Object> accepted, List<EntityField> promoted) {
+        if (promoted.isEmpty()) {
+            return accepted;
+        }
+        Map<String, Object> attrs = new LinkedHashMap<>(accepted);
+        for (EntityField field : promoted) {
+            attrs.remove(field.name());
+        }
+        return attrs;
+    }
+
+    private static List<Object> promotedJdbcValues(List<EntityField> promoted, Map<String, Object> accepted) {
+        List<Object> values = new ArrayList<>(promoted.size());
+        for (EntityField field : promoted) {
+            values.add(accepted.get(field.name()));
+        }
+        return values;
+    }
+
+    private static String promotedSetClause(List<EntityField> promoted, String entityKey) {
+        if (promoted.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (EntityField field : promoted) {
+            sb.append(", ")
+                    .append(requirePromotedColumn(field.hybridPromotedColumnName(entityKey)))
+                    .append(" = ?");
+        }
+        return sb.toString();
+    }
+
+    private static String selectClause(List<EntityField> promoted, String entityKey) {
+        if (promoted.isEmpty()) {
+            return "attrs";
+        }
+        StringBuilder sb = new StringBuilder("attrs");
+        for (EntityField field : promoted) {
+            sb.append(", ").append(requirePromotedColumn(field.hybridPromotedColumnName(entityKey)));
+        }
+        return sb.toString();
+    }
+
+    private static String requirePromotedColumn(String column) {
+        if (column == null || !PROMOTED_COLUMN.matcher(column).matches()) {
+            throw new IllegalArgumentException("invalid promoted column name: " + column);
+        }
+        return column;
+    }
+
+    private RowMapper<Map<String, Object>> rowMapper(RenderedEntity entity, List<EntityField> promoted) {
+        return (row, rowNum) -> mergeRow(entity, promoted, row);
+    }
+
+    private Map<String, Object> mergeRow(RenderedEntity entity, List<EntityField> promoted, ResultSet row)
+            throws SQLException {
+        Map<String, Object> merged = new LinkedHashMap<>(readAttrs(row.getString("attrs")));
+        for (EntityField field : promoted) {
+            String col = field.hybridPromotedColumnName(entity.entityKey());
+            Object raw = row.getObject(col);
+            if (row.wasNull()) {
+                merged.put(field.name(), null);
+            } else if (raw instanceof Number n && field.kind() == EntityFieldKind.INTEGER) {
+                merged.put(field.name(), n.intValue());
+            } else {
+                merged.put(field.name(), raw);
+            }
+        }
+        return merged;
+    }
+
     private static void requireHybrid(RenderedEntity entity) {
-        if (entity.storageMode() != EntityStorageMode.HYBRID) {
+        // Shared-record track: hybrid or document (DOC-1) — 共享表轨：hybrid 或 document
+        if (!entity.sharedRecordStorage()) {
             throw new IllegalArgumentException(
-                    "HybridEntityStore requires storageMode=hybrid, got: " + entity.storageMode());
+                    "HybridEntityStore requires storageMode=hybrid|document, got: " + entity.storageMode());
         }
     }
 

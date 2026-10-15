@@ -36,5 +36,5 @@ No O7 DROP of `org_unit` / `org_membership`. No HR / Position / SCIM.
 
 ## Related / 相关
 
-Entity **row storage** default (hybrid B vs optional physical tables): [`../adr/0002-entity-storage-hybrid-b.md`](../adr/0002-entity-storage-hybrid-b.md) — ES-1: `entity_record` + `HybridEntityStore`; O6 samples stay `storageMode: table`.
-实体行存储默认策略见 ADR 0002；ES-1 已落共享表 + HybridEntityStore；O6 样例仍为 `storageMode: table`。
+Entity **row storage** default (hybrid B vs optional physical tables): [`../adr/0002-entity-storage-hybrid-b.md`](../adr/0002-entity-storage-hybrid-b.md) — ES-1…ES-3 + **HY-1**: classpath samples `service-note` / `demo-ticket` use `storageMode: hybrid`.
+实体行存储默认策略见 ADR 0002；ES-1…ES-3 + **HY-1**：classpath 样例已为 `storageMode: hybrid`。

@@ -1,6 +1,5 @@
 package com.subjex.platform.app.entity;
 
-import com.subjex.entity.declare.EntityStorageMode;
 import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
@@ -33,10 +32,10 @@ import org.springframework.web.server.ResponseStatusException;
  * GenericEntityEndpoint — 通用实体 REST：按 {@code entityKey} 与 {@code storageMode} 路由 CRUD。
  * <p>
  * Paths under {@code /api/v1/entities/{entityKey}/records}. Routes {@code storageMode=table} to
- * {@link GenericEntityStore} and {@code hybrid} to {@link HybridEntityStore}; record delete cascades {@link EntityBlobStore} (ES-3). Large payloads
+ * {@link GenericEntityStore} and {@code hybrid}/{@code document} to {@link HybridEntityStore}; record delete cascades {@link EntityBlobStore} (ES-3). Large payloads
  * stay on {@link EntityBlobStore}, not in attrs. When {@code tenantScoped: true}, requires
  * {@code X-Tenant-Id} (and operator–tenant grant).
- * 路径在 {@code /api/v1/entities/{entityKey}/records}。table 轨走 {@link GenericEntityStore}，hybrid 走
+ * 路径在 {@code /api/v1/entities/{entityKey}/records}。table 轨走 {@link GenericEntityStore}，hybrid/document 走
  * {@link HybridEntityStore}；删记录级联附件（ES-3）。大载荷用 EntityBlobStore。租户隔离须头与授权。
  */
 @RestController
@@ -94,11 +93,11 @@ public class GenericEntityEndpoint {
         }
         String storeTenant = entity.tenantScoped() ? tenantId : null;
         List<Map<String, Object>> records;
-        if (entity.storageMode() == EntityStorageMode.HYBRID) {
+        if (entity.sharedRecordStorage()) {
             if (blankToNull(sort) != null && !"record_id".equals(blankToNull(sort))
                     && !entity.primaryKey().name().equals(blankToNull(sort))) {
                 throw new IllegalArgumentException(
-                        "hybrid storageMode sort supports primary key / record_id only");
+                        "hybrid/document storageMode sort supports primary key / record_id only");
             }
             records = hybridStore.list(
                     entity, capped, storeTenant, ascending, blankToNull(filterField), filterValue);
@@ -139,7 +138,7 @@ public class GenericEntityEndpoint {
         Map<String, Object> withPk = new LinkedHashMap<>(values);
         withPk.put(entity.primaryKey().name(), id);
         String storeTenant = entity.tenantScoped() ? tenantId : null;
-        if (entity.storageMode() == EntityStorageMode.HYBRID) {
+        if (entity.sharedRecordStorage()) {
             hybridStore.save(entity, withPk, storeTenant);
         } else {
             tableStore.save(entity, withPk, storeTenant);
@@ -157,7 +156,7 @@ public class GenericEntityEndpoint {
         RenderedEntity entity = requireEntity(entityKey, operator, tenantId);
         String storeTenant = entity.tenantScoped() ? tenantId : null;
         boolean removed =
-                entity.storageMode() == EntityStorageMode.HYBRID
+                entity.sharedRecordStorage()
                         ? hybridStore.deleteById(entity, id, storeTenant)
                         : tableStore.deleteById(entity, id, storeTenant);
         if (!removed) {
@@ -171,7 +170,7 @@ public class GenericEntityEndpoint {
     }
 
     private java.util.Optional<Map<String, Object>> findOne(RenderedEntity entity, String id, String storeTenant) {
-        if (entity.storageMode() == EntityStorageMode.HYBRID) {
+        if (entity.sharedRecordStorage()) {
             return hybridStore.findById(entity, id, storeTenant);
         }
         return tableStore.findById(entity, id, storeTenant);

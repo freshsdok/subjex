@@ -98,6 +98,34 @@ public final class EntityMigrationGenerator {
         return "V" + entity.version() + "__" + entity.tableName() + ".sql";
     }
 
+    /** Shared hybrid row table (ADR 0002) — 共享混合行表。 */
+    public static final String ENTITY_RECORD_TABLE = "entity_record";
+
+    /**
+     * {@code ALTER TABLE entity_record ADD COLUMN} for a hybrid-promoted field (HY-2) —
+     * hybrid 升格字段的 {@code ALTER TABLE entity_record ADD COLUMN}（HY-2）。
+     * <p>
+     * Column is always nullable so existing rows do not block ADD (backfill / NOT NULL later).
+     * 列恒可空，避免已有行阻塞 ADD（回填 / NOT NULL 留后续）。
+     */
+    public String addHybridPromotedColumnStatement(String entityKey, EntityField field) {
+        if (entityKey == null || entityKey.isBlank()) {
+            throw new IllegalArgumentException("entityKey required");
+        }
+        if (field == null) {
+            throw new IllegalArgumentException("field required");
+        }
+        if (!field.promote()) {
+            throw new IllegalArgumentException("field is not promote=true: " + field.name());
+        }
+        return "ALTER TABLE "
+                + ENTITY_RECORD_TABLE
+                + " ADD COLUMN "
+                + field.hybridPromotedColumnName(entityKey)
+                + " "
+                + sqlType(field);
+    }
+
     /**
      * SQL type fragment for a field (shared by CREATE / ALTER) —
      * 字段 SQL 类型片段（CREATE / ALTER 共用）。

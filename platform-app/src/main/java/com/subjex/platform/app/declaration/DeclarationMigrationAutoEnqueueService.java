@@ -4,6 +4,7 @@ import com.subjex.entity.declare.EntityCatalog;
 import com.subjex.entity.declare.EntityField;
 import com.subjex.entity.declare.EntityMigrationGenerator;
 import com.subjex.entity.declare.EntityRenderer;
+import com.subjex.entity.declare.EntityStorageMode;
 import com.subjex.entity.declare.RenderedEntity;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -151,6 +152,17 @@ public final class DeclarationMigrationAutoEnqueueService {
      * 规划 CREATE 或 ALTER ADD；危险差异失败关闭。
      */
     List<String> planSql(RenderedEntity draft, RenderedEntity baseline) {
+        // HY-2 / DOC-1: shared-record (hybrid|document) plans promote ADDs; table track CREATE/ALTER.
+        // HY-2 / DOC-1：共享表轨规划升格 ADD；table 轨仍 CREATE/ALTER 实体表。
+        if (draft.sharedRecordStorage()) {
+            return planHybridPromoteSql(draft, baseline);
+        }
+        if (baseline != null && baseline.sharedRecordStorage()) {
+            throw new IllegalArgumentException(
+                    "entity draft switches storageMode from "
+                            + baseline.storageMode().name().toLowerCase()
+                            + " to table; refuse auto migration");
+        }
         if (baseline == null) {
             return List.of(migrationGenerator.createTableStatement(draft));
         }
@@ -196,6 +208,91 @@ public final class DeclarationMigrationAutoEnqueueService {
                 continue;
             }
             adds.add(migrationGenerator.addColumnStatement(draft.tableName(), field));
+        }
+        return List.copyOf(adds);
+    }
+
+    /**
+     * Shared-record DDL (hybrid|document): enqueue {@code entity_record} ADD only for new hybrid {@code promote: true} —
+     * 共享表 DDL：仅 hybrid 新升格字段入队 entity_record ADD；document 不入队。
+     * <p>
+     * No per-entity CREATE TABLE (shared store). Demote / DROP not planned this slice.
+     * 无实体表 CREATE（共享存储）。降格 / DROP 本片不做。
+     */
+    List<String> planHybridPromoteSql(RenderedEntity draft, RenderedEntity baseline) {
+        if (baseline != null) {
+            if (baseline.storageMode() == EntityStorageMode.TABLE) {
+                throw new IllegalArgumentException(
+                        "entity draft switches storageMode from table to "
+                                + draft.storageMode().name().toLowerCase()
+                                + "; refuse auto migration");
+            }
+            // DOC-1: hybrid→document refuses while any field is still promote:true (no demote).
+            // DOC-1：仍有升格字段时拒绝 hybrid→document（无降格）。
+            if (baseline.hybridStorage()
+                    && draft.documentStorage()
+                    && baseline.fields().stream().anyMatch(EntityField::promote)) {
+                throw new IllegalArgumentException(
+                        "entity draft switches storageMode from hybrid to document while promoted fields exist; refuse auto migration");
+            }
+            if (!baseline.tableName().equals(draft.tableName())) {
+                throw new IllegalArgumentException(
+                        "entity draft changes tableName; refuse auto migration (got "
+                                + draft.tableName()
+                                + ", baseline "
+                                + baseline.tableName()
+                                + ")");
+            }
+            String baselinePk = baseline.primaryKey().columnName();
+            String draftPk = draft.primaryKey().columnName();
+            if (!baselinePk.equals(draftPk)) {
+                throw new IllegalArgumentException(
+                        "entity draft changes primary key column; refuse auto migration (got "
+                                + draftPk
+                                + ", baseline "
+                                + baselinePk
+                                + ")");
+            }
+        }
+        Map<String, EntityField> baselineByName = new LinkedHashMap<>();
+        if (baseline != null) {
+            for (EntityField field : baseline.fields()) {
+                baselineByName.put(field.name(), field);
+            }
+        }
+        // Document mode: attrs-only; never enqueue hp_* ADD — document 仅 attrs，不入队升格列
+        if (draft.documentStorage()) {
+            for (EntityField field : draft.fields()) {
+                EntityField prior = baselineByName.get(field.name());
+                if (prior != null) {
+                    requireCompatibleField(prior, field);
+                }
+            }
+            return List.of();
+        }
+        List<String> adds = new ArrayList<>();
+        for (EntityField field : draft.fields()) {
+            EntityField prior = baselineByName.get(field.name());
+            if (prior != null) {
+                requireCompatibleField(prior, field);
+                if (prior.promote() && !field.promote()) {
+                    throw new IllegalArgumentException(
+                            "entity draft demotes promoted field "
+                                    + field.name()
+                                    + "; refuse auto migration (DROP not supported this slice)");
+                }
+                if (prior.promote() && field.promote()) {
+                    continue; // column already planned/applied under prior promote
+                }
+                if (!prior.promote() && field.promote()) {
+                    adds.add(migrationGenerator.addHybridPromotedColumnStatement(draft.entityKey(), field));
+                }
+                continue;
+            }
+            // New field
+            if (field.promote()) {
+                adds.add(migrationGenerator.addHybridPromotedColumnStatement(draft.entityKey(), field));
+            }
         }
         return List.copyOf(adds);
     }

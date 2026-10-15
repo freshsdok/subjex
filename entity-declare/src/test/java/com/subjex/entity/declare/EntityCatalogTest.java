@@ -23,8 +23,10 @@ class EntityCatalogTest {
 
         assertEquals(2, catalog.all().size());
         assertTrue(catalog.find("service-note").isPresent());
+        assertEquals(EntityStorageMode.HYBRID, catalog.find("service-note").orElseThrow().storageMode());
         Optional<RenderedEntity> ticket = catalog.find("demo-ticket");
         assertTrue(ticket.isPresent());
+        assertEquals(EntityStorageMode.HYBRID, ticket.get().storageMode());
         assertEquals("demo_ticket", ticket.get().tableName());
         assertEquals(5, ticket.get().fields().size());
         assertEquals("assignee", ticket.get().fields().get(3).name());

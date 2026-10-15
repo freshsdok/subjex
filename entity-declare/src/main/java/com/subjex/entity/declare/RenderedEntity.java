@@ -10,13 +10,13 @@ import java.util.List;
  * {@code permission} is required (fail-closed); {@code tenantScoped} defaults to false when omitted.
  * When {@code tenantScoped} is true, the Flyway table must include physical {@code tenant_id VARCHAR(64) NOT NULL}
  * (generic CRUD stamps/filters it; {@link EntityMigrationGenerator} auto-appends the column when the YAML field list omits it).
- * {@code storageMode} defaults to {@link EntityStorageMode#HYBRID} when omitted (ADR 0002); set {@code table}
- * for the optional physical per-entity track ({@code GenericEntityStore}).
+ * {@code storageMode} defaults to {@link EntityStorageMode#HYBRID} when omitted (ADR 0002); {@code document}
+ * = full-JSON shared store (DOC-1); {@code table} = physical per-entity track.
  * {@code typeName} 是生成器为这份实体写下的 Java 简单名。
  * {@code version} 必填（整数 ≥ 1，缺则拒绝）；驱动迁移草稿文件名。
  * {@code permission} 必填（缺则拒绝）；{@code tenantScoped} 省略时默认为 false。
  * {@code tenantScoped} 为 true 时表须含物理列 {@code tenant_id}（通用 CRUD 盖章/过滤；YAML 省略时迁移生成器自动追加）。
- * {@code storageMode} 省略时默认 hybrid（ADR 0002）；物理表轨显式 table。
+ * {@code storageMode} 省略默认 hybrid；document 为全 JSON 共享表；table 为物理表轨。
  */
 public record RenderedEntity(
         String entityKey,
@@ -41,9 +41,26 @@ public record RenderedEntity(
     }
 
     /**
-     * True when rows live on shared entity_record — 行为共享 entity_record 时为 true。
+     * True when rows live on shared {@code entity_record} (hybrid or document) —
+     * 行为共享 {@code entity_record}（hybrid 或 document）时为 true。
+     */
+    public boolean sharedRecordStorage() {
+        return storageMode.sharedRecord();
+    }
+
+    /**
+     * True when storageMode is hybrid (promote-capable) — 存储轨为 hybrid（可升格）时为 true。
+     *
      */
     public boolean hybridStorage() {
         return storageMode == EntityStorageMode.HYBRID;
+    }
+
+    /**
+     * True when storageMode is document (full JSON, no promote) —
+     * 存储轨为 document（全 JSON、不可升格）时为 true。
+     */
+    public boolean documentStorage() {
+        return storageMode == EntityStorageMode.DOCUMENT;
     }
 }

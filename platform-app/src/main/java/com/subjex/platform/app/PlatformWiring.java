@@ -18,6 +18,7 @@ import com.subjex.platform.app.extension.TaskDeliveryExtension;
 import com.subjex.entity.declare.EntityCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.entity.HybridEntityStore;
+import com.subjex.platform.app.entity.AttrsJsonbQueries;
 import com.subjex.platform.app.entity.JdbcHybridEntityStore;
 import com.subjex.platform.app.entity.EntityBlobStore;
 import com.subjex.platform.app.entity.JdbcEntityBlobStore;
@@ -77,6 +78,7 @@ import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
+import com.subjex.platform.app.storage.S3ObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.contract.config.ConfigCenterPort;
@@ -237,9 +239,30 @@ public class PlatformWiring {
         };
     }
 
+    /**
+     * Object storage: {@code local} (default) or {@code s3} (SHARED-2 MinIO/AWS) —
+     * 对象存储：默认 local，或 s3（SHARED-2 MinIO/AWS）。
+     */
     @Bean
-    ObjectStorage objectStorage(@Value("${platform.storage.directory:object-store}") String directory) {
-        return new LocalDirectoryObjectStorage(Path.of(directory));
+    ObjectStorage objectStorage(
+            @Value("${platform.storage.type:local}") String type,
+            @Value("${platform.storage.directory:object-store}") String directory,
+            @Value("${platform.storage.s3.endpoint:}") String s3Endpoint,
+            @Value("${platform.storage.s3.region:us-east-1}") String s3Region,
+            @Value("${platform.storage.s3.bucket:}") String s3Bucket,
+            @Value("${platform.storage.s3.access-key:}") String s3AccessKey,
+            @Value("${platform.storage.s3.secret-key:}") String s3SecretKey,
+            @Value("${platform.storage.s3.path-style-access:true}") boolean s3PathStyle) {
+        String mode = type == null ? "local" : type.trim().toLowerCase();
+        return switch (mode) {
+            case "local" -> new LocalDirectoryObjectStorage(Path.of(directory));
+            case "s3" -> new S3ObjectStorage(
+                    S3ObjectStorage.createClient(
+                            s3Endpoint, s3Region, s3AccessKey, s3SecretKey, s3PathStyle),
+                    s3Bucket);
+            default -> throw new IllegalArgumentException(
+                    "platform.storage.type must be local or s3, got: " + type);
+        };
     }
 
     @Bean
@@ -534,8 +557,12 @@ public class PlatformWiring {
      * Hybrid B shared entity_record store (ADR 0002 / ES-1) — 混合 B 共享 entity_record 存储。
      */
     @Bean
-    HybridEntityStore hybridEntityStore(JdbcTemplate jdbc, Clock clock, ObjectMapper objectMapper) {
-        return new JdbcHybridEntityStore(jdbc, clock, objectMapper);
+    HybridEntityStore hybridEntityStore(
+            JdbcTemplate jdbc, Clock clock, ObjectMapper objectMapper, ConfiguredConnection connection) {
+        // SHARED-1: PostgreSQL uses attrs @> + GIN; MySQL keeps in-memory scan.
+        // SHARED-1：PostgreSQL 走 attrs @> + GIN；MySQL 仍内存扫描。
+        boolean jsonbFilter = AttrsJsonbQueries.sqlContainmentEnabled(connection.vendor());
+        return new JdbcHybridEntityStore(jdbc, clock, objectMapper, jsonbFilter);
     }
 
     /**

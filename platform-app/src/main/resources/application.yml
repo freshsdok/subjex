@@ -2,6 +2,12 @@
 # Switch vendor with PLATFORM_CONNECTION_VENDOR=mysql|postgresql and the matching JDBC settings.
 # 用 PLATFORM_CONNECTION_VENDOR=mysql|postgresql 切换厂商，并配上对应的 JDBC 设置。
 spring:
+  servlet:
+    multipart:
+      # SHARED-3: align with JdbcEntityBlobStore.MAX_BYTES (5 MiB)
+      # SHARED-3：与 JdbcEntityBlobStore.MAX_BYTES（5 MiB）对齐
+      max-file-size: 5MB
+      max-request-size: 6MB
   application:
     name: platform-app
   datasource:
@@ -159,7 +165,18 @@ platform:
     daily-submit-limit: ${PLATFORM_TENANT_DAILY_SUBMIT_LIMIT:10000}
     storage-row-limit: ${PLATFORM_TENANT_STORAGE_ROW_LIMIT:100000}
   storage:
+    # local (default) | s3 (SHARED-2 S3-compatible). Alias env: PLATFORM_STORAGE_TYPE.
+    # local（默认）| s3（SHARED-2 S3 兼容）。环境变量 PLATFORM_STORAGE_TYPE。
+    type: ${PLATFORM_STORAGE_TYPE:local}
     directory: ${PLATFORM_STORAGE_DIRECTORY:object-store}
+    s3:
+      endpoint: ${PLATFORM_STORAGE_S3_ENDPOINT:}
+      region: ${PLATFORM_STORAGE_S3_REGION:us-east-1}
+      bucket: ${PLATFORM_STORAGE_S3_BUCKET:}
+      access-key: ${PLATFORM_STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${PLATFORM_STORAGE_S3_SECRET_KEY:}
+      # MinIO and many gateways need path-style — MinIO 等常需 path-style
+      path-style-access: ${PLATFORM_STORAGE_S3_PATH_STYLE:true}
   # Internal (in-platform) git working tree for declaration promote (Z5). Non-bare; local commit only — not GitHub.
   # 声明晋升用的平台内 git 工作树（Z5）。非裸库；仅本地提交——不依赖 GitHub。
   declaration:

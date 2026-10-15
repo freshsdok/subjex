@@ -522,3 +522,48 @@ Boot4-2. [done] 2026-10-09 CST; CI tip d838f73 red (VendorStartup Flyway bean; T
 
 Alpha-1. [done] 2026-10-09 CST; intentional cut after fully green CI on tip `e7dc268` (run 37899546752: test/web/image-scan). Annotated tag + GitHub **pre-release** `v0.1.0-alpha.1` (Boot 4.0.8; evaluation / not production-ready). Docs note on checklist/CHANGELOG/PROGRESS; docs-only squash follows. **Do not claim production-ready.**
     已按 boot4-then-alpha 打评估版 tag；非生产就绪。
+
+## Entity storage hybrid deepen — hybrid 独有深化（ADR 0002 follow-up）
+
+HY-1. [done] 2026-10-15 CST; migrate classpath samples off `storageMode: table` onto hybrid.
+    Inventory: only `service-note` + `demo-ticket` (entity-declare YAML). Both → `storageMode: hybrid`.
+    No classpath sample kept on table (dual-track shown by table-mode test fixtures + Flyway V11/V12 physical tables retained unused by sample runtime).
+    `ServiceNoteEntityEndpoint` routes by storageMode; form/`/records` already routed. Tests: catalog render, form upsert → hybrid, GenericEntityStore uses table clones, HybridEntityStore classpath round-trip.
+    Docs: `docs/entity-storage-es-progress.md`, ADR 0002, o6-zero-code, lowcode-roadmap. **Not in HY-1:** hot-field promote, document mode, GIN, S3, multipart.
+    Local commit only (no push). Next = **HY-2** hot-field promotion (hybrid-only).
+    样例迁离真表完成；下一片热字段升格。
+
+HY-2. [done] 2026-10-15 CST; hot-field promotion for hybrid.
+    YAML `promote: true` (hybrid, non-PK) → MigUX enqueues `ALTER TABLE entity_record ADD COLUMN hp_<entity>_<field>`;
+    HybridEntityStore prefers column over attrs on R/W; unpromoted fields stay in attrs.
+    Table-track auto CREATE/ALTER unchanged (tests use explicit `storageMode: table`).
+    **Not in HY-2:** demote/DROP, NOT NULL backfill, document mode, GIN, S3, multipart.
+    Local commit only (no push). Next = full-JSON document mode (agreed order) or HY-2b backfill/demote.
+    热字段升格完成；下一片全 JSON 或 HY-2b。
+
+DOC-1. [done] 2026-10-15 CST; selectable full-JSON `storageMode: document`.
+    Enum hybrid|document|table; document → entity_record attrs-only via HybridEntityStore (`sharedRecordStorage`);
+    `promote: true` rejected on document; MigUX no CREATE / no hp_* for document.
+    Attachments still entity_blob (not in jsonb). YAML/API this slice; console wizard later if needed.
+    Local commit only (no push). Next = shared jsonb/GIN, S3, console multipart (agreed order).
+    全 JSON document 档完成；下一片共用 jsonb/GIN、S3、multipart。
+
+SHARED-1. [done] 2026-10-15 CST; PostgreSQL jsonb + GIN on entity_record.attrs.
+    V32 Java migration: PG ALTER attrs→jsonb + GIN (jsonb_path_ops); MySQL/H2 no-op.
+    HybridEntityStore uses attrs @> CAST(? AS jsonb) for non-promoted filters when vendor=PostgreSQL
+    (hybrid + document). H2 tests keep in-memory scan. AttrsJsonbQueries unit tests.
+    Local commit only (no push). Next = S3 ObjectStorage, then console multipart.
+    jsonb+GIN 完成；下一片 S3，再 multipart。
+
+SHARED-2. [done] 2026-10-15 CST; S3-compatible ObjectStorage for entity blobs.
+    `platform.storage.type=local|s3`; `S3ObjectStorage` (AWS SDK v2) + MinIO-oriented config;
+    default remains local. Mocked S3Client tests; ops note docs/storage/object-storage.md.
+    Local commit only (no push). Next = **SHARED-3** console multipart blob UX.
+    S3 对象存储完成；下一片控制台 multipart。
+
+SHARED-3. [done] 2026-10-15 CST; console multipart blob UX (EntityBlobEndpoint + proxy + EntityBlobPanel).
+    POST multipart/form-data (part `file`) alongside octet-stream; max 5 MiB; detail page panel when flow.entityKey set.
+    Proxy forwards binary multipart. Tests: EntityBlobEndpointTest.uploadMultipart.
+    **Agreed HY→DOC→shared chain complete** (HY-1→HY-2→DOC-1→SHARED-1→SHARED-2→SHARED-3). Local commit only (no push).
+    控制台 multipart 附件完成；约定的 HY→DOC→shared 链已收口。仅本地提交。
+

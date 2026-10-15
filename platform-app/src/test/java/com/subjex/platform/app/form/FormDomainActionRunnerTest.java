@@ -72,6 +72,8 @@ class FormDomainActionRunnerTest {
         when(effective.runtimeEntity(any(), eq("no-such-entity"))).thenReturn(Optional.empty());
         when(effective.runtimeEntity(any(), eq("hybrid-asset")))
                 .thenReturn(Optional.of(hybridAssetEntity()));
+        when(effective.runtimeEntity(any(), eq("doc-asset")))
+                .thenReturn(Optional.of(documentAssetEntity()));
     }
 
     private static RenderedEntity hybridAssetEntity() {
@@ -83,6 +85,27 @@ class FormDomainActionRunnerTest {
                         version: 1
                         permission: page.read
                         storageMode: hybrid
+                        fields:
+                          - name: assetId
+                            kind: text
+                            required: true
+                            maxLength: 64
+                          - name: title
+                            kind: text
+                            required: true
+                            maxLength: 200
+                        """);
+    }
+
+    private static RenderedEntity documentAssetEntity() {
+        return new EntityRenderer()
+                .render(
+                        """
+                        entityKey: doc-asset
+                        tableName: doc_asset
+                        version: 1
+                        permission: page.read
+                        storageMode: document
                         fields:
                           - name: assetId
                             kind: text
@@ -117,7 +140,8 @@ class FormDomainActionRunnerTest {
     }
 
     @Test
-    void upsertsServiceNoteViaGenericStore() {
+    void upsertsServiceNoteViaHybridStore() {
+        // HY-1: classpath service-note is hybrid — 样例已迁 hybrid
         RenderedForm form = form("service-note", DomainActionKey.ENTITY_RECORD_UPSERT, "service-note");
         String summary = runner.apply(
                 form, Map.of("noteId", "n1", "title", "Hello", "body", "world", "priority", 3));
@@ -125,7 +149,8 @@ class FormDomainActionRunnerTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> values = ArgumentCaptor.forClass(Map.class);
         ArgumentCaptor<RenderedEntity> entity = ArgumentCaptor.forClass(RenderedEntity.class);
-        verify(genericEntities).save(entity.capture(), values.capture(), isNull());
+        verify(hybridEntities).save(entity.capture(), values.capture(), isNull());
+        verify(genericEntities, never()).save(any(RenderedEntity.class), any(), any());
         assertEquals("service-note", entity.getValue().entityKey());
         assertEquals("n1", values.getValue().get("noteId"));
         assertEquals("Hello", values.getValue().get("title"));
@@ -134,7 +159,8 @@ class FormDomainActionRunnerTest {
     }
 
     @Test
-    void upsertsGenericEntityForRecordUpsertAction() {
+    void upsertsDemoTicketViaHybridStore() {
+        // HY-1: classpath demo-ticket is hybrid — 样例已迁 hybrid
         RenderedForm form = form("demo-ticket", DomainActionKey.ENTITY_RECORD_UPSERT, "demo-ticket");
         String summary = runner.apply(
                 form,
@@ -153,7 +179,8 @@ class FormDomainActionRunnerTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> values = ArgumentCaptor.forClass(Map.class);
         ArgumentCaptor<RenderedEntity> entity = ArgumentCaptor.forClass(RenderedEntity.class);
-        verify(genericEntities).save(entity.capture(), values.capture(), isNull());
+        verify(hybridEntities).save(entity.capture(), values.capture(), isNull());
+        verify(genericEntities, never()).save(any(RenderedEntity.class), any(), any());
         assertEquals("demo-ticket", entity.getValue().entityKey());
         assertEquals("t1", values.getValue().get("ticketId"));
         assertEquals("Open", values.getValue().get("title"));
@@ -262,6 +289,16 @@ class FormDomainActionRunnerTest {
         RenderedForm form = form("hybrid-form", DomainActionKey.ENTITY_RECORD_UPSERT, "hybrid-asset");
         String summary = runner.apply(form, Map.of("assetId", "a-1", "title", "Alpha"));
         assertEquals("hybrid-asset:a-1", summary);
+        verify(hybridEntities).save(any(RenderedEntity.class), any(), isNull());
+        verify(genericEntities, never()).save(any(RenderedEntity.class), any(), any());
+    }
+
+    @Test
+    void upsertsDocumentEntityViaHybridStore() {
+        // DOC-1: document routes to same HybridEntityStore — document 与 hybrid 同店
+        RenderedForm form = form("doc-form", DomainActionKey.ENTITY_RECORD_UPSERT, "doc-asset");
+        String summary = runner.apply(form, Map.of("assetId", "d-1", "title", "Doc"));
+        assertEquals("doc-asset:d-1", summary);
         verify(hybridEntities).save(any(RenderedEntity.class), any(), isNull());
         verify(genericEntities, never()).save(any(RenderedEntity.class), any(), any());
     }

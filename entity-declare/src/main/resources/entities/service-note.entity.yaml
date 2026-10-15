@@ -1,12 +1,12 @@
 # Service note entity — 服务备注实体
-# Checked-in declaration. Drives Flyway draft + CRUD stubs; not an online schema editor.
-# 检入声明。驱动 Flyway 草稿与 CRUD 桩；不是在线 schema 编辑器。
+# Checked-in declaration. Hybrid B sample (ADR 0002 / HY-1); optional table track via storageMode: table.
+# 检入声明。混合 B 样例（ADR 0002 / HY-1）；物理表轨须显式 storageMode: table。
 entityKey: service-note
 tableName: service_note
 version: 1
 permission: page.read
 tenantScoped: false
-storageMode: table
+storageMode: hybrid
 fields:
   - name: noteId
     kind: text

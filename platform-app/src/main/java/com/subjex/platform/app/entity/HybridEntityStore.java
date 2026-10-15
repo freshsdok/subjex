@@ -8,9 +8,9 @@ import java.util.Optional;
 /**
  * HybridEntityStore — 混合轨实体存储（ADR 0002）：共享 {@code entity_record} 核心列 + attrs JSON。
  * <p>
- * Sibling of {@link GenericEntityStore}. Large payloads: {@link EntityBlobStore}. List supports
+ * Sibling of {@link GenericEntityStore}. HY-2: {@code promote: true} fields use {@code hp_*} columns. Large payloads: {@link EntityBlobStore}. List supports
  * record_id order and equality filter on declared fields (PK in SQL; other fields scanned in-memory, capped).
- * 与 {@link GenericEntityStore} 并列。大载荷见 {@link EntityBlobStore}。列表支持 record_id 排序与声明字段等值过滤。
+ * 与 {@link GenericEntityStore} 并列；HY-2 升格字段走 hp_* 列。大载荷见 {@link EntityBlobStore}。列表支持 record_id 排序与声明字段等值过滤。
  */
 public interface HybridEntityStore {
 

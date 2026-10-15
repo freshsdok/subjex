@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.entity.declare.EntityCatalog;
+import com.subjex.entity.declare.EntityStorageMode;
 import com.subjex.entity.declare.EntityRenderer;
 import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.platform.app.security.H2PlatformTables;
@@ -33,9 +34,25 @@ class GenericEntityStoreTest {
 
     @BeforeEach
     void loadCatalog() {
+        // Samples are hybrid (HY-1); table-store tests need explicit table-mode clones against
+        // legacy Flyway physical tables (dual-track showcase).
+        // 样例已 hybrid；本测用 table 轨夹具打历史物理表（双轨展示）。
         EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
-        demoTicket = catalog.find("demo-ticket").orElseThrow();
-        serviceNote = catalog.find("service-note").orElseThrow();
+        demoTicket = asTableMode(catalog.find("demo-ticket").orElseThrow());
+        serviceNote = asTableMode(catalog.find("service-note").orElseThrow());
+    }
+
+    /** Clone entity with storageMode=table for GenericEntityStore — 克隆为 table 轨供物理表存储测。 */
+    private static RenderedEntity asTableMode(RenderedEntity sample) {
+        return new RenderedEntity(
+                sample.entityKey(),
+                sample.tableName(),
+                sample.version(),
+                sample.permission(),
+                sample.tenantScoped(),
+                EntityStorageMode.TABLE,
+                sample.typeName(),
+                sample.fields());
     }
 
     @ParameterizedTest

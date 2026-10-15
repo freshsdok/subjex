@@ -31,6 +31,22 @@ Reading an old submission: use the form YAML (or git tag/commit) whose `version`
 > **Storage track note / 存储轨说明：** ADR [`adr/0002-entity-storage-hybrid-b.md`](adr/0002-entity-storage-hybrid-b.md) decides zero-code **default** hybrid B (core + jsonb); the CREATE/ALTER drafts below remain the **optional** physical-table track (`storageMode=table`); hybrid path uses shared `entity_record` via `HybridEntityStore` (ES-1).  
 > 零代码**默认**混合 B 见 ADR 0002；下文 CREATE/ALTER 草稿仍是**可选**物理表轨（`storageMode=table`）；混合轨走共享 `entity_record`（ES-1）。
 
+### Hybrid hot-field promote (HY-2) / 混合轨热字段升格
+
+On a **hybrid** entity, mark a non-primary field with `promote: true`. Saving the draft enqueues:
+
+`ALTER TABLE entity_record ADD COLUMN hp_<entity_key>_<field_snake> <sqlType>`
+
+(nullable). After apply + promote bind, `HybridEntityStore` stores that field on the column (not in `attrs`). Demote/DROP is not supported yet.
+
+**Document mode (DOC-1):** `storageMode: document` uses the same shared table with attrs-only fields; `promote` is rejected.
+
+**Document 档（DOC-1）：** `storageMode: document` 同共享表、字段仅 attrs；拒绝 `promote`。
+
+混合实体非主键字段设 `promote: true`；草稿保存入队对 `entity_record` 的 ADD COLUMN；应用并晋升绑定后读写走物理列。尚不支持降格/DROP。
+
+
+
 
 When `tenantScoped: true`, the physical table **must** include `tenant_id VARCHAR(64) NOT NULL` (index/PK as the author chooses). Generic CRUD stamps and filters that column. `EntityMigrationGenerator` **does** auto-add `tenant_id VARCHAR(64) NOT NULL` when the field list omits it (still a single PRIMARY KEY on the entity PK; authors may edit indexes/PK in the draft).
 `tenantScoped: true` 时表必须含 `tenant_id VARCHAR(64) NOT NULL`（索引/主键自定）。通用 CRUD 盖章与过滤该列。字段列表未写该列时，`EntityMigrationGenerator` **会**自动追加 `tenant_id VARCHAR(64) NOT NULL`（主键仍为实体单列；草稿中可人工改索引/主键）。

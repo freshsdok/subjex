@@ -25,7 +25,7 @@ public final class EntityRenderer {
     private static final Set<String> ENTITY_KEYS =
             Set.of("entityKey", "tableName", "version", "permission", "tenantScoped", "storageMode", "fields");
     private static final Set<String> FIELD_KEYS =
-            Set.of("name", "kind", "required", "maxLength", "enumValues", "refEntityKey");
+            Set.of("name", "kind", "required", "maxLength", "enumValues", "refEntityKey", "promote");
 
     /**
      * Render one entity document — 渲染一份实体文档。
@@ -62,6 +62,25 @@ public final class EntityRenderer {
                 throw new EntityDefinitionRejected("each field must be a mapping");
             }
             fields.add(field(field, names));
+        }
+        // HY-2: promote only on hybrid; never on primary key — 升格仅 hybrid；主键不可升格
+        for (int i = 0; i < fields.size(); i++) {
+            EntityField f = fields.get(i);
+            if (!f.promote()) {
+                continue;
+            }
+            if (storageMode != EntityStorageMode.HYBRID) {
+                throw new EntityDefinitionRejected(
+                        "promote is only allowed when storageMode is hybrid, not "
+                                + storageMode.name().toLowerCase()
+                                + " (field "
+                                + f.name()
+                                + ")");
+            }
+            if (i == 0) {
+                throw new EntityDefinitionRejected(
+                        "primary key field " + f.name() + " cannot set promote");
+            }
         }
         return new RenderedEntity(
                 entityKey, tableName, version, permission, tenantScoped, storageMode, typeName(entityKey), List.copyOf(fields));
@@ -104,7 +123,8 @@ public final class EntityRenderer {
         if (refEntityKey != null && !ENTITY_KEY.matcher(refEntityKey).matches()) {
             throw new EntityDefinitionRejected("refEntityKey must be lowercase words separated by hyphens");
         }
-        return new EntityField(name, kind, required, maxLength, enumValues, refEntityKey);
+        boolean promote = optionalBoolean(field, "promote");
+        return new EntityField(name, kind, required, maxLength, enumValues, refEntityKey, promote);
     }
 
     static String typeName(String entityKey) {

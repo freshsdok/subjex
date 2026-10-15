@@ -18,7 +18,7 @@
 | Outbox relay lock | `JdbcTaskMessagePort.relayPending` via `DistributedLockPort` / `platform_lock` | **Yes** (JDBC) — only one relay owner |
 | Idempotency lock | same `JdbcRowLock` / `platform_lock` | **Yes** |
 | Registry / config | `service_endpoint`, `config_override` | **Yes** (shared DB) |
-| Object storage | `LocalDirectoryObjectStorage` → `platform.storage.directory` (default `object-store`) | **No** — local disk path; multi-pod needs shared volume or different SPI later |
+| Object storage | `local` → `LocalDirectoryObjectStorage`; **`s3`** → `S3ObjectStorage` (SHARED-2) | Local still needs shared volume for multi-pod; S3 is the multi-pod path |
 | K8s / compose | default `replicas: 1`; optional shared-backends snippet | Advertise N>1 **only** with both jdbc backends |
 | Redis | Compose + `web/` `SESSION_REDIS_URL` only | Console sessions **only**; **Java platform processes do not use Redis** (ARCHITECTURE / README) |
 | Docs | `docs/release/single-replica-gate.md`, SECURITY §10 Scale-4d | P4 gate lifted only under dual jdbc backends |

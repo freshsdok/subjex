@@ -45,6 +45,8 @@
         <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
         <!-- postgresql slightly ahead of Boot BOM 42.7.13 / 略高于 Boot BOM。 -->
         <postgresql.version>42.7.14</postgresql.version>
+        <!-- SHARED-2: AWS SDK v2 for S3-compatible ObjectStorage / S3 兼容对象存储。 -->
+        <aws.sdk.version>2.31.78</aws.sdk.version>
     </properties>
 
     <dependencyManagement>
@@ -118,6 +120,13 @@
                 <groupId>io.opentelemetry</groupId>
                 <artifactId>opentelemetry-exporter-otlp</artifactId>
                 <version>${opentelemetry.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

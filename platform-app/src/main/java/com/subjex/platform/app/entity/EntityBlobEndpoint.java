@@ -23,17 +23,19 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
  * EntityBlobEndpoint — 实体附件 REST（ES-3 / ADR 0002）：上传/下载/列举/删除，AuthZ 与实体声明权限一致。
  * <p>
  * Paths under {@code /api/v1/entities/{entityKey}/records/{id}/blobs}. Bytes via {@link EntityBlobStore};
- * never written into hybrid attrs. Upload requires the parent record to exist (table or hybrid).
- * 路径见上。字节走 EntityBlobStore，不进 attrs。上传要求父记录已存在。
+ * never written into attrs. Upload: octet-stream or multipart/form-data (SHARED-3).
+ * 路径见上。字节走 EntityBlobStore，不进 attrs。上传支持 octet-stream 或 multipart（SHARED-3）。
  */
 @RestController
 public class EntityBlobEndpoint {
@@ -101,6 +103,48 @@ public class EntityBlobEndpoint {
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(BlobMetadataDocument.from(meta));
     }
 
+
+    /**
+     * Upload multipart file part {@code file} (SHARED-3) — multipart 上传 {@code file} 部件（SHARED-3）。
+     * <p>
+     * Form fields: {@code file} (required), {@code fieldName} (optional, default {@code attachment}).
+     * Size capped by {@link JdbcEntityBlobStore#MAX_BYTES}.
+     * 表单：{@code file} 必填；{@code fieldName} 可选（默认 attachment）。大小上限见 MAX_BYTES。
+     */
+    @PostMapping(
+            value = BLOBS_PATH,
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<BlobMetadataDocument> uploadMultipart(
+            @PathVariable("entityKey") String entityKey,
+            @PathVariable("id") String id,
+            @RequestParam(value = "fieldName", defaultValue = "attachment") String fieldName,
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId)
+            throws java.io.IOException {
+        Context ctx = requireContext(entityKey, id, operator, tenantId, true);
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("multipart part 'file' is required");
+        }
+        if (file.getSize() > JdbcEntityBlobStore.MAX_BYTES) {
+            throw new IllegalArgumentException(
+                    "content exceeds maxBytes=" + JdbcEntityBlobStore.MAX_BYTES);
+        }
+        byte[] body = file.getBytes();
+        String type = file.getContentType();
+        if (type == null || type.isBlank()) {
+            type = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        int semi = type.indexOf(';');
+        if (semi >= 0) {
+            type = type.substring(0, semi).trim();
+        }
+        EntityBlobMetadata meta =
+                blobs.put(ctx.blobTenant(), entityKey, id, fieldName, body, type);
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(BlobMetadataDocument.from(meta));
+    }
+
     /** Download attachment bytes — 下载附件字节。 */
     @GetMapping(BLOB_PATH)
     public ResponseEntity<byte[]> download(
@@ -161,7 +205,7 @@ public class EntityBlobEndpoint {
                 AccessResource.of("entity", entityKey),
                 AccessAction.of(write ? "blob-write" : "blob-read"));
         String storeTenant = entity.tenantScoped() ? tenantId : null;
-        boolean exists = entity.hybridStorage()
+        boolean exists = entity.sharedRecordStorage()
                 ? hybridStore.findById(entity, id, storeTenant).isPresent()
                 : tableStore.findById(entity, id, storeTenant).isPresent();
         if (!exists) {

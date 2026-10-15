@@ -62,14 +62,27 @@ async function forwardToPlatform(
   const { segments } = await context.params;
   const platformPath = segments.map(encodeURIComponent).join("/");
   const query = new URL(request.url).search;
-  const requestBody = request.method === "GET" ? undefined : await request.text();
+  // SHARED-3: multipart must keep boundary Content-Type + binary body (not request.text()).
+  // SHARED-3：multipart 须保留带 boundary 的 Content-Type，并用二进制体（不可 request.text()）。
+  const inboundContentType = request.headers.get("content-type") ?? "";
+  const isMultipart = inboundContentType.toLowerCase().includes("multipart/form-data");
+  let requestBody: ArrayBuffer | string | undefined;
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    requestBody = isMultipart ? await request.arrayBuffer() : await request.text();
+  }
 
   async function callUpstream(accessToken: string): Promise<Response> {
     const forwardedHeaders: Record<string, string> = {
       authorization: bearerAuthorizationHeader(accessToken),
-      accept: "application/json",
+      accept: request.headers.get("accept") ?? "application/json",
     };
-    if (requestBody !== undefined) forwardedHeaders["content-type"] = "application/json";
+    if (requestBody !== undefined) {
+      if (isMultipart || inboundContentType) {
+        forwardedHeaders["content-type"] = inboundContentType || "application/json";
+      } else {
+        forwardedHeaders["content-type"] = "application/json";
+      }
+    }
     // Prefer client X-Tenant-Id; else declaration tenant cookie (pages/forms runtime).
     // 优先请求头；否则用声明租户 cookie（页面/表单运行时）。
     const tenantFromRequest = request.headers.get("X-Tenant-Id")?.trim() ?? "";

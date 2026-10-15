@@ -262,4 +262,32 @@ class EntityGeneratorTest {
                 gen.addColumnStatement("repair_ticket", required));
     }
 
+
+    @Test
+    void addHybridPromotedColumnStatementTargetsEntityRecord() {
+        EntityField status = new EntityRenderer()
+                .render("""
+                        entityKey: demo-ticket
+                        tableName: demo_ticket
+                        version: 1
+                        permission: page.read
+                        storageMode: hybrid
+                        fields:
+                          - name: ticketId
+                            kind: text
+                            required: true
+                            maxLength: 64
+                          - name: status
+                            kind: text
+                            required: false
+                            maxLength: 32
+                            promote: true
+                        """)
+                .fields()
+                .get(1);
+        assertEquals(
+                "ALTER TABLE entity_record ADD COLUMN hp_demo_ticket_status VARCHAR(32)",
+                new EntityMigrationGenerator().addHybridPromotedColumnStatement("demo-ticket", status));
+    }
+
 }
