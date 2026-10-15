@@ -12,8 +12,10 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import java.util.Locale;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 
 /**
  * TracingConfiguration — 追踪装配：默认丢弃导出器；配置了 OTLP 端点时改为 OTLP/HTTP。
@@ -59,5 +61,18 @@ public class TracingConfiguration {
             }
         }
         return null;
+    }
+
+    /**
+     * OBS-2 HTTP correlation + traceparent extract (early in the filter chain).
+     * OBS-2：HTTP 关联 id 与 traceparent 抽取（靠前注册）。
+     */
+    @Bean
+    FilterRegistrationBean<RequestObservabilityFilter> requestObservabilityFilter(OpenTelemetry openTelemetry) {
+        FilterRegistrationBean<RequestObservabilityFilter> reg =
+                new FilterRegistrationBean<>(new RequestObservabilityFilter(openTelemetry));
+        reg.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
+        reg.addUrlPatterns("/*");
+        return reg;
     }
 }

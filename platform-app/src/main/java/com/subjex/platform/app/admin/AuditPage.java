@@ -13,17 +13,19 @@ import java.util.Locale;
 import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.time.Instant;
 
 /**
  * AuditPage — 审计记录页：一页只读 HTML，人能看懂谁在什么时候对什么做了什么。
  * <p>
  * One sentence says what the page is. Each row is the time in UTC, the actor's login (or identity id),
  * the action in plain words, its target, and the outcome. Newest first, at most {@link #ROW_LIMIT} rows.
- * There is no filter, export, or delete button.
- * 开头一句话说明这页是什么。每一行是 UTC 时间、操作者登录名（或身份标识）、白话动作、对象和结果。
- * 最新的在前，最多 {@link #ROW_LIMIT} 行。没有筛选、导出或删除按钮。
+ * OBS-1: optional query filters (tenantId/actor/action/from/to) shared with the JSON twin.
+ * 开头一句话说明这页是什么。OBS-1：可选筛选参数与 JSON 孪生共用。
  */
 @RestController
 public class AuditPage {
@@ -38,17 +40,31 @@ public class AuditPage {
     static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'").withZone(ZoneOffset.UTC);
 
-    /** Plain words for known actions — 已知动作的白话。 */
-    static final Map<String, String[]> ACTION_WORDS = Map.of(
-            "config.override", new String[] {"覆盖配置", "override config"},
-            "registry.register", new String[] {"登记服务", "register service"},
-            "submit-task", new String[] {"提交任务", "submit task"},
-            "declaration.migrate.enqueue", new String[] {"迁移入队", "migration enqueue"},
-            "declaration.migrate.review", new String[] {"迁移审阅", "migration review"},
-            "declaration.migrate.apply", new String[] {"迁移执行", "migration apply"},
-            "declaration.migrate.cancel", new String[] {"迁移取消", "migration cancel"},
-            "capability.ai.preview", new String[] {"AI 预览", "AI preview"},
-            "capability.ai.confirm", new String[] {"AI 写回确认", "AI write confirm"});
+    /** Plain words for known actions (incl. identity OBS-1) — 已知动作白话（含身份事件）。 */
+    static final Map<String, String[]> ACTION_WORDS = Map.ofEntries(
+            Map.entry("config.override", new String[] {"覆盖配置", "override config"}),
+            Map.entry("registry.register", new String[] {"登记服务", "register service"}),
+            Map.entry("submit-task", new String[] {"提交任务", "submit task"}),
+            Map.entry("declaration.migrate.enqueue", new String[] {"迁移入队", "migration enqueue"}),
+            Map.entry("declaration.migrate.review", new String[] {"迁移审阅", "migration review"}),
+            Map.entry("declaration.migrate.apply", new String[] {"迁移执行", "migration apply"}),
+            Map.entry("declaration.migrate.cancel", new String[] {"迁移取消", "migration cancel"}),
+            Map.entry("capability.ai.preview", new String[] {"AI 预览", "AI preview"}),
+            Map.entry("capability.ai.confirm", new String[] {"AI 写回确认", "AI write confirm"}),
+            Map.entry("operator.auth.login", new String[] {"口令登录", "password login"}),
+            Map.entry("operator.auth.login.oidc", new String[] {"OIDC 登录", "OIDC login"}),
+            Map.entry("operator.auth.login.mfa-challenge", new String[] {"MFA 挑战", "MFA challenge"}),
+            Map.entry("operator.idp.bind", new String[] {"绑定 IdP", "bind IdP"}),
+            Map.entry("operator.idp.unlink", new String[] {"解绑 IdP", "unlink IdP"}),
+            Map.entry("operator.idp.self-link", new String[] {"自助绑定 IdP", "self-link IdP"}),
+            Map.entry("operator.idp.self-unlink", new String[] {"自助解绑 IdP", "self-unlink IdP"}),
+            Map.entry("oauth.client.create", new String[] {"创建 OAuth 客户端", "create OAuth client"}),
+            Map.entry("oauth.client.rotate-secret", new String[] {"轮换客户端密钥", "rotate client secret"}),
+            Map.entry("oauth.consent.approve", new String[] {"批准同意", "approve consent"}),
+            Map.entry("oauth.consent.deny", new String[] {"拒绝同意", "deny consent"}),
+            Map.entry("oauth.consent.revoke", new String[] {"吊销同意", "revoke consent"}),
+            Map.entry("oauth.token.client_credentials", new String[] {"客户端凭证发令", "client_credentials token"}),
+            Map.entry("oauth.token.authorization_code", new String[] {"授权码发令", "authorization_code token"}));
 
     /** Plain words for outcomes — 结果的白话。 */
     static final Map<String, String[]> OUTCOME_WORDS = Map.of(
@@ -63,28 +79,39 @@ public class AuditPage {
     }
 
     @GetMapping(path = PATH, produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> page(HttpServletRequest request) {
+    public ResponseEntity<String> page(
+            HttpServletRequest request,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestParam(value = "actor", required = false) String actorLogin,
+            @RequestParam(value = "action", required = false) String actionName,
+            @RequestParam(value = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                    Instant from,
+            @RequestParam(value = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                    Instant to) {
         Locale locale = OperatorPage.locale(request);
+        AuditQuery query = new AuditQuery(tenantId, actorLogin, actionName, from, to, ROW_LIMIT);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/html;charset=UTF-8"))
                 .body(html(
-                        adminReader.auditEntries(ROW_LIMIT),
+                        adminReader.auditEntries(query),
+                        query,
                         OperatorPage.title(PageTitleCatalog.AUDIT, locale),
                         OperatorPage.skin(request),
                         locale));
     }
 
     static String html(List<AuditRow> rows) {
-        return html(rows, "审计记录", NamedSkin.PLAIN, PageLanguage.CHINESE);
+        return html(rows, AuditQuery.unfiltered(ROW_LIMIT), "审计记录", NamedSkin.PLAIN, PageLanguage.CHINESE);
     }
 
-    static String html(List<AuditRow> rows, String title, NamedSkin skin, Locale locale) {
+    static String html(List<AuditRow> rows, AuditQuery query, String title, NamedSkin skin, Locale locale) {
         StringBuilder body = new StringBuilder();
         OperatorPage.open(body, title, locale, skin);
         body.append("""
                 <p class="intro">这是一份只读的审计记录，最新的在前：谁、在什么时候、对什么、做了什么、结果如何。
                 <span class="en">This is a read-only audit list, newest first: who did what to which target, when, and how it ended.</span></p>
                 """);
+        body.append(filterForm(query));
         if (rows.isEmpty()) {
             body.append("""
                     <p>还没有审计条目。<span class="en">No audit entry is recorded.</span></p>
@@ -124,6 +151,35 @@ public class AuditPage {
         }
         OperatorPage.close(body);
         return body.toString();
+    }
+
+
+    /** Minimal filter form for OBS-1 — OBS-1 极简筛选表单。 */
+    private static String filterForm(AuditQuery query) {
+        AuditQuery q = query == null ? AuditQuery.unfiltered(ROW_LIMIT) : query;
+        return """
+                <form class="audit-filters" method="get" action="/audit" style="margin:1em 0;display:flex;flex-wrap:wrap;gap:0.5em;align-items:end">
+                <label>租户<span class="en">tenant</span><br/><input name="tenantId" value="%s"/></label>
+                <label>操作者<span class="en">actor</span><br/><input name="actor" value="%s"/></label>
+                <label>动作<span class="en">action</span><br/><input name="action" value="%s" placeholder="oauth.consent"/></label>
+                <label>起<span class="en">from</span><br/><input name="from" value="%s" placeholder="2026-10-15T00:00:00Z"/></label>
+                <label>止<span class="en">to</span><br/><input name="to" value="%s" placeholder="2026-10-16T00:00:00Z"/></label>
+                <button type="submit">筛选<span class="en">filter</span></button>
+                </form>
+                """
+                .formatted(
+                        escAttr(q.tenantId()),
+                        escAttr(q.actorLogin()),
+                        escAttr(q.actionName()),
+                        escAttr(q.from() == null ? null : q.from().toString()),
+                        escAttr(q.to() == null ? null : q.to().toString()));
+    }
+
+    private static String escAttr(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return OperatorPage.escape(value);
     }
 
     /**

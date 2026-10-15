@@ -1,5 +1,13 @@
 package com.subjex.platform.app.security;
 
+import com.subjex.platform.app.identity.OpAuthorizeEndpoint;
+import com.subjex.platform.app.identity.OpDiscoveryEndpoint;
+import com.subjex.platform.app.identity.OpJwtService;
+import com.subjex.platform.app.identity.OauthClientAdminEndpoint;
+import com.subjex.platform.app.identity.OauthConsentEndpoint;
+import com.subjex.platform.app.idp.IdpProvidersEndpoint;
+import com.subjex.platform.app.idp.MeIdpLinkEndpoint;
+import com.subjex.platform.app.identity.OpTokenEndpoint;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -24,7 +32,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * {@code Authorization: Bearer} (opaque platform tokens) is the primary path for the console; HTTP Basic
  * is off by default ({@code platform.auth.http-basic-enabled=false}) and on under {@code local}
  * (or {@code PLATFORM_AUTH_HTTP_BASIC_ENABLED=true} for scripts in shared envs).
- * {@link JdbcOperatorDirectory} backs Basic when enabled; {@link JdbcOperatorTokenStore} backs Bearer.
+ * {@link JdbcOperatorDirectory} backs Basic when enabled; Bearer accepts opaque tokens and ID-1 OP JWTs.
+ * Bearer 同时接受不透明令牌与 ID-1 OP JWT。
  * CSRF is off because there is no browser form posting to Java.
  * 匿名访问只留给探针与令牌端点（含 OIDC）。控制台主路径是 Bearer；HTTP Basic 默认关，{@code local} 打开（共享环境脚本可设环境变量）。无浏览器表单直投 Java，关闭 CSRF。
  */
@@ -35,6 +44,8 @@ public class PlatformSecurityConfiguration {
     SecurityFilterChain platformSecurity(
             HttpSecurity http,
             JdbcOperatorTokenStore tokenStore,
+            OpJwtService opJwtService,
+            JdbcOperatorDirectory operatorDirectory,
             @Value("${platform.auth.http-basic-enabled:false}") boolean httpBasicEnabled)
             throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
@@ -58,6 +69,23 @@ public class PlatformSecurityConfiguration {
                                 .permitAll()
                         .requestMatchers(HttpMethod.GET, OperatorOidcEndpoint.PATH + "/status")
                                 .permitAll()
+                        // ID-4 unified IdP providers — 统一 IdP 提供方。
+                        .requestMatchers(HttpMethod.GET, IdpProvidersEndpoint.PATH + "/providers")
+                                .permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                IdpProvidersEndpoint.PATH + "/*/start",
+                                IdpProvidersEndpoint.PATH + "/*/callback")
+                                .permitAll()
+                        .requestMatchers(MeIdpLinkEndpoint.PATH)
+                                .authenticated()
+                        // ID-1 OP: discovery, JWKS, token are anonymous; authorize requires login.
+                        // ID-1 OP：发现/JWKS/token 匿名；authorize 须登录。
+                        .requestMatchers(HttpMethod.GET, OpDiscoveryEndpoint.DISCOVERY_PATH, OpDiscoveryEndpoint.JWKS_PATH)
+                                .permitAll()
+                        .requestMatchers(HttpMethod.POST, OpTokenEndpoint.PATH)
+                                .permitAll()
+                        .requestMatchers(HttpMethod.GET, OpAuthorizeEndpoint.PATH)
+                                .authenticated()
                         // MFA enroll/disable/status — signed-in operator only.
                         // MFA 登记/关闭/状态 — 仅已登录操作员。
                         .requestMatchers(OperatorMfaEndpoint.PATH, OperatorMfaEndpoint.PATH + "/**")
@@ -70,6 +98,13 @@ public class PlatformSecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/v1/operators/me/password").authenticated()
                         .requestMatchers("/api/v1/operators", "/api/v1/operators/**")
                                 .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
+                        // ID-2 service-account client registry — 服务账号客户端登记。
+                        .requestMatchers(OauthClientAdminEndpoint.PATH, OauthClientAdminEndpoint.PATH + "/**")
+                                .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
+                        // ID-3 consent catalog/decision/grants — any signed-in human operator.
+                        // ID-3 同意目录/决策/授权 — 任何已登录人工操作员。
+                        .requestMatchers(OauthConsentEndpoint.PATH, OauthConsentEndpoint.PATH + "/**")
+                                .authenticated()
                         // Tenant list/get: admin.read; writes: tenant.manage.
                         // 租户列表/读取：admin.read；写操作：tenant.manage。
                         .requestMatchers(HttpMethod.GET, "/api/v1/tenants", "/api/v1/tenants/**")
@@ -168,7 +203,7 @@ public class PlatformSecurityConfiguration {
             http.httpBasic(AbstractHttpConfigurer::disable);
         }
         return http
-                .addFilterBefore(new BearerTokenAuthenticationFilter(tokenStore), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new BearerTokenAuthenticationFilter(tokenStore, opJwtService, operatorDirectory), UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 

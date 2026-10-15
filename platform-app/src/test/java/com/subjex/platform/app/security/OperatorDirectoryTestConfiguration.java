@@ -1,5 +1,20 @@
 package com.subjex.platform.app.security;
 
+import com.subjex.platform.app.identity.JdbcOauthAuthCodeStore;
+import com.subjex.platform.app.identity.JdbcOauthClientStore;
+import com.subjex.platform.app.identity.JdbcOauthConsentChallengeStore;
+import com.subjex.platform.app.identity.JdbcOauthConsentStore;
+import com.subjex.platform.app.identity.JdbcOauthScopeCatalog;
+import com.subjex.platform.app.identity.OpJwtService;
+import com.subjex.platform.app.idp.WeChatProperties;
+import com.subjex.platform.app.idp.WeChatIdpAdapter;
+import com.subjex.platform.app.idp.WeChatApiClient;
+import com.subjex.platform.app.idp.IdpLoginOrchestrator;
+import com.subjex.platform.app.idp.IdpAdapterRegistry;
+import com.subjex.platform.app.idp.IdpAdapter;
+import com.subjex.platform.app.idp.GenericOidcIdpAdapter;
+import com.subjex.platform.app.identity.OpProperties;
+import com.subjex.platform.app.identity.OpSigningKeyService;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.contract.audit.AuditPort;
 import java.time.Clock;
@@ -167,20 +182,58 @@ public class OperatorDirectoryTestConfiguration {
     }
 
     @Bean
-    OperatorOidcService operatorOidcService(
-            OidcProperties oidcProperties,
-            JdbcOidcLoginStore oidcLoginStore,
-            OidcTokenClient oidcTokenClient,
+    WeChatProperties weChatProperties() {
+        return new WeChatProperties(false, "", "", "");
+    }
+
+    @Bean
+    WeChatApiClient weChatApiClient() {
+        return new WeChatApiClient() {
+            @Override
+            public WeChatApiClient.WeChatSession redeemOpenCode(String code) {
+                throw new InvalidOperatorTokenException("wechat-stub-not-configured");
+            }
+
+            @Override
+            public WeChatApiClient.WeChatSession code2Session(String jsCode) {
+                throw new InvalidOperatorTokenException("wechat-stub-not-configured");
+            }
+        };
+    }
+
+    @Bean
+    GenericOidcIdpAdapter genericOidcIdpAdapter(
+            OidcProperties oidcProperties, JdbcOidcLoginStore oidcLoginStore, OidcTokenClient oidcTokenClient) {
+        return new GenericOidcIdpAdapter(oidcProperties, oidcLoginStore, oidcTokenClient);
+    }
+
+    @Bean
+    WeChatIdpAdapter weChatIdpAdapter(
+            WeChatProperties weChatProperties, WeChatApiClient weChatApiClient, JdbcOidcLoginStore oidcLoginStore) {
+        return new WeChatIdpAdapter(weChatProperties, weChatApiClient, oidcLoginStore);
+    }
+
+    @Bean
+    IdpAdapterRegistry idpAdapterRegistry(GenericOidcIdpAdapter genericOidc, WeChatIdpAdapter weChat) {
+        return new IdpAdapterRegistry(java.util.List.<IdpAdapter>of(genericOidc, weChat));
+    }
+
+    @Bean
+    IdpLoginOrchestrator idpLoginOrchestrator(
+            IdpAdapterRegistry idpAdapterRegistry,
             JdbcOperatorIdpLinkStore operatorIdpLinkStore,
             JdbcOperatorDirectory operatorDirectory,
             JdbcOperatorTokenStore operatorTokenStore) {
-        return new OperatorOidcService(
-                oidcProperties,
-                oidcLoginStore,
-                oidcTokenClient,
-                operatorIdpLinkStore,
-                operatorDirectory,
-                operatorTokenStore);
+        return new IdpLoginOrchestrator(
+                idpAdapterRegistry, operatorIdpLinkStore, operatorDirectory, operatorTokenStore);
+    }
+
+    @Bean
+    OperatorOidcService operatorOidcService(
+            OidcProperties oidcProperties,
+            GenericOidcIdpAdapter genericOidcIdpAdapter,
+            IdpLoginOrchestrator idpLoginOrchestrator) {
+        return new OperatorOidcService(oidcProperties, genericOidcIdpAdapter, idpLoginOrchestrator);
     }
 
     /** A second operator with read-only permissions — 第二位只读操作员。 */
@@ -196,4 +249,52 @@ public class OperatorDirectoryTestConfiguration {
                 passwordEncoder.encode(VIEWER_PASSWORD));
         jdbc.update("INSERT INTO subject_role (subject_id, role_name) VALUES ('subject-viewer', 'platform-reader')");
     }
+
+    /** ID-1 OP beans for WebMvc dual-accept Bearer — WebMvc 双受理 Bearer 用 OP Bean。 */
+    @Bean
+    OpProperties opProperties() {
+        return new OpProperties(
+                "http://127.0.0.1:8080",
+                Duration.ofMinutes(30),
+                Duration.ofMinutes(30),
+                Duration.ofMinutes(5),
+                "subjex-console");
+    }
+
+    @Bean
+    OpSigningKeyService opSigningKeyService(JdbcTemplate jdbc) {
+        return new OpSigningKeyService(jdbc, Clock.systemUTC());
+    }
+
+    @Bean
+    OpJwtService opJwtService(OpProperties opProperties, OpSigningKeyService opSigningKeyService) {
+        return new OpJwtService(opProperties, opSigningKeyService);
+    }
+
+    @Bean
+    JdbcOauthClientStore jdbcOauthClientStore(JdbcTemplate jdbc) {
+        return new JdbcOauthClientStore(jdbc, Clock.systemUTC());
+    }
+
+    @Bean
+    JdbcOauthAuthCodeStore jdbcOauthAuthCodeStore(JdbcTemplate jdbc) {
+        return new JdbcOauthAuthCodeStore(jdbc, Clock.systemUTC());
+    }
+
+
+    @Bean
+    JdbcOauthScopeCatalog jdbcOauthScopeCatalog(JdbcTemplate jdbc) {
+        return new JdbcOauthScopeCatalog(jdbc);
+    }
+
+    @Bean
+    JdbcOauthConsentStore jdbcOauthConsentStore(JdbcTemplate jdbc) {
+        return new JdbcOauthConsentStore(jdbc, Clock.systemUTC());
+    }
+
+    @Bean
+    JdbcOauthConsentChallengeStore jdbcOauthConsentChallengeStore(JdbcTemplate jdbc) {
+        return new JdbcOauthConsentChallengeStore(jdbc, Clock.systemUTC());
+    }
+
 }

@@ -57,7 +57,7 @@ public final class HttpOidcTokenClient implements OidcTokenClient {
         return validateIdToken(idToken, pending.nonce(), meta.jwksUri());
     }
 
-    Discovery discovery() {
+    public Discovery discovery() {
         Discovery cached = discovery.get();
         if (cached != null) {
             return cached;
@@ -168,7 +168,7 @@ public final class HttpOidcTokenClient implements OidcTokenClient {
         }
     }
 
-    static String normalizeIssuer(String issuer) {
+    public static String normalizeIssuer(String issuer) {
         String trimmed = issuer.trim();
         while (trimmed.endsWith("/")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
@@ -185,5 +185,5 @@ public final class HttpOidcTokenClient implements OidcTokenClient {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
-    record Discovery(String issuer, String authorizationEndpoint, String tokenEndpoint, String jwksUri) {}
+    public record Discovery(String issuer, String authorizationEndpoint, String tokenEndpoint, String jwksUri) {}
 }

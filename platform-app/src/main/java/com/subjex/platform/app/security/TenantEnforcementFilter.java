@@ -14,10 +14,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * TenantEnforcementFilter — 租户拦截：租户作用域的请求在进入动作前先过门禁与操作员—租户授权。
  * <p>
- * Probes, the read-only operator console, the audit page, the service list, the config list, the deploy page, the form field list, the generated-type page, the language page, the skin page, and every JSON twin under {@code /api/v1} are not tenant-scoped.
+ * Probes, the read-only operator console, the audit page, the service list, the config list, the deploy page, the form field list, the generated-type page, the language page, the skin page, every JSON twin under {@code /api/v1}, and ID-1 OP paths ({@code /.well-known/**}, {@code /oauth2/**}) are not tenant-scoped.
  * Every other path uses {@link TenantGuard} (missing tenant denied) then {@link OperatorTenantAccess}
  * (operator must be granted that tenant, or {@code *}).
- * 探针、只读操作台、审计页、服务名单、配置名单、部署清单页、字段列表页、生成类型页、语言页、外观页，以及 {@code /api/v1} 下的每个 JSON 孪生接口，都不属某个租户。
+ * 探针、只读操作台、审计页、服务名单、配置名单、部署清单页、字段列表页、生成类型页、语言页、外观页，以及 {@code /api/v1} JSON 与 ID-1 OP（{@code /.well-known/**}、{@code /oauth2/**}），都不属某个租户。
  * 其余路径先过 {@link TenantGuard}，再核对操作员—租户授权（含通配 {@code *}）。
  */
 public final class TenantEnforcementFilter extends OncePerRequestFilter {
@@ -47,7 +47,11 @@ public final class TenantEnforcementFilter extends OncePerRequestFilter {
                 || "/language".equals(path)
                 || "/skin".equals(path)
                 || path.startsWith("/config")
-                || path.startsWith("/api/v1");
+                || path.startsWith("/api/v1")
+                // ID-1 OP: discovery / JWKS / authorize / token are not tenant-scoped.
+                // ID-1 OP：发现 / JWKS / authorize / token 不按租户拦截。
+                || path.startsWith("/.well-known/")
+                || path.startsWith("/oauth2/");
     }
 
     /**
@@ -66,7 +70,16 @@ public final class TenantEnforcementFilter extends OncePerRequestFilter {
                 response.sendError(HttpServletResponse.SC_FORBIDDEN);
                 return;
             }
-            tenantAccess.requireGranted(operator, tenantId);
+            // ID-2 SA: bound tenant must match header (no operator_tenant_grant row).
+            // 服务账号：绑定租户须与请求头一致（无 operator_tenant_grant 行）。
+            if (operator.boundTenantId() != null) {
+                if (!operator.boundTenantId().equals(tenantId)) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN);
+                    return;
+                }
+            } else {
+                tenantAccess.requireGranted(operator, tenantId);
+            }
         } catch (TenantMissingException | OperatorTenantNotGrantedException ex) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;

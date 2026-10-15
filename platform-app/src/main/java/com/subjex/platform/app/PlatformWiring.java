@@ -21,6 +21,14 @@ import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.entity.AttrsJsonbQueries;
 import com.subjex.platform.app.entity.JdbcHybridEntityStore;
 import com.subjex.platform.app.entity.ChunkedBlobUploadStore;
+import com.subjex.platform.app.identity.JdbcOauthAuthCodeStore;
+import com.subjex.platform.app.identity.JdbcOauthClientStore;
+import com.subjex.platform.app.identity.JdbcOauthConsentChallengeStore;
+import com.subjex.platform.app.identity.JdbcOauthConsentStore;
+import com.subjex.platform.app.identity.JdbcOauthScopeCatalog;
+import com.subjex.platform.app.identity.OpJwtService;
+import com.subjex.platform.app.identity.OpProperties;
+import com.subjex.platform.app.identity.OpSigningKeyService;
 import com.subjex.platform.app.entity.EntityBlobStore;
 import com.subjex.platform.app.entity.JdbcEntityBlobStore;
 import com.subjex.platform.app.entity.LocalDirChunkedBlobUploadStore;
@@ -74,6 +82,14 @@ import com.subjex.platform.app.security.JdbcOperatorIdpLinkStore;
 import com.subjex.platform.app.security.OidcTokenClient;
 import com.subjex.platform.app.security.HttpOidcTokenClient;
 import com.subjex.platform.app.security.OperatorOidcService;
+import com.subjex.platform.app.idp.GenericOidcIdpAdapter;
+import com.subjex.platform.app.idp.HttpWeChatApiClient;
+import com.subjex.platform.app.idp.IdpAdapter;
+import com.subjex.platform.app.idp.IdpAdapterRegistry;
+import com.subjex.platform.app.idp.IdpLoginOrchestrator;
+import com.subjex.platform.app.idp.WeChatApiClient;
+import com.subjex.platform.app.idp.WeChatIdpAdapter;
+import com.subjex.platform.app.idp.WeChatProperties;
 import com.subjex.platform.app.security.JdbcOperatorTenantAccess;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.PolicyEngine;
@@ -398,20 +414,52 @@ public class PlatformWiring {
     }
 
     @Bean
-    OperatorOidcService operatorOidcService(
-            OidcProperties oidcProperties,
-            JdbcOidcLoginStore oidcLoginStore,
-            OidcTokenClient oidcTokenClient,
+    WeChatProperties weChatProperties(
+            @Value("${platform.idp.wechat.enabled:false}") boolean enabled,
+            @Value("${platform.idp.wechat.app-id:}") String appId,
+            @Value("${platform.idp.wechat.app-secret:}") String appSecret,
+            @Value("${platform.idp.wechat.redirect-uri:}") String redirectUri) {
+        return new WeChatProperties(enabled, appId, appSecret, redirectUri);
+    }
+
+    @Bean
+    WeChatApiClient weChatApiClient(WeChatProperties weChatProperties, ObjectMapper objectMapper) {
+        return new HttpWeChatApiClient(weChatProperties, objectMapper);
+    }
+
+    @Bean
+    GenericOidcIdpAdapter genericOidcIdpAdapter(
+            OidcProperties oidcProperties, JdbcOidcLoginStore oidcLoginStore, OidcTokenClient oidcTokenClient) {
+        return new GenericOidcIdpAdapter(oidcProperties, oidcLoginStore, oidcTokenClient);
+    }
+
+    @Bean
+    WeChatIdpAdapter weChatIdpAdapter(
+            WeChatProperties weChatProperties, WeChatApiClient weChatApiClient, JdbcOidcLoginStore oidcLoginStore) {
+        return new WeChatIdpAdapter(weChatProperties, weChatApiClient, oidcLoginStore);
+    }
+
+    @Bean
+    IdpAdapterRegistry idpAdapterRegistry(GenericOidcIdpAdapter genericOidc, WeChatIdpAdapter weChat) {
+        return new IdpAdapterRegistry(java.util.List.<IdpAdapter>of(genericOidc, weChat));
+    }
+
+    @Bean
+    IdpLoginOrchestrator idpLoginOrchestrator(
+            IdpAdapterRegistry idpAdapterRegistry,
             JdbcOperatorIdpLinkStore operatorIdpLinkStore,
             JdbcOperatorDirectory operatorDirectory,
             JdbcOperatorTokenStore operatorTokenStore) {
-        return new OperatorOidcService(
-                oidcProperties,
-                oidcLoginStore,
-                oidcTokenClient,
-                operatorIdpLinkStore,
-                operatorDirectory,
-                operatorTokenStore);
+        return new IdpLoginOrchestrator(
+                idpAdapterRegistry, operatorIdpLinkStore, operatorDirectory, operatorTokenStore);
+    }
+
+    @Bean
+    OperatorOidcService operatorOidcService(
+            OidcProperties oidcProperties,
+            GenericOidcIdpAdapter genericOidcIdpAdapter,
+            IdpLoginOrchestrator idpLoginOrchestrator) {
+        return new OperatorOidcService(oidcProperties, genericOidcIdpAdapter, idpLoginOrchestrator);
     }
 
     @Bean
@@ -585,6 +633,55 @@ public class PlatformWiring {
             @Value("${platform.storage.chunk-upload-directory:object-store-chunks}") String directory,
             Clock clock) {
         return new LocalDirChunkedBlobUploadStore(Path.of(directory), clock);
+    }
+
+
+    /**
+     * ID-1 thin OIDC OP — 轻量 OIDC 签发方配置与 JWT/JWKS。
+     */
+    @Bean
+    OpProperties opProperties(
+            @Value("${platform.op.issuer:http://127.0.0.1:8080}") String issuer,
+            @Value("${platform.op.access-token-ttl:PT30M}") Duration accessTtl,
+            @Value("${platform.op.id-token-ttl:PT30M}") Duration idTtl,
+            @Value("${platform.op.auth-code-ttl:PT5M}") Duration codeTtl,
+            @Value("${platform.op.console-client-id:subjex-console}") String consoleClientId) {
+        return new OpProperties(issuer, accessTtl, idTtl, codeTtl, consoleClientId);
+    }
+
+    @Bean
+    OpSigningKeyService opSigningKeyService(JdbcTemplate jdbc, Clock clock) {
+        return new OpSigningKeyService(jdbc, clock);
+    }
+
+    @Bean
+    OpJwtService opJwtService(OpProperties opProperties, OpSigningKeyService opSigningKeyService) {
+        return new OpJwtService(opProperties, opSigningKeyService);
+    }
+
+    @Bean
+    JdbcOauthClientStore jdbcOauthClientStore(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcOauthClientStore(jdbc, clock);
+    }
+
+    @Bean
+    JdbcOauthAuthCodeStore jdbcOauthAuthCodeStore(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcOauthAuthCodeStore(jdbc, clock);
+    }
+
+    @Bean
+    JdbcOauthScopeCatalog jdbcOauthScopeCatalog(JdbcTemplate jdbc) {
+        return new JdbcOauthScopeCatalog(jdbc);
+    }
+
+    @Bean
+    JdbcOauthConsentStore jdbcOauthConsentStore(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcOauthConsentStore(jdbc, clock);
+    }
+
+    @Bean
+    JdbcOauthConsentChallengeStore jdbcOauthConsentChallengeStore(JdbcTemplate jdbc, Clock clock) {
+        return new JdbcOauthConsentChallengeStore(jdbc, clock);
     }
 
     /**

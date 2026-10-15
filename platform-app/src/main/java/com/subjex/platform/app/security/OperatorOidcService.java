@@ -1,43 +1,32 @@
 package com.subjex.platform.app.security;
 
-import java.net.URLEncoder;
+import com.subjex.platform.app.idp.GenericOidcIdpAdapter;
+import com.subjex.platform.app.idp.IdpAuthStart;
+import com.subjex.platform.app.idp.IdpCallbackRequest;
+import com.subjex.platform.app.idp.IdpLoginOrchestrator;
+import com.subjex.platform.app.idp.IdpUnlinkedException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 /**
- * OperatorOidcService — OIDC 登录编排：开 PKCE、换码取声明、查绑定、签发平台令牌。
- * <p>
- * OIDC path does <strong>not</strong> prompt for local TOTP: the IdP is trusted for MFA when SSO is used.
- * Password login still enforces enrolled TOTP (Slice D). Unlinked IdP subjects are refused.
- * OIDC 路径不二次校验本地 TOTP（信任 IdP 侧 MFA）。口令登录仍走 Slice D。未绑定一律拒绝。
+ * OperatorOidcService — OIDC login via {@link GenericOidcIdpAdapter} (ID-4).
+ * Keeps Slice E API; IdP adapter SPI owns start/callback identity extraction.
+ * 经 GenericOidcIdpAdapter 的 OIDC 登录；SPI 负责提取外部身份。
  */
 public final class OperatorOidcService {
 
     private final OidcProperties properties;
-    private final JdbcOidcLoginStore loginStore;
-    private final OidcTokenClient tokenClient;
-    private final JdbcOperatorIdpLinkStore linkStore;
-    private final JdbcOperatorDirectory directory;
-    private final JdbcOperatorTokenStore tokenStore;
+    private final GenericOidcIdpAdapter adapter;
+    private final IdpLoginOrchestrator orchestrator;
 
     public OperatorOidcService(
-            OidcProperties properties,
-            JdbcOidcLoginStore loginStore,
-            OidcTokenClient tokenClient,
-            JdbcOperatorIdpLinkStore linkStore,
-            JdbcOperatorDirectory directory,
-            JdbcOperatorTokenStore tokenStore) {
+            OidcProperties properties, GenericOidcIdpAdapter adapter, IdpLoginOrchestrator orchestrator) {
         this.properties = Objects.requireNonNull(properties, "properties");
-        this.loginStore = Objects.requireNonNull(loginStore, "loginStore");
-        this.tokenClient = Objects.requireNonNull(tokenClient, "tokenClient");
-        this.linkStore = Objects.requireNonNull(linkStore, "linkStore");
-        this.directory = Objects.requireNonNull(directory, "directory");
-        this.tokenStore = Objects.requireNonNull(tokenStore, "tokenStore");
+        this.adapter = Objects.requireNonNull(adapter, "adapter");
+        this.orchestrator = Objects.requireNonNull(orchestrator, "orchestrator");
     }
 
     public boolean enabled() {
@@ -46,19 +35,8 @@ public final class OperatorOidcService {
 
     public AuthorizationStart beginLogin() {
         requireReady();
-        OidcPendingLogin pending = loginStore.create();
-        String authorizationEndpoint = resolveAuthorizationEndpoint();
-        String scope = properties.scopes().stream().collect(Collectors.joining(" "));
-        String url = authorizationEndpoint
-                + "?response_type=code"
-                + "&client_id=" + enc(properties.clientId())
-                + "&redirect_uri=" + enc(properties.redirectUri())
-                + "&scope=" + enc(scope)
-                + "&state=" + enc(pending.state())
-                + "&nonce=" + enc(pending.nonce())
-                + "&code_challenge=" + enc(s256Challenge(pending.codeVerifier()))
-                + "&code_challenge_method=S256";
-        return new AuthorizationStart(url, pending.state());
+        IdpAuthStart started = adapter.startAuth();
+        return new AuthorizationStart(started.authorizationUrl(), started.state());
     }
 
     /**
@@ -67,25 +45,13 @@ public final class OperatorOidcService {
      */
     public LoginResult completeLogin(String code, String state, String userAgent, String clientIp) {
         requireReady();
-        OidcPendingLogin pending = loginStore
-                .consume(state)
-                .orElseThrow(() -> new InvalidOperatorTokenException("oidc-state-invalid"));
-        OidcClaims claims = tokenClient.redeemAuthorizationCode(pending, code);
-        String issuer = HttpOidcTokenClient.normalizeIssuer(claims.issuer());
-        JdbcOperatorIdpLinkStore.LinkedOperator link = linkStore
-                .findByIssuerAndSubject(issuer, claims.subject())
-                .orElseThrow(() -> new OidcUnlinkedException(issuer, claims.subject(), claims.email()));
-        OperatorPrincipal operator;
         try {
-            operator = (OperatorPrincipal) directory.loadUserByUsername(link.loginName());
-        } catch (UsernameNotFoundException ex) {
-            throw new OidcUnlinkedException(issuer, claims.subject(), claims.email());
+            IdpLoginOrchestrator.LoginResult result =
+                    orchestrator.complete(GenericOidcIdpAdapter.ID, IdpCallbackRequest.oauth(code, state), userAgent, clientIp);
+            return new LoginResult(result.operator(), result.tokens());
+        } catch (IdpUnlinkedException ex) {
+            throw new OidcUnlinkedException(ex.issuer(), ex.idpSubject(), ex.email());
         }
-        if (!operator.isEnabled()) {
-            throw new InvalidOperatorTokenException("operator-disabled");
-        }
-        JdbcOperatorTokenStore.IssuedTokens issued = tokenStore.issue(operator, userAgent, clientIp);
-        return new LoginResult(operator, issued);
     }
 
     private void requireReady() {
@@ -94,18 +60,7 @@ public final class OperatorOidcService {
         }
     }
 
-    private String resolveAuthorizationEndpoint() {
-        if (tokenClient instanceof HttpOidcTokenClient http) {
-            return http.discovery().authorizationEndpoint();
-        }
-        // Stub clients in tests supply a fixed authorize URL via properties issuer + path convention,
-        // or tests call completeLogin only. For beginLogin with stubs, use issuer + /authorize.
-        // 测试桩：beginLogin 用 issuer + /authorize；多数测试只测 completeLogin。
-        String issuer = HttpOidcTokenClient.normalizeIssuer(properties.issuer());
-        return issuer + "/protocol/openid-connect/auth";
-    }
-
-    static String s256Challenge(String codeVerifier) {
+    public static String s256Challenge(String codeVerifier) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(codeVerifier.getBytes(StandardCharsets.US_ASCII));
@@ -113,10 +68,6 @@ public final class OperatorOidcService {
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 required", ex);
         }
-    }
-
-    private static String enc(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     public record AuthorizationStart(String authorizationUrl, String state) {}

@@ -585,3 +585,36 @@ CHUNK-1. [done] 2026-10-15 CST; chunked/resumable entity blob upload MVP.
     Console panel uses chunked when file >256KiB; proxy octet-stream binary. Local only (no push).
     分片可续传附件 MVP；仅本地提交。
 
+## Identity / user-center — 身份用户中心（ADR 0003）
+
+ID-0. [done] 2026-10-15 CST; inventory + ADR 0003 user-center OIDC (OP + IdP broker).
+    Today: opaque Bearer, password/MFA, OIDC RP-only (link-required). Gaps: issuer, service accounts, consent, WeChat.
+    Plan: ID-1 OP+PKCE → ID-2 client credentials → ID-3 consent → ID-4 adapter SPI → ID-5 WeChat → ID-6 introspect; then OBS audit/tracing.
+    Docs: `docs/adr/0003-user-center-oidc.md`, `docs/identity/id-progress.md`. Local commit only (no push).
+    盘点+ADR；下一片 ID-1 OP 骨架。仅本地提交。
+
+ID-1. [done] 2026-10-15 CST; thin OIDC OP skeleton (custom, not Spring Authorization Server).
+    Endpoints: `/.well-known/openid-configuration`, `/oauth2/jwks`, `/oauth2/authorize`, `/oauth2/token`.
+    V33 oauth_client/auth_code/signing_key; seed `subjex-console` (public PKCE).
+    Auth Code+PKCE → RS256 JWT access + minimal id_token; dual-accept opaque Bearer then JWT.
+    Password login remains authorize auth (opaque Bearer). Tenant filter skips `/.well-known/**` + `/oauth2/**`.
+    Tests: OpOidcSkeletonTest. Docs: id-progress. Local only (no push). Next = **ID-2** client credentials / service accounts.
+    轻量 OP 骨架完成；下一片 ID-2 客户端凭证/服务账号。仅本地提交。
+
+ID-2. [done] 2026-10-15 CST; client_credentials service accounts (tenant-bound).
+    V34 tenant_id on oauth_client; admin `/api/v1/oauth/clients` (+ rotate-secret); CC JWT with client_id/tenant/scope.
+    Bearer dual-accept builds SA OperatorPrincipal; scopes matching OperatorPermission become authorities.
+    Tests: OpClientCredentialsTest. Local only (no push). Next = **ID-3** consent + third-party clients.
+    服务账号客户端凭证完成；下一片 ID-3 同意页与第三方客户端。仅本地提交。
+
+ID-3. [done] 2026-10-15 CST; consent + third-party Authorization Code clients.
+    V35 oauth_scope/consent/challenge + first_party; authorize 409 consent_required; decision/grants APIs;
+    admin kind=authorization_code; console `/oauth/consent`. Tests: OpConsentTest. Local only (no push).
+    Next = **ID-4** IdP adapter SPI + WeChat sketch.
+    第三方同意与授权码完成；下一片 ID-4 IdP 适配器 + 微信草图。仅本地提交。
+
+ID-4. [done] 2026-10-15 CST; pluggable IdP SPI + WeChat sketch (identity MVP wave).
+    IdpAdapter + GenericOidcIdpAdapter (platform.oidc.*) + WeChatIdpAdapter (open QR + mini jsCode);
+    providers/start/callback APIs; me/idp-link self-bind; login page WeChat button. Link-required fail-closed.
+    Tests: IdpWeChatAdapterTest. Local only (no push). Next = **OBS-1** observability (or ID-6 introspect).
+    IdP SPI + 微信草图完成；身份 MVP 波次可收口。下一片 OBS 可观测性。仅本地提交。

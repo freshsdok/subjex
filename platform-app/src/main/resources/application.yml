@@ -38,6 +38,12 @@ server:
     include-stacktrace: never
     include-binding-errors: never
 
+# OBS-2: structured log fields for correlation + OpenTelemetry trace id (MDC).
+# OBS-2：关联 id 与 OTel traceId 写入结构化日志（MDC）。
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} correlationId=%X{correlationId:-} traceId=%X{traceId:-} - %msg%n"
+
 platform:
   # Opaque Bearer access + rotating refresh (Slice C). Console uses Bearer.
   # HTTP Basic is off by default; profile `local` turns it on; scripts in shared envs:
@@ -91,6 +97,14 @@ platform:
     redirect-uri: ${PLATFORM_OIDC_REDIRECT_URI:}
     scopes: openid,profile,email
     login-ttl: PT10M
+  # ID-4 WeChat IdP adapter (open-platform QR + mini-program code2session). Link-required.
+  # ID-4 微信 IdP 适配器（开放平台扫码 + 小程序 code2session）。须预先绑定。
+  idp:
+    wechat:
+      enabled: ${PLATFORM_IDP_WECHAT_ENABLED:false}
+      app-id: ${PLATFORM_IDP_WECHAT_APP_ID:}
+      app-secret: ${PLATFORM_IDP_WECHAT_APP_SECRET:}
+      redirect-uri: ${PLATFORM_IDP_WECHAT_REDIRECT_URI:}
   local-operator:
     name: ${PLATFORM_OPERATOR_NAME:platform-operator}
     password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
@@ -164,6 +178,14 @@ platform:
   tenant-quota:
     daily-submit-limit: ${PLATFORM_TENANT_DAILY_SUBMIT_LIMIT:10000}
     storage-row-limit: ${PLATFORM_TENANT_STORAGE_ROW_LIMIT:100000}
+  op:
+    # ID-1 thin OIDC OP issuer (discovery / JWT iss).
+    # ID-1 轻量 OIDC 签发方（发现文档 / JWT iss）。
+    issuer: ${PLATFORM_OP_ISSUER:http://127.0.0.1:8080}
+    access-token-ttl: ${PLATFORM_OP_ACCESS_TOKEN_TTL:PT30M}
+    id-token-ttl: ${PLATFORM_OP_ID_TOKEN_TTL:PT30M}
+    auth-code-ttl: ${PLATFORM_OP_AUTH_CODE_TTL:PT5M}
+    console-client-id: ${PLATFORM_OP_CONSOLE_CLIENT_ID:subjex-console}
   storage:
     # local (default) | s3 (SHARED-2 S3-compatible). Alias env: PLATFORM_STORAGE_TYPE.
     # local（默认）| s3（SHARED-2 S3 兼容）。环境变量 PLATFORM_STORAGE_TYPE。

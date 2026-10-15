@@ -4,20 +4,18 @@ import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * AuditApiEndpoint — 审计记录接口：{@link AuditPage} 的 JSON 孪生，同样的行、同样的白话动作和结果。
- * <p>
- * Newest first, at most {@link AuditPage#ROW_LIMIT} rows. Each entry keeps the raw names and adds the
- * plain zh/en words the page shows, so the two cannot disagree.
- * 最新的在前，最多 {@link AuditPage#ROW_LIMIT} 行。每一条保留原始名字，并附上页面显示的中英白话，两边不会各说各的。
+ * AuditApiEndpoint — audit JSON twin with OBS-1 filters (tenant/actor/action/time).
+ * 审计 JSON；OBS-1 支持租户/操作者/动作/时间筛选。
  */
 @RestController
 public class AuditApiEndpoint {
 
-    /** JSON path — JSON 路径。 */
     public static final String PATH = JsonApi.BASE + "/audit";
 
     private final JdbcAdminReader adminReader;
@@ -27,11 +25,26 @@ public class AuditApiEndpoint {
     }
 
     @GetMapping(PATH)
-    public AuditDocument audit() {
-        List<AuditEntryDocument> entries = adminReader.auditEntries(AuditPage.ROW_LIMIT).stream()
+    public AuditDocument audit(
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestParam(value = "actor", required = false) String actorLogin,
+            @RequestParam(value = "action", required = false) String actionName,
+            @RequestParam(value = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                    Instant from,
+            @RequestParam(value = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                    Instant to,
+            @RequestParam(value = "limit", required = false) Integer limit) {
+        AuditQuery query = new AuditQuery(
+                tenantId,
+                actorLogin,
+                actionName,
+                from,
+                to,
+                limit == null ? AuditQuery.DEFAULT_LIMIT : limit);
+        List<AuditEntryDocument> entries = adminReader.auditEntries(query).stream()
                 .map(AuditApiEndpoint::entry)
                 .toList();
-        return new AuditDocument(entries);
+        return new AuditDocument(entries, query);
     }
 
     static AuditEntryDocument entry(AuditRow row) {
@@ -56,14 +69,8 @@ public class AuditApiEndpoint {
                 row.resolutionSource());
     }
 
-    /**
-     * AuditDocument — 审计记录文档：最新在前的条目。
-     */
-    public record AuditDocument(List<AuditEntryDocument> entries) {}
+    public record AuditDocument(List<AuditEntryDocument> entries, AuditQuery appliedFilters) {}
 
-    /**
-     * AuditEntryDocument — 一条审计：原始名字加页面上的中英白话；{@code actor} 是登录名，没有就是身份标识。
-     */
     public record AuditEntryDocument(
             String auditEntryId,
             Instant occurredAt,

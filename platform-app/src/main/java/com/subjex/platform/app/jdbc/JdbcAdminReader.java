@@ -1,9 +1,11 @@
 package com.subjex.platform.app.jdbc;
 
+import com.subjex.platform.app.admin.AuditQuery;
 import com.subjex.platform.app.admin.AuditRow;
 import com.subjex.platform.contract.task.DeadLetter;
 import com.subjex.platform.contract.task.TaskRecord;
 import com.subjex.platform.contract.tenant.TenantRecord;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -53,7 +55,16 @@ public final class JdbcAdminReader {
      * Newest audit entries first, with the actor's login when it has one — 最新的审计条目在前，能连上登录名时带上登录名。
      */
     public List<AuditRow> auditEntries(int limit) {
-        return jdbc.query(
+        return auditEntries(AuditQuery.unfiltered(limit));
+    }
+
+    /**
+     * OBS-1 filtered audit query — 带筛选的审计查询。
+     * {@code actionName} matches exact or prefix ({@code operator.auth} → {@code operator.auth.%}).
+     */
+    public List<AuditRow> auditEntries(AuditQuery query) {
+        AuditQuery q = query == null ? AuditQuery.unfiltered(AuditQuery.DEFAULT_LIMIT) : query;
+        StringBuilder sql = new StringBuilder(
                 """
                 SELECT e.audit_entry_id, e.occurred_at, e.tenant_id, e.actor_identity_id, a.login_name,
                        e.action_name, e.action_target, e.outcome,
@@ -61,11 +72,44 @@ public final class JdbcAdminReader {
                 FROM audit_entry e
                 LEFT JOIN subject_identity i ON i.identity_id = e.actor_identity_id
                 LEFT JOIN account a ON a.account_id = i.account_id
-                ORDER BY e.occurred_at DESC, e.audit_entry_id
-                """,
+                WHERE 1=1
+                """);
+        ArrayList<Object> args = new ArrayList<>();
+        if (q.tenantId() != null) {
+            sql.append(" AND e.tenant_id = ?");
+            args.add(q.tenantId());
+        }
+        if (q.actorLogin() != null) {
+            sql.append(" AND a.login_name = ?");
+            args.add(q.actorLogin());
+        }
+        if (q.actionName() != null) {
+            // Exact match, or prefix when no trailing wildcard intent (contains no %).
+            // 精确匹配；不含 % 时兼作前缀（action 或 action.%）。
+            if (q.actionName().contains("%")) {
+                sql.append(" AND e.action_name LIKE ?");
+                args.add(q.actionName());
+            } else {
+                sql.append(" AND (e.action_name = ? OR e.action_name LIKE ?)");
+                args.add(q.actionName());
+                args.add(q.actionName() + ".%");
+            }
+        }
+        if (q.from() != null) {
+            sql.append(" AND e.occurred_at >= ?");
+            args.add(PlatformTables.timestamp(q.from()));
+        }
+        if (q.to() != null) {
+            sql.append(" AND e.occurred_at <= ?");
+            args.add(PlatformTables.timestamp(q.to()));
+        }
+        sql.append(" ORDER BY e.occurred_at DESC, e.audit_entry_id");
+        return jdbc.query(
+                sql.toString(),
+                args.toArray(),
                 rows -> {
                     ArrayList<AuditRow> found = new ArrayList<>();
-                    while (rows.next() && found.size() < limit) {
+                    while (rows.next() && found.size() < q.limit()) {
                         found.add(PlatformTables.mapAuditRow(rows));
                     }
                     return found;

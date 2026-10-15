@@ -52,6 +52,7 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
   const [failure, setFailure] = useState<SignInFailure | null>(null);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [oidcEnabled, setOidcEnabled] = useState(false);
+  const [wechatEnabled, setWechatEnabled] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
 
   useEffect(() => {
@@ -60,15 +61,21 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
       setFailure(oidcFailureByQuery[oidc]);
     }
     let cancelled = false;
-    fetch("/api/session/oidc/status", { cache: "no-store" })
+    fetch("/api/session/idp/providers", { cache: "no-store" })
       .then(async (reply) => {
         if (!reply.ok) return;
-        const body = (await reply.json()) as { enabled?: unknown };
-        if (!cancelled && body.enabled === true) setOidcEnabled(true);
+        const body = (await reply.json()) as {
+          providers?: Array<{ id?: string; enabled?: boolean }>;
+        };
+        if (cancelled) return;
+        for (const p of body.providers ?? []) {
+          if (p.id === "generic-oidc" && p.enabled) setOidcEnabled(true);
+          if (p.id === "wechat" && p.enabled) setWechatEnabled(true);
+        }
       })
       .catch(() => {
-        // Status probe failure: hide SSO button; password path remains.
-        // 状态探测失败：隐藏 SSO，仍可用口令。
+        // Probe failure: hide SSO; password path remains.
+        // 探测失败：隐藏 SSO，仍可用口令。
       });
     return () => {
       cancelled = true;
@@ -258,20 +265,35 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
           {signingIn ? phrases.signingIn : phrases.signInAction}
         </button>
       </form>
-      {oidcEnabled && (
+      {(oidcEnabled || wechatEnabled) && (
         <>
           <div className="flex items-center gap-2 text-xs text-muted">
             <span className="h-px flex-1 bg-border" />
             <span>{phrases.oidcOrDivider}</span>
             <span className="h-px flex-1 bg-border" />
           </div>
-          <a
-            href="/api/session/oidc/start"
-            className="rounded-md border border-border bg-background px-3 py-2 text-center text-sm font-medium hover:bg-surface"
-          >
-            {phrases.oidcSignInAction}
-          </a>
-          <p className="text-xs text-muted">{phrases.oidcSignInHint}</p>
+          {oidcEnabled && (
+            <>
+              <a
+                href="/api/session/oidc/start"
+                className="rounded-md border border-border bg-background px-3 py-2 text-center text-sm font-medium hover:bg-surface"
+              >
+                {phrases.oidcSignInAction}
+              </a>
+              <p className="text-xs text-muted">{phrases.oidcSignInHint}</p>
+            </>
+          )}
+          {wechatEnabled && (
+            <>
+              <a
+                href="/api/session/idp/wechat/start"
+                className="rounded-md border border-border bg-background px-3 py-2 text-center text-sm font-medium hover:bg-surface"
+              >
+                {phrases.wechatSignInAction}
+              </a>
+              <p className="text-xs text-muted">{phrases.wechatSignInHint}</p>
+            </>
+          )}
         </>
       )}
     </div>

@@ -101,6 +101,31 @@ public final class JdbcOperatorIdpLinkStore {
         });
     }
 
+
+    /**
+     * Bind IdP subject to an existing login (self-link / admin helper) — 按登录名绑定 IdP 主体。
+     */
+    public LinkedOperator bindByLoginName(String loginName, String issuer, String idpSubject) {
+        String login = requireNonBlank(loginName, "loginName");
+        List<AccountRow> accounts = jdbc.query(
+                """
+                SELECT a.account_id, si.subject_id
+                  FROM account a
+                  JOIN subject_identity si ON si.account_id = a.account_id AND si.tenant_id = 'platform'
+                 WHERE a.login_name = ?
+                 ORDER BY si.identity_id
+                """,
+                (row, n) -> new AccountRow(row.getString("account_id"), row.getString("subject_id")),
+                login);
+        if (accounts.isEmpty()) {
+            throw new IllegalArgumentException("operator-missing");
+        }
+        AccountRow first = accounts.get(0);
+        return bind(first.accountId(), first.subjectId(), login, issuer, idpSubject);
+    }
+
+    private record AccountRow(String accountId, String subjectId) {}
+
     public void unlinkByLoginName(String loginName) {
         String login = requireNonBlank(loginName, "loginName");
         transaction.executeWithoutResult(status -> {
