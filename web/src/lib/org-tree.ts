@@ -11,6 +11,8 @@ export type OrgTreeRow = {
   parentOrganizationId?: string | null;
   organizationName?: string;
   organizationState?: string;
+  sortOrder?: number;
+  managerSubjectId?: string | null;
 };
 
 export type OrgTreeNode = {
@@ -18,6 +20,8 @@ export type OrgTreeNode = {
   organizationName: string;
   organizationState: string;
   parentOrganizationId: string | null;
+  sortOrder: number;
+  managerSubjectId: string | null;
   children: OrgTreeNode[];
 };
 
@@ -46,6 +50,8 @@ export function buildOrgForest(rows: OrgTreeRow[]): OrgTreeNode[] {
       organizationName: (row.organizationName ?? "").trim() || id,
       organizationState: (row.organizationState ?? "").trim() || "ACTIVE",
       parentOrganizationId: parentId(row),
+      sortOrder: typeof row.sortOrder === "number" ? row.sortOrder : 0,
+      managerSubjectId: (row.managerSubjectId ?? "").trim() || null,
       children: [],
     });
   }
@@ -84,6 +90,7 @@ export function buildOrgForest(rows: OrgTreeRow[]): OrgTreeNode[] {
 
   const sortRec = (nodes: OrgTreeNode[]) => {
     nodes.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
       const byName = a.organizationName.localeCompare(b.organizationName, undefined, {
         sensitivity: "base",
       });

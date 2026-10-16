@@ -225,8 +225,8 @@ public final class JdbcOrganizationStore {
                 jdbc.update(
                         """
                         INSERT INTO organization_relation
-                            (from_organization_id, to_organization_id, relation_kind, relation_state)
-                        VALUES (?, ?, ?, ?)
+                            (from_organization_id, to_organization_id, relation_kind, relation_state, sort_order)
+                        VALUES (?, ?, ?, ?, 0)
                         """,
                         from,
                         to,
@@ -252,15 +252,16 @@ public final class JdbcOrganizationStore {
     public List<OrganizationRelation> listRelations() {
         return jdbc.query(
                 """
-                SELECT from_organization_id, to_organization_id, relation_kind, relation_state
+                SELECT from_organization_id, to_organization_id, relation_kind, relation_state, sort_order
                 FROM organization_relation
-                ORDER BY from_organization_id, to_organization_id, relation_kind
+                ORDER BY from_organization_id, sort_order, to_organization_id, relation_kind
                 """,
                 (row, n) -> new OrganizationRelation(
                         row.getString("from_organization_id"),
                         row.getString("to_organization_id"),
                         row.getString("relation_kind"),
-                        row.getString("relation_state")));
+                        row.getString("relation_state"),
+                        row.getInt("sort_order")));
     }
 
     /**
@@ -559,20 +560,307 @@ public final class JdbcOrganizationStore {
         upsertRelation(parent, child, RelationKind.CONTAINS, STATE_ACTIVE);
     }
 
+
+    /**
+     * ACTIVE CONTAINS sort_order for child under its parent (0 if none).
+     * 子组织在 ACTIVE CONTAINS 下的 sort_order（无边则为 0）。
+     */
+    public int findActiveContainsSortOrder(String childOrganizationId) {
+        String child = requireNonBlank(childOrganizationId, "organizationId");
+        List<Integer> rows = jdbc.query(
+                """
+                SELECT sort_order
+                FROM organization_relation
+                WHERE to_organization_id = ? AND relation_kind = ? AND relation_state = ?
+                ORDER BY from_organization_id
+                """,
+                (row, n) -> row.getInt("sort_order"),
+                child,
+                RelationKind.CONTAINS,
+                STATE_ACTIVE);
+        return rows.isEmpty() ? 0 : rows.get(0);
+    }
+
+    /**
+     * Reorder ACTIVE CONTAINS children under parent (Should S2).
+     * orderedChildIds must be exactly the current ACTIVE children set.
+     * 重排某父下 ACTIVE CONTAINS 子节点顺序。
+     */
+    public void reorderContainsChildren(String parentOrganizationId, List<String> orderedChildIds) {
+        String parent = requireNonBlank(parentOrganizationId, "parentOrganizationId");
+        if (orderedChildIds == null || orderedChildIds.isEmpty()) {
+            throw new IllegalArgumentException("orderedChildIds required");
+        }
+        List<String> current = jdbc.query(
+                """
+                SELECT to_organization_id
+                FROM organization_relation
+                WHERE from_organization_id = ? AND relation_kind = ? AND relation_state = ?
+                ORDER BY sort_order, to_organization_id
+                """,
+                (row, n) -> row.getString("to_organization_id"),
+                parent,
+                RelationKind.CONTAINS,
+                STATE_ACTIVE);
+        if (current.size() != orderedChildIds.size()
+                || !Set.copyOf(current).equals(Set.copyOf(orderedChildIds))) {
+            throw new IllegalArgumentException("orderedChildIds must match current ACTIVE children");
+        }
+        int i = 0;
+        for (String child : orderedChildIds) {
+            String cid = requireNonBlank(child, "childOrganizationId");
+            jdbc.update(
+                    """
+                    UPDATE organization_relation
+                    SET sort_order = ?
+                    WHERE from_organization_id = ?
+                      AND to_organization_id = ?
+                      AND relation_kind = ?
+                      AND relation_state = ?
+                    """,
+                    i++,
+                    parent,
+                    cid,
+                    RelationKind.CONTAINS,
+                    STATE_ACTIVE);
+        }
+    }
+
+
+    /**
+     * Direct ACTIVE CONTAINS children of parent (ordered by sort_order).
+     * 某父下 ACTIVE CONTAINS 直接子节点（按 sort_order）。
+     */
+    public List<String> listActiveContainsChildren(String parentOrganizationId) {
+        String parent = requireNonBlank(parentOrganizationId, "parentOrganizationId");
+        return jdbc.query(
+                """
+                SELECT to_organization_id
+                FROM organization_relation
+                WHERE from_organization_id = ? AND relation_kind = ? AND relation_state = ?
+                ORDER BY sort_order, to_organization_id
+                """,
+                (row, n) -> row.getString("to_organization_id"),
+                parent,
+                RelationKind.CONTAINS,
+                STATE_ACTIVE);
+    }
+
+    /**
+     * Merge source into target (Should S5): rehang memberships, reparent children, end source.
+     * Rejects when target is source or inside source subtree.
+     * 合并：成员重挂、子组织改挂、源组织 ENDED。目标不可为源或其子树。
+     */
+    public MergeResult mergeOrganizations(String sourceOrganizationId, String targetOrganizationId) {
+        String source = requireNonBlank(sourceOrganizationId, "sourceOrganizationId");
+        String target = requireNonBlank(targetOrganizationId, "targetOrganizationId");
+        requireOrganizationExists(source, "source organization not found");
+        requireOrganizationExists(target, "target organization not found");
+        if (source.equals(target)) {
+            throw new IllegalArgumentException("cannot merge organization into itself");
+        }
+        if (containsSelfAndDescendants(source).contains(target)) {
+            throw new IllegalArgumentException("cannot merge into a descendant (would cycle)");
+        }
+        List<Membership> sourceMembers = listMembershipsForOrganization(source).stream()
+                .filter(m -> !STATE_ENDED.equals(m.membershipState()))
+                .toList();
+        int movedMembers = 0;
+        for (Membership m : sourceMembers) {
+            upsertMembership(m.subjectId(), target, STATE_ACTIVE);
+            endMembership(m.subjectId(), source);
+            movedMembers++;
+        }
+        List<String> children = listActiveContainsChildren(source);
+        int reparented = 0;
+        for (String child : children) {
+            setContainsParent(child, target);
+            reparented++;
+        }
+        setContainsParent(source, null);
+        Organization ended = upsertOrganization(
+                source,
+                findOrganization(source).map(Organization::organizationName).orElse(source),
+                STATE_ENDED);
+        return new MergeResult(ended, target, movedMembers, reparented);
+    }
+
+    /**
+     * Split subset of children/members into a new (or existing) organization (Should S5).
+     * Children must be direct ACTIVE CONTAINS children of source; members must be on source.
+     * 拆分：将选中的直接子组织与成员迁入新组织。
+     */
+    public SplitResult splitOrganization(
+            String sourceOrganizationId,
+            String newOrganizationId,
+            String newOrganizationName,
+            String newParentOrganizationIdOrNull,
+            List<String> childOrganizationIds,
+            List<String> memberSubjectIds) {
+        String source = requireNonBlank(sourceOrganizationId, "sourceOrganizationId");
+        String nid = requireNonBlank(newOrganizationId, "newOrganizationId");
+        String nname = requireNonBlank(newOrganizationName, "newOrganizationName");
+        requireOrganizationExists(source, "source organization not found");
+        if (source.equals(nid)) {
+            throw new IllegalArgumentException("new organization cannot be the source");
+        }
+        Set<String> directKids = new HashSet<>(listActiveContainsChildren(source));
+        List<String> children = childOrganizationIds == null ? List.of() : childOrganizationIds;
+        for (String child : children) {
+            String cid = requireNonBlank(child, "childOrganizationId");
+            if (!directKids.contains(cid)) {
+                throw new IllegalArgumentException("child must be a direct ACTIVE child of source: " + cid);
+            }
+            if (cid.equals(nid)) {
+                throw new IllegalArgumentException("cannot move new organization as its own child");
+            }
+        }
+        Set<String> sourceMemberIds = new HashSet<>();
+        for (Membership m : listMembershipsForOrganization(source)) {
+            if (!STATE_ENDED.equals(m.membershipState())) {
+                sourceMemberIds.add(m.subjectId());
+            }
+        }
+        List<String> members = memberSubjectIds == null ? List.of() : memberSubjectIds;
+        for (String sid : members) {
+            String subject = requireNonBlank(sid, "memberSubjectId");
+            if (!sourceMemberIds.contains(subject)) {
+                throw new IllegalArgumentException("member must be an ACTIVE member of source: " + subject);
+            }
+        }
+        String newParent =
+                newParentOrganizationIdOrNull == null || newParentOrganizationIdOrNull.isBlank()
+                        ? null
+                        : newParentOrganizationIdOrNull.trim();
+        if (newParent != null) {
+            requireOrganizationExists(newParent, "new parent organization not found");
+            if (newParent.equals(nid)) {
+                throw new IllegalArgumentException("organization relation cannot self-reference");
+            }
+            // New org must not land under a child being moved into it.
+            for (String child : children) {
+                if (containsSelfAndDescendants(child).contains(newParent) || child.equals(newParent)) {
+                    throw new IllegalArgumentException("new parent cannot be under a moved child");
+                }
+            }
+        }
+        Organization created = upsertOrganization(nid, nname, STATE_ACTIVE);
+        setContainsParent(nid, newParent);
+        int movedChildren = 0;
+        for (String child : children) {
+            setContainsParent(child.trim(), nid);
+            movedChildren++;
+        }
+        int movedMembers = 0;
+        for (String sid : members) {
+            String subject = sid.trim();
+            upsertMembership(subject, nid, STATE_ACTIVE);
+            endMembership(subject, source);
+            movedMembers++;
+        }
+        return new SplitResult(created, source, movedChildren, movedMembers);
+    }
+
+    /**
+     * Active primary manager subject for organization, if any (Should S6).
+     * 组织当前主管主体（若有）。
+     */
+    public Optional<String> findActiveManagerSubjectId(String organizationId) {
+        String oid = requireNonBlank(organizationId, "organizationId");
+        List<String> rows = jdbc.query(
+                """
+                SELECT manager_subject_id
+                FROM organization_manager
+                WHERE organization_id = ? AND link_state = ?
+                """,
+                (row, n) -> row.getString("manager_subject_id"),
+                oid,
+                STATE_ACTIVE);
+        return rows.stream().findFirst();
+    }
+
+    /**
+     * Assign primary manager; ensures ACTIVE Membership so OrgScope can include them.
+     * 指定主管；确保 ACTIVE Membership 以便纳入 OrgScope。
+     */
+    public void setOrganizationManager(String organizationId, String managerSubjectId) {
+        String oid = requireNonBlank(organizationId, "organizationId");
+        String sid = requireNonBlank(managerSubjectId, "managerSubjectId");
+        requireOrganizationExists(oid, "organization not found");
+        requireSubjectExists(sid);
+        int updated = jdbc.update(
+                """
+                UPDATE organization_manager
+                SET manager_subject_id = ?, link_state = ?
+                WHERE organization_id = ?
+                """,
+                sid,
+                STATE_ACTIVE,
+                oid);
+        if (updated == 0) {
+            try {
+                jdbc.update(
+                        """
+                        INSERT INTO organization_manager (organization_id, manager_subject_id, link_state)
+                        VALUES (?, ?, ?)
+                        """,
+                        oid,
+                        sid,
+                        STATE_ACTIVE);
+            } catch (DuplicateKeyException raced) {
+                jdbc.update(
+                        """
+                        UPDATE organization_manager
+                        SET manager_subject_id = ?, link_state = ?
+                        WHERE organization_id = ?
+                        """,
+                        sid,
+                        STATE_ACTIVE,
+                        oid);
+            }
+        }
+        upsertMembership(sid, oid, STATE_ACTIVE);
+    }
+
+    /** Clear primary manager (mark ENDED). Does not remove Membership. */
+    public boolean clearOrganizationManager(String organizationId) {
+        String oid = requireNonBlank(organizationId, "organizationId");
+        int updated = jdbc.update(
+                """
+                UPDATE organization_manager
+                SET link_state = ?
+                WHERE organization_id = ? AND link_state = ?
+                """,
+                STATE_ENDED,
+                oid,
+                STATE_ACTIVE);
+        return updated > 0;
+    }
+
+    /** Merge outcome — 合并结果。 */
+    public record MergeResult(
+            Organization endedSource, String targetOrganizationId, int movedMembershipCount, int reparentedChildCount) {}
+
+    /** Split outcome — 拆分结果。 */
+    public record SplitResult(
+            Organization createdOrganization, String sourceOrganizationId, int movedChildCount, int movedMembershipCount) {}
+
     // --- helpers ---
 
     private Map<String, List<String>> activeContainsChildrenIndex() {
         List<OrganizationRelation> edges = jdbc.query(
                 """
-                SELECT from_organization_id, to_organization_id, relation_kind, relation_state
+                SELECT from_organization_id, to_organization_id, relation_kind, relation_state, sort_order
                 FROM organization_relation
                 WHERE relation_kind = ? AND relation_state = ?
+                ORDER BY from_organization_id, sort_order, to_organization_id
                 """,
                 (row, n) -> new OrganizationRelation(
                         row.getString("from_organization_id"),
                         row.getString("to_organization_id"),
                         row.getString("relation_kind"),
-                        row.getString("relation_state")),
+                        row.getString("relation_state"),
+                        row.getInt("sort_order")),
                 RelationKind.CONTAINS,
                 STATE_ACTIVE);
         Map<String, List<String>> children = new HashMap<>();

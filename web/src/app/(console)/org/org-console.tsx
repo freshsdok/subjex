@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 import { OrgTreePanel } from "@/components/org-tree-panel";
+import { dryRunOrgCsv, organizationsToCsv, parseOrgCsv, type OrgCsvRow } from "@/lib/org-csv";
 import {
   ORG_MEMBERSHIP_STATE_ACTIVE,
   ORG_UNIT_STATE_ACTIVE,
@@ -22,6 +23,8 @@ type OrganizationRow = {
   parentOrganizationId?: string | null;
   organizationName?: string;
   organizationState?: string;
+  sortOrder?: number;
+  managerSubjectId?: string | null;
 };
 
 type MembershipRow = {
@@ -56,6 +59,11 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
   const [listStatus, setListStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listErrorStatus, setListErrorStatus] = useState(0);
   const [orgView, setOrgView] = useState<"tree" | "table">("tree");
+  const [csvRows, setCsvRows] = useState<OrgCsvRow[] | null>(null);
+  const [csvIssues, setCsvIssues] = useState<string[]>([]);
+  const [csvProblem, setCsvProblem] = useState<string | null>(null);
+  const [csvNotice, setCsvNotice] = useState<string | null>(null);
+  const [csvApplying, setCsvApplying] = useState(false);
 
   const [unitId, setUnitId] = useState("");
   const [unitParent, setUnitParent] = useState("");
@@ -338,6 +346,104 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
 
   const reviewUnitParent = normalizeOptionalParentId(unitParent);
   const reviewUnitId = normalizeOrgId(unitId) ?? unitId.trim();
+
+  function exportCsv() {
+    const blob = new Blob([organizationsToCsv(organizations)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `org-${tenantId.trim() || "export"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function onCsvFile(file: File | null) {
+    setCsvNotice(null);
+    setCsvProblem(null);
+    setCsvRows(null);
+    setCsvIssues([]);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      const parsed = parseOrgCsv(text);
+      if (parsed.errors.length) {
+        setCsvIssues(parsed.errors);
+        setCsvProblem(fillPhrase(phrases.orgCsvDryRunFail, { count: parsed.errors.length }));
+        return;
+      }
+      const existing = new Set(
+        organizations.map((o) => o.organizationId).filter(Boolean) as string[],
+      );
+      const dry = dryRunOrgCsv(parsed.rows, existing);
+      if (!dry.ok) {
+        setCsvRows(parsed.rows);
+        setCsvIssues(dry.issues.map((i) => `${i.organizationId}: ${i.message}`));
+        setCsvProblem(fillPhrase(phrases.orgCsvDryRunFail, { count: dry.issues.length }));
+        return;
+      }
+      setCsvRows(parsed.rows);
+      setCsvIssues([]);
+      setCsvNotice(
+        fillPhrase(phrases.orgCsvDryRunOk, { create: dry.createCount, update: dry.updateCount }),
+      );
+    };
+    reader.readAsText(file);
+  }
+
+  async function applyCsvImport() {
+    if (!canWrite || !csvRows || csvIssues.length) return;
+    setCsvApplying(true);
+    setCsvProblem(null);
+    const tid = tenantId.trim();
+    // Parents first: sort so parents appear before children when possible
+    const remaining = [...csvRows];
+    const applied: string[] = [];
+    let guard = remaining.length + 2;
+    while (remaining.length && guard-- > 0) {
+      const nextIdx = remaining.findIndex((r) => {
+        if (!r.parentOrganizationId) return true;
+        if (applied.includes(r.parentOrganizationId)) return true;
+        if (organizations.some((o) => o.organizationId === r.parentOrganizationId)) return true;
+        return !remaining.some((x) => x.organizationId === r.parentOrganizationId);
+      });
+      const idx = nextIdx >= 0 ? nextIdx : 0;
+      const row = remaining.splice(idx, 1)[0];
+      const body: {
+        parentOrganizationId?: string;
+        organizationName: string;
+        organizationState: string;
+      } = {
+        organizationName: row.organizationName,
+        organizationState: row.organizationState || "ACTIVE",
+      };
+      if (row.parentOrganizationId) body.parentOrganizationId = row.parentOrganizationId;
+      const reply = await fetch(
+        `/api/platform/organizations/${encodeURIComponent(row.organizationId)}?tenantId=${encodeURIComponent(tid)}`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      ).catch(() => null);
+      if (reply?.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!reply?.ok) {
+        setCsvProblem(fillPhrase(phrases.orgCsvApplyFailed, { status: reply?.status ?? 0 }));
+        setCsvApplying(false);
+        void loadLists();
+        return;
+      }
+      applied.push(row.organizationId);
+    }
+    setCsvNotice(fillPhrase(phrases.orgCsvAppliedNotice, { count: applied.length }));
+    setCsvRows(null);
+    setCsvApplying(false);
+    void loadLists();
+  }
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -625,6 +731,59 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
                   ) : null}
                 </div>
               </div>
+            ) : null}
+          </section>
+
+
+          <section className="rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-sm font-medium">{phrases.orgCsvTitle}</h2>
+            <p className="mt-1 text-xs text-muted">{phrases.orgCsvHint}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-background"
+              >
+                {phrases.orgCsvExportAction}
+              </button>
+              {canWrite ? (
+                <label className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-background">
+                  {phrases.orgCsvImportLabel}
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(e) => onCsvFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              ) : null}
+            </div>
+            {csvProblem ? (
+              <p role="alert" className="mt-2 text-xs text-red-700">
+                {csvProblem}
+              </p>
+            ) : null}
+            {csvNotice ? (
+              <p role="status" className="mt-2 text-xs text-green-700">
+                {csvNotice}
+              </p>
+            ) : null}
+            {csvIssues.length > 0 ? (
+              <ul className="mt-2 list-inside list-disc text-xs text-red-700">
+                {csvIssues.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            ) : null}
+            {canWrite && csvRows && csvIssues.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => void applyCsvImport()}
+                disabled={csvApplying}
+                className="mt-3 rounded-md bg-foreground px-3 py-1.5 text-xs text-background disabled:opacity-60"
+              >
+                {csvApplying ? phrases.savingAction : phrases.orgCsvApplyAction}
+              </button>
             ) : null}
           </section>
 

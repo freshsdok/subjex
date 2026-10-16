@@ -1,6 +1,6 @@
 # ADR 0006 — Org Builder model gaps (relation kinds & move)
 
-- Status: **Accepted**（MVP Must：CONTAINS-only + move/preview；ORG-UI-1…5 已落地。D3 Later 扩展仍待产品开闸）
+- Status: **Accepted**（MVP Must + Should S1–S6：CONTAINS move/batch/order/CSV/export/merge-split/manager。D3 Later 矩阵/岗位仍待产品开闸）
 - Date: 2026-10-16 (Asia/Shanghai)
 - Relates: ADR 0001（O1 ontology）、[`docs/org/org-structure-research.md`](../org/org-structure-research.md)、[`docs/org/org-builder-target.md`](../org/org-builder-target.md)
 
@@ -39,9 +39,14 @@ POST /api/v1/organizations/{organizationId}/move/preview?tenantId=
 | 扩展 | 何时 Accepted | 备注 |
 | --- | --- | --- |
 | `relation_kind = MATRIX_OF`（或 `DOTTED_REPORTS`） | 产品确认要画布虚线/双线汇报 | 不参与 OrgScope 闭包，除非另有 AUTH ADR |
-| sibling `sort_order` on CONTAINS | 需要稳定拖拽排序（钉钉 `order`） | 可挂在 relation 行或独立表 |
+| sibling `sort_order` on CONTAINS | **Opened for Should S2** (V40) | `organization_relation.sort_order` + children/order API |
 | `organization_kind`（SUPERVISORY / COST_CENTER / LEGAL / PROJECT…） | 需要平行维度树 | 同 kind 内 CONTAINS；跨 kind 禁止默认可拖 |
 | Position 实体 | 明确做编制/空缺 | 新 ADR；勿塞进 Organization |
+
+### D5 — 部门主管独立表（Should S6）
+
+`OrganizationRelation` 仅 org→org，不能指向 Subject。新增 `organization_manager(organization_id, manager_subject_id, link_state)`（一组织一主管）。
+指定时 upsert ACTIVE Membership，以便 OrgScope 闭包纳入主管；清除主管不结束 Membership。**不**引入新授权语义。
 
 ### D4 — UX 形态
 
@@ -62,7 +67,7 @@ ORG-UI-0…5 已完成；未新增 relation_kind。兄弟排序/矩阵/岗位仍
 
 **Negative / cost**
 
-- 无 order 时树序不稳定（仅能按 name/id）。  
+- ~~无 order~~ S2 已加 `sort_order`（默认 0，可上/下移）。  
 - 矩阵/岗位用户需等待 Later；文档须写清以免期望失控。
 
 **Non-goals this ADR**

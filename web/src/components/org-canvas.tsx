@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import type { PhraseBook } from "@/i18n/phrases";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { type PhraseBook } from "@/i18n/phrases";
+import { downloadOrgPng, downloadOrgSvg } from "@/lib/org-canvas-export";
 import { layoutOrgCanvas } from "@/lib/org-canvas-layout";
 import type { OrgTreeNode } from "@/lib/org-tree";
 import { isOrgDisabledState } from "@/lib/org-console";
@@ -11,15 +12,18 @@ type Props = {
   forest: OrgTreeNode[];
   selectedId: string | null;
   onSelect: (organizationId: string) => void;
+  exportBasename?: string;
 };
 
 /**
- * Read-only SVG org chart (ORG-UI-5) — pan/zoom via scroll container; click selects.
- * 只读 SVG 组织图；滚动平移缩放容器；点击选中。
+ * Read-only SVG org chart (ORG-UI-5) + S3 SVG/PNG export.
+ * 只读 SVG 组织图；S3 导出 SVG/PNG。
  */
-export function OrgCanvas({ phrases, forest, selectedId, onSelect }: Props) {
+export function OrgCanvas({ phrases, forest, selectedId, onSelect, exportBasename }: Props) {
   const layout = useMemo(() => layoutOrgCanvas(forest), [forest]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [exportProblem, setExportProblem] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedId || !containerRef.current) return;
@@ -27,19 +31,67 @@ export function OrgCanvas({ phrases, forest, selectedId, onSelect }: Props) {
     el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [selectedId]);
 
+  function baseName(): string {
+    return (exportBasename || "org-chart").replace(/[^\w.-]+/g, "_");
+  }
+
+  function exportSvg() {
+    setExportProblem(null);
+    if (!svgRef.current) return;
+    try {
+      downloadOrgSvg(svgRef.current, `${baseName()}.svg`);
+    } catch {
+      setExportProblem(phrases.orgCanvasExportFailed);
+    }
+  }
+
+  async function exportPng() {
+    setExportProblem(null);
+    if (!svgRef.current) return;
+    try {
+      await downloadOrgPng(svgRef.current, `${baseName()}.png`);
+    } catch {
+      setExportProblem(phrases.orgCanvasExportFailed);
+    }
+  }
+
   if (forest.length === 0) {
     return <p className="text-sm text-muted">{phrases.emptyList}</p>;
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-muted">{phrases.orgCanvasHint}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted">{phrases.orgCanvasHint}</p>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={exportSvg}
+            className="rounded-md border border-border px-2 py-1 text-xs hover:bg-background"
+          >
+            {phrases.orgCanvasExportSvg}
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportPng()}
+            className="rounded-md border border-border px-2 py-1 text-xs hover:bg-background"
+          >
+            {phrases.orgCanvasExportPng}
+          </button>
+        </div>
+      </div>
+      {exportProblem ? (
+        <p role="alert" className="text-xs text-red-700">
+          {exportProblem}
+        </p>
+      ) : null}
       <div
         ref={containerRef}
         className="max-h-[28rem] overflow-auto rounded-md border border-border bg-background"
         aria-label={phrases.orgCanvasTitle}
       >
         <svg
+          ref={svgRef}
           width={layout.width}
           height={layout.height}
           viewBox={`0 0 ${layout.width} ${layout.height}`}

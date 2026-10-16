@@ -11,6 +11,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -232,6 +233,87 @@ class JdbcOrganizationStoreGatesTest {
         assertEquals(permsBefore, permsAfter, "TenantOrganization/Membership must not change role_permission");
     }
 
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    @DisplayName("S5 merge rehangs members and children then ends source")
+    void S5_mergeRehangsMembersAndChildren(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcOrganizationStore store = new JdbcOrganizationStore(jdbc);
+        store.upsertOrganization("org-a", "A", null);
+        store.upsertOrganization("org-b", "B", null);
+        store.upsertOrganization("org-c", "C", null);
+        jdbc.update(
+                "INSERT INTO subject (subject_id, subject_name, subject_kind) VALUES (?,?,?)",
+                "sub-1",
+                "One",
+                "PERSON");
+        store.upsertMembership("sub-1", "org-a", null);
+        store.setContainsParent("org-c", "org-a");
+        store.setContainsParent("org-a", null);
+        store.setContainsParent("org-b", null);
+
+        JdbcOrganizationStore.MergeResult result = store.mergeOrganizations("org-a", "org-b");
+        assertEquals("ENDED", result.endedSource().organizationState());
+        assertEquals(1, result.movedMembershipCount());
+        assertEquals(1, result.reparentedChildCount());
+        assertEquals(Optional.of("org-b"), store.findActiveContainsParent("org-c"));
+        assertTrue(store.findActiveContainsParent("org-a").isEmpty());
+        assertEquals(1, store.countDirectMemberships("org-b"));
+        assertEquals(0, store.countDirectMemberships("org-a"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    @DisplayName("S5 split moves selected children and members")
+    void S5_splitMovesChildrenAndMembers(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcOrganizationStore store = new JdbcOrganizationStore(jdbc);
+        store.upsertOrganization("org-src", "Src", null);
+        store.upsertOrganization("org-kid", "Kid", null);
+        jdbc.update(
+                "INSERT INTO subject (subject_id, subject_name, subject_kind) VALUES (?,?,?)",
+                "sub-2",
+                "Two",
+                "PERSON");
+        store.upsertMembership("sub-2", "org-src", null);
+        store.setContainsParent("org-kid", "org-src");
+
+        JdbcOrganizationStore.SplitResult result = store.splitOrganization(
+                "org-src",
+                "org-new",
+                "New",
+                null,
+                List.of("org-kid"),
+                List.of("sub-2"));
+        assertEquals("org-new", result.createdOrganization().organizationId());
+        assertEquals(1, result.movedChildCount());
+        assertEquals(1, result.movedMembershipCount());
+        assertEquals(Optional.of("org-new"), store.findActiveContainsParent("org-kid"));
+        assertEquals(0, store.countDirectMemberships("org-src"));
+        assertEquals(1, store.countDirectMemberships("org-new"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    @DisplayName("S6 manager assign ensures membership; clear keeps membership")
+    void S6_managerAssignAndClear(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcOrganizationStore store = new JdbcOrganizationStore(jdbc);
+        store.upsertOrganization("org-m", "M", null);
+        jdbc.update(
+                "INSERT INTO subject (subject_id, subject_name, subject_kind) VALUES (?,?,?)",
+                "sub-mgr",
+                "Mgr",
+                "PERSON");
+        store.setOrganizationManager("org-m", "sub-mgr");
+        assertEquals(Optional.of("sub-mgr"), store.findActiveManagerSubjectId("org-m"));
+        assertEquals(1, store.countDirectMemberships("org-m"));
+        assertTrue(store.clearOrganizationManager("org-m"));
+        assertTrue(store.findActiveManagerSubjectId("org-m").isEmpty());
+        assertEquals(1, store.countDirectMemberships("org-m"), "clear manager must not end membership");
+    }
+
     @ParameterizedTest
     @EnumSource(H2PlatformTables.Mode.class)
     @DisplayName("O7 legacy org_unit tables dropped; ontology + map remain")
@@ -253,5 +335,6 @@ class JdbcOrganizationStoreGatesTest {
         assertTrue(tables.contains("organization_relation"), tables.toString());
         assertTrue(tables.contains("tenant_organization"), tables.toString());
         assertTrue(tables.contains("org_unit_organization_map"), tables.toString());
+        assertTrue(tables.contains("organization_manager"), tables.toString());
     }
 }

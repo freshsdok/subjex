@@ -624,9 +624,9 @@ ID-4. [done] 2026-10-15 CST; pluggable IdP SPI + WeChat sketch (identity MVP wav
 TN+WF squashed to github/main `c18b956`. Next product track: **Org Builder** (visual org structure).
 
 - Research + target (ORG-UI-0): [`docs/org/org-structure-research.md`](../docs/org/org-structure-research.md), [`docs/org/org-builder-target.md`](../docs/org/org-builder-target.md), ADR draft [`docs/adr/0006-org-builder-and-relation-kinds.md`](../docs/adr/0006-org-builder-and-relation-kinds.md).
-- Must MVP ORG-UI-0…5 landed. Next = Should **ORG-UI-6** (multi-select move / CSV) or sibling `order` (ADR 0006 D3).
+- Must MVP on github/main `02e40d3`. Should S1–S6 local (see ORG-S* below). Next = squash-push Should when asked.
 
-组织构建器 Must MVP 已收口。
+Must 已上 main；Should S1–S6 本地完成。
 
 ## Org Builder — 组织架构构建器
 
@@ -663,3 +663,33 @@ ORG-UI-5. [done] 2026-10-16 CST; read-only SVG org canvas synced with selection.
     Vitest org-canvas-layout. ADR 0006 → Accepted for MVP Must. Local only (no push).
     Next = Should: ORG-UI-6 multi-select/CSV or sibling order.
     只读组织图完成；Must MVP 收口。
+
+
+ORG-S1. [done] 2026-10-16 CST; multi-select batch move (Should S1).
+    POST `/api/v1/organizations/moves` + `/moves/preview`; drop covered descendants; audit batch_move.
+    Tree checkboxes + preview/confirm bar. MockMvc batch test. Local only (no push).
+    多选批量移动完成。
+
+ORG-S2. [done] 2026-10-16 CST; sibling sort_order (Should S2).
+    Flyway V40 `organization_relation.sort_order`; reorderContainsChildren;
+    POST `/{parent}/children/order`; document.sortOrder; side-panel up/down. Local only.
+    兄弟排序完成。
+
+ORG-S4. [done] 2026-10-16 CST; org CSV export + dry-run import (Should S4).
+    `org-csv.ts` export/parse/dryRun; console panel apply via PUT. Vitest. Local only.
+    CSV 批量完成。
+
+ORG-S3. [done] 2026-10-16 CST; canvas SVG/PNG export (Should S3).
+    `org-canvas-export.ts` serialize + download; Chart tab buttons. Vitest. Local only.
+    画布导出完成。
+
+ORG-S5. [done] 2026-10-16 CST; merge/split wizards (Should S5).
+    POST `/{id}/merge|split` (+preview); store rehang memberships + CONTAINS children; end source on merge.
+    Side-panel preview/confirm. MockMvc + store gates. Local only.
+    合并/拆分完成。
+
+ORG-S6. [done] 2026-10-16 CST; department manager (Should S6).
+    Flyway V41 `organization_manager`; PUT/DELETE `/{id}/manager`; document.managerSubjectId;
+    assign ensures ACTIVE Membership for OrgScope; clear keeps membership. Side panel. Local only.
+    Should S1–S6 complete locally (no push).
+    部门主管完成；Should 本地收口。

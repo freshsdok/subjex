@@ -117,6 +117,10 @@ class OrganizationApiSecurityTest {
                 .thenReturn(OrganizationScope.unrestricted());
         when(directory.resolveSelfAndDescendants(anyString(), anyString()))
                 .thenReturn(com.subjex.platform.app.org.legacy.OrgScope.unrestricted());
+        when(store.findActiveManagerSubjectId(anyString())).thenReturn(Optional.empty());
+        when(store.findActiveContainsSortOrder(anyString())).thenReturn(0);
+        when(store.listActiveContainsChildren(anyString())).thenReturn(List.of());
+        when(store.findActiveContainsParent(anyString())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -243,6 +247,47 @@ class OrganizationApiSecurityTest {
     }
 
 
+
+    @Test
+    void operatorCanBatchPreviewAndMove() throws Exception {
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-root", "Root", "ACTIVE"),
+                        new Organization("org-a", "A", "ACTIVE"),
+                        new Organization("org-b", "B", "ACTIVE")));
+        when(store.findActiveContainsParent("org-a")).thenReturn(Optional.of("org-root"));
+        when(store.findActiveContainsParent("org-b")).thenReturn(Optional.of("org-root"));
+        when(store.containsSelfAndDescendants("org-a")).thenReturn(Set.of("org-a"));
+        when(store.containsSelfAndDescendants("org-b")).thenReturn(Set.of("org-b"));
+        when(store.countDirectMemberships("org-a")).thenReturn(1);
+        when(store.countDirectMemberships("org-b")).thenReturn(0);
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/moves/preview")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationIds\":[\"org-a\",\"org-b\"],\"newParentOrganizationId\":null}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.anyCycle").value(false))
+                .andExpect(jsonPath("$.allInScope").value(true))
+                .andExpect(jsonPath("$.totalSubtreeOrganizationCount").value(2));
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/moves")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationIds\":[\"org-a\",\"org-b\"],\"newParentOrganizationId\":null}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moved.length()").value(2));
+        verify(store).setContainsParent(eq("org-a"), isNull());
+        verify(store).setContainsParent(eq("org-b"), isNull());
+        verify(audit).record(
+                org.mockito.ArgumentMatchers.any(),
+                eq("org.organization.batch_move"),
+                eq("acme/2->-"),
+                eq(AuditOutcome.ALLOWED));
+    }
+
     @Test
     void operatorCanPreviewAndMoveOrganization() throws Exception {
         when(store.listOrganizationsLinkedToTenant("acme"))
@@ -334,7 +379,121 @@ class OrganizationApiSecurityTest {
         verifyNoInteractions(store);
     }
 
+
     @Test
+    void operatorCanPreviewAndMerge() throws Exception {
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-a", "A", "ACTIVE"),
+                        new Organization("org-b", "B", "ACTIVE")));
+        when(store.containsSelfAndDescendants("org-a")).thenReturn(Set.of("org-a"));
+        when(store.countDirectMemberships("org-a")).thenReturn(2);
+        when(store.listActiveContainsChildren("org-a")).thenReturn(List.of("org-child"));
+        when(store.mergeOrganizations("org-a", "org-b"))
+                .thenReturn(new JdbcOrganizationStore.MergeResult(
+                        new Organization("org-a", "A", "ENDED"), "org-b", 2, 1));
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-a/merge/preview")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetOrganizationId\":\"org-b\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.wouldCycle").value(false))
+                .andExpect(jsonPath("$.movedMembershipCount").value(2))
+                .andExpect(jsonPath("$.reparentedChildCount").value(1));
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-a/merge")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetOrganizationId\":\"org-b\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.movedMembershipCount").value(2));
+        verify(audit).record(
+                org.mockito.ArgumentMatchers.any(),
+                eq("org.organization.merge"),
+                eq("acme/org-a->org-b"),
+                eq(AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void mergeIntoDescendantRejected() throws Exception {
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-a", "A", "ACTIVE"),
+                        new Organization("org-b", "B", "ACTIVE")));
+        when(store.containsSelfAndDescendants("org-a")).thenReturn(Set.of("org-a", "org-b"));
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-a/merge")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetOrganizationId\":\"org-b\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isBadRequest());
+        verify(store, org.mockito.Mockito.never()).mergeOrganizations(anyString(), anyString());
+    }
+
+    @Test
+    void operatorCanSplitAndSetManager() throws Exception {
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-root", "Root", "ACTIVE"),
+                        new Organization("org-eng", "Eng", "ACTIVE"),
+                        new Organization("org-new", "New", "ACTIVE")));
+        when(store.findActiveContainsParent("org-eng")).thenReturn(Optional.of("org-root"));
+        when(store.listActiveContainsChildren("org-eng")).thenReturn(List.of("org-team"));
+        when(store.organizationExists("org-eng")).thenReturn(true);
+        when(store.splitOrganization(
+                        eq("org-eng"),
+                        eq("org-new"),
+                        eq("New"),
+                        eq("org-root"),
+                        eq(List.of("org-team")),
+                        eq(List.of("sub-a"))))
+                .thenReturn(new JdbcOrganizationStore.SplitResult(
+                        new Organization("org-new", "New", "ACTIVE"), "org-eng", 1, 1));
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-eng/split/preview")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"newOrganizationId\":\"org-new\",\"newOrganizationName\":\"New\","
+                                        + "\"childOrganizationIds\":[\"org-team\"],\"memberSubjectIds\":[\"sub-a\"]}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.childrenValid").value(true))
+                .andExpect(jsonPath("$.childCount").value(1));
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-eng/split")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"newOrganizationId\":\"org-new\",\"newOrganizationName\":\"New\","
+                                        + "\"childOrganizationIds\":[\"org-team\"],\"memberSubjectIds\":[\"sub-a\"]}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.movedChildCount").value(1));
+
+        when(store.findActiveManagerSubjectId("org-eng")).thenReturn(Optional.of("sub-mgr"));
+        mockMvc.perform(put(OrganizationApiEndpoint.PATH + "/org-eng/manager")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"managerSubjectId\":\"sub-mgr\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.managerSubjectId").value("sub-mgr"));
+        verify(store).setOrganizationManager("org-eng", "sub-mgr");
+
+        when(store.findActiveManagerSubjectId("org-eng")).thenReturn(Optional.empty());
+        mockMvc.perform(delete(OrganizationApiEndpoint.PATH + "/org-eng/manager")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk());
+        verify(store).clearOrganizationManager("org-eng");
+    }
+
+        @Test
     void legacyOrgApiCarriesDeprecationHeaders() throws Exception {
         when(directory.listUnits("acme")).thenReturn(List.of());
         mockMvc.perform(get(OrgApiEndpoint.PATH + "/units")

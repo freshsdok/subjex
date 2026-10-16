@@ -68,6 +68,11 @@ export function OrgTreePanel({
   const [moveReview, setMoveReview] = useState<MoveReview | null>(null);
   const [moveStep, setMoveStep] = useState<"idle" | "reviewing" | "saving">("idle");
   const [moveProblem, setMoveProblem] = useState<string | null>(null);
+  const [multiIds, setMultiIds] = useState<Set<string>>(new Set());
+  const [batchTarget, setBatchTarget] = useState<string>("");
+  const [batchStep, setBatchStep] = useState<"idle" | "reviewing" | "saving">("idle");
+  const [batchProblem, setBatchProblem] = useState<string | null>(null);
+  const [batchSummary, setBatchSummary] = useState<string | null>(null);
 
   const [childId, setChildId] = useState("");
   const [childName, setChildName] = useState("");
@@ -86,6 +91,24 @@ export function OrgTreePanel({
   const [removeProblem, setRemoveProblem] = useState<string | null>(null);
 
   const [panelNotice, setPanelNotice] = useState<string | null>(null);
+
+  const [mergeTarget, setMergeTarget] = useState("");
+  const [mergeStep, setMergeStep] = useState<FormStep>("editing");
+  const [mergeProblem, setMergeProblem] = useState<string | null>(null);
+  const [mergeSummary, setMergeSummary] = useState<string | null>(null);
+
+  const [splitId, setSplitId] = useState("");
+  const [splitName, setSplitName] = useState("");
+  const [splitChildren, setSplitChildren] = useState("");
+  const [splitMembers, setSplitMembers] = useState("");
+  const [splitStep, setSplitStep] = useState<FormStep>("editing");
+  const [splitProblem, setSplitProblem] = useState<string | null>(null);
+  const [splitSummary, setSplitSummary] = useState<string | null>(null);
+
+  const [managerSubject, setManagerSubject] = useState("");
+  const [managerStep, setManagerStep] = useState<FormStep>("editing");
+  const [managerMode, setManagerMode] = useState<"assign" | "clear">("assign");
+  const [managerProblem, setManagerProblem] = useState<string | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
   const skipExpandSync = useRef(false);
@@ -107,6 +130,10 @@ export function OrgTreePanel({
     setMoveReview(null);
     setMoveStep("idle");
     setMoveProblem(null);
+    setMultiIds(new Set());
+    setBatchStep("idle");
+    setBatchProblem(null);
+    setBatchSummary(null);
     if (first) {
       setSelectedId(null);
       setQuery("");
@@ -178,6 +205,143 @@ export function OrgTreePanel({
   function refresh() {
     onMoved?.();
   }
+
+  async function moveSibling(direction: -1 | 1) {
+    if (!canWrite || !selectedId) return;
+    const node = findOrgNode(forest, selectedId);
+    if (!node?.parentOrganizationId) return;
+    const parent = findOrgNode(forest, node.parentOrganizationId);
+    if (!parent) return;
+    const siblings = parent.children.map((c) => c.organizationId);
+    const idx = siblings.indexOf(selectedId);
+    const swap = idx + direction;
+    if (idx < 0 || swap < 0 || swap >= siblings.length) return;
+    const ordered = [...siblings];
+    const tmp = ordered[idx];
+    ordered[idx] = ordered[swap];
+    ordered[swap] = tmp;
+    const tid = tenantId.trim();
+    const q = `tenantId=${encodeURIComponent(tid)}`;
+    const reply = await fetch(
+      `/api/platform/organizations/${encodeURIComponent(node.parentOrganizationId)}/children/order?${q}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderedChildIds: ordered }),
+      },
+    ).catch(() => null);
+    if (reply?.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!reply?.ok) {
+      setPanelNotice(null);
+      setMoveProblem(fillPhrase(phrases.orgMoveFailed, { status: reply?.status ?? 0 }));
+      return;
+    }
+    refresh();
+  }
+
+
+  function toggleMulti(id: string) {
+    setMultiIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function beginBatchMove(newParentId: string | null) {
+    if (!canWrite || multiIds.size === 0) return;
+    const ids = [...multiIds];
+    if (newParentId && multiIds.has(newParentId)) {
+      setBatchProblem(phrases.orgMoveCycleDenied);
+      return;
+    }
+    for (const id of ids) {
+      if (wouldClientMoveCycle(forest, id, newParentId)) {
+        setBatchProblem(phrases.orgMoveCycleDenied);
+        return;
+      }
+    }
+    setBatchProblem(null);
+    setBatchStep("reviewing");
+    const tid = tenantId.trim();
+    const q = `tenantId=${encodeURIComponent(tid)}`;
+    const reply = await fetch(`/api/platform/organizations/moves/preview?${q}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ organizationIds: ids, newParentOrganizationId: newParentId }),
+    }).catch(() => null);
+    if (!reply?.ok) {
+      if (reply?.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      setBatchProblem(fillPhrase(phrases.orgMovePreviewFailed, { status: reply?.status ?? 0 }));
+      setBatchStep("idle");
+      return;
+    }
+    const preview = (await reply.json()) as {
+      anyCycle?: boolean;
+      allInScope?: boolean;
+      totalSubtreeOrganizationCount?: number;
+      totalDirectMembershipCount?: number;
+      items?: { organizationId?: string }[];
+    };
+    if (preview.anyCycle) {
+      setBatchProblem(phrases.orgMoveCycleDenied);
+      setBatchStep("idle");
+      return;
+    }
+    if (preview.allInScope === false) {
+      setBatchProblem(phrases.orgMoveOutOfScope);
+      setBatchStep("idle");
+      return;
+    }
+    setBatchSummary(
+      fillPhrase(phrases.orgBatchMoveReviewBody, {
+        count: preview.items?.length ?? ids.length,
+        to: newParentId || phrases.orgRootLabel,
+        subtree: preview.totalSubtreeOrganizationCount ?? 0,
+        members: preview.totalDirectMembershipCount ?? 0,
+      }),
+    );
+    setBatchTarget(newParentId ?? "");
+    setBatchStep("reviewing");
+  }
+
+  async function confirmBatchMove() {
+    if (!canWrite || multiIds.size === 0) return;
+    setBatchStep("saving");
+    setBatchProblem(null);
+    const tid = tenantId.trim();
+    const q = `tenantId=${encodeURIComponent(tid)}`;
+    const newParentId = batchTarget.trim() ? batchTarget.trim() : null;
+    const reply = await fetch(`/api/platform/organizations/moves?${q}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationIds: [...multiIds],
+        newParentOrganizationId: newParentId,
+      }),
+    }).catch(() => null);
+    if (reply?.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!reply?.ok) {
+      setBatchProblem(fillPhrase(phrases.orgMoveFailed, { status: reply?.status ?? 0 }));
+      setBatchStep("reviewing");
+      return;
+    }
+    setMultiIds(new Set());
+    setBatchStep("idle");
+    setBatchSummary(null);
+    refresh();
+  }
+
 
   async function beginMove(movedId: string, newParentId: string | null) {
     if (!canWrite) return;
@@ -428,6 +592,227 @@ export function OrgTreePanel({
     refresh();
   }
 
+
+  function parseCsvIds(raw: string): string[] {
+    return raw
+      .split(/[,，\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  async function previewMerge() {
+    if (!canWrite || !selectedId) return;
+    const target = normalizeOrgId(mergeTarget);
+    if (!target) {
+      setMergeProblem(phrases.orgMergeTargetLabel);
+      return;
+    }
+    setMergeProblem(null);
+    setMergeSummary(null);
+    const tid = tenantId.trim();
+    const q = new URLSearchParams({ tenantId: tid });
+    const reply = await fetch(
+      `/api/platform/organizations/${encodeURIComponent(selectedId)}/merge/preview?${q}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetOrganizationId: target }),
+      },
+    ).catch(() => null);
+    if (!reply?.ok) {
+      setMergeProblem(fillPhrase(phrases.orgMergePreviewFailed, { status: reply?.status ?? 0 }));
+      return;
+    }
+    const preview = (await reply.json()) as {
+      wouldCycle?: boolean;
+      inScope?: boolean;
+      movedMembershipCount?: number;
+      reparentedChildCount?: number;
+      sourceSubtreeOrganizationCount?: number;
+    };
+    if (preview.wouldCycle) {
+      setMergeProblem(phrases.orgMergeCycleDenied);
+      return;
+    }
+    if (preview.inScope === false) {
+      setMergeProblem(phrases.orgMergeOutOfScope);
+      return;
+    }
+    setMergeSummary(
+      fillPhrase(phrases.orgMergeReviewBody, {
+        source: selectedId,
+        target,
+        members: preview.movedMembershipCount ?? 0,
+        children: preview.reparentedChildCount ?? 0,
+        subtree: preview.sourceSubtreeOrganizationCount ?? 0,
+      }),
+    );
+    setMergeStep("reviewing");
+  }
+
+  async function confirmMerge() {
+    if (!canWrite || !selectedId) return;
+    const target = normalizeOrgId(mergeTarget);
+    if (!target) return;
+    setMergeStep("saving");
+    setMergeProblem(null);
+    const tid = tenantId.trim();
+    const q = new URLSearchParams({ tenantId: tid });
+    const reply = await fetch(
+      `/api/platform/organizations/${encodeURIComponent(selectedId)}/merge?${q}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetOrganizationId: target }),
+      },
+    ).catch(() => null);
+    if (!reply?.ok) {
+      setMergeProblem(fillPhrase(phrases.orgMergeFailed, { status: reply?.status ?? 0 }));
+      setMergeStep("reviewing");
+      return;
+    }
+    setPanelNotice(fillPhrase(phrases.orgMergeDoneNotice, { source: selectedId, target }));
+    setMergeStep("editing");
+    setMergeTarget("");
+    setMergeSummary(null);
+    setSelectedId(target);
+    onMoved?.();
+  }
+
+  async function previewSplit() {
+    if (!canWrite || !selectedId) return;
+    const nid = normalizeOrgId(splitId);
+    if (!nid || !splitName.trim()) {
+      setSplitProblem(phrases.orgSplitNewIdLabel);
+      return;
+    }
+    setSplitProblem(null);
+    setSplitSummary(null);
+    const tid = tenantId.trim();
+    const q = new URLSearchParams({ tenantId: tid });
+    const children = parseCsvIds(splitChildren);
+    const members = parseCsvIds(splitMembers);
+    const reply = await fetch(
+      `/api/platform/organizations/${encodeURIComponent(selectedId)}/split/preview?${q}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          newOrganizationId: nid,
+          newOrganizationName: splitName.trim(),
+          childOrganizationIds: children,
+          memberSubjectIds: members,
+        }),
+      },
+    ).catch(() => null);
+    if (!reply?.ok) {
+      setSplitProblem(fillPhrase(phrases.orgSplitPreviewFailed, { status: reply?.status ?? 0 }));
+      return;
+    }
+    const preview = (await reply.json()) as {
+      childrenValid?: boolean;
+      inScope?: boolean;
+      newParentOrganizationId?: string | null;
+      childCount?: number;
+      memberCount?: number;
+    };
+    if (preview.childrenValid === false) {
+      setSplitProblem(phrases.orgSplitInvalidChildren);
+      return;
+    }
+    if (preview.inScope === false) {
+      setSplitProblem(phrases.orgSplitOutOfScope);
+      return;
+    }
+    setSplitSummary(
+      fillPhrase(phrases.orgSplitReviewBody, {
+        source: selectedId,
+        newId: nid,
+        parent: preview.newParentOrganizationId || phrases.orgRootLabel,
+        children: preview.childCount ?? children.length,
+        members: preview.memberCount ?? members.length,
+      }),
+    );
+    setSplitStep("reviewing");
+  }
+
+  async function confirmSplit() {
+    if (!canWrite || !selectedId) return;
+    const nid = normalizeOrgId(splitId);
+    if (!nid) return;
+    setSplitStep("saving");
+    setSplitProblem(null);
+    const tid = tenantId.trim();
+    const q = new URLSearchParams({ tenantId: tid });
+    const reply = await fetch(
+      `/api/platform/organizations/${encodeURIComponent(selectedId)}/split?${q}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          newOrganizationId: nid,
+          newOrganizationName: splitName.trim(),
+          childOrganizationIds: parseCsvIds(splitChildren),
+          memberSubjectIds: parseCsvIds(splitMembers),
+        }),
+      },
+    ).catch(() => null);
+    if (!reply?.ok) {
+      setSplitProblem(fillPhrase(phrases.orgSplitFailed, { status: reply?.status ?? 0 }));
+      setSplitStep("reviewing");
+      return;
+    }
+    setPanelNotice(fillPhrase(phrases.orgSplitDoneNotice, { newId: nid }));
+    setSplitStep("editing");
+    setSplitId("");
+    setSplitName("");
+    setSplitChildren("");
+    setSplitMembers("");
+    setSplitSummary(null);
+    setSelectedId(nid);
+    onMoved?.();
+  }
+
+  async function confirmManager() {
+    if (!canWrite || !selectedId) return;
+    setManagerStep("saving");
+    setManagerProblem(null);
+    const tid = tenantId.trim();
+    const q = new URLSearchParams({ tenantId: tid });
+    let reply: Response | null = null;
+    if (managerMode === "clear") {
+      reply = await fetch(
+        `/api/platform/organizations/${encodeURIComponent(selectedId)}/manager?${q}`,
+        { method: "DELETE" },
+      ).catch(() => null);
+    } else {
+      const sid = managerSubject.trim();
+      if (!sid) {
+        setManagerProblem(phrases.orgManagerLabel);
+        setManagerStep("editing");
+        return;
+      }
+      reply = await fetch(
+        `/api/platform/organizations/${encodeURIComponent(selectedId)}/manager?${q}`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ managerSubjectId: sid }),
+        },
+      ).catch(() => null);
+    }
+    if (!reply?.ok) {
+      setManagerProblem(fillPhrase(phrases.orgManagerFailed, { status: reply?.status ?? 0 }));
+      setManagerStep("reviewing");
+      return;
+    }
+    setPanelNotice(phrases.orgManagerSavedNotice);
+    setManagerStep("editing");
+    setManagerSubject("");
+    onMoved?.();
+  }
+
+
   const selected = selectedId ? findOrgNode(forest, selectedId) : null;
   const selectedMembers = useMemo(() => {
     if (!selectedId) return [];
@@ -468,6 +853,90 @@ export function OrgTreePanel({
           {phrases.orgVizCanvas}
         </button>
       </div>
+
+
+      {canWrite && multiIds.size > 0 ? (
+        <div className="rounded-lg border border-border bg-surface p-3 text-xs">
+          <p className="font-medium">
+            {fillPhrase(phrases.orgBatchMoveSelected, { count: multiIds.size })}
+          </p>
+          <p className="mt-1 text-muted">{phrases.orgBatchMoveHint}</p>
+          {batchStep === "idle" || batchStep === "reviewing" ? (
+            <div className="mt-2 flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1">
+                {phrases.orgBatchMoveTargetLabel}
+                <select
+                  value={batchTarget}
+                  onChange={(e) => setBatchTarget(e.target.value)}
+                  className="rounded-md border border-border bg-background px-2 py-1 font-mono"
+                  disabled={batchStep === "reviewing"}
+                >
+                  <option value="">{phrases.orgRootLabel}</option>
+                  {organizations
+                    .filter((o) => o.organizationId && !multiIds.has(o.organizationId))
+                    .map((o) => (
+                      <option key={o.organizationId} value={o.organizationId}>
+                        {o.organizationName} ({o.organizationId})
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {batchStep === "idle" ? (
+                <button
+                  type="button"
+                  onClick={() => void beginBatchMove(batchTarget.trim() ? batchTarget.trim() : null)}
+                  className="rounded-md bg-foreground px-3 py-1 text-background"
+                >
+                  {phrases.orgBatchMovePreviewAction}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  setMultiIds(new Set());
+                  setBatchStep("idle");
+                  setBatchProblem(null);
+                  setBatchSummary(null);
+                }}
+                className="rounded-md border border-border px-3 py-1"
+              >
+                {phrases.orgBatchMoveClear}
+              </button>
+            </div>
+          ) : null}
+          {batchProblem ? (
+            <p role="alert" className="mt-2 text-red-700">
+              {batchProblem}
+            </p>
+          ) : null}
+          {batchStep !== "idle" && batchSummary ? (
+            <div className="mt-2 space-y-2">
+              <p>{batchSummary}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void confirmBatchMove()}
+                  disabled={batchStep === "saving"}
+                  className="rounded-md bg-foreground px-3 py-1 text-background disabled:opacity-60"
+                >
+                  {batchStep === "saving" ? phrases.savingAction : phrases.confirmSaveAction}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBatchStep("idle");
+                    setBatchSummary(null);
+                  }}
+                  disabled={batchStep === "saving"}
+                  className="rounded-md border border-border px-3 py-1"
+                >
+                  {phrases.cancelAction}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {canWrite && vizMode === "tree" ? (
         <p className="text-xs text-muted">{phrases.orgMoveHint}</p>
@@ -578,9 +1047,11 @@ export function OrgTreePanel({
                     queryActive={Boolean(query.trim())}
                     dragOverId={dragOverId}
                     canWrite={canWrite}
+                    multiIds={multiIds}
                     phrases={phrases}
                     onToggle={toggleExpand}
                     onSelect={selectNode}
+                    onToggleMulti={toggleMulti}
                     onDragOverId={setDragOverId}
                     onDropOn={(targetId, movedId) => void beginMove(movedId, targetId)}
                   />
@@ -593,6 +1064,7 @@ export function OrgTreePanel({
               forest={forest}
               selectedId={selectedId}
               onSelect={selectNode}
+              exportBasename={`org-${tenantId.trim() || "chart"}`}
             />
           )}
         </div>
@@ -676,6 +1148,274 @@ export function OrgTreePanel({
                           type="button"
                           onClick={() => setToggleStep("editing")}
                           disabled={toggleStep === "saving"}
+                          className="rounded-md border border-border px-2 py-0.5"
+                        >
+                          {phrases.cancelAction}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+
+              {canWrite && selected.parentOrganizationId ? (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="font-medium">{phrases.orgSiblingOrderTitle}</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void moveSibling(-1)}
+                      className="rounded-md border border-border px-2 py-1 hover:bg-background"
+                    >
+                      {phrases.orgSiblingMoveUp}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void moveSibling(1)}
+                      className="rounded-md border border-border px-2 py-1 hover:bg-background"
+                    >
+                      {phrases.orgSiblingMoveDown}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="font-medium">{phrases.orgManagerTitle}</p>
+                <p className="text-muted">{phrases.orgManagerHint}</p>
+                <p>
+                  <span className="text-muted">{phrases.orgManagerLabel}: </span>
+                  <span className="font-mono">
+                    {selected.managerSubjectId || phrases.orgManagerNone}
+                  </span>
+                </p>
+                {canWrite ? (
+                  managerStep === "editing" ? (
+                    <div className="flex flex-col gap-2">
+                      <label className="flex flex-col gap-1">
+                        {phrases.orgManagerLabel}
+                        <input
+                          value={managerSubject}
+                          onChange={(e) => setManagerSubject(e.target.value)}
+                          className="rounded-md border border-border bg-background px-2 py-1 font-mono"
+                          autoComplete="off"
+                          placeholder={selected.managerSubjectId || ""}
+                        />
+                      </label>
+                      {managerProblem ? (
+                        <p role="alert" className="text-red-700">
+                          {managerProblem}
+                        </p>
+                      ) : null}
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setManagerProblem(null);
+                            setManagerMode("assign");
+                            setManagerStep("reviewing");
+                          }}
+                          className="rounded-md bg-foreground px-2 py-1 text-background"
+                        >
+                          {phrases.orgManagerAssignAction}
+                        </button>
+                        {selected.managerSubjectId ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setManagerProblem(null);
+                              setManagerMode("clear");
+                              setManagerStep("reviewing");
+                            }}
+                            className="rounded-md border border-border px-2 py-1"
+                          >
+                            {phrases.orgManagerClearAction}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p>
+                        {managerMode === "clear"
+                          ? fillPhrase(phrases.orgManagerReviewClear, {
+                              unit: selected.organizationId,
+                            })
+                          : fillPhrase(phrases.orgManagerReviewAssign, {
+                              subject: managerSubject.trim(),
+                              unit: selected.organizationId,
+                            })}
+                      </p>
+                      {managerProblem ? (
+                        <p role="alert" className="text-red-700">
+                          {managerProblem}
+                        </p>
+                      ) : null}
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void confirmManager()}
+                          disabled={managerStep === "saving"}
+                          className="rounded-md bg-foreground px-2 py-0.5 text-background disabled:opacity-60"
+                        >
+                          {managerStep === "saving"
+                            ? phrases.savingAction
+                            : phrases.confirmSaveAction}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setManagerStep("editing")}
+                          disabled={managerStep === "saving"}
+                          className="rounded-md border border-border px-2 py-0.5"
+                        >
+                          {phrases.cancelAction}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                ) : null}
+              </div>
+
+              {canWrite ? (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="font-medium">{phrases.orgMergeTitle}</p>
+                  <p className="text-muted">{phrases.orgMergeHint}</p>
+                  {mergeStep === "editing" ? (
+                    <div className="flex flex-col gap-2">
+                      <label className="flex flex-col gap-1">
+                        {phrases.orgMergeTargetLabel}
+                        <input
+                          value={mergeTarget}
+                          onChange={(e) => setMergeTarget(e.target.value)}
+                          className="rounded-md border border-border bg-background px-2 py-1 font-mono"
+                          autoComplete="off"
+                        />
+                      </label>
+                      {mergeProblem ? (
+                        <p role="alert" className="text-red-700">
+                          {mergeProblem}
+                        </p>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void previewMerge()}
+                        className="self-start rounded-md bg-foreground px-2 py-1 text-background"
+                      >
+                        {phrases.orgMergePreviewAction}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p>{mergeSummary}</p>
+                      {mergeProblem ? (
+                        <p role="alert" className="text-red-700">
+                          {mergeProblem}
+                        </p>
+                      ) : null}
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void confirmMerge()}
+                          disabled={mergeStep === "saving"}
+                          className="rounded-md bg-foreground px-2 py-0.5 text-background disabled:opacity-60"
+                        >
+                          {mergeStep === "saving"
+                            ? phrases.savingAction
+                            : phrases.confirmSaveAction}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMergeStep("editing")}
+                          disabled={mergeStep === "saving"}
+                          className="rounded-md border border-border px-2 py-0.5"
+                        >
+                          {phrases.cancelAction}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {canWrite ? (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="font-medium">{phrases.orgSplitTitle}</p>
+                  <p className="text-muted">{phrases.orgSplitHint}</p>
+                  {splitStep === "editing" ? (
+                    <div className="flex flex-col gap-2">
+                      <label className="flex flex-col gap-1">
+                        {phrases.orgSplitNewIdLabel}
+                        <input
+                          value={splitId}
+                          onChange={(e) => setSplitId(e.target.value)}
+                          className="rounded-md border border-border bg-background px-2 py-1 font-mono"
+                          autoComplete="off"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        {phrases.orgSplitNewNameLabel}
+                        <input
+                          value={splitName}
+                          onChange={(e) => setSplitName(e.target.value)}
+                          className="rounded-md border border-border bg-background px-2 py-1"
+                          autoComplete="off"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        {phrases.orgSplitChildrenLabel}
+                        <input
+                          value={splitChildren}
+                          onChange={(e) => setSplitChildren(e.target.value)}
+                          className="rounded-md border border-border bg-background px-2 py-1 font-mono"
+                          autoComplete="off"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        {phrases.orgSplitMembersLabel}
+                        <input
+                          value={splitMembers}
+                          onChange={(e) => setSplitMembers(e.target.value)}
+                          className="rounded-md border border-border bg-background px-2 py-1 font-mono"
+                          autoComplete="off"
+                        />
+                      </label>
+                      {splitProblem ? (
+                        <p role="alert" className="text-red-700">
+                          {splitProblem}
+                        </p>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void previewSplit()}
+                        className="self-start rounded-md bg-foreground px-2 py-1 text-background"
+                      >
+                        {phrases.orgSplitPreviewAction}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p>{splitSummary}</p>
+                      {splitProblem ? (
+                        <p role="alert" className="text-red-700">
+                          {splitProblem}
+                        </p>
+                      ) : null}
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void confirmSplit()}
+                          disabled={splitStep === "saving"}
+                          className="rounded-md bg-foreground px-2 py-0.5 text-background disabled:opacity-60"
+                        >
+                          {splitStep === "saving"
+                            ? phrases.savingAction
+                            : phrases.confirmSaveAction}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSplitStep("editing")}
+                          disabled={splitStep === "saving"}
                           className="rounded-md border border-border px-2 py-0.5"
                         >
                           {phrases.cancelAction}
@@ -924,9 +1664,11 @@ type BranchProps = {
   queryActive: boolean;
   dragOverId: string | null;
   canWrite: boolean;
+  multiIds: Set<string>;
   phrases: PhraseBook;
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
+  onToggleMulti: (id: string) => void;
   onDragOverId: (id: string | null) => void;
   onDropOn: (targetId: string, movedId: string) => void;
 };
@@ -940,9 +1682,11 @@ function TreeBranch({
   queryActive,
   dragOverId,
   canWrite,
+  multiIds,
   phrases,
   onToggle,
   onSelect,
+  onToggleMulti,
   onDragOverId,
   onDropOn,
 }: BranchProps) {
@@ -992,6 +1736,16 @@ function TreeBranch({
           .join(" ")}
         style={{ paddingLeft: `${depth * 0.85 + 0.25}rem` }}
       >
+        {canWrite ? (
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 shrink-0"
+            checked={multiIds.has(node.organizationId)}
+            onChange={() => onToggleMulti(node.organizationId)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={phrases.orgBatchMoveSelect}
+          />
+        ) : null}
         {hasChildren ? (
           <button
             type="button"
@@ -1027,9 +1781,11 @@ function TreeBranch({
               queryActive={queryActive}
               dragOverId={dragOverId}
               canWrite={canWrite}
+              multiIds={multiIds}
               phrases={phrases}
               onToggle={onToggle}
               onSelect={onSelect}
+              onToggleMulti={onToggleMulti}
               onDragOverId={onDragOverId}
               onDropOn={onDropOn}
             />

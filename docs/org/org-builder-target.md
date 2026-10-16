@@ -44,12 +44,12 @@ subjex Org Builder = **租户上下文内的组织世界模型可视化编辑器
 
 | ID | 能力 | 说明 |
 | --- | --- | --- |
-| S1 | **多选移动**到同一新父 | 批量 preview + 单事务或有序事务 |
-| S2 | **兄弟排序** `order` | 需模型扩展（见 ADR 0006）或 attrs 过渡 |
-| S3 | **画布只读视图** | **部分 done via ORG-UI-5**（SVG 分层图+选中同步；导出 PNG 仍后置） |
-| S4 | **批量导出/导入**部门 CSV/Excel（dry-run） | 对齐飞书 Admin 批量心智 |
-| S5 | **合并/拆分向导**（merge A→B；split 选子树） | 成员重挂 + CONTAINS 重写；强确认 |
-| S6 | 部门「主管」展示 | 可用 Membership 角色扩展或 Relation；**不**在 Must 引入新授权语义 |
+| S1 | ~~多选移动~~ **done** | `POST /moves` + `/moves/preview`；树多选勾选 |
+| S2 | ~~兄弟排序~~ **done** | V40 `sort_order`；`POST .../children/order`；侧栏上/下移 |
+| S3 | ~~画布导出 SVG/PNG~~ **done** | ORG-UI-5 图 + 客户端 SVG/PNG 下载 |
+| S4 | ~~批量 CSV~~ **done** | 导出 + dry-run 导入 + PUT 应用 |
+| S5 | ~~合并/拆分向导~~ **done** | `merge`/`split` + preview；侧栏确认；成员重挂 + CONTAINS 重写 |
+| S6 | ~~部门主管~~ **done** | V41 `organization_manager`；PUT/DELETE manager；确保 Membership 映射 OrgScope |
 
 ### Later（主流有、但超出现有本体非目标）
 
@@ -75,7 +75,7 @@ subjex Org Builder = **租户上下文内的组织世界模型可视化编辑器
 | --- | --- |
 | ~~缺少显式 move API~~ | **done** `POST .../move` + `.../move/preview` |
 | ~~缺少 preview~~ | **done** |
-| 无 sibling order | Should：ADR 0006；或短期用名称排序 |
+| ~~无 sibling order~~ | **done** V40 + children/order (S2) |
 | 树查询 N+1 | 可选 `GET .../tree?tenantId=` 一次返回森林（仍可先前端组装） |
 
 详情见 [`docs/adr/0006-org-builder-and-relation-kinds.md`](../adr/0006-org-builder-and-relation-kinds.md)。
@@ -93,7 +93,7 @@ subjex Org Builder = **租户上下文内的组织世界模型可视化编辑器
 | **ORG-UI-6** | 多选移动 +（可选）CSV 导出 | Should 起步 |
 | **ORG-UI-7+** | order / merge-split / matrix / 批量导入 dry-run | 按 ADR 与优先级 |
 
-**Must MVP 切片 ORG-UI-0…5 已收口。** 下一优先 Should：ORG-UI-6 多选移动/CSV，或 sibling order（ADR 0006 D3）。
+**Must MVP 已收口；Should S1–S6 已落地（本地 tip）。** 待 squash-push 至 github/main。
 
 ## 6. 成功度量 / Success criteria（MVP）
 

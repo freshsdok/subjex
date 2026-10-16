@@ -14,6 +14,15 @@ Base: `/api/v1/organizations` (`OrganizationApiEndpoint`)
 | PUT | `/api/v1/organizations/{organizationId}?tenantId=` | `org.write` + tenant grant | Upsert org + tenant link + CONTAINS parent; reverse write-through to legacy |
 | POST | `/api/v1/organizations/{organizationId}/move/preview?tenantId=` | `org.write` + tenant grant | Preview CONTAINS reparent (wouldCycle, inScope, counts); no write |
 | POST | `/api/v1/organizations/{organizationId}/move?tenantId=` | `org.write` + tenant grant | Apply CONTAINS reparent; cycle→400; out-of-scope→403; audit `org.organization.move` |
+| POST | `/api/v1/organizations/moves/preview?tenantId=` | `org.write` + tenant grant | Batch move preview (S1) |
+| POST | `/api/v1/organizations/moves?tenantId=` | `org.write` + tenant grant | Batch CONTAINS reparent (S1) |
+| POST | `/api/v1/organizations/{organizationId}/children/order?tenantId=` | `org.write` + tenant grant | Reorder ACTIVE CONTAINS children (S2) |
+| POST | `/api/v1/organizations/{organizationId}/merge/preview?tenantId=` | `org.write` + tenant grant | Preview merge into target (S5) |
+| POST | `/api/v1/organizations/{organizationId}/merge?tenantId=` | `org.write` + tenant grant | Merge: rehang members/children, end source (S5) |
+| POST | `/api/v1/organizations/{organizationId}/split/preview?tenantId=` | `org.write` + tenant grant | Preview split (S5) |
+| POST | `/api/v1/organizations/{organizationId}/split?tenantId=` | `org.write` + tenant grant | Split children/members into new org (S5) |
+| PUT | `/api/v1/organizations/{organizationId}/manager?tenantId=` | `org.write` + tenant grant | Set department manager; ensures Membership (S6) |
+| DELETE | `/api/v1/organizations/{organizationId}/manager?tenantId=` | `org.write` + tenant grant | Clear department manager (S6) |
 | GET | `/api/v1/organizations/memberships?tenantId=` | `org.read` | Optional `subjectId`; excludes ENDED |
 | PUT | `/api/v1/organizations/memberships?tenantId=` | `org.write` + tenant grant | Body: `subjectId`, `organizationId`, `membershipState` |
 | DELETE | `/api/v1/organizations/memberships?tenantId=&subjectId=&organizationId=` | `org.write` + tenant grant | Ontology → ENDED; legacy row deleted |

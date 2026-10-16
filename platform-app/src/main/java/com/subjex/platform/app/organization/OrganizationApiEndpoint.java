@@ -15,6 +15,9 @@ import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.PolicyPrincipal;
 import com.subjex.platform.app.security.PolicyResource;
 import com.subjex.platform.contract.audit.AuditOutcome;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
@@ -194,6 +197,148 @@ public class OrganizationApiEndpoint {
     }
 
 
+
+
+    /**
+     * Reorder ACTIVE CONTAINS children under parent (Should S2).
+     * 重排父节点下 ACTIVE CONTAINS 子顺序。
+     */
+    @PostMapping(PATH + "/{organizationId}/children/order")
+    public OrganizationsDocument reorderChildren(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody ChildrenOrderRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        String parent = requireNonBlank(organizationId, "organizationId");
+        requireLinkedToTenant(tid, parent);
+        if (body == null || body.orderedChildIds() == null) {
+            throw new IllegalArgumentException("orderedChildIds required");
+        }
+        OrganizationScope scope = resolveScope(operator, tid);
+        requireMoveWritable(operator, tid, scope, parent, null);
+        for (String child : body.orderedChildIds()) {
+            requireLinkedToTenant(tid, child);
+            requireMoveWritable(operator, tid, scope, child, parent);
+        }
+        store.reorderContainsChildren(parent, body.orderedChildIds());
+        audit.record(
+                operator,
+                "org.organization.children_order",
+                tid + "/" + parent + "/" + body.orderedChildIds().size(),
+                AuditOutcome.ALLOWED);
+        List<OrganizationDocument> organizations = store.listOrganizationsLinkedToTenant(tid).stream()
+                .filter(o -> inScopeOrUnspecified(scope, o.organizationId()))
+                .map(o -> toDocument(tid, o))
+                .toList();
+        return new OrganizationsDocument(organizations);
+    }
+
+    /**
+     * Preview multi-select CONTAINS reparent (Should S1) — no write.
+     * 多选改挂载预览；不落库。
+     */
+    @PostMapping(PATH + "/moves/preview")
+    public BatchMovePreviewDocument previewBatchMove(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody BatchMoveRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        if (body == null || body.organizationIds() == null || body.organizationIds().isEmpty()) {
+            throw new IllegalArgumentException("organizationIds required");
+        }
+        String newParent = normalizeParent(body.newParentOrganizationId());
+        if (newParent != null) {
+            requireLinkedToTenant(tid, newParent);
+        }
+        OrganizationScope scope = resolveScope(operator, tid);
+        List<String> ids = dedupePreserve(body.organizationIds());
+        // Drop ids that are descendants of another selected id (moving ancestor moves them).
+        ids = dropCoveredDescendants(ids);
+        List<MovePreviewDocument> items = new ArrayList<>();
+        boolean anyCycle = false;
+        boolean allInScope = true;
+        int totalSubtree = 0;
+        int totalMembers = 0;
+        for (String oid : ids) {
+            requireLinkedToTenant(tid, oid);
+            String fromParent = store.findActiveContainsParent(oid).orElse(null);
+            boolean wouldCycle = false;
+            if (newParent != null) {
+                if (newParent.equals(oid) || ids.contains(newParent)) {
+                    wouldCycle = true;
+                } else {
+                    wouldCycle = store.wouldCreateContainsCycle(newParent, oid);
+                }
+            }
+            boolean inScope = isMoveInScope(scope, oid, newParent);
+            int subtree = store.containsSelfAndDescendants(oid).size();
+            int members = store.countDirectMemberships(oid);
+            anyCycle = anyCycle || wouldCycle;
+            allInScope = allInScope && inScope;
+            totalSubtree += subtree;
+            totalMembers += members;
+            items.add(new MovePreviewDocument(
+                    oid, fromParent, newParent, subtree, members, wouldCycle, inScope));
+        }
+        return new BatchMovePreviewDocument(
+                items, newParent, anyCycle, allInScope, totalSubtree, totalMembers);
+    }
+
+    /**
+     * Apply multi-select CONTAINS reparent (Should S1) — ordered; fail closed on any cycle/scope.
+     * 多选改挂载；任一项成环/越权则拒绝；按序执行。
+     */
+    @PostMapping(PATH + "/moves")
+    public BatchMoveResultDocument batchMove(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody BatchMoveRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        if (body == null || body.organizationIds() == null || body.organizationIds().isEmpty()) {
+            throw new IllegalArgumentException("organizationIds required");
+        }
+        String newParent = normalizeParent(body.newParentOrganizationId());
+        if (newParent != null) {
+            requireLinkedToTenant(tid, newParent);
+        }
+        OrganizationScope scope = resolveScope(operator, tid);
+        List<String> ids = dropCoveredDescendants(dedupePreserve(body.organizationIds()));
+        for (String oid : ids) {
+            requireLinkedToTenant(tid, oid);
+            requireMoveWritable(operator, tid, scope, oid, newParent);
+            if (newParent != null && (newParent.equals(oid) || ids.contains(newParent))) {
+                throw new IllegalArgumentException("CONTAINS relation would form a cycle");
+            }
+            if (newParent != null && store.wouldCreateContainsCycle(newParent, oid)) {
+                throw new IllegalArgumentException("CONTAINS relation would form a cycle");
+            }
+        }
+        List<OrganizationDocument> moved = new ArrayList<>();
+        for (String oid : ids) {
+            String fromParent = store.findActiveContainsParent(oid).orElse(null);
+            store.setContainsParent(oid, newParent);
+            Organization org = store.listOrganizationsLinkedToTenant(tid).stream()
+                    .filter(o -> o.organizationId().equals(oid))
+                    .findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+            String target = fromParent == null ? "-" : fromParent;
+            String dest = newParent == null ? "-" : newParent;
+            audit.record(
+                    operator,
+                    "org.organization.move",
+                    tid + "/" + oid + ":" + target + "->" + dest,
+                    AuditOutcome.ALLOWED);
+            moved.add(toDocument(tid, org));
+        }
+        audit.record(
+                operator,
+                "org.organization.batch_move",
+                tid + "/" + moved.size() + "->" + (newParent == null ? "-" : newParent),
+                AuditOutcome.ALLOWED);
+        return new BatchMoveResultDocument(moved);
+    }
+
     /**
      * Preview CONTAINS reparent (ORG-UI-2) — no write.
      * 预览改挂载；不落库。
@@ -269,14 +414,243 @@ public class OrganizationApiEndpoint {
         return toDocument(tid, org);
     }
 
+    /**
+     * Preview merge source into target (Should S5) — no write.
+     * 预览合并；不落库。
+     */
+    @PostMapping(PATH + "/{organizationId}/merge/preview")
+    public MergePreviewDocument previewMerge(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody(required = false) MergeRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        String source = requireNonBlank(organizationId, "organizationId");
+        if (body == null || body.targetOrganizationId() == null || body.targetOrganizationId().isBlank()) {
+            throw new IllegalArgumentException("targetOrganizationId required");
+        }
+        String target = body.targetOrganizationId().trim();
+        requireLinkedToTenant(tid, source);
+        requireLinkedToTenant(tid, target);
+        OrganizationScope scope = resolveScope(operator, tid);
+        boolean wouldCycle = source.equals(target) || store.containsSelfAndDescendants(source).contains(target);
+        boolean inScope = isMoveInScope(scope, source, target)
+                && store.listActiveContainsChildren(source).stream().allMatch(scope::contains);
+        int members = store.countDirectMemberships(source);
+        int children = store.listActiveContainsChildren(source).size();
+        int subtree = store.containsSelfAndDescendants(source).size();
+        return new MergePreviewDocument(source, target, members, children, subtree, wouldCycle, inScope);
+    }
+
+    /**
+     * Merge source into target (Should S5) — memberships + children + end source.
+     * 合并源到目标；成员与子组织迁移；源 ENDED。
+     */
+    @PostMapping(PATH + "/{organizationId}/merge")
+    public MergeResultDocument merge(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody(required = false) MergeRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        String source = requireNonBlank(organizationId, "organizationId");
+        if (body == null || body.targetOrganizationId() == null || body.targetOrganizationId().isBlank()) {
+            throw new IllegalArgumentException("targetOrganizationId required");
+        }
+        String target = body.targetOrganizationId().trim();
+        requireLinkedToTenant(tid, source);
+        requireLinkedToTenant(tid, target);
+        OrganizationScope scope = resolveScope(operator, tid);
+        requireMoveWritable(operator, tid, scope, source, target);
+        for (String child : store.listActiveContainsChildren(source)) {
+            requireMoveWritable(operator, tid, scope, child, target);
+        }
+        if (source.equals(target) || store.containsSelfAndDescendants(source).contains(target)) {
+            throw new IllegalArgumentException("cannot merge into a descendant (would cycle)");
+        }
+        JdbcOrganizationStore.MergeResult result = store.mergeOrganizations(source, target);
+        audit.record(
+                operator,
+                "org.organization.merge",
+                tid + "/" + source + "->" + target,
+                AuditOutcome.ALLOWED);
+        Organization targetOrg = store.listOrganizationsLinkedToTenant(tid).stream()
+                .filter(o -> o.organizationId().equals(target))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return new MergeResultDocument(
+                toDocument(tid, result.endedSource()),
+                toDocument(tid, targetOrg),
+                result.movedMembershipCount(),
+                result.reparentedChildCount());
+    }
+
+    /**
+     * Preview split (Should S5) — no write.
+     * 预览拆分；不落库。
+     */
+    @PostMapping(PATH + "/{organizationId}/split/preview")
+    public SplitPreviewDocument previewSplit(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody(required = false) SplitRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        String source = requireNonBlank(organizationId, "organizationId");
+        if (body == null) {
+            throw new IllegalArgumentException("body required");
+        }
+        String nid = requireNonBlank(body.newOrganizationId(), "newOrganizationId");
+        requireLinkedToTenant(tid, source);
+        OrganizationScope scope = resolveScope(operator, tid);
+        List<String> children = body.childOrganizationIds() == null ? List.of() : body.childOrganizationIds();
+        List<String> members = body.memberSubjectIds() == null ? List.of() : body.memberSubjectIds();
+        String newParent = normalizeParent(body.newParentOrganizationId());
+        if (newParent == null) {
+            newParent = store.findActiveContainsParent(source).orElse(null);
+        }
+        if (newParent != null) {
+            requireLinkedToTenant(tid, newParent);
+        }
+        boolean inScope = inScopeOrUnspecified(scope, source)
+                && (newParent == null || inScopeOrUnspecified(scope, newParent))
+                && children.stream().allMatch(c -> inScopeOrUnspecified(scope, c.trim()));
+        boolean childrenOk = true;
+        HashSet<String> direct = new HashSet<>(store.listActiveContainsChildren(source));
+        for (String c : children) {
+            if (c == null || c.isBlank() || !direct.contains(c.trim())) {
+                childrenOk = false;
+                break;
+            }
+        }
+        return new SplitPreviewDocument(
+                source,
+                nid,
+                newParent,
+                children.size(),
+                members.size(),
+                childrenOk,
+                inScope);
+    }
+
+    /**
+     * Split children/members into a new organization (Should S5).
+     * 拆分子组织/成员到新组织。
+     */
+    @PostMapping(PATH + "/{organizationId}/split")
+    public SplitResultDocument split(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody(required = false) SplitRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        String source = requireNonBlank(organizationId, "organizationId");
+        if (body == null) {
+            throw new IllegalArgumentException("body required");
+        }
+        String nid = requireNonBlank(body.newOrganizationId(), "newOrganizationId");
+        String nname = requireNonBlank(body.newOrganizationName(), "newOrganizationName");
+        requireLinkedToTenant(tid, source);
+        OrganizationScope scope = resolveScope(operator, tid);
+        List<String> children = body.childOrganizationIds() == null ? List.of() : body.childOrganizationIds();
+        List<String> members = body.memberSubjectIds() == null ? List.of() : body.memberSubjectIds();
+        String newParent = normalizeParent(body.newParentOrganizationId());
+        if (newParent == null) {
+            newParent = store.findActiveContainsParent(source).orElse(null);
+        }
+        if (newParent != null) {
+            requireLinkedToTenant(tid, newParent);
+        }
+        requireOrganizationWritable(operator, tid, scope, nid, newParent);
+        requireMoveWritable(operator, tid, scope, source, newParent);
+        for (String child : children) {
+            requireMoveWritable(operator, tid, scope, child.trim(), nid);
+        }
+        JdbcOrganizationStore.SplitResult result =
+                store.splitOrganization(source, nid, nname, newParent, children, members);
+        store.upsertTenantOrganization(tid, nid, JdbcOrganizationStore.STATE_ACTIVE);
+        audit.record(
+                operator,
+                "org.organization.split",
+                tid + "/" + source + "->" + nid,
+                AuditOutcome.ALLOWED);
+        return new SplitResultDocument(
+                toDocument(tid, result.createdOrganization()),
+                source,
+                result.movedChildCount(),
+                result.movedMembershipCount());
+    }
+
+    /**
+     * Assign department manager (Should S6) — ensures Membership for OrgScope.
+     * 指定部门主管；确保 Membership 以纳入 OrgScope。
+     */
+    @PutMapping(PATH + "/{organizationId}/manager")
+    public OrganizationDocument putManager(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody(required = false) ManagerRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        String oid = requireNonBlank(organizationId, "organizationId");
+        if (body == null || body.managerSubjectId() == null || body.managerSubjectId().isBlank()) {
+            throw new IllegalArgumentException("managerSubjectId required");
+        }
+        requireLinkedToTenant(tid, oid);
+        OrganizationScope scope = resolveScope(operator, tid);
+        requireOrganizationWritable(operator, tid, scope, oid, store.findActiveContainsParent(oid).orElse(null));
+        store.setOrganizationManager(oid, body.managerSubjectId().trim());
+        Organization org = store.listOrganizationsLinkedToTenant(tid).stream()
+                .filter(o -> o.organizationId().equals(oid))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        audit.record(
+                operator,
+                "org.organization.manager.set",
+                tid + "/" + oid + ":" + body.managerSubjectId().trim(),
+                AuditOutcome.ALLOWED);
+        return toDocument(tid, org);
+    }
+
+    /**
+     * Clear department manager (Should S6). Does not end Membership.
+     * 清除部门主管；不结束 Membership。
+     */
+    @DeleteMapping(PATH + "/{organizationId}/manager")
+    public OrganizationDocument clearManager(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId) {
+        String tid = requireTenant(operator, tenantId);
+        String oid = requireNonBlank(organizationId, "organizationId");
+        requireLinkedToTenant(tid, oid);
+        OrganizationScope scope = resolveScope(operator, tid);
+        requireOrganizationWritable(operator, tid, scope, oid, store.findActiveContainsParent(oid).orElse(null));
+        store.clearOrganizationManager(oid);
+        Organization org = store.listOrganizationsLinkedToTenant(tid).stream()
+                .filter(o -> o.organizationId().equals(oid))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        audit.record(
+                operator,
+                "org.organization.manager.clear",
+                tid + "/" + oid,
+                AuditOutcome.ALLOWED);
+        return toDocument(tid, org);
+    }
+
     private OrganizationDocument toDocument(String tenantId, Organization org) {
         String parent = store.findActiveContainsParent(org.organizationId()).orElse(null);
+        int sortOrder = store.findActiveContainsSortOrder(org.organizationId());
+        String manager = store.findActiveManagerSubjectId(org.organizationId()).orElse(null);
         return new OrganizationDocument(
                 tenantId,
                 org.organizationId(),
                 parent,
                 org.organizationName(),
-                org.organizationState());
+                org.organizationState(),
+                sortOrder,
+                manager);
     }
 
     private static MembershipDocument membershipDocument(String tenantId, Membership row) {
@@ -295,6 +669,38 @@ public class OrganizationApiEndpoint {
         return scopeResolver.resolveSelfAndDescendants(tenantId, operator.subjectId());
     }
 
+
+
+    private static List<String> dedupePreserve(List<String> raw) {
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String id : raw) {
+            if (id != null && !id.isBlank()) {
+                set.add(id.trim());
+            }
+        }
+        return new ArrayList<>(set);
+    }
+
+    /** Remove ids whose ancestor is also selected — 去掉已被选中祖先覆盖的节点。 */
+    private List<String> dropCoveredDescendants(List<String> ids) {
+        List<String> out = new ArrayList<>();
+        for (String id : ids) {
+            boolean covered = false;
+            for (String other : ids) {
+                if (other.equals(id)) {
+                    continue;
+                }
+                if (store.containsSelfAndDescendants(other).contains(id)) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                out.add(id);
+            }
+        }
+        return out;
+    }
 
     private void requireLinkedToTenant(String tenantId, String organizationId) {
         boolean linked = store.listOrganizationsLinkedToTenant(tenantId).stream()
@@ -441,7 +847,9 @@ public class OrganizationApiEndpoint {
             String organizationId,
             String parentOrganizationId,
             String organizationName,
-            String organizationState) {}
+            String organizationState,
+            int sortOrder,
+            String managerSubjectId) {}
 
     public record MembershipsDocument(List<MembershipDocument> memberships) {}
 
@@ -464,4 +872,61 @@ public class OrganizationApiEndpoint {
             boolean wouldCycle,
             boolean inScope) {}
 
+
+    public record BatchMoveRequest(List<String> organizationIds, String newParentOrganizationId) {}
+
+    public record BatchMovePreviewDocument(
+            List<MovePreviewDocument> items,
+            String toParentOrganizationId,
+            boolean anyCycle,
+            boolean allInScope,
+            int totalSubtreeOrganizationCount,
+            int totalDirectMembershipCount) {}
+
+    public record BatchMoveResultDocument(List<OrganizationDocument> moved) {}
+
+    public record ChildrenOrderRequest(List<String> orderedChildIds) {}
+
+    public record MergeRequest(String targetOrganizationId) {}
+
+    public record MergePreviewDocument(
+            String sourceOrganizationId,
+            String targetOrganizationId,
+            int movedMembershipCount,
+            int reparentedChildCount,
+            int sourceSubtreeOrganizationCount,
+            boolean wouldCycle,
+            boolean inScope) {}
+
+    public record MergeResultDocument(
+            OrganizationDocument endedSource,
+            OrganizationDocument target,
+            int movedMembershipCount,
+            int reparentedChildCount) {}
+
+    public record SplitRequest(
+            String newOrganizationId,
+            String newOrganizationName,
+            String newParentOrganizationId,
+            List<String> childOrganizationIds,
+            List<String> memberSubjectIds) {}
+
+    public record SplitPreviewDocument(
+            String sourceOrganizationId,
+            String newOrganizationId,
+            String newParentOrganizationId,
+            int childCount,
+            int memberCount,
+            boolean childrenValid,
+            boolean inScope) {}
+
+    public record SplitResultDocument(
+            OrganizationDocument created,
+            String sourceOrganizationId,
+            int movedChildCount,
+            int movedMembershipCount) {}
+
+    public record ManagerRequest(String managerSubjectId) {}
+
 }
+
