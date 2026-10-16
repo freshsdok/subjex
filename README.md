@@ -22,6 +22,11 @@ Start here / 从这里开始: [`docs/quickstart.md`](docs/quickstart.md) **golde
 
 [`docs/quickstart.md`](docs/quickstart.md) **黄金路径** = `platform-app` + Next.js 控制台（`web/`，<http://localhost:3000>）。`:8080` 上的 HTML 仅为只读演示。`sample-consumer` 可选。默认操作员口令只用于本地。
 
+**Clients / 终端客户端：** End-user **H5 + 微信小程序** live in [`clients/uni-app/`](clients/uni-app/) (uni-app Vue3+Vite, HBuilderX-compatible). Operator console stays `web/`. Principle: [`docs/adr/0007-client-triad.md`](docs/adr/0007-client-triad.md) / [`AGENTS.md`](AGENTS.md). Quick H5: `cd clients/uni-app && npm install && npm run dev:h5` (see [`docs/quickstart.md`](docs/quickstart.md) § Clients).
+
+终端用户 **H5 + 微信小程序** 在 [`clients/uni-app/`](clients/uni-app/)；操作员控制台仍是 `web/`。原则见 ADR 0007。
+
+
 Optional local stubs / 可选本地 stub: build and run `tools/subjex-init` (`java -jar tools/subjex-init/target/subjex-init-0.1.0-SNAPSHOT.jar --yes`, or `--skip` to do nothing). Details in [`docs/quickstart.md`](docs/quickstart.md) §0. Low-code deepening (stages 0–6): [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17. Zero-code target (seven dims + people/org): same roadmap § Zero-code model / `ARCHITECTURE.md` §18. **Entity drafts (`entity-declare`) are wired into `platform-app` (Flyway V11 `service_note` + JDBC store) — not permanent draft-only.**
 
 可选本地 stub：构建并运行 `tools/subjex-init`（`--yes` 写默认，`--skip` 什么都不做）。见 [`docs/quickstart.md`](docs/quickstart.md) §0。低代码加深（阶段 0–6）：[`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17。零代码目标（七维 + 人员组织）：同路线图「零代码模型」/ `ARCHITECTURE.md` 第 18 节。**实体草稿（`entity-declare`）已接入 `platform-app`（Flyway V11 `service_note` + JDBC），不是永久只出草稿。**

@@ -10,3 +10,7 @@ target/
 object-store/
 /subjex-dev/
 data/declaration-git/
+
+# uni-app clients (also ignored via clients/uni-app/.gitignore)
+clients/uni-app/node_modules/
+clients/uni-app/dist/

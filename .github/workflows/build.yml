@@ -1,4 +1,4 @@
-# Build — 构建：每次 push 和 pull request 跑后端 mvn test 与 web typecheck/test/build。
+# Build — 构建：每次 push 和 pull request 跑后端 mvn test、web typecheck/test/build、clients/uni-app build:h5。
 # mvn test needs no Docker. GitHub's ubuntu runner has Docker, so the live MySQL/PostgreSQL startup tests
 # (Testcontainers) run there too; on a machine without Docker they skip themselves.
 # mvn test 不需要 Docker。GitHub 的 ubuntu 运行器自带 Docker，所以真实 MySQL/PostgreSQL 启动测试在那里也会执行；
@@ -53,6 +53,26 @@ jobs:
         run: npm test
       - name: build
         run: npm run build
+
+
+  # FE-1 follow-up: end-user uni-app H5 only. mp-weixin needs WeChat DevTools / HBuilderX locally — not in CI.
+  # FE-1 后续：终端 uni-app 只跑 H5。微信小程序需本机开发者工具 / HBuilderX，CI 不跑 build:mp-weixin。
+  clients-uni-app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/uni-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: clients/uni-app/package-lock.json
+      - name: npm ci
+        run: npm ci
+      - name: build H5
+        run: npm run build:h5
 
   # P1: build three images + Trivy HIGH/CRITICAL; block on unfixed CRITICAL or non-root failure.
   # P1：构建三镜像并用 Trivy 扫高危；未修复 CRITICAL 或非 root 失败则阻断（发版门禁用）。

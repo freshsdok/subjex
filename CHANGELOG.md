@@ -7,6 +7,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`).
 
+### Added / 新增
+- **FE-1 client triad:** ADR [`0007-client-triad.md`](docs/adr/0007-client-triad.md) — `web/` = operator console; `clients/uni-app/` = end-user H5 + WeChat mini-program (uni-app Vue3+Vite, HBuilderX). Root `AGENTS.md`; ARCHITECTURE §2.1; scaffold shell (index + login placeholder). No C-end inside console; no Taro/RN without new ADR.
+  **FE-1 客户端三端原则：** ADR 0007；控制台 vs uni-app H5/小程序；根 `AGENTS.md`；脚手架壳页。
+- **CI clients H5:** GitHub Actions job `clients-uni-app` runs `npm ci` + `npm run build:h5` (mp-weixin stays local/HBuilderX).
+  CI 增加 `clients-uni-app` 仅构建 H5；小程序仍本机/HBuilderX。
+
 ### Changed / 变更
 - **DX-Onboard-1:** quickstart golden path = `platform-app` + Next.js console (`web/`); HTML routes demoted to read-only demos; optional `web/Dockerfile` + Compose profile `console` (`3b51840`).
   开发者黄金路径改为 platform-app + 控制台；HTML 降为演示；可选 compose console。

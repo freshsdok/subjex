@@ -11,9 +11,26 @@
 - 契约：身份（Account / Subject / Identity）、租户 fail-closed、审计、事件与任务、对象存储、编译期扩展、单一幂等端口、单一限流端口。
 - 数据库端口：连接与迁移可替换。第一版跑通 MySQL 和 PostgreSQL。业务读写不经过模型层。
 - 任务端口：确定性任务是可重试、可核对的数据步骤。非确定性任务只多三个字段：模型标识、输入摘要、人工确认点。未确认不算完成。同一张任务表，不另建表。
-- `platform-app`：空宿主进程。`sample-consumer`：只订阅一条跨进程事件。节点四起另有 `entry-gateway`（入口转发 + 粗限流，第 13 节）；`web/` 是独立的 Next.js 操作员控制台（第 12、14 节）。
+- `platform-app`：空宿主进程。`sample-consumer`：只订阅一条跨进程事件。节点四起另有 `entry-gateway`（入口转发 + 粗限流，第 13 节）；`web/` 是独立的 Next.js **操作员控制台**（第 12、14 节）；终端 H5/小程序见 **`clients/uni-app/`** 与第 2.1 节 / ADR 0007。
 - 薄管理台：第一版只读租户、任务、死信、健康状态。之后的 HTML 页面仍只读；`/api/v1` 与 `web/` 控制台按具名权限可写配置覆盖、登记服务、提交表单（第 9、12、15 节），每次写入都留审计。
 - 架构测试只守本规范已写明的边界，开发过程中不临时加门禁。
+
+## 2.1 客户端交付面 / Client delivery surfaces
+
+| 面 / Surface | 路径 / Path | 技术 / Stack | 受众 / Audience |
+| --- | --- | --- | --- |
+| 操作员控制台 / Operator console | `web/` | Next.js | 操作员 / 编排作者 |
+| 终端 Web·H5 + 微信小程序 / End-user H5 + MP | `clients/uni-app/` | uni-app Vue3 + Vite（兼容 HBuilderX） | 终端用户 |
+
+- **`web/` 保持控制台**；不要把 C 端产品页放进 `web/`，也不要用 uni-app 重写控制台。
+- **终端业务 UI** 落在 `clients/uni-app/`（一套工程发行 H5 与微信小程序）。产品「Web」在本决策下指 uni-app 的 H5 发行。
+- 未经新 ADR，不引入 Taro / React Native 等第二套移动栈。
+- 决策全文：[`docs/adr/0007-client-triad.md`](docs/adr/0007-client-triad.md)；贡献纪律：根目录 [`AGENTS.md`](AGENTS.md)。
+
+- **`web/` remains the console**; do not host C-end pages there or rewrite the console in uni-app.
+- **End-user UI** lives in `clients/uni-app/` (one project → H5 + WeChat mini-program). Product “Web” means the uni-app H5 build under this ADR.
+- No second mobile stack (Taro/RN/…) without a new ADR.
+- Full decision: ADR 0007; contributor rule: root `AGENTS.md`.
 
 ## 3. 第一版实现
 

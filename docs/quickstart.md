@@ -78,6 +78,25 @@ Console details (sessions, Redis, commands): [`web/README.md`](../web/README.md)
 
 控制台细节（会话、Redis、命令）见 [`web/README.md`](../web/README.md)；进度见 [`web/PROGRESS.md`](../web/PROGRESS.md)。
 
+## Clients / 终端客户端（H5 + 微信小程序）
+
+Does **not** replace the console golden path above. Product end-user UI is [`clients/uni-app/`](../clients/uni-app/) (uni-app Vue3 + Vite; HBuilderX-compatible). See ADR [`0007-client-triad.md`](adr/0007-client-triad.md).
+
+**不替代**上面的控制台黄金路径。终端用户面在 `clients/uni-app/`。
+
+```shell
+cd clients/uni-app
+npm install
+npm run dev:h5          # browser H5
+# optional / 可选:
+# npm run build:h5
+# npm run dev:mp-weixin # then open dist/dev/mp-weixin in WeChat DevTools
+```
+
+Default API base: `http://127.0.0.1:8080` (`VITE_SUBJEX_API_BASE` to override). HBuilderX: import the `clients/uni-app` folder (details in [`clients/uni-app/README.md`](../clients/uni-app/README.md)).
+
+
+
 ### D. Optional: sample-consumer / 可选：sample-consumer
 
 Only needed to demo cross-process outbox delivery. Not required for console work.

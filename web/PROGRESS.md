@@ -735,3 +735,7 @@ CI-green wave. [done] 2026-10-17 CST; match build.yml locally.
     Image-scan: Docker unavailable on box — builds/Trivy skipped. Testcontainers vendor tests skipped without Docker.
     Local only (no push). Ready to squash-push when user asks.
     本地 CI 等价全绿；无 Docker 故镜像扫描/Trivy/真库启动测跳过。未推送。
+
+## Related (not console)
+
+FE-1 client triad + `clients/uni-app` shell: see [`clients/PROGRESS.md`](../clients/PROGRESS.md) / ADR 0007 (2026-10-17 CST). Console stays `web/` only.

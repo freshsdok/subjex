@@ -74,3 +74,8 @@ See [`docs/observability/obs-progress.md`](../observability/obs-progress.md) and
 
 **Next:** Feature flags MVP **done** locally (console `/flags` + `FeatureFlagService` gates `search.records`) → pick next wave (e.g. squash-push).
 
+
+## FE clients (2026-10-17 CST) / 前端客户端
+
+- **Mini-program / H5 UI** lives in [`clients/uni-app/`](../../clients/uni-app/) (ADR [`0007-client-triad.md`](../adr/0007-client-triad.md)). Platform WeChat IdP remains **protocol only** (`wechat:mini` jsCode → code2session); do not confuse with the operator console Next callback.
+- 小程序/H5 前端在 `clients/uni-app/`；IdP 仍只是协议面。操作员控制台 Next 回调与终端壳分离。

@@ -1,0 +1,25 @@
+{
+  "name": "subjex",
+  "appid": "",
+  "description": "subjex end-user shell (H5 + WeChat mini-program). Not the operator console.",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "vueVersion": "3",
+  "h5": {
+    "title": "subjex",
+    "router": {
+      "mode": "hash"
+    }
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  },
+  "uniStatistics": {
+    "enable": false
+  }
+}
