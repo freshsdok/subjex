@@ -64,7 +64,8 @@ public final class PlatformTables {
                 OriginKind.valueOf(row.getString("origin_kind")),
                 row.getString("origin_id"),
                 row.getString("failure_reason"),
-                instant(row, "recorded_at"));
+                instant(row, "recorded_at"),
+                instant(row, "discarded_at"));
     }
 
     public static TenantRecord mapTenant(ResultSet row) throws SQLException {

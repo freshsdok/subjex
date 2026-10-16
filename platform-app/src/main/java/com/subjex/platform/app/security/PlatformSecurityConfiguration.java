@@ -7,7 +7,9 @@ import com.subjex.platform.app.identity.OauthClientAdminEndpoint;
 import com.subjex.platform.app.identity.OauthConsentEndpoint;
 import com.subjex.platform.app.idp.IdpProvidersEndpoint;
 import com.subjex.platform.app.idp.MeIdpLinkEndpoint;
+import com.subjex.platform.app.identity.OpIntrospectionEndpoint;
 import com.subjex.platform.app.identity.OpTokenEndpoint;
+import com.subjex.platform.app.identity.OpUserinfoEndpoint;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -76,7 +78,7 @@ public class PlatformSecurityConfiguration {
                                 IdpProvidersEndpoint.PATH + "/*/start",
                                 IdpProvidersEndpoint.PATH + "/*/callback")
                                 .permitAll()
-                        .requestMatchers(MeIdpLinkEndpoint.PATH)
+                        .requestMatchers(MeIdpLinkEndpoint.PATH, MeIdpLinkEndpoint.PATH + "/**")
                                 .authenticated()
                         // ID-1 OP: discovery, JWKS, token are anonymous; authorize requires login.
                         // ID-1 OP：发现/JWKS/token 匿名；authorize 须登录。
@@ -84,6 +86,10 @@ public class PlatformSecurityConfiguration {
                                 .permitAll()
                         .requestMatchers(HttpMethod.POST, OpTokenEndpoint.PATH)
                                 .permitAll()
+                        .requestMatchers(HttpMethod.POST, OpIntrospectionEndpoint.PATH)
+                                .permitAll()
+                        .requestMatchers(HttpMethod.GET, OpUserinfoEndpoint.PATH)
+                                .authenticated()
                         .requestMatchers(HttpMethod.GET, OpAuthorizeEndpoint.PATH)
                                 .authenticated()
                         // MFA enroll/disable/status — signed-in operator only.
@@ -117,6 +123,12 @@ public class PlatformSecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/config")
                                 .hasAuthority(OperatorPermission.CONFIG_READ.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/config/**")
+                                .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
+                        // Feature flags MVP — namespace flags via ConfigCenterPort.
+                        // 功能开关 MVP — 经 ConfigCenterPort 的 flags 命名空间。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/flags", "/api/v1/flags/**")
+                                .hasAuthority(OperatorPermission.CONFIG_READ.permissionName())
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/flags", "/api/v1/flags/**")
                                 .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
                         // Form/page detail + submissions: signed-in only; declared permission checked in the endpoint.
                         // 表单/页面详情与提交：只要求已登录；声明上的权限在接口里核对（免改安全配置）。
@@ -160,6 +172,10 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.DECLARATION_WRITE.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/entities/**")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                        // Search read path MVP (entity_record only; no writes).
+                        // 搜索读路径 MVP（仅 entity_record；无写）。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/search", "/api/v1/search/**")
+                                .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         // WF-1 thin workflow: read vs write/approve split; tenant grant in service.
                         // WF-1 薄工作流：读与写/审批分权；租户授权在服务内核对。
                         .requestMatchers(HttpMethod.GET, "/api/v1/workflows/**")
@@ -189,6 +205,8 @@ public class PlatformSecurityConfiguration {
                                 "/api/v1/capabilities/*/write-back")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
                         .requestMatchers("/admin", "/admin/**", "/audit")
+                                .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
+                        .requestMatchers("/api/v1/dead-letters", "/api/v1/dead-letters/**")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.POST, "/config/entries")
                                 .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())

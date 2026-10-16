@@ -19,6 +19,7 @@ Track for ADR 0003. Order: **identity callable user-center first**, then audit/t
 | **ID-3** ✅ | **Consent + third-party AC** (done): scope catalog, consent challenge/grants, minimal `/oauth/consent` page | ID-1 |
 | **ID-4** ✅ | **IdP SPI + WeChat** (done): GenericOidc + WeChat adapters, providers API, self-link MVP | ID-1 |
 | **ID-5** | *(folded into ID-4 WeChat sketch)* further WeChat UX / unionid admin | ID-4 |
+| **ID-6** | introspect + userinfo + WeChat Next callback + IdP link PoP | ID-4 |
 | **ID-6** | **Introspection + userinfo** for 3rd-party / gateway validation; document integration | ID-1..3 |
 | **OBS-1** ✅ | Audit query API + identity audit coverage + console filters | ID-4 |
 | **OBS-2** ✅ thin | Correlation id + traceparent extract + MDC; OTLP docs | OBS-1 |
@@ -63,5 +64,13 @@ See [`docs/observability/obs-progress.md`](../observability/obs-progress.md) and
 
 ## Next slice recommendation / 下一片建议
 
-**ID-6** introspection + userinfo, or Micrometer/dashboard polish if ops need metrics next.
+## ID-6 [done] 2026-10-16 CST — introspection + userinfo + WeChat callback + IdP PoP
+
+- `POST /oauth2/introspect` (RFC 7662, client_secret_post): OP JWT + opaque operator tokens.
+- `GET /oauth2/userinfo` (Bearer). Discovery lists both endpoints.
+- Console Next: `/api/session/idp/wechat/callback` (mirrors OIDC callback → unified IdP API).
+- Self-link PoP: `POST /me/idp-link/prove` then `PUT /me/idp-link` with `proofToken`; raw issuer+subject rejected. Admin operator idp-link unchanged.
+- Local commits only (no push after org Should).
+
+**Next:** Feature flags MVP **done** locally (console `/flags` + `FeatureFlagService` gates `search.records`) → pick next wave (e.g. squash-push).
 

@@ -205,11 +205,16 @@ public final class JdbcOrganizationStore {
         if (from.equals(to)) {
             throw new IllegalArgumentException("organization relation cannot self-reference");
         }
+        if (!RelationKind.isKnown(kind)) {
+            throw new IllegalArgumentException("unknown relation_kind: " + kind);
+        }
         if (RelationKind.CONTAINS.equals(kind) && STATE_ACTIVE.equals(state)) {
             if (wouldCreateContainsCycle(from, to)) {
                 throw new IllegalArgumentException("CONTAINS relation would form a cycle");
             }
         }
+        // MATRIX_OF: no CONTAINS-style acyclicity; multi-parent matrix allowed.
+        // MATRIX_OF：不做 CONTAINS 式无环校验；允许多父矩阵边。
         int updated = jdbc.update(
                 """
                 UPDATE organization_relation
@@ -844,6 +849,81 @@ public final class JdbcOrganizationStore {
     /** Split outcome — 拆分结果。 */
     public record SplitResult(
             Organization createdOrganization, String sourceOrganizationId, int movedChildCount, int movedMembershipCount) {}
+
+
+    /**
+     * ACTIVE MATRIX_OF edges among the given organization ids (Later L1).
+     * 给定组织集合上的 ACTIVE MATRIX_OF 边。
+     */
+    public List<OrganizationRelation> listActiveMatrixRelations(java.util.Collection<String> organizationIds) {
+        if (organizationIds == null || organizationIds.isEmpty()) {
+            return List.of();
+        }
+        Set<String> ids = new HashSet<>();
+        for (String id : organizationIds) {
+            if (id != null && !id.isBlank()) {
+                ids.add(id.trim());
+            }
+        }
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        List<OrganizationRelation> all = jdbc.query(
+                """
+                SELECT from_organization_id, to_organization_id, relation_kind, relation_state, sort_order
+                FROM organization_relation
+                WHERE relation_kind = ? AND relation_state = ?
+                ORDER BY from_organization_id, to_organization_id
+                """,
+                (row, n) -> new OrganizationRelation(
+                        row.getString("from_organization_id"),
+                        row.getString("to_organization_id"),
+                        row.getString("relation_kind"),
+                        row.getString("relation_state"),
+                        row.getInt("sort_order")),
+                RelationKind.MATRIX_OF,
+                STATE_ACTIVE);
+        List<OrganizationRelation> out = new ArrayList<>();
+        for (OrganizationRelation edge : all) {
+            if (ids.contains(edge.fromOrganizationId()) && ids.contains(edge.toOrganizationId())) {
+                out.add(edge);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Upsert ACTIVE MATRIX_OF (from = matrix supervisor, to = supervised).
+     * 写入 ACTIVE MATRIX_OF。
+     */
+    public OrganizationRelation upsertMatrixOf(String fromOrganizationId, String toOrganizationId) {
+        return upsertRelation(fromOrganizationId, toOrganizationId, RelationKind.MATRIX_OF, STATE_ACTIVE);
+    }
+
+    /**
+     * End ACTIVE MATRIX_OF edge; returns false if none was ACTIVE.
+     * 结束 ACTIVE MATRIX_OF；无则 false。
+     */
+    public boolean endMatrixOf(String fromOrganizationId, String toOrganizationId) {
+        String from = requireNonBlank(fromOrganizationId, "fromOrganizationId");
+        String to = requireNonBlank(toOrganizationId, "toOrganizationId");
+        Integer count = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM organization_relation
+                WHERE from_organization_id = ? AND to_organization_id = ?
+                  AND relation_kind = ? AND relation_state = ?
+                """,
+                Integer.class,
+                from,
+                to,
+                RelationKind.MATRIX_OF,
+                STATE_ACTIVE);
+        if (count == null || count == 0) {
+            return false;
+        }
+        upsertRelation(from, to, RelationKind.MATRIX_OF, STATE_ENDED);
+        return true;
+    }
 
     // --- helpers ---
 

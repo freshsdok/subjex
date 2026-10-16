@@ -44,9 +44,10 @@ public final class JdbcAdminReader {
     public List<DeadLetter> deadLetters() {
         return jdbc.query(
                 """
-                SELECT dead_letter_id, tenant_id, origin_kind, origin_id, failure_reason, recorded_at
+                SELECT dead_letter_id, tenant_id, origin_kind, origin_id, failure_reason, recorded_at, discarded_at
                 FROM dead_letter
-                ORDER BY recorded_at
+                WHERE discarded_at IS NULL
+                ORDER BY recorded_at DESC
                 """,
                 (row, rowNumber) -> PlatformTables.mapDeadLetter(row));
     }

@@ -619,14 +619,19 @@ ID-4. [done] 2026-10-15 CST; pluggable IdP SPI + WeChat sketch (identity MVP wav
     Tests: IdpWeChatAdapterTest. Local only (no push). Next = **OBS-1** observability (or ID-6 introspect).
     IdP SPI + 微信草图完成；身份 MVP 波次可收口。下一片 OBS 可观测性。仅本地提交。
 
+ID-6. [done] 2026-10-16 CST; token introspection + userinfo + WeChat Next callback + IdP link PoP.
+    `/oauth2/introspect` + `/oauth2/userinfo`; discovery; `/api/session/idp/wechat/callback`;
+    `POST /me/idp-link/prove` then PUT with proofToken. Local only (no push).
+    自省/UserInfo/微信回调路由/自助绑定 PoP。仅本地提交。
+
 ## Platform wave pointer / 平台波次指针 (2026-10-16)
 
 TN+WF squashed to github/main `c18b956`. Next product track: **Org Builder** (visual org structure).
 
 - Research + target (ORG-UI-0): [`docs/org/org-structure-research.md`](../docs/org/org-structure-research.md), [`docs/org/org-builder-target.md`](../docs/org/org-builder-target.md), ADR draft [`docs/adr/0006-org-builder-and-relation-kinds.md`](../docs/adr/0006-org-builder-and-relation-kinds.md).
-- Must MVP on github/main `02e40d3`. Should S1–S6 local (see ORG-S* below). Next = squash-push Should when asked.
+- Org Builder Should on github/main `f5c621b`. Identity ID-6 local. Outbox DLQ/replay local. Next: feature flags MVP done locally → squash-push when ready.
 
-Must 已上 main；Should S1–S6 本地完成。
+Org Should 已上 main；ID-6 与出箱 DLQ 本地完成。
 
 ## Org Builder — 组织架构构建器
 
@@ -693,3 +698,14 @@ ORG-S6. [done] 2026-10-16 CST; department manager (Should S6).
     assign ensures ACTIVE Membership for OrgScope; clear keeps membership. Side panel. Local only.
     Should S1–S6 complete locally (no push).
     部门主管完成；Should 本地收口。
+
+
+## Outbox DLQ / 出箱死信
+
+OUTBOX-DLQ. [done] 2026-10-16 CST; dead-letter replay/discard + event contract.
+    Already: relay + DEAD after max attempts + `dead_letter` table + GET /admin/dead-letters.
+    Added: V42 `discarded_at`; `TaskMessagePort.replayDeadLetter` / `discardDeadLetter`;
+    JSON `/api/v1/dead-letters` (+ replay/discard); console `/dead-letters`;
+    docs `docs/delivery/outbox-event-contract.md` (CloudEvents-ish mapping).
+    Org Later inventory note only: `docs/org/org-later-inventory.md`. Local only (no push).
+    死信重放/丢弃与事件契约；Org Later 仅盘点。仅本地提交。

@@ -133,3 +133,9 @@ Core ADR decisions are now coded: hybrid default + shared table, optional physic
 
 - Non-scoped hybrid rows stamp `tenant_id = ''` (platform sentinel).
 - `attrs`: V30 VARCHAR JSON text for dual-mode; **PostgreSQL** upgraded to jsonb + GIN in V32 (SHARED-1). MySQL/H2 remain VARCHAR text.
+
+### Search read path MVP [done] 2026-10-16 CST
+
+- Read-only `GET /api/v1/search/records` over `entity_record` (substring + optional PG `@>`).
+- Console `/search`. Writes unchanged. Full Elasticsearch remains Later.
+- See [`docs/search/search-read-path.md`](../search/search-read-path.md).

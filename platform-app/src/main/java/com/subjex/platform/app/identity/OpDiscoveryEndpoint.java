@@ -34,11 +34,14 @@ public class OpDiscoveryEndpoint {
         doc.put("authorization_endpoint", issuer + "/oauth2/authorize");
         doc.put("token_endpoint", issuer + "/oauth2/token");
         doc.put("jwks_uri", issuer + JWKS_PATH);
+        doc.put("introspection_endpoint", issuer + OpIntrospectionEndpoint.PATH);
+        doc.put("userinfo_endpoint", issuer + OpUserinfoEndpoint.PATH);
         doc.put("response_types_supported", List.of("code"));
         doc.put("grant_types_supported", List.of("authorization_code", "client_credentials"));
         doc.put("subject_types_supported", List.of("public"));
         doc.put("id_token_signing_alg_values_supported", List.of("RS256"));
         doc.put("token_endpoint_auth_methods_supported", List.of("none", "client_secret_post"));
+        doc.put("introspection_endpoint_auth_methods_supported", List.of("client_secret_post"));
         doc.put("code_challenge_methods_supported", List.of("S256"));
         doc.put("scopes_supported", List.of("openid", "profile"));
         return doc;

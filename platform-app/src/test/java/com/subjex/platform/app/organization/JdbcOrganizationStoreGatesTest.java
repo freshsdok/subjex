@@ -337,4 +337,37 @@ class JdbcOrganizationStoreGatesTest {
         assertTrue(tables.contains("org_unit_organization_map"), tables.toString());
         assertTrue(tables.contains("organization_manager"), tables.toString());
     }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    @DisplayName("ORG-L1 MATRIX_OF upsert/list/end; no CONTAINS cycle rule")
+    void ORG_L1_matrixOfSketch(H2PlatformTables.Mode mode) {
+        JdbcTemplate jdbc = new JdbcTemplate(H2PlatformTables.migrated(mode));
+        JdbcOrganizationStore store = new JdbcOrganizationStore(jdbc);
+        store.upsertOrganization("mx-a", "A", null);
+        store.upsertOrganization("mx-b", "B", null);
+        store.upsertOrganization("mx-c", "C", null);
+
+        OrganizationRelation edge = store.upsertMatrixOf("mx-a", "mx-b");
+        assertEquals(RelationKind.MATRIX_OF, edge.relationKind());
+        assertEquals("ACTIVE", edge.relationState());
+
+        // Multi-parent matrix allowed (no CONTAINS-style cycle rejection).
+        store.upsertMatrixOf("mx-c", "mx-b");
+        store.upsertMatrixOf("mx-b", "mx-a"); // reverse matrix OK
+        assertEquals(3, store.listActiveMatrixRelations(List.of("mx-a", "mx-b", "mx-c")).size());
+
+        assertTrue(store.endMatrixOf("mx-a", "mx-b"));
+        assertFalse(store.endMatrixOf("mx-a", "mx-b"));
+        assertEquals(2, store.listActiveMatrixRelations(List.of("mx-a", "mx-b", "mx-c")).size());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> store.upsertMatrixOf("mx-a", "mx-a"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> store.upsertRelation("mx-a", "mx-b", "UNKNOWN_KIND", null));
+    }
+
+
 }

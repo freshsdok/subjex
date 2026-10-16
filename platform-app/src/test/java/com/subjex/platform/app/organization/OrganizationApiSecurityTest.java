@@ -4,6 +4,7 @@ import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguratio
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR_PASSWORD;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER_PASSWORD;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -502,6 +503,67 @@ class OrganizationApiSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Deprecation", "true"))
                 .andExpect(header().string("Link", "<" + OrganizationApiEndpoint.PATH + ">; rel=\"successor-version\""));
+    }
+
+
+    @Test
+    void matrixRelationsListRequiresOrgRead() throws Exception {
+        mockMvc.perform(get(OrganizationApiEndpoint.PATH + "/matrix-relations")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(BARE, BARE_PASSWORD)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void matrixRelationsCrudHappyPath() throws Exception {
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-a", "A", "ACTIVE"),
+                        new Organization("org-b", "B", "ACTIVE")));
+        when(store.listActiveMatrixRelations(any()))
+                .thenReturn(List.of(new OrganizationRelation("org-a", "org-b", RelationKind.MATRIX_OF, "ACTIVE")));
+        when(store.upsertMatrixOf("org-a", "org-b"))
+                .thenReturn(new OrganizationRelation("org-a", "org-b", RelationKind.MATRIX_OF, "ACTIVE"));
+        when(store.endMatrixOf("org-a", "org-b")).thenReturn(true);
+
+        mockMvc.perform(get(OrganizationApiEndpoint.PATH + "/matrix-relations")
+                        .param("tenantId", "acme")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.matrixRelations[0].relationKind").value("MATRIX_OF"));
+
+        mockMvc.perform(put(OrganizationApiEndpoint.PATH + "/matrix-relations")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fromOrganizationId\":\"org-a\",\"toOrganizationId\":\"org-b\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fromOrganizationId").value("org-a"));
+
+        mockMvc.perform(delete(OrganizationApiEndpoint.PATH + "/matrix-relations")
+                        .param("tenantId", "acme")
+                        .param("fromOrganizationId", "org-a")
+                        .param("toOrganizationId", "org-b")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk());
+        verify(store).endMatrixOf("org-a", "org-b");
+    }
+
+    @Test
+    void matrixWriteOutOfScopeDenied() throws Exception {
+        OrganizationScope scope = OrganizationScope.selfAndDescendants(List.of("org-a"), List.of("org-a"));
+        when(scopeResolver.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID)).thenReturn(scope);
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-a", "A", "ACTIVE"),
+                        new Organization("org-b", "B", "ACTIVE")));
+
+        mockMvc.perform(put(OrganizationApiEndpoint.PATH + "/matrix-relations")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fromOrganizationId\":\"org-a\",\"toOrganizationId\":\"org-b\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isForbidden());
     }
 
     @TestConfiguration

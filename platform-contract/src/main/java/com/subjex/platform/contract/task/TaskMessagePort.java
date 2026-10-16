@@ -32,4 +32,17 @@ public interface TaskMessagePort {
      * 后台重投一批 PENDING 出箱行；返回变成 PUBLISHED 的条数。熔断拒呼时跳过，以免冷却期内耗尽尝试次数。
      */
     int relayPending(int batchSize);
+
+    /**
+     * Replay an OUTBOX_EVENT dead letter: reset event to PENDING and remove the letter, then deliver once.
+     * TASK-origin letters are not supported here (use task retry).
+     * 重放出箱死信：事件重回 PENDING 并删死信行，再投递一次。任务来源不支持（用任务重试）。
+     */
+    OutboxEvent replayDeadLetter(String deadLetterId);
+
+    /**
+     * Discard a dead letter (mark discarded_at). Idempotent if already discarded.
+     * 丢弃死信（写 discarded_at）；已丢弃则幂等。
+     */
+    DeadLetter discardDeadLetter(String deadLetterId);
 }

@@ -163,6 +163,21 @@ class OrganizationScopeResolverTest {
         assertFalse(resolver.resolveSelfAndDescendants("beta", "sub-x").isNone());
     }
 
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    @DisplayName("O8 MATRIX_OF does not expand OrgScope")
+    void matrixOfDoesNotExpandScope(H2PlatformTables.Mode mode) {
+        Fixture f = Fixture.seed(mode);
+        // eng member sees eng+team via CONTAINS; sales is sibling under root — out of scope.
+        f.store.upsertMatrixOf("org-eng", "org-sales");
+        OrganizationScope scope = f.resolver.resolveSelfAndDescendants("acme", "sub-eng");
+        assertTrue(scope.contains("org-eng"));
+        assertTrue(scope.contains("org-team"));
+        assertFalse(scope.contains("org-sales"), "MATRIX_OF must not pull sales into eng scope");
+        assertFalse(scope.contains("org-root"));
+    }
+
     private record Fixture(
             JdbcOrganizationStore store, OrganizationScopeResolver resolver) {
         static Fixture seed(H2PlatformTables.Mode mode) {

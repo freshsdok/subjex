@@ -11,6 +11,7 @@ import com.subjex.platform.app.idp.WeChatIdpAdapter;
 import com.subjex.platform.app.idp.WeChatApiClient;
 import com.subjex.platform.app.idp.IdpLoginOrchestrator;
 import com.subjex.platform.app.idp.IdpAdapterRegistry;
+import com.subjex.platform.app.idp.IdpLinkProofStore;
 import com.subjex.platform.app.idp.IdpAdapter;
 import com.subjex.platform.app.idp.GenericOidcIdpAdapter;
 import com.subjex.platform.app.identity.OpProperties;
@@ -216,6 +217,11 @@ public class OperatorDirectoryTestConfiguration {
     @Bean
     IdpAdapterRegistry idpAdapterRegistry(GenericOidcIdpAdapter genericOidc, WeChatIdpAdapter weChat) {
         return new IdpAdapterRegistry(java.util.List.<IdpAdapter>of(genericOidc, weChat));
+    }
+
+    @Bean
+    IdpLinkProofStore idpLinkProofStore() {
+        return new IdpLinkProofStore(Clock.systemUTC());
     }
 
     @Bean

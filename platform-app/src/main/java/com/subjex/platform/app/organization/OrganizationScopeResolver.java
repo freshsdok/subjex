@@ -13,7 +13,7 @@ import java.util.TreeSet;
  * <p>
  * Reads ontology tables only (no {@code JdbcOrgDirectory}, no {@code org_unit_organization_map}).
  * Tenant filters which ACTIVE memberships count as roots via {@code TenantOrganization};
- * expansion is ACTIVE CONTAINS only. Empty ACTIVE memberships → {@link OrganizationScope#none()}
+ * expansion is ACTIVE CONTAINS only; {@code MATRIX_OF} (Later L1) never expands scope. Empty ACTIVE memberships → {@link OrganizationScope#none()}
  * (fail-closed; never silently UNRESTRICTED). Membership has no tenant_id.
  * <p>
  * 仅读本体表；租户经 TenantOrganization 过滤根；下级仅 CONTAINS；无成员 → NONE。

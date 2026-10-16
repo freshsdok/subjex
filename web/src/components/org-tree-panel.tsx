@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 import { OrgCanvas } from "@/components/org-canvas";
 import {
@@ -27,6 +27,13 @@ type MembershipRow = {
   subjectId?: string;
   organizationId?: string;
   membershipState?: string;
+};
+
+type MatrixRow = {
+  fromOrganizationId: string;
+  toOrganizationId: string;
+  relationKind?: string;
+  relationState?: string;
 };
 
 type MoveReview = {
@@ -58,7 +65,41 @@ export function OrgTreePanel({
   canWrite,
   onMoved,
 }: Props) {
+  const [matrixRows, setMatrixRows] = useState<MatrixRow[]>([]);
+  const [matrixOtherId, setMatrixOtherId] = useState("");
+  const [matrixAsSupervisor, setMatrixAsSupervisor] = useState(true);
+  const [matrixStep, setMatrixStep] = useState<FormStep>("editing");
+  const [matrixProblem, setMatrixProblem] = useState<string | null>(null);
+  const [matrixPendingRemove, setMatrixPendingRemove] = useState<MatrixRow | null>(null);
+
   const forest = useMemo(() => buildOrgForest(organizations), [organizations]);
+  const matrixLinks = useMemo(
+    () => matrixRows.map((r) => ({ fromId: r.fromOrganizationId, toId: r.toOrganizationId })),
+    [matrixRows],
+  );
+
+  const loadMatrix = useCallback(async () => {
+    const tid = tenantId.trim();
+    if (!tid) {
+      setMatrixRows([]);
+      return;
+    }
+    const q = `tenantId=${encodeURIComponent(tid)}`;
+    const reply = await fetch(`/api/platform/organizations/matrix-relations?${q}`, {
+      cache: "no-store",
+    }).catch(() => null);
+    if (!reply?.ok) {
+      setMatrixRows([]);
+      return;
+    }
+    const body = (await reply.json()) as { matrixRelations?: MatrixRow[] };
+    setMatrixRows(body.matrixRelations ?? []);
+  }, [tenantId]);
+
+  useEffect(() => {
+    void loadMatrix();
+  }, [loadMatrix]);
+
   const [vizMode, setVizMode] = useState<"tree" | "canvas">("tree");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => defaultExpandedIds(forest));
@@ -109,6 +150,7 @@ export function OrgTreePanel({
   const [managerStep, setManagerStep] = useState<FormStep>("editing");
   const [managerMode, setManagerMode] = useState<"assign" | "clear">("assign");
   const [managerProblem, setManagerProblem] = useState<string | null>(null);
+
 
   const listRef = useRef<HTMLDivElement>(null);
   const skipExpandSync = useRef(false);
@@ -823,6 +865,64 @@ export function OrgTreePanel({
     return <p className="mt-3 text-sm text-muted">{phrases.emptyList}</p>;
   }
 
+
+  async function confirmMatrixAdd() {
+    if (!canWrite || !selectedId) return;
+    setMatrixStep("saving");
+    setMatrixProblem(null);
+    const tid = tenantId.trim();
+    const other = matrixOtherId.trim();
+    if (!other || other === selectedId) {
+      setMatrixProblem(phrases.orgIdInvalid);
+      setMatrixStep("editing");
+      return;
+    }
+    const from = matrixAsSupervisor ? selectedId : other;
+    const to = matrixAsSupervisor ? other : selectedId;
+    const q = `tenantId=${encodeURIComponent(tid)}`;
+    const reply = await fetch(`/api/platform/organizations/matrix-relations?${q}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fromOrganizationId: from, toOrganizationId: to }),
+    }).catch(() => null);
+    if (!reply?.ok) {
+      setMatrixProblem(fillPhrase(phrases.orgMatrixFailed, { status: String(reply?.status || 0) }));
+      setMatrixStep("editing");
+      return;
+    }
+    setMatrixStep("editing");
+    setMatrixOtherId("");
+    setPanelNotice(phrases.orgMatrixSavedNotice);
+    await loadMatrix();
+    onMoved?.();
+  }
+
+  async function confirmMatrixRemove() {
+    if (!canWrite || !matrixPendingRemove) return;
+    setMatrixStep("saving");
+    setMatrixProblem(null);
+    const tid = tenantId.trim();
+    const q = new URLSearchParams({
+      tenantId: tid,
+      fromOrganizationId: matrixPendingRemove.fromOrganizationId,
+      toOrganizationId: matrixPendingRemove.toOrganizationId,
+    });
+    const reply = await fetch(`/api/platform/organizations/matrix-relations?${q}`, {
+      method: "DELETE",
+    }).catch(() => null);
+    if (!reply?.ok) {
+      setMatrixProblem(fillPhrase(phrases.orgMatrixFailed, { status: String(reply?.status || 0) }));
+      setMatrixStep("editing");
+      return;
+    }
+    setMatrixPendingRemove(null);
+    setMatrixStep("editing");
+    setPanelNotice(phrases.orgMatrixSavedNotice);
+    await loadMatrix();
+    onMoved?.();
+  }
+
+
   return (
     <div className="mt-3 flex flex-col gap-3">
       <div className="flex flex-wrap gap-1" role="tablist" aria-label={phrases.orgTreeTitle}>
@@ -1065,6 +1165,7 @@ export function OrgTreePanel({
               selectedId={selectedId}
               onSelect={selectNode}
               exportBasename={`org-${tenantId.trim() || "chart"}`}
+              matrixLinks={matrixLinks}
             />
           )}
         </div>
@@ -1267,6 +1368,133 @@ export function OrgTreePanel({
                           type="button"
                           onClick={() => setManagerStep("editing")}
                           disabled={managerStep === "saving"}
+                          className="rounded-md border border-border px-2 py-0.5"
+                        >
+                          {phrases.cancelAction}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                ) : null}
+              </div>
+
+
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="font-medium">{phrases.orgMatrixTitle}</p>
+                <p className="text-muted">{phrases.orgMatrixHint}</p>
+                {(() => {
+                  const related = matrixRows.filter(
+                    (r) =>
+                      r.fromOrganizationId === selected.organizationId ||
+                      r.toOrganizationId === selected.organizationId,
+                  );
+                  if (related.length === 0) {
+                    return <p className="text-muted">{phrases.orgMatrixEmpty}</p>;
+                  }
+                  return (
+                    <ul className="space-y-1 font-mono text-xs">
+                      {related.map((r) => {
+                        const asFrom = r.fromOrganizationId === selected.organizationId;
+                        const other = asFrom ? r.toOrganizationId : r.fromOrganizationId;
+                        return (
+                          <li
+                            key={`${r.fromOrganizationId}->${r.toOrganizationId}`}
+                            className="flex flex-wrap items-center justify-between gap-1"
+                          >
+                            <span>
+                              {asFrom ? phrases.orgMatrixAsSupervisor : phrases.orgMatrixAsSupervised}:{" "}
+                              {other}
+                            </span>
+                            {canWrite ? (
+                              <button
+                                type="button"
+                                className="rounded border border-border px-1 py-0.5 text-[10px]"
+                                onClick={() => {
+                                  setMatrixProblem(null);
+                                  setMatrixPendingRemove(r);
+                                  setMatrixStep("reviewing");
+                                }}
+                              >
+                                {phrases.orgMatrixRemoveAction}
+                              </button>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  );
+                })()}
+                {canWrite ? (
+                  matrixStep === "editing" ? (
+                    <div className="flex flex-col gap-2">
+                      <label className="flex flex-col gap-1">
+                        {phrases.orgMatrixOtherOrgLabel}
+                        <input
+                          value={matrixOtherId}
+                          onChange={(e) => setMatrixOtherId(e.target.value)}
+                          className="rounded-md border border-border bg-background px-2 py-1 font-mono"
+                          autoComplete="off"
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={matrixAsSupervisor}
+                          onChange={(e) => setMatrixAsSupervisor(e.target.checked)}
+                        />
+                        {phrases.orgMatrixAsSupervisor}
+                      </label>
+                      {matrixProblem ? (
+                        <p role="alert" className="text-red-700">
+                          {matrixProblem}
+                        </p>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMatrixProblem(null);
+                          setMatrixPendingRemove(null);
+                          setMatrixStep("reviewing");
+                        }}
+                        className="rounded-md bg-foreground px-2 py-1 text-background"
+                      >
+                        {phrases.orgMatrixAddAction}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-xs">
+                        {matrixPendingRemove
+                          ? `${phrases.orgMatrixRemoveAction}: ${matrixPendingRemove.fromOrganizationId} → ${matrixPendingRemove.toOrganizationId}`
+                          : `${phrases.orgMatrixAddAction}: ${
+                              matrixAsSupervisor ? selected.organizationId : matrixOtherId.trim()
+                            } → ${
+                              matrixAsSupervisor ? matrixOtherId.trim() : selected.organizationId
+                            }`}
+                      </p>
+                      {matrixProblem ? (
+                        <p role="alert" className="text-red-700">
+                          {matrixProblem}
+                        </p>
+                      ) : null}
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void (matrixPendingRemove ? confirmMatrixRemove() : confirmMatrixAdd())
+                          }
+                          disabled={matrixStep === "saving"}
+                          className="rounded-md bg-foreground px-2 py-0.5 text-background disabled:opacity-60"
+                        >
+                          {matrixStep === "saving" ? phrases.savingAction : phrases.confirmSaveAction}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMatrixStep("editing");
+                            setMatrixPendingRemove(null);
+                          }}
+                          disabled={matrixStep === "saving"}
                           className="rounded-md border border-border px-2 py-0.5"
                         >
                           {phrases.cancelAction}

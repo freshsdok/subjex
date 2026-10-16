@@ -8,6 +8,9 @@ public final class ConfigNamespaces {
     /** Flat keys and local application config live here — 扁平行与本地应用配置落在此命名空间。 */
     public static final String DEFAULT = "default";
 
+    /** Tenant / product feature flags (string values; boolean interpreted by flags API) — 功能开关命名空间。 */
+    public static final String FLAGS = "flags";
+
     private ConfigNamespaces() {}
 
     public static String require(String namespace) {

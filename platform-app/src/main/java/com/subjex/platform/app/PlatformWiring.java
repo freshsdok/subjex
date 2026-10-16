@@ -20,6 +20,8 @@ import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.entity.AttrsJsonbQueries;
 import com.subjex.platform.app.entity.JdbcHybridEntityStore;
+import com.subjex.platform.app.search.EntityRecordSearchStore;
+import com.subjex.platform.app.search.JdbcEntityRecordSearchStore;
 import com.subjex.platform.app.entity.ChunkedBlobUploadStore;
 import com.subjex.platform.app.identity.JdbcOauthAuthCodeStore;
 import com.subjex.platform.app.identity.JdbcOauthClientStore;
@@ -89,6 +91,7 @@ import com.subjex.platform.app.idp.GenericOidcIdpAdapter;
 import com.subjex.platform.app.idp.HttpWeChatApiClient;
 import com.subjex.platform.app.idp.IdpAdapter;
 import com.subjex.platform.app.idp.IdpAdapterRegistry;
+import com.subjex.platform.app.idp.IdpLinkProofStore;
 import com.subjex.platform.app.idp.IdpLoginOrchestrator;
 import com.subjex.platform.app.idp.WeChatApiClient;
 import com.subjex.platform.app.idp.WeChatIdpAdapter;
@@ -102,6 +105,7 @@ import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.app.storage.S3ObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.app.config.ConfigCatalog;
+import com.subjex.platform.app.flags.FeatureFlagService;
 import com.subjex.platform.contract.config.ConfigCenterPort;
 import com.subjex.platform.contract.config.ConfigListing;
 import com.subjex.platform.contract.config.ConfigSource;
@@ -180,6 +184,14 @@ public class PlatformWiring {
     @Bean
     ConfigCenterPort configCenterPort(ConfigCatalog configCatalog) {
         return configCatalog;
+    }
+
+    /**
+     * Feature flags resolver (config namespace flags) — 功能开关解析（flags 命名空间）。
+     */
+    @Bean
+    FeatureFlagService featureFlagService(ConfigCenterPort configCenterPort) {
+        return new FeatureFlagService(configCenterPort);
     }
 
     /**
@@ -448,6 +460,11 @@ public class PlatformWiring {
     }
 
     @Bean
+    IdpLinkProofStore idpLinkProofStore(Clock clock) {
+        return new IdpLinkProofStore(clock);
+    }
+
+    @Bean
     IdpLoginOrchestrator idpLoginOrchestrator(
             IdpAdapterRegistry idpAdapterRegistry,
             JdbcOperatorIdpLinkStore operatorIdpLinkStore,
@@ -652,6 +669,18 @@ public class PlatformWiring {
         // SHARED-1：PostgreSQL 走 attrs @> + GIN；MySQL 仍内存扫描。
         boolean jsonbFilter = AttrsJsonbQueries.sqlContainmentEnabled(connection.vendor());
         return new JdbcHybridEntityStore(jdbc, clock, objectMapper, jsonbFilter);
+    }
+
+
+    /**
+     * Search read path MVP — read-only entity_record substring / optional attrs equality.
+     * 搜索读路径 MVP：只读 entity_record 子串 / 可选 attrs 等值。
+     */
+    @Bean
+    EntityRecordSearchStore entityRecordSearchStore(
+            JdbcTemplate jdbc, ObjectMapper objectMapper, ConfiguredConnection connection) {
+        boolean jsonb = AttrsJsonbQueries.sqlContainmentEnabled(connection.vendor());
+        return new JdbcEntityRecordSearchStore(jdbc, objectMapper, jsonb);
     }
 
     /**

@@ -39,6 +39,7 @@ import org.springframework.web.server.ResponseStatusException;
  * (same as legacy {@code /api/v1/org/**}). Writes hit ontology tables only (O8-4: no map /
  * {@link OrganizationOntologyBackfill} on the happy path). Scope from
  * {@link OrganizationScopeResolver} (Membership + CONTAINS; no map).
+ * {@code MATRIX_OF} (Later L1) is listed/written here but never expands OrgScope.
  * Out-of-scope reads/writes -> {@link AccessDecision#DENY_ORG_OUT_OF_SCOPE} (fail-closed);
  * null actor -> {@link OrganizationScope#none()}, never silent UNRESTRICTED.
  * <p>
@@ -582,6 +583,85 @@ public class OrganizationApiEndpoint {
     }
 
     /**
+     * List ACTIVE MATRIX_OF edges among tenant-linked orgs in actor OrgScope (Later L1).
+     * Does not expand OrgScope. MATRIX_OF 边列表；不参与 OrgScope 闭包。
+     */
+    @GetMapping(PATH + "/matrix-relations")
+    public MatrixRelationsDocument listMatrixRelations(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestParam(value = "tenantId", required = false) String tenantId) {
+        String tid = requireTenantIdParam(tenantId);
+        OrganizationScope scope = resolveScope(operator, tid);
+        List<String> linkedIds = store.listOrganizationsLinkedToTenant(tid).stream()
+                .map(Organization::organizationId)
+                .filter(id -> inScopeOrUnspecified(scope, id))
+                .toList();
+        List<MatrixRelationDocument> relations = store.listActiveMatrixRelations(linkedIds).stream()
+                .map(e -> new MatrixRelationDocument(
+                        tid, e.fromOrganizationId(), e.toOrganizationId(), e.relationKind(), e.relationState()))
+                .toList();
+        return new MatrixRelationsDocument(relations);
+    }
+
+    /**
+     * Upsert ACTIVE MATRIX_OF (from = matrix supervisor, to = supervised). Both ends in OrgScope.
+     * 写入 MATRIX_OF；两端须在 OrgScope 内。不改变 CONTAINS / OrgScope。
+     */
+    @PutMapping(PATH + "/matrix-relations")
+    public MatrixRelationDocument putMatrixRelation(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody MatrixRelationWriteRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        if (body == null) {
+            throw new IllegalArgumentException("body required");
+        }
+        String from = requireNonBlank(body.fromOrganizationId(), "fromOrganizationId");
+        String to = requireNonBlank(body.toOrganizationId(), "toOrganizationId");
+        requireLinkedToTenant(tid, from);
+        requireLinkedToTenant(tid, to);
+        OrganizationScope scope = resolveScope(operator, tid);
+        requireMoveWritable(operator, tid, scope, from, to);
+        requireMoveWritable(operator, tid, scope, to, from);
+        OrganizationRelation saved = store.upsertMatrixOf(from, to);
+        audit.record(
+                operator,
+                "org.organization.matrix.upsert",
+                tid + "/" + from + "->" + to,
+                AuditOutcome.ALLOWED);
+        return new MatrixRelationDocument(
+                tid, saved.fromOrganizationId(), saved.toOrganizationId(), saved.relationKind(), saved.relationState());
+    }
+
+    /**
+     * End ACTIVE MATRIX_OF. Both ends in OrgScope.
+     * 结束 MATRIX_OF；两端须在 OrgScope 内。
+     */
+    @DeleteMapping(PATH + "/matrix-relations")
+    public void deleteMatrixRelation(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestParam(value = "fromOrganizationId", required = false) String fromOrganizationId,
+            @RequestParam(value = "toOrganizationId", required = false) String toOrganizationId) {
+        String tid = requireTenant(operator, tenantId);
+        String from = requireNonBlank(fromOrganizationId, "fromOrganizationId");
+        String to = requireNonBlank(toOrganizationId, "toOrganizationId");
+        requireLinkedToTenant(tid, from);
+        requireLinkedToTenant(tid, to);
+        OrganizationScope scope = resolveScope(operator, tid);
+        requireMoveWritable(operator, tid, scope, from, to);
+        requireMoveWritable(operator, tid, scope, to, from);
+        if (!store.endMatrixOf(from, to)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        audit.record(
+                operator,
+                "org.organization.matrix.end",
+                tid + "/" + from + "->" + to,
+                AuditOutcome.ALLOWED);
+    }
+
+    /**
      * Assign department manager (Should S6) — ensures Membership for OrgScope.
      * 指定部门主管；确保 Membership 以纳入 OrgScope。
      */
@@ -927,6 +1007,17 @@ public class OrganizationApiEndpoint {
             int movedMembershipCount) {}
 
     public record ManagerRequest(String managerSubjectId) {}
+
+    public record MatrixRelationsDocument(List<MatrixRelationDocument> matrixRelations) {}
+
+    public record MatrixRelationDocument(
+            String tenantId,
+            String fromOrganizationId,
+            String toOrganizationId,
+            String relationKind,
+            String relationState) {}
+
+    public record MatrixRelationWriteRequest(String fromOrganizationId, String toOrganizationId) {}
 
 }
 

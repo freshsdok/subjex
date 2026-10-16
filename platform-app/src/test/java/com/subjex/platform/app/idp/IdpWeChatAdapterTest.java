@@ -140,13 +140,26 @@ class IdpWeChatAdapterTest {
                 .andExpect(status().isOk())
                 .andReturn();
         String access = objectMapper.readTree(login.getResponse().getContentAsString()).path("accessToken").asText();
+        // PoP: prove via IdP callback, then bind with proofToken (raw issuer+subject rejected).
+        stubSession.set(new WeChatApiClient.WeChatSession("mini-openid", "union-1"));
+        MvcResult prove = mockMvc.perform(post(MeIdpLinkEndpoint.PATH + "/prove")
+                        .header("Authorization", "Bearer " + access)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"providerId\":\"wechat\",\"jsCode\":\"mini-js-prove\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.proofToken").isNotEmpty())
+                .andExpect(jsonPath("$.issuer").value(WeChatProperties.ISSUER_MINI))
+                .andReturn();
+        String proof = objectMapper.readTree(prove.getResponse().getContentAsString()).path("proofToken").asText();
         mockMvc.perform(put(MeIdpLinkEndpoint.PATH)
                         .header("Authorization", "Bearer " + access)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(
-                                "{\"issuer\":\""
-                                        + WeChatProperties.ISSUER_MINI
-                                        + "\",\"idpSubject\":\"union-1\"}"))
+                        .content("{\"issuer\":\"ignored\",\"idpSubject\":\"ignored\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put(MeIdpLinkEndpoint.PATH)
+                        .header("Authorization", "Bearer " + access)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"proofToken\":\"" + proof + "\"}"))
                 .andExpect(status().isNoContent());
         stubSession.set(new WeChatApiClient.WeChatSession("mini-openid", "union-1"));
         mockMvc.perform(post(IdpProvidersEndpoint.PATH + "/wechat/callback")

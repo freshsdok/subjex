@@ -300,6 +300,78 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
         }
     }
 
+
+    @Override
+    public OutboxEvent replayDeadLetter(String deadLetterId) {
+        String id = requireId(deadLetterId, "deadLetterId");
+        DeadLetter letter = loadDeadLetter(id);
+        if (letter.discardedAt() != null) {
+            throw new IllegalArgumentException("dead-letter-discarded");
+        }
+        if (letter.originKind() != OriginKind.OUTBOX_EVENT) {
+            throw new IllegalArgumentException("dead-letter-not-outbox");
+        }
+        String eventId = letter.originId();
+        transaction.executeWithoutResult(status -> {
+            int updated = jdbc.update(
+                    """
+                    UPDATE outbox_event
+                    SET event_state = ?, attempt_count = 0, failure_reason = NULL, published_at = NULL
+                    WHERE event_id = ? AND event_state = ?
+                    """,
+                    OutboxState.PENDING.name(),
+                    eventId,
+                    OutboxState.DEAD.name());
+            if (updated != 1) {
+                throw new IllegalArgumentException("outbox-event-not-dead");
+            }
+            jdbc.update("DELETE FROM dead_letter WHERE dead_letter_id = ?", id);
+        });
+        OutboxEvent pending = loadOutbox(eventId);
+        DeliveryAttempt delivery = deliveryPort.deliver(pending, false);
+        if (!"breaker-open".equals(delivery.result().failureReason())) {
+            transaction.executeWithoutResult(status -> recordDelivery(eventId, delivery.result()));
+        }
+        return loadOutbox(eventId);
+    }
+
+    @Override
+    public DeadLetter discardDeadLetter(String deadLetterId) {
+        String id = requireId(deadLetterId, "deadLetterId");
+        DeadLetter letter = loadDeadLetter(id);
+        if (letter.discardedAt() != null) {
+            return letter;
+        }
+        Instant now = clock.instant();
+        jdbc.update(
+                "UPDATE dead_letter SET discarded_at = ? WHERE dead_letter_id = ? AND discarded_at IS NULL",
+                PlatformTables.timestamp(now),
+                id);
+        return loadDeadLetter(id);
+    }
+
+    private DeadLetter loadDeadLetter(String deadLetterId) {
+        List<DeadLetter> rows = jdbc.query(
+                """
+                SELECT dead_letter_id, tenant_id, origin_kind, origin_id, failure_reason, recorded_at, discarded_at
+                FROM dead_letter
+                WHERE dead_letter_id = ?
+                """,
+                (row, n) -> PlatformTables.mapDeadLetter(row),
+                deadLetterId);
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("dead-letter-not-found");
+        }
+        return rows.get(0);
+    }
+
+    private static String requireId(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(name + " required");
+        }
+        return value.trim();
+    }
+
     private void ensureTenant(String tenantId) {
         List<String> states = jdbc.query(
                 "SELECT tenant_state FROM tenant WHERE tenant_id = ?",

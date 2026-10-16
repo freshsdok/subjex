@@ -131,3 +131,31 @@ export function layoutOrgCanvas(
 
   return { boxes, edges, width, height };
 }
+
+export type OrgMatrixLink = { fromId: string; toId: string };
+
+/**
+ * Project MATRIX_OF links onto laid-out boxes (center-to-center). Missing boxes skipped.
+ * 将 MATRIX_OF 投影到已布局盒子（中心连线）；缺节点则跳过。
+ */
+export function layoutMatrixEdges(
+  layout: OrgCanvasLayout,
+  links: OrgMatrixLink[],
+): OrgCanvasEdge[] {
+  const byId = new Map(layout.boxes.map((b) => [b.organizationId, b]));
+  const out: OrgCanvasEdge[] = [];
+  for (const link of links) {
+    const from = byId.get(link.fromId);
+    const to = byId.get(link.toId);
+    if (!from || !to) continue;
+    out.push({
+      fromId: link.fromId,
+      toId: link.toId,
+      x1: from.x + from.width / 2,
+      y1: from.y + from.height / 2,
+      x2: to.x + to.width / 2,
+      y2: to.y + to.height / 2,
+    });
+  }
+  return out;
+}

@@ -1,6 +1,6 @@
 # ADR 0006 — Org Builder model gaps (relation kinds & move)
 
-- Status: **Accepted**（MVP Must + Should S1–S6：CONTAINS move/batch/order/CSV/export/merge-split/manager。D3 Later 矩阵/岗位仍待产品开闸）
+- Status: **Accepted**（MVP Must + Should S1–S6；D3 Later L1 `MATRIX_OF` sketch landed — not in OrgScope。L2 Position 仍待开闸）
 - Date: 2026-10-16 (Asia/Shanghai)
 - Relates: ADR 0001（O1 ontology）、[`docs/org/org-structure-research.md`](../org/org-structure-research.md)、[`docs/org/org-builder-target.md`](../org/org-builder-target.md)
 
@@ -38,7 +38,7 @@ POST /api/v1/organizations/{organizationId}/move/preview?tenantId=
 
 | 扩展 | 何时 Accepted | 备注 |
 | --- | --- | --- |
-| `relation_kind = MATRIX_OF`（或 `DOTTED_REPORTS`） | 产品确认要画布虚线/双线汇报 | 不参与 OrgScope 闭包，除非另有 AUTH ADR |
+| `relation_kind = MATRIX_OF`（或 `DOTTED_REPORTS`） | **L1 sketch opened** — API + dashed canvas + side panel | 不参与 OrgScope 闭包，除非另有 AUTH ADR |
 | sibling `sort_order` on CONTAINS | **Opened for Should S2** (V40) | `organization_relation.sort_order` + children/order API |
 | `organization_kind`（SUPERVISORY / COST_CENTER / LEGAL / PROJECT…） | 需要平行维度树 | 同 kind 内 CONTAINS；跨 kind 禁止默认可拖 |
 | Position 实体 | 明确做编制/空缺 | 新 ADR；勿塞进 Organization |
@@ -54,9 +54,9 @@ POST /api/v1/organizations/{organizationId}/move/preview?tenantId=
 
 ## MVP Must status / Must 落地状态
 
-ORG-UI-0…5 complete: research, indented tree+search, drag reparent, side-panel CRUD, read-only SVG canvas. No new `relation_kind`. Sibling order / matrix / position remain D3 Later.
+ORG-UI-0…5 complete; Should S1–S6 complete; L1 `MATRIX_OF` sketch (API + overlay). Sibling order opened for S2. Position remains D3 Later.
 
-ORG-UI-0…5 已完成；未新增 relation_kind。兄弟排序/矩阵/岗位仍属 D3 Later。
+ORG-UI-0…5 与 Should 已完成；L1 MATRIX_OF 草图已开。岗位仍属 D3 Later。
 
 ## Consequences / 后果
 
@@ -68,7 +68,7 @@ ORG-UI-0…5 已完成；未新增 relation_kind。兄弟排序/矩阵/岗位仍
 **Negative / cost**
 
 - ~~无 order~~ S2 已加 `sort_order`（默认 0，可上/下移）。  
-- 矩阵/岗位用户需等待 Later；文档须写清以免期望失控。
+- ~~矩阵~~ L1 草图已开（虚线/侧栏；不入 OrgScope）；岗位仍待 Later；文档须写清以免期望失控。
 
 **Non-goals this ADR**
 

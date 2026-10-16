@@ -104,6 +104,8 @@ platform:
       enabled: ${PLATFORM_IDP_WECHAT_ENABLED:false}
       app-id: ${PLATFORM_IDP_WECHAT_APP_ID:}
       app-secret: ${PLATFORM_IDP_WECHAT_APP_SECRET:}
+      # Console Next route: /api/session/idp/wechat/callback (set full public URL).
+      # 控制台 Next 回调：/api/session/idp/wechat/callback（填完整公网 URL）。
       redirect-uri: ${PLATFORM_IDP_WECHAT_REDIRECT_URI:}
   local-operator:
     name: ${PLATFORM_OPERATOR_NAME:platform-operator}
