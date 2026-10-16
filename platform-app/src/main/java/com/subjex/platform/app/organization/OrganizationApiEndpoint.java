@@ -22,6 +22,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -192,6 +193,82 @@ public class OrganizationApiEndpoint {
                 AuditOutcome.ALLOWED);
     }
 
+
+    /**
+     * Preview CONTAINS reparent (ORG-UI-2) — no write.
+     * 预览改挂载；不落库。
+     */
+    @PostMapping(PATH + "/{organizationId}/move/preview")
+    public MovePreviewDocument previewMove(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody(required = false) MoveRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        String oid = requireNonBlank(organizationId, "organizationId");
+        String newParent = normalizeParent(body == null ? null : body.newParentOrganizationId());
+        requireLinkedToTenant(tid, oid);
+        if (newParent != null) {
+            requireLinkedToTenant(tid, newParent);
+        }
+        OrganizationScope scope = resolveScope(operator, tid);
+        String fromParent = store.findActiveContainsParent(oid).orElse(null);
+        boolean wouldCycle = false;
+        if (newParent != null) {
+            if (newParent.equals(oid)) {
+                wouldCycle = true;
+            } else {
+                wouldCycle = store.wouldCreateContainsCycle(newParent, oid);
+            }
+        }
+        boolean inScope = isMoveInScope(scope, oid, newParent);
+        int subtree = store.containsSelfAndDescendants(oid).size();
+        int members = store.countDirectMemberships(oid);
+        return new MovePreviewDocument(
+                oid, fromParent, newParent, subtree, members, wouldCycle, inScope);
+    }
+
+    /**
+     * Apply CONTAINS reparent (ORG-UI-2) — cycle reject, OrgScope, audit.
+     * 执行改挂载；成环拒绝；范围与审计。
+     */
+    @PostMapping(PATH + "/{organizationId}/move")
+    public OrganizationDocument move(
+            @AuthenticationPrincipal OperatorPrincipal operator,
+            @PathVariable("organizationId") String organizationId,
+            @RequestParam(value = "tenantId", required = false) String tenantId,
+            @RequestBody(required = false) MoveRequest body) {
+        String tid = requireTenant(operator, tenantId);
+        String oid = requireNonBlank(organizationId, "organizationId");
+        String newParent = normalizeParent(body == null ? null : body.newParentOrganizationId());
+        requireLinkedToTenant(tid, oid);
+        if (newParent != null) {
+            requireLinkedToTenant(tid, newParent);
+        }
+        OrganizationScope scope = resolveScope(operator, tid);
+        requireMoveWritable(operator, tid, scope, oid, newParent);
+        if (newParent != null && newParent.equals(oid)) {
+            throw new IllegalArgumentException("organization relation cannot self-reference");
+        }
+        if (newParent != null && store.wouldCreateContainsCycle(newParent, oid)) {
+            throw new IllegalArgumentException("CONTAINS relation would form a cycle");
+        }
+        String fromParent = store.findActiveContainsParent(oid).orElse(null);
+        store.setContainsParent(oid, newParent);
+        Organization org = store.listOrganizationsLinkedToTenant(tid).stream()
+                .filter(o -> o.organizationId().equals(oid))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        String target = fromParent == null ? "-" : fromParent;
+        String dest = newParent == null ? "-" : newParent;
+        audit.record(
+                operator,
+                "org.organization.move",
+                tid + "/" + oid + ":" + target + "->" + dest,
+                AuditOutcome.ALLOWED);
+        return toDocument(tid, org);
+    }
+
     private OrganizationDocument toDocument(String tenantId, Organization org) {
         String parent = store.findActiveContainsParent(org.organizationId()).orElse(null);
         return new OrganizationDocument(
@@ -216,6 +293,57 @@ public class OrganizationApiEndpoint {
             return OrganizationScope.none();
         }
         return scopeResolver.resolveSelfAndDescendants(tenantId, operator.subjectId());
+    }
+
+
+    private void requireLinkedToTenant(String tenantId, String organizationId) {
+        boolean linked = store.listOrganizationsLinkedToTenant(tenantId).stream()
+                .anyMatch(o -> o.organizationId().equals(organizationId));
+        if (!linked) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    private static String normalizeParent(String parentOrganizationId) {
+        if (parentOrganizationId == null || parentOrganizationId.isBlank()) {
+            return null;
+        }
+        return parentOrganizationId.trim();
+    }
+
+    private static boolean isMoveInScope(OrganizationScope scope, String organizationId, String newParent) {
+        OrganizationScope effective = scope == null ? OrganizationScope.none() : scope;
+        if (effective.isUnrestricted()) {
+            return true;
+        }
+        if (!effective.contains(organizationId)) {
+            return false;
+        }
+        if (newParent != null && !effective.contains(newParent)) {
+            return false;
+        }
+        return true;
+    }
+
+    private void requireMoveWritable(
+            OperatorPrincipal operator,
+            String tenantId,
+            OrganizationScope scope,
+            String organizationId,
+            String newParent) {
+        if (isMoveInScope(scope, organizationId, newParent)) {
+            return;
+        }
+        OrganizationScope effective = scope == null ? OrganizationScope.none() : scope;
+        AccessDecision decision = AccessDecision.deny(
+                operator == null ? null : operator.subjectId(),
+                tenantId,
+                effective,
+                AccessResource.of("organization", organizationId),
+                AccessAction.of("write"),
+                OperatorPermission.ORG_WRITE.permissionName(),
+                AccessDecision.DENY_ORG_OUT_OF_SCOPE);
+        throw new AccessDecisionDeniedException(decision, OperatorPermission.ORG_WRITE.permissionName());
     }
 
     /**
@@ -324,4 +452,16 @@ public class OrganizationApiEndpoint {
             String parentOrganizationId, String organizationName, String organizationState) {}
 
     public record MembershipWriteRequest(String subjectId, String organizationId, String membershipState) {}
+
+    public record MoveRequest(String newParentOrganizationId) {}
+
+    public record MovePreviewDocument(
+            String organizationId,
+            String fromParentOrganizationId,
+            String toParentOrganizationId,
+            int subtreeOrganizationCount,
+            int directMembershipCount,
+            boolean wouldCycle,
+            boolean inScope) {}
+
 }

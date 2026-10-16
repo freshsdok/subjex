@@ -494,6 +494,24 @@ public final class JdbcOrganizationStore {
         return true;
     }
 
+
+    /**
+     * Count non-ENDED memberships on one organization (direct members).
+     * 统计某组织上非 ENDED 的直接成员数。
+     */
+    public int countDirectMemberships(String organizationId) {
+        String oid = requireNonBlank(organizationId, "organizationId");
+        Integer count = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM membership
+                WHERE organization_id = ? AND membership_state <> ?
+                """,
+                Integer.class,
+                oid,
+                STATE_ENDED);
+        return count == null ? 0 : count;
+    }
+
     /**
      * Set ACTIVE CONTAINS parent for child (ends other ACTIVE CONTAINS parents).
      * Blank parent ends all ACTIVE CONTAINS edges into child.

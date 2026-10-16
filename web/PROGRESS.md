@@ -621,5 +621,45 @@ ID-4. [done] 2026-10-15 CST; pluggable IdP SPI + WeChat sketch (identity MVP wav
 
 ## Platform wave pointer / 平台波次指针 (2026-10-16)
 
-Tenant hardening TN-0 inventory+plan: [`docs/tenant/tn-progress.md`](../docs/tenant/tn-progress.md). Thin workflow waits until TN wave completes.
-多租户加固 TN-0 已记；薄工作流等 TN 波次完成后再做。
+TN+WF squashed to github/main `c18b956`. Next product track: **Org Builder** (visual org structure).
+
+- Research + target (ORG-UI-0): [`docs/org/org-structure-research.md`](../docs/org/org-structure-research.md), [`docs/org/org-builder-target.md`](../docs/org/org-builder-target.md), ADR draft [`docs/adr/0006-org-builder-and-relation-kinds.md`](../docs/adr/0006-org-builder-and-relation-kinds.md).
+- Must MVP ORG-UI-0…5 landed. Next = Should **ORG-UI-6** (multi-select move / CSV) or sibling `order` (ADR 0006 D3).
+
+组织构建器 Must MVP 已收口。
+
+## Org Builder — 组织架构构建器
+
+ORG-UI-0. [done] 2026-10-16 CST; mainstream org-structure research + builder target + ADR 0006 draft.
+    Survey (Workday/SF/DingTalk/Feishu/WeCom/Entra AU/Okta/Personio/BambooHR) with cited public sources;
+    must/should/later mapped to Organization+CONTAINS; recommend tree+canvas hybrid; slices ORG-UI-1….
+    Local commit only (no push). Next = **ORG-UI-1** read-only tree + search on `/org`.
+    调研与靶标完成；下一片只读缩进树 + 搜索。
+
+ORG-UI-1. [done] 2026-10-16 CST; read-only indented org tree + search/locate on `/org`.
+    `buildOrgForest` from parentOrganizationId; Tree|Table tabs; search highlight + ancestor expand + scroll;
+    side panel (id/name/parent/state + direct members). Zero model/API change. Vitest org-tree.
+    Design note for next: `docs/org/org-ui-2-design-note.md`. Local commit only (no push).
+    Next = **ORG-UI-2** drag reparent + move/preview API.
+    只读树+搜索完成；下一片拖拽与 move API。
+
+ORG-UI-2. [done] 2026-10-16 CST; drag reparent + move/preview API.
+    POST `/api/v1/organizations/{id}/move` + `/move/preview`; setContainsParent; cycle 400; OrgScope 403;
+    audit `org.organization.move`. Console HTML5 DnD → preview strip → confirm → reload.
+    MockMvc OrganizationApiSecurityTest (+4); vitest wouldClientMoveCycle. Local only (no push).
+    Next = **ORG-UI-3** (preview/scope polish) or **ORG-UI-4** side CRUD / **ORG-UI-5** read-only canvas.
+    拖拽改挂载完成；下一片侧栏写或只读画布。
+
+ORG-UI-3. [done] 2026-10-16 CST; covered by UI-2 (move/preview counts + OrgScope 403 MockMvc).
+    No extra slice. 并入 UI-2。
+
+ORG-UI-4. [done] 2026-10-16 CST; side panel CRUD on selected org.
+    Create child (PUT parent=selected), enable/disable toggle, add/remove memberships; two-step confirm;
+    refreshes tree. Reuses existing Organization APIs. Local only (no push).
+    侧栏写完成。
+
+ORG-UI-5. [done] 2026-10-16 CST; read-only SVG org canvas synced with selection.
+    `layoutOrgCanvas` layered layout; Tree|Chart toggle; click selects side panel; scroll pan; no DnD on chart.
+    Vitest org-canvas-layout. ADR 0006 → Accepted for MVP Must. Local only (no push).
+    Next = Should: ORG-UI-6 multi-select/CSV or sibling order.
+    只读组织图完成；Must MVP 收口。

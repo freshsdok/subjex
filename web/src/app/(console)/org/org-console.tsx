@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
+import { OrgTreePanel } from "@/components/org-tree-panel";
 import {
   ORG_MEMBERSHIP_STATE_ACTIVE,
   ORG_UNIT_STATE_ACTIVE,
@@ -54,6 +55,7 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
   const [memberships, setMemberships] = useState<MembershipRow[]>([]);
   const [listStatus, setListStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listErrorStatus, setListErrorStatus] = useState(0);
+  const [orgView, setOrgView] = useState<"tree" | "table">("tree");
 
   const [unitId, setUnitId] = useState("");
   const [unitParent, setUnitParent] = useState("");
@@ -388,9 +390,52 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
       ) : (
         <>
           <section>
-            <h2 className="text-sm font-medium">{phrases.orgUnitsTitle}</h2>
-            <p className="mt-1 text-xs text-muted">{phrases.orgUnitsHint}</p>
-            {organizations.length === 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-medium">{phrases.orgUnitsTitle}</h2>
+                <p className="mt-1 text-xs text-muted">
+                  {orgView === "tree" ? phrases.orgTreeHint : phrases.orgUnitsHint}
+                </p>
+              </div>
+              <div className="flex gap-1" role="tablist" aria-label={phrases.orgUnitsTitle}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={orgView === "tree"}
+                  onClick={() => setOrgView("tree")}
+                  className={
+                    orgView === "tree"
+                      ? "rounded-md bg-foreground px-2 py-1 text-xs text-background"
+                      : "rounded-md border border-border px-2 py-1 text-xs hover:bg-background"
+                  }
+                >
+                  {phrases.orgViewTree}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={orgView === "table"}
+                  onClick={() => setOrgView("table")}
+                  className={
+                    orgView === "table"
+                      ? "rounded-md bg-foreground px-2 py-1 text-xs text-background"
+                      : "rounded-md border border-border px-2 py-1 text-xs hover:bg-background"
+                  }
+                >
+                  {phrases.orgViewTable}
+                </button>
+              </div>
+            </div>
+            {orgView === "tree" ? (
+              <OrgTreePanel
+                phrases={phrases}
+                organizations={organizations}
+                memberships={memberships}
+                tenantId={tenantId}
+                canWrite={canWrite}
+                onMoved={() => void loadLists()}
+              />
+            ) : organizations.length === 0 ? (
               <p className="mt-3 text-sm text-muted">{phrases.emptyList}</p>
             ) : (
               <table className="mt-3 w-full border-collapse overflow-hidden rounded-lg border border-border bg-surface text-sm">

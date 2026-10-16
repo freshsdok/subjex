@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -34,6 +35,7 @@ import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -238,6 +240,98 @@ class OrganizationApiSecurityTest {
                 .andExpect(jsonPath("$.organizations.length()").value(2))
                 .andExpect(jsonPath("$.organizations[0].organizationId").value("org-eng"))
                 .andExpect(jsonPath("$.organizations[1].organizationId").value("org-team"));
+    }
+
+
+    @Test
+    void operatorCanPreviewAndMoveOrganization() throws Exception {
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-root", "Root", "ACTIVE"),
+                        new Organization("org-eng", "Eng", "ACTIVE"),
+                        new Organization("org-team", "Team", "ACTIVE")));
+        when(store.findActiveContainsParent("org-team")).thenReturn(Optional.of("org-eng"));
+        when(store.containsSelfAndDescendants("org-team")).thenReturn(Set.of("org-team"));
+        when(store.countDirectMemberships("org-team")).thenReturn(2);
+        when(store.wouldCreateContainsCycle("org-root", "org-team")).thenReturn(false);
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-team/move/preview")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newParentOrganizationId\":\"org-root\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("org-team"))
+                .andExpect(jsonPath("$.fromParentOrganizationId").value("org-eng"))
+                .andExpect(jsonPath("$.toParentOrganizationId").value("org-root"))
+                .andExpect(jsonPath("$.subtreeOrganizationCount").value(1))
+                .andExpect(jsonPath("$.directMembershipCount").value(2))
+                .andExpect(jsonPath("$.wouldCycle").value(false))
+                .andExpect(jsonPath("$.inScope").value(true));
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-team/move")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newParentOrganizationId\":\"org-root\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("org-team"));
+        verify(store).setContainsParent("org-team", "org-root");
+        verify(audit).record(
+                org.mockito.ArgumentMatchers.any(),
+                eq("org.organization.move"),
+                eq("acme/org-team:org-eng->org-root"),
+                eq(AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void moveRejectsCycleWith400() throws Exception {
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-eng", "Eng", "ACTIVE"),
+                        new Organization("org-team", "Team", "ACTIVE")));
+        when(store.findActiveContainsParent("org-eng")).thenReturn(Optional.empty());
+        when(store.wouldCreateContainsCycle("org-team", "org-eng")).thenReturn(true);
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-eng/move")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newParentOrganizationId\":\"org-team\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("CONTAINS relation would form a cycle"));
+        verify(store, org.mockito.Mockito.never()).setContainsParent(anyString(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void moveOutOfScopeIs403() throws Exception {
+        OrganizationScope scope = OrganizationScope.selfAndDescendants(
+                List.of("org-eng"), List.of("org-eng", "org-team"));
+        when(scopeResolver.resolveSelfAndDescendants("acme", LocalOperatorSeeder.SUBJECT_ID))
+                .thenReturn(scope);
+        when(store.listOrganizationsLinkedToTenant("acme"))
+                .thenReturn(List.of(
+                        new Organization("org-root", "Root", "ACTIVE"),
+                        new Organization("org-eng", "Eng", "ACTIVE")));
+
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-root/move")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newParentOrganizationId\":\"org-eng\"}")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isForbidden());
+        verify(store, org.mockito.Mockito.never()).setContainsParent(anyString(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void readerCannotPreviewMove() throws Exception {
+        mockMvc.perform(post(OrganizationApiEndpoint.PATH + "/org-team/move/preview")
+                        .param("tenantId", "acme")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newParentOrganizationId\":\"org-root\"}")
+                        .with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(store);
     }
 
     @Test

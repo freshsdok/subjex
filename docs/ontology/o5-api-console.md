@@ -12,6 +12,8 @@ Base: `/api/v1/organizations` (`OrganizationApiEndpoint`)
 | GET | `/api/v1/organizations?tenantId=` | `org.read` | Orgs with ACTIVE `TenantOrganization`; parent from ACTIVE CONTAINS |
 | GET | `/api/v1/organizations/{organizationId}?tenantId=` | `org.read` | 404 if not linked to tenant; scope-filtered |
 | PUT | `/api/v1/organizations/{organizationId}?tenantId=` | `org.write` + tenant grant | Upsert org + tenant link + CONTAINS parent; reverse write-through to legacy |
+| POST | `/api/v1/organizations/{organizationId}/move/preview?tenantId=` | `org.write` + tenant grant | Preview CONTAINS reparent (wouldCycle, inScope, counts); no write |
+| POST | `/api/v1/organizations/{organizationId}/move?tenantId=` | `org.write` + tenant grant | Apply CONTAINS reparent; cycle→400; out-of-scope→403; audit `org.organization.move` |
 | GET | `/api/v1/organizations/memberships?tenantId=` | `org.read` | Optional `subjectId`; excludes ENDED |
 | PUT | `/api/v1/organizations/memberships?tenantId=` | `org.write` + tenant grant | Body: `subjectId`, `organizationId`, `membershipState` |
 | DELETE | `/api/v1/organizations/memberships?tenantId=&subjectId=&organizationId=` | `org.write` + tenant grant | Ontology → ENDED; legacy row deleted |
