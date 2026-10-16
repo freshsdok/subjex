@@ -148,8 +148,8 @@ export function dryRunOrgCsv(
         break;
       }
       seen.add(walk);
-      const p = parentOf.get(walk) || "";
-      walk = p || null;
+      const parent: string = parentOf.get(walk) || "";
+      walk = parent || null;
       if (walk && !parentOf.has(walk) && !inFile.has(walk)) break;
     }
   }

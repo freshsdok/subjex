@@ -17,19 +17,19 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * TenantDataLifecycleEndpoint — TN-2 export ZIP + erase challenge/confirm ({@code tenant.manage}).
+ * TenantLifecycleEndpoint — TN-2 export ZIP + erase challenge/confirm ({@code tenant.manage}).
  * 租户导出 ZIP 与硬删除挑战/确认（需 tenant.manage）。
  */
 @RestController
-public class TenantDataLifecycleEndpoint {
+public class TenantLifecycleEndpoint {
 
     public static final String EXPORT_PATH = TenantManagementEndpoint.PATH + "/{tenantId}/export";
     public static final String ERASE_CHALLENGE_PATH = TenantManagementEndpoint.PATH + "/{tenantId}/erase/challenge";
     public static final String ERASE_PATH = TenantManagementEndpoint.PATH + "/{tenantId}/erase";
 
-    private final TenantDataLifecycleService lifecycle;
+    private final TenantLifecycleService lifecycle;
 
-    public TenantDataLifecycleEndpoint(TenantDataLifecycleService lifecycle) {
+    public TenantLifecycleEndpoint(TenantLifecycleService lifecycle) {
         this.lifecycle = Objects.requireNonNull(lifecycle, "lifecycle");
     }
 
@@ -100,5 +100,5 @@ public class TenantDataLifecycleEndpoint {
             String tenantId,
             int rowsDeleted,
             int objectStorageDeletes,
-            TenantDataLifecycleService.EraseCounts counts) {}
+            TenantLifecycleService.EraseCounts counts) {}
 }

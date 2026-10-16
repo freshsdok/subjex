@@ -10,8 +10,8 @@
 # 网关监听 http://127.0.0.1:8088。
 # Outbox delivery uses SAMPLE_CONSUMER_HOST/PORT (same as deploy/k8s/platform-app.yaml).
 # 出箱投递用 SAMPLE_CONSUMER_HOST/PORT（与 deploy/k8s/platform-app.yaml 一致）。
-# web/ is not in this stack. Images are built here; mvn test does not build them.
-# 本栈不含 web/。镜像在这里构建；mvn test 不构建它们。
+# web/ is optional via Compose profile `console` (see README). Images are built here; mvn test does not.
+# web/ 可选：Compose profile `console`（见 README）。镜像在这里构建；mvn test 不构建。
 
 services:
   postgres:
@@ -124,3 +124,25 @@ services:
       PLATFORM_OTLP_ENDPOINT: ${PLATFORM_OTLP_ENDPOINT:-}
     ports:
       - "8088:8088"
+
+  # Optional operator console (Next.js). Default stack unchanged.
+  # 可选操作员控制台。默认栈不变。
+  #   docker compose -f deploy/compose/docker-compose.yml --profile console up --build
+  console:
+    profiles: ["console"]
+    build:
+      context: ../..
+      dockerfile: web/Dockerfile
+    image: subjex/web:0.1.0-SNAPSHOT
+    depends_on:
+      platform-app:
+        condition: service_healthy
+    environment:
+      # Reach platform-app on the compose network (not the host gateway).
+      # 在编排网络内访问 platform-app（不是宿主机网关）。
+      SUBJEX_API_BASE: http://platform-app:8080
+      # Optional shared sessions / 可选共享会话:
+      # SESSION_REDIS_URL: redis://redis:6379
+      # OPERATOR_SESSION_SECRET: change-me-operator-session-secret-32chars!!
+    ports:
+      - "3000:3000"

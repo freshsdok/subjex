@@ -56,6 +56,7 @@ import com.subjex.platform.app.capability.InMemoryAiWriteConfirmGate;
 import com.subjex.platform.app.capability.ModelCompletionClient;
 import com.subjex.platform.app.capability.ModelCompletionClients;
 import com.subjex.platform.app.capability.NoOpAiWriteBackSink;
+import com.subjex.platform.app.form.DomainActionHandler;
 import com.subjex.platform.app.form.FormDomainActionRunner;
 import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
@@ -76,7 +77,7 @@ import com.subjex.platform.app.security.JdbcOperatorTokenStore;
 import com.subjex.platform.app.security.JdbcOperatorLoginLockout;
 import com.subjex.platform.app.security.JdbcOperatorMfaStore;
 import com.subjex.platform.app.security.AesGcmSecretCipher;
-import com.subjex.platform.app.tenant.TenantDataLifecycleService;
+import com.subjex.platform.app.tenant.TenantLifecycleService;
 import com.subjex.platform.app.workflow.JdbcWorkflowStore;
 import com.subjex.platform.app.workflow.WorkflowService;
 import com.subjex.platform.app.tenant.TenantQuotaService;
@@ -517,7 +518,7 @@ public class PlatformWiring {
     }
 
     @Bean
-    TenantDataLifecycleService tenantDataLifecycleService(
+    TenantLifecycleService tenantLifecycleService(
             JdbcTemplate jdbc,
             TransactionTemplate transactionTemplate,
             JdbcTenantAdmin jdbcTenantAdmin,
@@ -525,7 +526,7 @@ public class PlatformWiring {
             OperatorActionAudit operatorActionAudit,
             ObjectMapper objectMapper,
             Clock clock) {
-        return new TenantDataLifecycleService(
+        return new TenantLifecycleService(
                 jdbc,
                 transactionTemplate,
                 jdbcTenantAdmin,
@@ -792,27 +793,12 @@ public class PlatformWiring {
     }
 
     /**
-     * Run declared form domainAction through Service / Config / entity / capability catalogs — 经服务 / 配置 / 实体 / 能力目录执行表单领域动作。
+     * Dispatch form domainAction via registered {@link com.subjex.platform.app.form.DomainActionHandler} beans.
+     * 经已注册的 DomainActionHandler Bean 分发表单领域动作。
      */
     @Bean
-    FormDomainActionRunner formDomainActionRunner(
-            ServiceCatalog serviceCatalog,
-            ConfigCatalog configCatalog,
-            EffectiveDeclarationService effectiveDeclarationService,
-            GenericEntityStore genericEntityStore,
-            HybridEntityStore hybridEntityStore,
-            CapabilityRunner capabilityRunner,
-            TenantGuard tenantGuard,
-            OperatorTenantAccess operatorTenantAccess) {
-        return new FormDomainActionRunner(
-                serviceCatalog,
-                configCatalog,
-                effectiveDeclarationService,
-                genericEntityStore,
-                hybridEntityStore,
-                capabilityRunner,
-                tenantGuard,
-                operatorTenantAccess);
+    FormDomainActionRunner formDomainActionRunner(List<DomainActionHandler> domainActionHandlers) {
+        return new FormDomainActionRunner(domainActionHandlers);
     }
 
     /**

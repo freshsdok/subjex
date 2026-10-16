@@ -1,12 +1,16 @@
 # Independent config center MVP / 独立配置中心 MVP（Item 5）
 
-**Status:** **Item 5 DONE** — Config-5d namespace UX + docs (2026-10-09 Asia/Shanghai)  
+**Status:** **Item 5 DONE** (5a–5d) — Config-5d namespace UX + docs (2026-10-09 Asia/Shanghai). Still **no** history/rollback and **no** push/watch (non-goals).  
 **Item 4:** DONE at Scale-4d (`a525ce8`)  
-**Stance:** Deepen the existing **DB + HTTP** surface inside the modular monolith. “Independent” means a **dedicated module/API lifecycle** (`ConfigCenterPort` + clear endpoints), **not** a new microservice in the MVP.
+**Stance:** Deepen the existing **DB + HTTP** surface inside the modular monolith. “Independent” means a **dedicated module/API lifecycle** (`ConfigCenterPort` + clear endpoints), **not** a new microservice in the MVP.  
+**Live tip:** post-alpha local `main` (e.g. DX-Onboard-1 `3b51840` and later); alpha tag tip remains `e7dc268`. See `CHANGELOG.md` / `web/PROGRESS.md`.
 
 ---
 
-## Inventory / 现状盘点（Config-5a）
+## Inventory / 现状盘点（Config-5a）— **historical snapshot / 史料快照**
+
+> **Historical (5a planning snapshot).** The bullets below describe the tree **before** 5b–5d. Do not read “No namespaces, no revision/ETag…” as current. After Item 5: namespaces + revision/ETag are **DONE** (Flyway `V28`); history/push remain non-goals.  
+> **以下为 5a 规划时快照。** 勿把「无命名空间、无 revision/ETag」当成现状。Item 5 后命名空间与 revision/ETag **已完成**（`V28`）；历史/推送仍为非目标。
 
 ### Contract (`platform-contract` … `config`)
 
@@ -21,7 +25,7 @@
 | `HttpConfigSource` | Client to `GET/POST /config/entries` (Basic auth); connect failure → empty lookup (local fallback) |
 | `ConfigEntryJson` | Wire codec for entries |
 
-No namespaces, no revision/ETag, no history, no push/watch.
+*(5a snapshot)* No namespaces, no revision/ETag, no history, no push/watch — **superseded:** namespaces + revision/ETag shipped in 5b–5c; history/push still absent.
 
 ### Persistence
 
@@ -51,13 +55,13 @@ No namespaces, no revision/ETag, no history, no push/watch.
 | Permissions | View always; edit requires `config.write` (read-only notice otherwise) |
 | Forms | `config-override.form.yaml` → domain action writes override via catalog |
 
-### Gaps vs “config center” (honest)
+### Gaps vs “config center” (honest) — 5a-era list; strikethrough = fixed in 5b–5d
 
-- No **namespace** (tenant/app/env isolation beyond key naming convention)
-- No **revision / ETag / If-Match** — last write wins; clients cannot detect stale put
-- No **history / rollback**
-- No **push / long-poll / watch** — consumers pull on each lookup
-- No separate config process — and **MVP will not add one**
+- ~~No **namespace**~~ → **DONE (5b/5d):** namespaces (default `default`); UI picker thin but present
+- ~~No **revision / ETag / If-Match**~~ → **DONE (5b/5c):** monotonic revision + ETag / If-Match / 304 / 412
+- No **history / rollback** — still true (MVP non-goal)
+- No **push / long-poll / watch** — still true (on-demand pull; ETag poll enough for MVP)
+- No separate config process — and **MVP will not add one** — still true
 - Marketing risk: title “配置中心” vs Nacos/Apollo — keep docs saying **shared override layer / config center port**
 
 ---
@@ -125,5 +129,5 @@ No namespaces, no revision/ETag, no history, no push/watch.
 
 - UI notes: [`docs/config-ui.md`](../config-ui.md)  
 - ARCHITECTURE §7 / §10 config thin slice  
-- Pre-release assessment: config = shared table, not Nacos  
+- Pre-release assessment ([`docs/pre-release-assessment.md`](../pre-release-assessment.md)): **superseded** snapshot; config row there is stale — Item 5 DONE  
 - Permissions: `config.read` / `config.write`; audit `config.override`  

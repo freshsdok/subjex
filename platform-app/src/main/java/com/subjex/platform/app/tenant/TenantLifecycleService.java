@@ -32,13 +32,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * TenantDataLifecycleService — TN-2 export ZIP + hard erase with double-confirm (GDPR-ish).
+ * TenantLifecycleService — TN-2 export ZIP + hard erase with double-confirm (GDPR-ish).
  * <p>
  * Soft-disable ({@link JdbcTenantAdmin#disable}) remains the default off-boarding path. Hard erase
  * requires the tenant already {@code SUSPENDED}, a live challenge token, and refuses {@code platform}.
  * 软禁用仍为默认下线；硬删除须已 SUSPENDED + 有效确认令牌；拒绝保留租户 {@code platform}。
  */
-public final class TenantDataLifecycleService {
+public final class TenantLifecycleService {
 
     public static final String AUDIT_EXPORT = "tenant.export";
     public static final String AUDIT_ERASE_CHALLENGE = "tenant.erase.challenge";
@@ -53,7 +53,7 @@ public final class TenantDataLifecycleService {
     private final ObjectMapper json;
     private final Clock clock;
 
-    public TenantDataLifecycleService(
+    public TenantLifecycleService(
             JdbcTemplate jdbc,
             TransactionTemplate transactions,
             JdbcTenantAdmin tenants,

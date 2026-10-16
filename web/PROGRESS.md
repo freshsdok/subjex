@@ -709,3 +709,29 @@ OUTBOX-DLQ. [done] 2026-10-16 CST; dead-letter replay/discard + event contract.
     docs `docs/delivery/outbox-event-contract.md` (CloudEvents-ish mapping).
     Org Later inventory note only: `docs/org/org-later-inventory.md`. Local only (no push).
     死信重放/丢弃与事件契约；Org Later 仅盘点。仅本地提交。
+
+## DX onboarding / 开发者上手
+
+DX-Onboard-1. [done] 2026-10-17 CST; quickstart golden path = platform-app + web console.
+    `docs/quickstart.md`: golden path first (platform-app → `web/` `npm run dev` → :3000); HTML routes demoted to read-only demos.
+    Optional `web/Dockerfile` + Compose profile `console` (default stack unchanged). README + compose README pointers.
+    Local commit only (no push). Next: DX-Docs-1 (doc drift).
+    黄金路径改为 platform-app + 控制台；HTML 降为演示；可选 compose console profile。仅本地提交。
+
+DX-Docs-1. [done] 2026-10-17 CST; doc drift收口.
+    `docs/pre-release-assessment.md` SUPERSEDED banner + known-stale table; config plan Inventory = 5a historical, Item 5 DONE restated;
+    README tip vs alpha `e7dc268`; CHANGELOG Unreleased DX-Onboard-1/Docs-1. Local only (no push). Next: DX-Extend-1.
+    评估文过时横幅；配置盘点史料化；README/CHANGELOG 对齐。仅本地提交。
+
+DX-Extend-1. [done] 2026-10-17 CST; domainAction handler SPI + auth matrix doc.
+    `DomainActionHandler` + Spring List dispatch in `FormDomainActionRunner`; handlers under `form/action/`;
+    fail-closed index (duplicate/missing); docs `contributing-domain-actions.md` + `auth-default-matrix.md`.
+    Local only (no push). Next: CI-green full suite.
+    领域动作 SPI 与认证矩阵文档。仅本地提交。
+
+CI-green wave. [done] 2026-10-17 CST; match build.yml locally.
+    `mvn -B test` SUCCESS; tenant-isolation 86; workflow 9; web typecheck/test/build green.
+    Fixes: workflow.* permission expectations; NamingGuard token match + TenantLifecycle rename; web TS.
+    Image-scan: Docker unavailable on box — builds/Trivy skipped. Testcontainers vendor tests skipped without Docker.
+    Local only (no push). Ready to squash-push when user asks.
+    本地 CI 等价全绿；无 Docker 故镜像扫描/Trivy/真库启动测跳过。未推送。

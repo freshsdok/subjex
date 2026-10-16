@@ -198,6 +198,7 @@ export function buildBusinessTableEntityYaml(
     version: 1,
     permission: state.permission.trim() || DEFAULT_DECLARATION_PERMISSION,
     tenantScoped: state.tenantScoped,
+    storageMode: "hybrid",
     fields: toEntityFields(state.fields).filter((f) => f.name.length > 0),
   };
   return applyEntityWizardToYaml("", entity);

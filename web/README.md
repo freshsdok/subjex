@@ -4,7 +4,9 @@ Next.js 16 + React 19 的操作员控制台，经服务端代理访问平台 `/a
 
 ## 本地运行
 
-1. 启动平台（`SPRING_PROFILES_ACTIVE=local`，见仓库根目录 `docs/quickstart.md`）。
+黄金路径（推荐）：见仓库根目录 [`docs/quickstart.md`](../docs/quickstart.md) — `platform-app` + 本目录 `npm run dev` → <http://localhost:3000>。`platform-app` 上的 HTML 页仅为演示，不是本控制台。
+
+1. 启动平台（`SPRING_PROFILES_ACTIVE=local`，见 quickstart）。
 2. 在此目录：
 
 ```bash
@@ -17,6 +19,8 @@ npm run dev
 环境变量：
 
 - `SUBJEX_API_BASE`：平台根地址，默认 `http://127.0.0.1:8080`。
+
+可选容器：仓库根 `docker build -f web/Dockerfile -t subjex/web:0.1.0-SNAPSHOT .`；compose 用 `--profile console`（见 `deploy/compose/README.md`）。环境变量 `SUBJEX_API_BASE` 指向平台根。
 
 ## 常用命令
 

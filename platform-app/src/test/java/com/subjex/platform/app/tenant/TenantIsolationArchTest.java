@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * TenantIsolationArchTest — TN-3: RestControllers that depend on {@link OperatorTenantAccess} must
  * call {@code requireGranted}. Documented exempt (do not inject the port): TaskSubmissionEndpoint
- * (TenantEnforcementFilter); TenantQuotaEndpoint / TenantDataLifecycleEndpoint (role
+ * (TenantEnforcementFilter); TenantQuotaEndpoint / TenantLifecycleEndpoint (role
  * {@code tenant.manage} / {@code admin.read} + service checks).
  * 依赖 OperatorTenantAccess 的 RestController 必须调用 requireGranted；豁免见上。
  *
@@ -53,7 +53,7 @@ class TenantIsolationArchTest {
                     .because(
                             "TN-3: /api/v1 tenant-data controllers that inject OperatorTenantAccess must call "
                                     + "requireGranted. Exempt (no port): TaskSubmissionEndpoint (filter); "
-                                    + "TenantQuotaEndpoint / TenantDataLifecycleEndpoint (role + service).");
+                                    + "TenantQuotaEndpoint / TenantLifecycleEndpoint (role + service).");
 
     @Test
     void apiControllersWithTenantAccessCallRequireGranted() {

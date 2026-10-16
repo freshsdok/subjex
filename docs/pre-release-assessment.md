@@ -1,10 +1,34 @@
 # 发布前能力评估 / Pre-release Capability Assessment
 
+> **已过时 / SUPERSEDED — historical snapshot only**
+>
+> 评估日期 **2026-10-05**（UTC+8）针对当时 tip（远端约 `275fbfd`）。正文**不再**代表当前能力；请勿按文中「无 CI / 无 OIDC / 配置无命名空间与版本 / main 仍红」等结论做决策。
+>
+> Assessment date **2026-10-05** (UTC+8) targeted tip ~`275fbfd`. The body below is **not** live status. Do not treat claims such as “no CI”, “no OIDC”, or “config has no namespace/revision” as current.
+>
+> **Live status / 现行状态：** [`ARCHITECTURE.md`](../ARCHITECTURE.md) · [`CHANGELOG.md`](../CHANGELOG.md) · [`web/PROGRESS.md`](../web/PROGRESS.md) · local tip (`git rev-parse --short HEAD`). Alpha tag `v0.1.0-alpha.1` remains on `e7dc268`; post-alpha work (identity, org, outbox DLQ, search/flags, DX) is past that tip.
+>
+> **Known stale claims in the body below (corrected one-liners) / 正文中已知过时断言（一行更正）：**
+>
+> | Stale claim in body / 正文旧说 | Correction / 更正 |
+> | --- | --- |
+> | 「CI 从未运行 / 工作流仍在 `docs/ci/`」 | CI lives at `.github/workflows/build.yml`; alpha.1 had green Actions |
+> | 「只有 HTTP Basic；无 OIDC/SSO」 | Bearer + TOTP + OIDC RP/Provider slices shipped; see identity docs / CHANGELOG |
+> | 「配置无版本/历史/回滚、无命名空间」 | Item 5 DONE: namespaces + revision/ETag (Flyway V28); still no history/push — [`docs/config/independent-config-center-plan.md`](config/independent-config-center-plan.md) |
+> | 「现在的 main 是红的 / ArchUnit 失败」 | Fixed (B1); `mvn test` expected green on current tip |
+> | 「死信只读，无重放」 | Outbox DLQ replay/discard + console `/dead-letters` shipped |
+> | 「compose 不含 sample-consumer / web 无 Dockerfile」 | Compose includes sample-consumer; optional `--profile console` + `web/Dockerfile` (DX-Onboard-1) |
+> | Spring Boot 3.5 / 规模数字 | Boot **4.x** on alpha tip; file/test counts outdated |
+>
+> Body left intact below for archaeology. / 下方正文原样保留，仅作史料。
+
+---
+
+## Historical header (2026-10-05) / 史料抬头
+
 - 评估日期：2026-10-05（UTC+8）
-- 评估对象：`freshsdok/subjex`，远端 `main` = `275fbfd`（GitHub 公共 API 核对，提交时间 2026-10-05 15:08 UTC+8，父提交 `9e62f95`）
-- 本地对照：本地 `main` 在 `71f42ee`（远端是“压扁式”提交，历史不同）。逐文件比对远端树与本地 `4c08a2b`：357 个文件完全一致，只有 `docs/node4-progress.md`、`docs/node5-progress.md`（以及本地 `71f42ee` 的 `docs/node6-progress.md`）的进度备注不同。**代码与远端一致，下文的测试结论适用于远端 main。**
-- 方法：阅读 `ARCHITECTURE.md`、`README.md`、`docs/*`、`web/README.md`、`web/PROGRESS.md`、`web/docs/design-notes.md`、各模块 `pom.xml` 与关键包；在本机运行 `mvn -o -B -fae test`（Docker 可用，Testcontainers 实际启动了 MySQL 8.4 / PostgreSQL 16）、`web/` 下 `vitest run` 与 `tsc --noEmit`；用 GitHub API 查看 tags / releases / `.github/workflows`。
-- 原则：只写在仓库或运行结果里看得到的事实；没有亲自验证的写明“未验证”。
+- 评估对象：`freshsdok/subjex`，远端 `main` = `275fbfd`（当时核对）
+- 方法与原则见原评估；**结论以文首 SUPERSEDED 为准**。
 
 ---
 

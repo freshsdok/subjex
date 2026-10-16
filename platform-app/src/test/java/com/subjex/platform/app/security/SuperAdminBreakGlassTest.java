@@ -39,7 +39,10 @@ class SuperAdminBreakGlassTest {
             "tenant.manage",
             "registry.read",
             "registry.write",
-            "task.write");
+            "task.write",
+            "workflow.approve",
+            "workflow.read",
+            "workflow.write");
 
     private final PasswordEncoder encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
     private JdbcTemplate jdbc;

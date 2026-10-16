@@ -5,7 +5,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 
 ## [Unreleased]
 
-Post-alpha.1 work. Tree may move past the tagged tip.
+Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`).
+
+### Changed / 变更
+- **DX-Onboard-1:** quickstart golden path = `platform-app` + Next.js console (`web/`); HTML routes demoted to read-only demos; optional `web/Dockerfile` + Compose profile `console` (`3b51840`).
+  开发者黄金路径改为 platform-app + 控制台；HTML 降为演示；可选 compose console。
+- **DX-Docs-1:** mark [`docs/pre-release-assessment.md`](docs/pre-release-assessment.md) superseded; config center plan inventory marked historical (Item 5 DONE); README tip/assessment pointers aligned.
+  评估文标过时；配置中心盘点标史料；README 与 tip 对齐。
+- **DX-Extend-1:** `DomainActionHandler` SPI (Spring `List` dispatch); migrate all domainAction keys off the runner switch; docs `contributing-domain-actions.md` + `auth-default-matrix.md`.
+  领域动作处理器 SPI；迁出 Runner switch；贡献文档与默认认证矩阵。
+- **CI-green wave (local):** align operator permission expectations with `workflow.*`; NamingGuard CamelCase token match + `TenantLifecycle` rename; web typecheck fixes (`storageMode`, org-csv).
+  本地 CI 等价全绿：权限期望、命名护栏、web 类型检查修复。
 
 ## [0.1.0-alpha.1] — 2026-10-09
 

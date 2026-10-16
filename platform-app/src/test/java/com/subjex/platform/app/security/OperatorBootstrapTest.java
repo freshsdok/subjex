@@ -58,7 +58,10 @@ class OperatorBootstrapTest {
                         "tenant.manage",
                         "registry.read",
                         "registry.write",
-                        "task.write"),
+                        "task.write",
+                        "workflow.approve",
+                        "workflow.read",
+                        "workflow.write"),
                 operator.permissionNames());
         assertTrue(encoder.matches("long-enough", operator.getPassword()));
         assertTrue(operator.getPassword().startsWith("{bcrypt}"));
@@ -81,7 +84,14 @@ class OperatorBootstrapTest {
 
         OperatorPrincipal reader = (OperatorPrincipal) directory.loadUserByUsername("ops-reader");
         assertEquals(
-                Set.of("admin.read", "page.read", "config.read", "declaration.read", "org.read", "registry.read"),
+                Set.of(
+                        "admin.read",
+                        "page.read",
+                        "config.read",
+                        "declaration.read",
+                        "org.read",
+                        "registry.read",
+                        "workflow.read"),
                 reader.permissionNames());
     }
 
@@ -128,7 +138,10 @@ class OperatorBootstrapTest {
                         "tenant.manage",
                         "registry.read",
                         "registry.write",
-                        "task.write"),
+                        "task.write",
+                        "workflow.approve",
+                        "workflow.read",
+                        "workflow.write"),
                 operator.permissionNames());
     }
 

@@ -62,7 +62,7 @@ Refuse reserved tenant `platform`. Soft-disable remains the default off-board pa
 3. `POST .../erase/challenge` → copy token once.
 4. `POST .../erase` with challengeId+token → confirm counts in response + audit `tenant.erase`.
 
-Flyway **V37** `tenant_erase_challenge`. Tests: `TenantDataLifecycleTest`, `TenantDataLifecycleApiSecurityTest`.
+Flyway **V37** `tenant_erase_challenge`. Tests: `TenantLifecycleTest`, `TenantLifecycleApiSecurityTest`.
 
 ## TN-3 [done] 2026-10-16 CST — cross-tenant isolation CI gates
 
@@ -85,7 +85,7 @@ Run locally / CI: `mvn -pl platform-app -am test -Dgroups=tenant-isolation -Dsur
 
 `TenantIsolationArchTest`: every `@RestController` that depends on `OperatorTenantAccess` must call `requireGranted(OperatorPrincipal, String)`.
 
-**Exempt (documented, no port inject):** `TaskSubmissionEndpoint` (`TenantEnforcementFilter`); `TenantQuotaEndpoint` / `TenantDataLifecycleEndpoint` (role `tenant.manage` / `admin.read` + service-layer checks).
+**Exempt (documented, no port inject):** `TaskSubmissionEndpoint` (`TenantEnforcementFilter`); `TenantQuotaEndpoint` / `TenantLifecycleEndpoint` (role `tenant.manage` / `admin.read` + service-layer checks).
 
 ### CI
 

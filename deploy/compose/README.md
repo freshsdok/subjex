@@ -2,19 +2,25 @@
 
 Starts PostgreSQL 16, Redis 7, **one** `platform-app` (P4/Scale-4d default), `sample-consumer` (outbox delivery), and `entry-gateway`.
 启动 PostgreSQL 16、Redis 7、**一个** `platform-app`（P4/Scale-4d 默认）、`sample-consumer`（出箱投递）和 `entry-gateway`。
-`web/` is not part of this stack.
-本栈不含 `web/`。
+
+**Default stack does not start the console.** Use profile `console` or run `web/` with `npm run dev` (see [`docs/quickstart.md`](../../docs/quickstart.md) golden path).
+**默认栈不起控制台。** 用 profile `console`，或本机 `web/` 跑 `npm run dev`（见 [`docs/quickstart.md`](../../docs/quickstart.md) 黄金路径）。
 
 ```bash
+# Default (no console) / 默认（无控制台）
 docker compose -f deploy/compose/docker-compose.yml up --build
+
+# Optional console on :3000 / 可选控制台 :3000
+docker compose -f deploy/compose/docker-compose.yml --profile console up --build
 ```
 
 - Gateway: `http://127.0.0.1:8088` (single upstream by default)
+- Console (profile `console`): `http://127.0.0.1:3000` with `SUBJEX_API_BASE=http://platform-app:8080`
 - Multi-replica: `--scale platform-app=2` is honest only when both `PLATFORM_RATE_LIMIT_BACKEND=jdbc` and `PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc` (defaults are `process`). Object store stays per-container disk without a shared volume. See [`docs/release/single-replica-gate.md`](../../docs/release/single-replica-gate.md).
 - 多副本：仅当两个后端都为 `jdbc` 时方可对外宣称；默认 `process`。无共享卷时对象存储仍按容器本地。见单副本门禁文档。
 - Redis: `127.0.0.1:16379` (console sessions when `SESSION_REDIS_URL=redis://127.0.0.1:16379`)
 - Postgres: `127.0.0.1:15432` (user/password/db: `subjex`)
-- Platform is not published on the host; use the gateway (avoids port clash when scaled).
+- Platform is not published on the host; use the gateway (avoids port clash when scaled). Host `npm run dev` against this stack: `SUBJEX_API_BASE=http://127.0.0.1:8088`.
 - `sample-consumer` is on the compose network only (`SAMPLE_CONSUMER_HOST=sample-consumer`, `SAMPLE_CONSUMER_PORT=19081` on platform-app, same as k8s). Task outbox delivery can reach it; HTTP probes on 8081, delivery TCP on 19081.
 
 Local operator (profile `local`): `platform-operator` / `change-me`.

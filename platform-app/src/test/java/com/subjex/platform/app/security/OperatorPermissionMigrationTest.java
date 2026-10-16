@@ -24,12 +24,14 @@ class OperatorPermissionMigrationTest {
                 "SELECT permission_name FROM platform_permission ORDER BY permission_name", String.class);
         assertEquals(List.of("admin.read", "config.read", "config.write", "declaration.migrate", "declaration.promote",
                 "declaration.read", "declaration.write", "operator.manage", "org.read", "org.write", "page.read", "registry.read",
-                "registry.write", "task.write", "tenant.manage"), permissions);
-        assertEquals(List.of("admin.read", "config.read", "declaration.read", "org.read", "page.read", "registry.read"),
+                "registry.write", "task.write", "tenant.manage", "workflow.approve", "workflow.read", "workflow.write"),
+                permissions);
+        assertEquals(List.of("admin.read", "config.read", "declaration.read", "org.read", "page.read", "registry.read",
+                "workflow.read"),
                 jdbc.queryForList(
                 "SELECT permission_name FROM role_permission WHERE role_name = 'platform-reader' ORDER BY permission_name",
                 String.class));
-        assertEquals(15, jdbc.queryForObject(
+        assertEquals(18, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM role_permission WHERE role_name = 'platform-operator'", Integer.class));
         assertEquals(0, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM role_permission WHERE role_name = 'platform.super-admin'", Integer.class));

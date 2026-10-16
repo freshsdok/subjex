@@ -4,9 +4,9 @@ Semantic modular platform: subject identity, tenant isolation, and a single task
 
 第一版按 `ARCHITECTURE.md` 实现平台契约，不包含具体业务领域。业务读写走 JDBC，不经过 ORM 模型层。MySQL 与 PostgreSQL 共用同一套迁移脚本，靠配置切换连接。
 
-**Status / 状态：** evaluation pre-release (`0.1.0-SNAPSHOT` Maven coords; Git tag **`v0.1.0-alpha.1`** on tip `e7dc268`). Contracts are complete and tested; most runtime pieces are deliberately thin slices. **Not production-ready.** Trusted-network evaluation only — read [`SECURITY.md`](SECURITY.md) and [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md).
+**Status / 状态：** evaluation pre-release (`0.1.0-SNAPSHOT` Maven coords; Git tag **`v0.1.0-alpha.1`** on `e7dc268`). Local `main` is **past** that tag (includes DX-Onboard-1 `3b51840` and later — see [`CHANGELOG.md`](CHANGELOG.md) Unreleased). Contracts are complete and tested; most runtime pieces are deliberately thin slices. **Not production-ready.** Trusted-network evaluation only — read [`SECURITY.md`](SECURITY.md) and [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md). The 2026-10-05 [`docs/pre-release-assessment.md`](docs/pre-release-assessment.md) is **superseded** (historical).
 
-**状态：** 评估预发布（Maven 仍为 `0.1.0-SNAPSHOT`；已打 Git 预发布 tag **`v0.1.0-alpha.1`**，指向 `e7dc268`）。契约完整且有测试，运行面多为刻意做薄的切片。**非生产就绪。** 仅受信网络评估，见 [`SECURITY.md`](SECURITY.md) 与 [`docs/release/v0.1.0-alpha.1-checklist.md`](docs/release/v0.1.0-alpha.1-checklist.md)。
+**状态：** 评估预发布（Maven 仍为 `0.1.0-SNAPSHOT`；预发布 tag **`v0.1.0-alpha.1`** 仍指向 `e7dc268`）。本地 `main` **已超过**该 tip（含 DX-Onboard-1 `3b51840` 及之后，见 [`CHANGELOG.md`](CHANGELOG.md) Unreleased）。契约完整且有测试，运行面多为刻意做薄的切片。**非生产就绪。** 仅受信网络评估，见 [`SECURITY.md`](SECURITY.md) 与 checklist。2026-10-05 的 [`docs/pre-release-assessment.md`](docs/pre-release-assessment.md) **已过时**（史料）。
 
 **What it is not / 它不是：** not a Nacos/Apollo/Consul replacement (discovery and config are shared tables behind `platform-app` HTTP), not an API gateway product (no dynamic routing, no TLS), not a full AI platform (`model-gateway` only records an invocation today). See `ARCHITECTURE.md` §4 and §7.
 
@@ -18,9 +18,9 @@ Semantic modular platform: subject identity, tenant isolation, and a single task
 
 Processes / 进程：`platform-app` (host), `sample-consumer` (receives one cross-process event), `entry-gateway` (HTTP forwarder + coarse rate limit), and the separate Next.js operator console in `web/`. `model-gateway` is an optional library, not on the startup path. `subjex-outbox-kafka` is an optional outbox `DeliveryPort` adapter (`platform.delivery.transport=kafka`); default remains socket demo.
 
-Start here / 从这里开始: [`docs/quickstart.md`](docs/quickstart.md) builds the project, starts `platform-app` and `sample-consumer` locally, and lists the pages to open. The default operator login is for local use only.
+Start here / 从这里开始: [`docs/quickstart.md`](docs/quickstart.md) **golden path** = `platform-app` + Next.js console (`web/`, <http://localhost:3000>). HTML routes on `:8080` are read-only demos only. `sample-consumer` is optional. Default operator login is local-only.
 
-[`docs/quickstart.md`](docs/quickstart.md) 讲怎么构建、在本机启动 `platform-app` 和 `sample-consumer`，以及打开哪些页面。默认操作员口令只用于本地。
+[`docs/quickstart.md`](docs/quickstart.md) **黄金路径** = `platform-app` + Next.js 控制台（`web/`，<http://localhost:3000>）。`:8080` 上的 HTML 仅为只读演示。`sample-consumer` 可选。默认操作员口令只用于本地。
 
 Optional local stubs / 可选本地 stub: build and run `tools/subjex-init` (`java -jar tools/subjex-init/target/subjex-init-0.1.0-SNAPSHOT.jar --yes`, or `--skip` to do nothing). Details in [`docs/quickstart.md`](docs/quickstart.md) §0. Low-code deepening (stages 0–6): [`docs/lowcode-roadmap.md`](docs/lowcode-roadmap.md) / `ARCHITECTURE.md` §17. Zero-code target (seven dims + people/org): same roadmap § Zero-code model / `ARCHITECTURE.md` §18. **Entity drafts (`entity-declare`) are wired into `platform-app` (Flyway V11 `service_note` + JDBC store) — not permanent draft-only.**
 
@@ -114,11 +114,11 @@ MySQL 与 PostgreSQL 的启动测试使用 Testcontainers，只有本机有 Dock
 
 `entry-gateway` is a separate process that forwards HTTP to `platform-app` and applies coarse in-process rate limiting (429 when exceeded). It does not replace operator authentication. The client id is the remote address; `X-Forwarded-For` is read only when the direct peer is listed in `gateway.trusted-proxies` (env `GATEWAY_TRUSTED_PROXIES`, comma-separated IPs/CIDRs, default empty) — see `SECURITY.md`. Counters are per gateway process.
 
-Local stack: `deploy/compose/docker-compose.yml` starts PostgreSQL 16, Redis 7, `platform-app` (scale to 2 with `--scale platform-app=2`), `sample-consumer` (outbox delivery via `SAMPLE_CONSUMER_HOST`/`PORT`, same as k8s), and the gateway on port 8088. It does **not** include `web/`. See `deploy/compose/README.md`.
+Local stack: `deploy/compose/docker-compose.yml` starts PostgreSQL 16, Redis 7, `platform-app` (scale to 2 with `--scale platform-app=2`), `sample-consumer` (outbox delivery via `SAMPLE_CONSUMER_HOST`/`PORT`, same as k8s), and the gateway on port 8088. Console is **optional** (`--profile console` → `:3000`). See `deploy/compose/README.md` and the quickstart golden path.
 
 `entry-gateway` 是独立进程：把 HTTP 转发到 `platform-app`，并做进程内粗粒度限流（超限 429）。它不替代操作员认证。客户端标识默认是远端地址；只有直连方列在 `gateway.trusted-proxies`（环境变量 `GATEWAY_TRUSTED_PROXIES`，逗号分隔 IP/CIDR，默认空）里时才读 `X-Forwarded-For`（见 `SECURITY.md`）。计数按网关进程各算各的。
 
-本地编排 `deploy/compose/docker-compose.yml` 起 PostgreSQL 16、Redis 7、`platform-app`（`--scale platform-app=2` 起两个副本）、`sample-consumer`（出箱投递，`SAMPLE_CONSUMER_HOST`/`PORT` 与 k8s 一致）和端口 8088 的网关。**不含** `web/`。见 `deploy/compose/README.md`。
+本地编排 `deploy/compose/docker-compose.yml` 起 PostgreSQL 16、Redis 7、`platform-app`（`--scale platform-app=2` 起两个副本）、`sample-consumer`（出箱投递，`SAMPLE_CONSUMER_HOST`/`PORT` 与 k8s 一致）和端口 8088 的网关。控制台**可选**（`--profile console` → `:3000`）。见 `deploy/compose/README.md` 与 quickstart 黄金路径。
 
 ## Observability / 可观测
 
@@ -140,9 +140,9 @@ Local stack: `deploy/compose/docker-compose.yml` starts PostgreSQL 16, Redis 7, 
 
 ## Images and CI / 镜像与持续集成
 
-`platform-app/Dockerfile`, `sample-consumer/Dockerfile` and `entry-gateway/Dockerfile` are multi-stage builds run from the repository root (`docker build -f platform-app/Dockerfile -t subjex/platform-app:0.1.0-SNAPSHOT .`). The runtime stage runs as uid 10001. The image names match `deploy/k8s/`. Images are not published to any registry; `web/` has no Dockerfile yet. `mvn test` does not build images. CI lives at [`.github/workflows/build.yml`](.github/workflows/build.yml): `mvn -B test` plus `web/` `npm ci` / typecheck / test / build. Pushing that path needs a token with the `workflow` scope (see `docs/ci/README.md`).
+`platform-app/Dockerfile`, `sample-consumer/Dockerfile`, `entry-gateway/Dockerfile`, and optional `web/Dockerfile` are multi-stage builds run from the repository root. Java runtime stages run as uid 10001; image names match `deploy/k8s/` where applicable. Images are not published to any registry. `mvn test` does not build images. CI lives at [`.github/workflows/build.yml`](.github/workflows/build.yml): `mvn -B test` plus `web/` `npm ci` / typecheck / test / build. Pushing that path needs a token with the `workflow` scope (see `docs/ci/README.md`).
 
-`platform-app/Dockerfile`、`sample-consumer/Dockerfile` 与 `entry-gateway/Dockerfile` 是在仓库根目录执行的多阶段构建，运行阶段以 uid 10001 运行，镜像名与 `deploy/k8s/` 一致。镜像未推送到任何仓库；`web/` 还没有 Dockerfile。`mvn test` 不构建镜像。CI 在 [`.github/workflows/build.yml`](.github/workflows/build.yml)：`mvn -B test`，并覆盖 `web/` 的 typecheck/test/build。写入该路径需要令牌带 `workflow` 权限（见 `docs/ci/README.md`）。
+`platform-app/Dockerfile`、`sample-consumer/Dockerfile`、`entry-gateway/Dockerfile` 与可选的 `web/Dockerfile` 在仓库根目录多阶段构建。Java 运行阶段以 uid 10001 运行；适用处镜像名与 `deploy/k8s/` 一致。镜像未推送到任何仓库。`mvn test` 不构建镜像。CI 见 [`.github/workflows/build.yml`](.github/workflows/build.yml)。写入该路径需要令牌带 `workflow` 权限（见 `docs/ci/README.md`）。
 
 ## License / 许可证
 
@@ -153,5 +153,8 @@ Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 ## Operator console — 操作员控制台
 
 独立 Next.js 控制台在 [`web/`](web/)，浏览器只持有 httpOnly 会话 cookie，由服务端代理访问 `/api/v1`。控制台可以读服务、配置、审计、组织单元/成员、清单，也可以写配置覆盖、组织结构（需 `org.write`）、经两份表单登记服务或写配置（按具名权限）。会话默认放进程内存；设置 `SESSION_REDIS_URL` 后放 Redis（8 小时过期），多副本共享登录态。启用 Redis 时须配置 `OPERATOR_SESSION_SECRET`（≥32 字符），Basic 认证头以 AES-256-GCM 加密后写入 Redis，见 `SECURITY.md`。本地运行见 [`web/README.md`](web/README.md)；设计取舍与截图见 [`web/docs/design-notes.md`](web/docs/design-notes.md)。
+
+Contributor DX notes: [`docs/contributing-domain-actions.md`](docs/contributing-domain-actions.md) (reuse vs add `domainAction`) · [`docs/auth-default-matrix.md`](docs/auth-default-matrix.md) (default auth mechanisms).
+贡献者 DX：领域动作见上；默认认证矩阵见 [`docs/auth-default-matrix.md`](docs/auth-default-matrix.md)。
 
 The console signs in once, keeps a random session id in an httpOnly `sameSite=strict` cookie, and calls `/api/v1` through its server-side proxy. It can read services, config, audit, org units/memberships, and manifests, and can write config overrides, org structure (with `org.write`), and submit both forms — registering a service or writing config (subject to named permissions). Sessions live in process memory, or in Redis when `SESSION_REDIS_URL` is set (8-hour expiry). Login calls `/api/v1/auth/login` and stores only encrypted opaque access/refresh tokens (AES-256-GCM via `OPERATOR_SESSION_SECRET` when Redis is used); the proxy sends Bearer — see `SECURITY.md`.

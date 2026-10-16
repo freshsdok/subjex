@@ -1,45 +1,49 @@
 package com.subjex.platform.app.form;
 
-import com.subjex.entity.declare.EntityField;
-import com.subjex.entity.declare.RenderedEntity;
 import com.subjex.form.render.DomainActionKey;
 import com.subjex.form.render.RenderedForm;
 import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.config.ConfigCatalog;
-import com.subjex.platform.contract.config.ConfigNamespaces;
 import com.subjex.platform.app.declaration.EffectiveDeclarationService;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.entity.HybridEntityStore;
-import com.subjex.platform.app.security.AccessAction;
-import com.subjex.platform.app.security.AccessResource;
-import com.subjex.platform.app.security.DeclarationAccess;
+import com.subjex.platform.app.form.action.CapabilityInvokeDomainActionHandler;
+import com.subjex.platform.app.form.action.ConfigOverrideDomainActionHandler;
+import com.subjex.platform.app.form.action.EntityRecordUpsertDomainActionHandler;
+import com.subjex.platform.app.form.action.RegistryRegisterDomainActionHandler;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
-import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import com.subjex.platform.contract.tenant.TenantGuard;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * FormDomainActionRunner — 表单领域动作执行器：按声明的 {@code domainAction} 调用已有目录 / 实体存储。
+ * FormDomainActionRunner — dispatches form {@code domainAction} to registered {@link DomainActionHandler}s.
+ * 表单领域动作执行器：将声明的 {@code domainAction} 分发给已注册的 {@link DomainActionHandler}。
  * <p>
- * {@code entity.record.upsert} routes by {@code storageMode}: table → {@link GenericEntityStore},
- * hybrid/document → {@link HybridEntityStore} (ES-3 / DOC-1).
- * {@code entity.record.upsert} 按 storageMode 路由：table → GenericEntityStore，hybrid/document → HybridEntityStore。
+ * Fail-closed at construction: every {@link DomainActionKey} must have exactly one handler.
+ * 构造时失败关闭：每个 {@link DomainActionKey} 必须恰好有一个处理器。
  */
 public final class FormDomainActionRunner {
 
-    private final ServiceCatalog services;
-    private final ConfigCatalog config;
-    private final EffectiveDeclarationService effective;
-    private final GenericEntityStore tableEntities;
-    private final HybridEntityStore hybridEntities;
-    private final CapabilityRunner capabilities;
-    private final TenantGuard tenantGuard;
-    private final OperatorTenantAccess tenantAccess;
+    private final Map<DomainActionKey, DomainActionHandler> handlers;
 
+    /**
+     * Spring / production: index injected handler beans.
+     * Spring / 生产：索引注入的处理器 Bean。
+     */
+    public FormDomainActionRunner(List<DomainActionHandler> handlers) {
+        this.handlers = index(handlers);
+    }
+
+    /**
+     * Test helper: install the built-in handlers without Spring.
+     * 测试辅助：无 Spring 时安装内建处理器。
+     */
     public FormDomainActionRunner(
             ServiceCatalog services,
             ConfigCatalog config,
@@ -49,14 +53,8 @@ public final class FormDomainActionRunner {
             CapabilityRunner capabilities,
             TenantGuard tenantGuard,
             OperatorTenantAccess tenantAccess) {
-        this.services = Objects.requireNonNull(services, "services");
-        this.config = Objects.requireNonNull(config, "config");
-        this.effective = Objects.requireNonNull(effective, "effective");
-        this.tableEntities = Objects.requireNonNull(tableEntities, "tableEntities");
-        this.hybridEntities = Objects.requireNonNull(hybridEntities, "hybridEntities");
-        this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
-        this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
-        this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
+        this(builtinHandlers(
+                services, config, effective, tableEntities, hybridEntities, capabilities, tenantGuard, tenantAccess));
     }
 
     public String apply(RenderedForm form, Map<String, Object> accepted) {
@@ -72,79 +70,69 @@ public final class FormDomainActionRunner {
         Objects.requireNonNull(form, "form");
         Objects.requireNonNull(accepted, "accepted");
         DomainActionKey key = form.domainAction();
-        return switch (key) {
-            case REGISTRY_REGISTER -> registerService(accepted);
-            case CONFIG_OVERRIDE -> overrideConfig(accepted);
-            case ENTITY_RECORD_UPSERT -> upsertEntityRecord(form, accepted, tenantHeader, operator);
-            case CAPABILITY_ALGO_HASH_FINGERPRINT ->
-                    capabilities.run("algo.hashFingerprint", accepted);
-            case CAPABILITY_ALGO_NORMALIZE_WHITESPACE ->
-                    capabilities.run("algo.normalizeWhitespace", accepted);
-            case CAPABILITY_AI_SUMMARIZE_PREVIEW ->
-                    capabilities.run("ai.summarizePreview", accepted);
-            case CAPABILITY_AI_SUGGEST_TITLE_PREVIEW ->
-                    capabilities.run("ai.suggestTitlePreview", accepted);
-        };
-    }
-
-    private String registerService(Map<String, Object> accepted) {
-        String serviceName = stringValue(accepted, "serviceName");
-        String host = stringValue(accepted, "host");
-        int port = intValue(accepted, "port");
-        services.register(new ServiceEndpoint(serviceName, host, port));
-        return serviceName + "@" + host + ":" + port;
-    }
-
-    private String overrideConfig(Map<String, Object> accepted) {
-        String configKey = stringValue(accepted, "configKey");
-        String configValue = stringValue(accepted, "configValue");
-        config.put(ConfigNamespaces.DEFAULT, configKey, configValue);
-        return configKey + "=" + configValue;
-    }
-
-    private String upsertEntityRecord(
-            RenderedForm form, Map<String, Object> accepted, String tenantHeader, OperatorPrincipal operator) {
-        String entityKey = form.entityKey();
-        if (entityKey == null || entityKey.isBlank()) {
-            throw new IllegalArgumentException("entityKey is required for entity.record.upsert");
+        DomainActionHandler handler = handlers.get(key);
+        if (handler == null) {
+            throw new IllegalStateException("no DomainActionHandler for " + key.key());
         }
-        RenderedEntity entity = effective
-                .runtimeEntity(tenantHeader, entityKey)
-                .orElseThrow(() -> new IllegalArgumentException("unknown entity: " + entityKey));
-        DeclarationAccess.requireTenantWhenScoped(
-                tenantGuard,
-                tenantAccess,
-                operator,
-                entity.tenantScoped(),
-                tenantHeader,
-                AccessResource.of("entity", entityKey),
-                AccessAction.of("upsert"),
-                form.permission());
-        Map<String, Object> values = new LinkedHashMap<>();
-        for (EntityField field : entity.fields()) {
-            if (accepted.containsKey(field.name())) {
-                values.put(field.name(), accepted.get(field.name()));
+        return handler.apply(form, accepted, tenantHeader, operator);
+    }
+
+    /**
+     * Index handlers; reject duplicates and missing enum keys.
+     * 建索引；拒绝重复键与缺失的枚举键。
+     */
+    static Map<DomainActionKey, DomainActionHandler> index(List<DomainActionHandler> handlers) {
+        Objects.requireNonNull(handlers, "handlers");
+        Map<DomainActionKey, DomainActionHandler> byKey = new EnumMap<>(DomainActionKey.class);
+        for (DomainActionHandler handler : handlers) {
+            Objects.requireNonNull(handler, "handler");
+            DomainActionKey key = Objects.requireNonNull(handler.key(), "handler.key");
+            DomainActionHandler previous = byKey.put(key, handler);
+            if (previous != null) {
+                throw new IllegalStateException(
+                        "duplicate DomainActionHandler for " + key.key() + ": "
+                                + previous.getClass().getName()
+                                + " and "
+                                + handler.getClass().getName());
             }
         }
-        String pkName = entity.primaryKey().name();
-        String storeTenant = entity.tenantScoped() ? tenantHeader : null;
-        if (entity.sharedRecordStorage()) {
-            hybridEntities.save(entity, values, storeTenant);
-        } else {
-            tableEntities.save(entity, values, storeTenant);
+        List<String> missing = new ArrayList<>();
+        for (DomainActionKey known : DomainActionKey.values()) {
+            if (!byKey.containsKey(known)) {
+                missing.add(known.key());
+            }
         }
-        return entityKey + ":" + Objects.toString(values.get(pkName), "");
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("missing DomainActionHandler for: " + String.join(", ", missing));
+        }
+        return Map.copyOf(byKey);
     }
 
-    private static String stringValue(Map<String, Object> values, String name) {
-        return Objects.toString(values.get(name), "");
-    }
-
-    private static int intValue(Map<String, Object> values, String name) {
-        Object raw = values.get(name);
-        if (raw instanceof Number number) {
-            return number.intValue();
-        }
-        throw new IllegalArgumentException("field " + name + " must be a whole number");
+    /** Built-in handlers matching production beans — 与生产 Bean 一致的内建处理器。 */
+    public static List<DomainActionHandler> builtinHandlers(
+            ServiceCatalog services,
+            ConfigCatalog config,
+            EffectiveDeclarationService effective,
+            GenericEntityStore tableEntities,
+            HybridEntityStore hybridEntities,
+            CapabilityRunner capabilities,
+            TenantGuard tenantGuard,
+            OperatorTenantAccess tenantAccess) {
+        List<DomainActionHandler> list = new ArrayList<>();
+        list.add(new RegistryRegisterDomainActionHandler(services));
+        list.add(new ConfigOverrideDomainActionHandler(config));
+        list.add(new EntityRecordUpsertDomainActionHandler(
+                effective, tableEntities, hybridEntities, tenantGuard, tenantAccess));
+        list.add(new CapabilityInvokeDomainActionHandler(
+                DomainActionKey.CAPABILITY_ALGO_HASH_FINGERPRINT, "algo.hashFingerprint", capabilities));
+        list.add(new CapabilityInvokeDomainActionHandler(
+                DomainActionKey.CAPABILITY_ALGO_NORMALIZE_WHITESPACE,
+                "algo.normalizeWhitespace",
+                capabilities));
+        list.add(new CapabilityInvokeDomainActionHandler(
+                DomainActionKey.CAPABILITY_AI_SUMMARIZE_PREVIEW, "ai.summarizePreview", capabilities));
+        list.add(new CapabilityInvokeDomainActionHandler(
+                DomainActionKey.CAPABILITY_AI_SUGGEST_TITLE_PREVIEW, "ai.suggestTitlePreview", capabilities));
+        return List.copyOf(list);
     }
 }

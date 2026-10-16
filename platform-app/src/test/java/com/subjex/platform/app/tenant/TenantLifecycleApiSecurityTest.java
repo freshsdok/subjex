@@ -33,17 +33,17 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * TenantDataLifecycleApiSecurityTest — TN-2 export/erase require tenant.manage.
+ * TenantLifecycleApiSecurityTest — TN-2 export/erase require tenant.manage.
  * 目的：导出/擦除需 tenant.manage。
  */
-@WebMvcTest(controllers = {TenantDataLifecycleEndpoint.class, TenantManagementEndpoint.class})
+@WebMvcTest(controllers = {TenantLifecycleEndpoint.class, TenantManagementEndpoint.class})
 @Import({
     PlatformSecurityConfiguration.class,
     OperatorDirectoryTestConfiguration.class,
     PlatformExceptionAdvice.class,
-    TenantDataLifecycleApiSecurityTest.Slice.class
+    TenantLifecycleApiSecurityTest.Slice.class
 })
-class TenantDataLifecycleApiSecurityTest {
+class TenantLifecycleApiSecurityTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -76,12 +76,12 @@ class TenantDataLifecycleApiSecurityTest {
         }
 
         @Bean
-        TenantDataLifecycleService tenantDataLifecycleService(
+        TenantLifecycleService tenantLifecycleService(
                 JdbcTemplate jdbc,
                 OperatorActionAudit audit,
                 ObjectStorage objectStorage,
                 com.subjex.platform.app.security.JdbcTenantAdmin tenants) {
-            return new TenantDataLifecycleService(
+            return new TenantLifecycleService(
                     jdbc,
                     new TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource())),
                     tenants,

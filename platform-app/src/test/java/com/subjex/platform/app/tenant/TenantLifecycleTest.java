@@ -31,10 +31,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * TenantDataLifecycleTest — TN-2 export non-empty ZIP; erase wipes rows + objects + audit.
+ * TenantLifecycleTest — TN-2 export non-empty ZIP; erase wipes rows + objects + audit.
  * 目的：导出非空 ZIP；硬删除清行与对象并写审计。
  */
-class TenantDataLifecycleTest {
+class TenantLifecycleTest {
 
     private static final String TENANT = "tenant-life-a";
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-16T05:00:00Z"), ZoneOffset.UTC);
@@ -43,7 +43,7 @@ class TenantDataLifecycleTest {
     java.nio.file.Path storageRoot;
 
     private JdbcTemplate jdbc;
-    private TenantDataLifecycleService lifecycle;
+    private TenantLifecycleService lifecycle;
     private OperatorPrincipal operator;
     private ObjectStorage storage;
 
@@ -55,7 +55,7 @@ class TenantDataLifecycleTest {
                 TENANT);
         storage = new LocalDirectoryObjectStorage(storageRoot);
         OperatorActionAudit audit = new OperatorActionAudit(new JdbcAuditPort(jdbc), CLOCK);
-        lifecycle = new TenantDataLifecycleService(
+        lifecycle = new TenantLifecycleService(
                 jdbc,
                 new TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource())),
                 new JdbcTenantAdmin(jdbc),
@@ -112,7 +112,7 @@ class TenantDataLifecycleTest {
         Integer exports = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM audit_entry WHERE action_name = ? AND outcome = ?",
                 Integer.class,
-                TenantDataLifecycleService.AUDIT_EXPORT,
+                TenantLifecycleService.AUDIT_EXPORT,
                 AuditOutcome.ALLOWED.name());
         assertThat(exports).isEqualTo(1);
     }
@@ -152,7 +152,7 @@ class TenantDataLifecycleTest {
         Integer erases = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM audit_entry WHERE action_name = ? AND outcome = ?",
                 Integer.class,
-                TenantDataLifecycleService.AUDIT_ERASE,
+                TenantLifecycleService.AUDIT_ERASE,
                 AuditOutcome.ALLOWED.name());
         assertThat(erases).isEqualTo(1);
     }
