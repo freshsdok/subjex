@@ -24,6 +24,14 @@ jobs:
           cache: maven
       - name: mvn test
         run: mvn -B test
+      # TN-3: explicit cross-tenant isolation suite (also included in full mvn test via @Tag).
+      # TN-3：显式跨租户隔离套件（全量 mvn test 因 @Tag 也会跑到）。
+      - name: tenant-isolation gates
+        run: mvn -B -pl platform-app -am test -Dgroups=tenant-isolation -Dsurefire.failIfNoSpecifiedTests=false
+      # WF-4: thin workflow suite (FSM + dual-approve + cross-tenant); also in full mvn test via @Tag.
+      # WF-4：薄工作流套件（状态机+双人审+跨租户）；全量 mvn test 因 @Tag 也会跑到。
+      - name: workflow gates
+        run: mvn -B -pl platform-app -am test -Dgroups=workflow -Dsurefire.failIfNoSpecifiedTests=false
 
   web:
     runs-on: ubuntu-latest

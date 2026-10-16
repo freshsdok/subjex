@@ -1,5 +1,7 @@
 package com.subjex.platform.app.form;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,6 +46,7 @@ import org.mockito.ArgumentCaptor;
 /**
  * FormDomainActionRunnerTest — 领域动作执行测试：按声明键调用登记/配置/实体保存，不按 formKey。
  */
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class FormDomainActionRunnerTest {
 
     private final ServiceCatalog services = mock(ServiceCatalog.class);

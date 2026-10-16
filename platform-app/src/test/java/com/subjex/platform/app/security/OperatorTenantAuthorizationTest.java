@@ -1,5 +1,7 @@
 package com.subjex.platform.app.security;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.OPERATOR_PASSWORD;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +48,7 @@ import org.springframework.test.web.servlet.MockMvc;
     PlatformExceptionAdvice.class,
     OperatorTenantAuthorizationTest.GuardConfiguration.class
 })
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class OperatorTenantAuthorizationTest {
 

@@ -1,5 +1,7 @@
 package com.subjex.platform.app.entity;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -27,6 +29,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>
  * 目的：ES-2 附件元数据 + ObjectStorage；字节不进 attrs。门禁：租户隔离；校验和；级联删除；超限拒绝。
  */
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class EntityBlobStoreTest {
 
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-10-10T16:00:00Z"), ZoneOffset.UTC);

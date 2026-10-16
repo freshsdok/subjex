@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DetailReadonly, EntityBlobPanel, Section, Tabs } from "@/components/page-blocks";
+import { DetailReadonly, EntityBlobPanel, Section, Tabs, WorkflowStatusPanel } from "@/components/page-blocks";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import {
@@ -107,6 +107,16 @@ export default async function DeclaredDetailPage({
       {/* SHARED-3: blob panel when flow declares entityKey — 流程声明了 entityKey 时显示附件面板 */}
       {flowRead.body.entityKey ? (
         <EntityBlobPanel
+          entityKey={flowRead.body.entityKey}
+          recordId={id}
+          phrases={phrases}
+          tenantId={tenantId}
+        />
+      ) : null}
+      {/* WF-3: workflow status for any declared entityKey (repair-ticket FSM binding). */}
+      {/* WF-3：凡声明了 entityKey 的详情均可挂报修工单状态机。 */}
+      {flowRead.body.entityKey ? (
+        <WorkflowStatusPanel
           entityKey={flowRead.body.entityKey}
           recordId={id}
           phrases={phrases}

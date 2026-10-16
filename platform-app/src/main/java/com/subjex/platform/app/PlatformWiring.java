@@ -74,6 +74,9 @@ import com.subjex.platform.app.security.JdbcOperatorTokenStore;
 import com.subjex.platform.app.security.JdbcOperatorLoginLockout;
 import com.subjex.platform.app.security.JdbcOperatorMfaStore;
 import com.subjex.platform.app.security.AesGcmSecretCipher;
+import com.subjex.platform.app.tenant.TenantDataLifecycleService;
+import com.subjex.platform.app.workflow.JdbcWorkflowStore;
+import com.subjex.platform.app.workflow.WorkflowService;
 import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.contract.delivery.SecretPlaceholderGuard;
 import com.subjex.platform.app.security.OidcProperties;
@@ -494,6 +497,42 @@ public class PlatformWiring {
             @Value("${platform.tenant-quota.daily-submit-limit:10000}") int dailySubmitLimit,
             @Value("${platform.tenant-quota.storage-row-limit:100000}") int storageRowLimit) {
         return new TenantQuotaService(jdbc, clock, operatorActionAudit, dailySubmitLimit, storageRowLimit);
+    }
+
+    @Bean
+    TenantDataLifecycleService tenantDataLifecycleService(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            JdbcTenantAdmin jdbcTenantAdmin,
+            ObjectStorage objectStorage,
+            OperatorActionAudit operatorActionAudit,
+            ObjectMapper objectMapper,
+            Clock clock) {
+        return new TenantDataLifecycleService(
+                jdbc,
+                transactionTemplate,
+                jdbcTenantAdmin,
+                objectStorage,
+                operatorActionAudit,
+                objectMapper,
+                clock);
+    }
+
+
+    @Bean
+    JdbcWorkflowStore jdbcWorkflowStore(JdbcTemplate jdbc, TransactionTemplate transactionTemplate) {
+        return new JdbcWorkflowStore(jdbc, transactionTemplate);
+    }
+
+    @Bean
+    WorkflowService workflowService(
+            JdbcWorkflowStore jdbcWorkflowStore,
+            OperatorTenantAccess operatorTenantAccess,
+            CapabilityCatalog capabilityCatalog,
+            OperatorActionAudit operatorActionAudit,
+            Clock clock) {
+        return new WorkflowService(
+                jdbcWorkflowStore, operatorTenantAccess, capabilityCatalog, operatorActionAudit, clock);
     }
 
     @Bean

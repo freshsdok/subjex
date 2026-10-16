@@ -1,5 +1,7 @@
 package com.subjex.platform.app.form;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -65,6 +67,7 @@ import org.springframework.test.web.servlet.MockMvc;
     PlatformExceptionAdvice.class,
     DeclarationSecurityTest.SliceConfiguration.class
 })
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class DeclarationSecurityTest {
 
     private static final String OPERATOR = OperatorDirectoryTestConfiguration.OPERATOR;

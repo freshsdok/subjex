@@ -9,3 +9,4 @@ export { Tabs } from "./tabs";
 export { FlowSorter } from "./flow-sorter";
 export { FormFields } from "./form-fields";
 export { EntityBlobPanel } from "./entity-blob-panel";
+export { WorkflowStatusPanel } from "./workflow-status-panel";

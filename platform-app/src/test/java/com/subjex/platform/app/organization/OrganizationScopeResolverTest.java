@@ -1,5 +1,7 @@
 package com.subjex.platform.app.organization;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,6 +27,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * O8-1 gates: OrganizationScope from Membership + CONTAINS (no map / JdbcOrgDirectory).
  */
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class OrganizationScopeResolverTest {
 
     private final TenantGuard tenantGuard = new DenyWhenTenantMissing();

@@ -618,3 +618,8 @@ ID-4. [done] 2026-10-15 CST; pluggable IdP SPI + WeChat sketch (identity MVP wav
     providers/start/callback APIs; me/idp-link self-bind; login page WeChat button. Link-required fail-closed.
     Tests: IdpWeChatAdapterTest. Local only (no push). Next = **OBS-1** observability (or ID-6 introspect).
     IdP SPI + 微信草图完成；身份 MVP 波次可收口。下一片 OBS 可观测性。仅本地提交。
+
+## Platform wave pointer / 平台波次指针 (2026-10-16)
+
+Tenant hardening TN-0 inventory+plan: [`docs/tenant/tn-progress.md`](../docs/tenant/tn-progress.md). Thin workflow waits until TN wave completes.
+多租户加固 TN-0 已记；薄工作流等 TN 波次完成后再做。

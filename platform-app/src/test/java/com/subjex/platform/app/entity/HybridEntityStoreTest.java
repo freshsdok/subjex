@@ -1,5 +1,7 @@
 package com.subjex.platform.app.entity;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,6 +31,7 @@ import tools.jackson.databind.ObjectMapper;
  * <p>
  * 目的：ES-1 混合轨在共享 entity_record 上 insert/list。门禁：须 hybrid；租户盖章/过滤；table 轨拒绝。
  */
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class HybridEntityStoreTest {
 
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-10-10T04:00:00Z"), ZoneOffset.UTC);

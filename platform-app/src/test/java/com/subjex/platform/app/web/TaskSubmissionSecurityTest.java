@@ -1,5 +1,7 @@
 package com.subjex.platform.app.web;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -34,6 +36,7 @@ import org.springframework.test.web.servlet.MockMvc;
     PlatformExceptionAdvice.class,
     TaskSubmissionSecurityTest.GuardConfiguration.class
 })
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class TaskSubmissionSecurityTest {
 
     @Autowired

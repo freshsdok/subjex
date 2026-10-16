@@ -39,7 +39,13 @@ public enum OperatorPermission {
     /** Promote tenant declaration drafts into internal git — 将租户声明草稿晋升进内部 git。 */
     DECLARATION_PROMOTE("declaration.promote"),
     /** Enqueue and review declaration schema migrations — 入队并审阅声明 schema 迁移。 */
-    DECLARATION_MIGRATE("declaration.migrate");
+    DECLARATION_MIGRATE("declaration.migrate"),
+    /** Read workflow instance status and history — 读取工作流实例状态与历史。 */
+    WORKFLOW_READ("workflow.read"),
+    /** Start workflow and apply work transitions — 启动工作流并执行作业类流转。 */
+    WORKFLOW_WRITE("workflow.write"),
+    /** Approve or reject awaiting workflow steps — 审批或驳回待审工作流步骤。 */
+    WORKFLOW_APPROVE("workflow.approve");
 
     private final String permissionName;
 

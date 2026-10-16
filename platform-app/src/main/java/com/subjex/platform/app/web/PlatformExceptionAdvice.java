@@ -21,6 +21,10 @@ import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.app.task.IdempotencyConflict;
 import com.subjex.platform.app.task.RateLimitExceeded;
 import com.subjex.platform.app.tenant.TenantQuotaExceeded;
+import com.subjex.platform.app.workflow.IllegalWorkflowTransitionException;
+import com.subjex.platform.app.workflow.WorkflowAlreadyStartedException;
+import com.subjex.platform.app.workflow.WorkflowNotFoundException;
+import com.subjex.platform.app.workflow.WorkflowNeedsSecondApprover;
 import com.subjex.platform.app.task.SubmitLockHeld;
 import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.contract.tenant.TenantMissingException;
@@ -65,6 +69,17 @@ public class PlatformExceptionAdvice {
     ResponseEntity<Map<String, String>> tenantQuota(TenantQuotaExceeded ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(Map.of("reason", ex.reason()));
+    }
+
+    @ExceptionHandler({IllegalWorkflowTransitionException.class, WorkflowAlreadyStartedException.class,
+        WorkflowNeedsSecondApprover.class})
+    ResponseEntity<Map<String, String>> workflowConflict(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(WorkflowNotFoundException.class)
+    ResponseEntity<Map<String, String>> workflowMissing(WorkflowNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("reason", ex.getMessage()));
     }
 
     @ExceptionHandler({IdempotencyConflict.class, SubmitLockHeld.class})

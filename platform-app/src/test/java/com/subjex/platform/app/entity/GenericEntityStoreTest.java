@@ -1,5 +1,7 @@
 package com.subjex.platform.app.entity;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -27,6 +29,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>
  * 目的：按 RenderedEntity 元数据 JDBC upsert/列表/删除。门禁：租户隔离盖章/过滤；类型校验失败关闭。
  */
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class GenericEntityStoreTest {
 
     private RenderedEntity demoTicket;

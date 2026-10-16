@@ -1,5 +1,7 @@
 package com.subjex.platform.app.org.legacy;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -20,6 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>
  * 目的：旧目录在本体优先存储上的列表/写入。门禁：有序列表；租户隔离；写路径校验。
  */
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class JdbcOrgDirectoryTest {
 
     @ParameterizedTest

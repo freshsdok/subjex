@@ -160,6 +160,14 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.DECLARATION_WRITE.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/entities/**")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                        // WF-1 thin workflow: read vs write/approve split; tenant grant in service.
+                        // WF-1 薄工作流：读与写/审批分权；租户授权在服务内核对。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/workflows/**")
+                                .hasAuthority(OperatorPermission.WORKFLOW_READ.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/workflows/*/instances")
+                                .hasAuthority(OperatorPermission.WORKFLOW_WRITE.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/workflows/instances/*/transitions")
+                                .authenticated()
                         // Generic entity writes: signed-in only; declared permission checked in the endpoint.
                         // 通用实体写入：只要求已登录；声明权限在接口里核对。
                         .requestMatchers(HttpMethod.PUT, "/api/v1/entities/**")

@@ -1,5 +1,7 @@
 package com.subjex.platform.app.organization;
 
+import com.subjex.platform.app.tenant.TenantIsolationTags;
+import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -28,6 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * invariants (no loss of unit/membership projection; no cross-tenant auto-merge).
  * O7 后旧表已删；门禁改为映射+本体投影与禁跨租户合并。
  */
+@Tag(TenantIsolationTags.TENANT_ISOLATION)
 class OrganizationOntologyBackfillGatesTest {
 
     @ParameterizedTest

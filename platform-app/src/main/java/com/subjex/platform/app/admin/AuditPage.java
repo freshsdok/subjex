@@ -64,7 +64,12 @@ public class AuditPage {
             Map.entry("oauth.consent.deny", new String[] {"拒绝同意", "deny consent"}),
             Map.entry("oauth.consent.revoke", new String[] {"吊销同意", "revoke consent"}),
             Map.entry("oauth.token.client_credentials", new String[] {"客户端凭证发令", "client_credentials token"}),
-            Map.entry("oauth.token.authorization_code", new String[] {"授权码发令", "authorization_code token"}));
+            Map.entry("oauth.token.authorization_code", new String[] {"授权码发令", "authorization_code token"}),
+            Map.entry("tenant.quota", new String[] {"租户配额拒绝", "tenant quota refused"}),
+            Map.entry("tenant.quota.override", new String[] {"租户配额覆盖", "tenant quota override"}),
+            Map.entry("tenant.export", new String[] {"租户导出", "tenant export"}),
+            Map.entry("tenant.erase.challenge", new String[] {"租户擦除挑战", "tenant erase challenge"}),
+            Map.entry("tenant.erase", new String[] {"租户硬删除", "tenant hard erase"}));
 
     /** Plain words for outcomes — 结果的白话。 */
     static final Map<String, String[]> OUTCOME_WORDS = Map.of(
