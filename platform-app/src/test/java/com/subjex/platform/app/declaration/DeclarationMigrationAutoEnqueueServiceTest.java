@@ -27,8 +27,8 @@ class DeclarationMigrationAutoEnqueueServiceTest {
 
     private static final String REPAIR_YAML =
             """
-            entityKey: repair-ticket
-            tableName: repair_ticket
+            entityKey: mig-repair-ticket
+            tableName: mig_repair_ticket
             version: 1
             permission: page.read
             tenantScoped: true
@@ -46,8 +46,8 @@ class DeclarationMigrationAutoEnqueueServiceTest {
 
     private static final String REPAIR_YAML_WITH_LOCATION =
             """
-            entityKey: repair-ticket
-            tableName: repair_ticket
+            entityKey: mig-repair-ticket
+            tableName: mig_repair_ticket
             version: 2
             permission: page.read
             tenantScoped: true
@@ -72,17 +72,17 @@ class DeclarationMigrationAutoEnqueueServiceTest {
     void newEntityEnqueuesCreateTable(H2PlatformTables.Mode mode) {
         Fixture f = Fixture.open(mode);
         DeclarationRevision draft =
-                f.store.saveDraft("acme", DeclarationKind.ENTITY, "repair-ticket", REPAIR_YAML, "sub-a");
-        List<String> planned = f.auto.planForEntityYaml("acme", "repair-ticket", REPAIR_YAML);
+                f.store.saveDraft("acme", DeclarationKind.ENTITY, "mig-repair-ticket", REPAIR_YAML, "sub-a");
+        List<String> planned = f.auto.planForEntityYaml("acme", "mig-repair-ticket", REPAIR_YAML);
         assertEquals(1, planned.size());
-        assertTrue(planned.get(0).startsWith("CREATE TABLE repair_ticket"));
+        assertTrue(planned.get(0).startsWith("CREATE TABLE mig_repair_ticket"));
         assertTrue(planned.get(0).contains("tenant_id VARCHAR(64) NOT NULL"));
 
         List<DeclarationMigration> jobs = f.auto.enqueuePlanned(draft, planned);
         assertEquals(1, jobs.size());
         assertEquals(JdbcDeclarationMigrationStore.PENDING, jobs.get(0).status());
         assertEquals(draft.revision(), jobs.get(0).declarationRevision());
-        assertTrue(jobs.get(0).sqlText().startsWith("CREATE TABLE repair_ticket"));
+        assertTrue(jobs.get(0).sqlText().startsWith("CREATE TABLE mig_repair_ticket"));
     }
 
     @ParameterizedTest
@@ -90,24 +90,24 @@ class DeclarationMigrationAutoEnqueueServiceTest {
     void addFieldVsPromotedEnqueuesAlterAdd(H2PlatformTables.Mode mode) {
         Fixture f = Fixture.open(mode);
         DeclarationRevision r1 =
-                f.store.saveDraft("acme", DeclarationKind.ENTITY, "repair-ticket", REPAIR_YAML, "sub-a");
-        f.auto.enqueuePlanned(r1, f.auto.planForEntityYaml("acme", "repair-ticket", REPAIR_YAML));
+                f.store.saveDraft("acme", DeclarationKind.ENTITY, "mig-repair-ticket", REPAIR_YAML, "sub-a");
+        f.auto.enqueuePlanned(r1, f.auto.planForEntityYaml("acme", "mig-repair-ticket", REPAIR_YAML));
         // Settle + promote so baseline becomes PROMOTED (skip real DDL apply for this unit test).
         // 结清并晋升，使基线变为 PROMOTED（本测不跑真实 DDL）。
         DeclarationMigration create = f.migrations.listForRevision(
-                        "acme", DeclarationKind.ENTITY, "repair-ticket", r1.revision())
+                        "acme", DeclarationKind.ENTITY, "mig-repair-ticket", r1.revision())
                 .get(0);
         f.migrations.markReviewed(create.migrationId());
         f.migrations.markApplied(create.migrationId());
-        f.store.markPromoted("acme", DeclarationKind.ENTITY, "repair-ticket", r1.revision());
+        f.store.markPromoted("acme", DeclarationKind.ENTITY, "mig-repair-ticket", r1.revision());
         f.store.recordPromote(
-                "acme", DeclarationKind.ENTITY, "repair-ticket", r1.revision(), "sha-rt4", "sub-a");
+                "acme", DeclarationKind.ENTITY, "mig-repair-ticket", r1.revision(), "sha-rt4", "sub-a");
 
         DeclarationRevision r2 = f.store.saveDraft(
-                "acme", DeclarationKind.ENTITY, "repair-ticket", REPAIR_YAML_WITH_LOCATION, "sub-a");
-        List<String> planned = f.auto.planForEntityYaml("acme", "repair-ticket", REPAIR_YAML_WITH_LOCATION);
+                "acme", DeclarationKind.ENTITY, "mig-repair-ticket", REPAIR_YAML_WITH_LOCATION, "sub-a");
+        List<String> planned = f.auto.planForEntityYaml("acme", "mig-repair-ticket", REPAIR_YAML_WITH_LOCATION);
         assertEquals(1, planned.size());
-        assertEquals("ALTER TABLE repair_ticket ADD COLUMN location VARCHAR(200)", planned.get(0));
+        assertEquals("ALTER TABLE mig_repair_ticket ADD COLUMN location VARCHAR(200)", planned.get(0));
 
         List<DeclarationMigration> jobs = f.auto.enqueuePlanned(r2, planned);
         assertEquals(1, jobs.size());
@@ -120,14 +120,14 @@ class DeclarationMigrationAutoEnqueueServiceTest {
     void reEnqueueSameRevisionIsIdempotent(H2PlatformTables.Mode mode) {
         Fixture f = Fixture.open(mode);
         DeclarationRevision draft =
-                f.store.saveDraft("acme", DeclarationKind.ENTITY, "repair-ticket", REPAIR_YAML, "sub-a");
-        List<String> planned = f.auto.planForEntityYaml("acme", "repair-ticket", REPAIR_YAML);
+                f.store.saveDraft("acme", DeclarationKind.ENTITY, "mig-repair-ticket", REPAIR_YAML, "sub-a");
+        List<String> planned = f.auto.planForEntityYaml("acme", "mig-repair-ticket", REPAIR_YAML);
         assertEquals(1, f.auto.enqueuePlanned(draft, planned).size());
         assertEquals(0, f.auto.enqueuePlanned(draft, planned).size());
         assertEquals(
                 1,
                 f.migrations
-                        .listForRevision("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision())
+                        .listForRevision("acme", DeclarationKind.ENTITY, "mig-repair-ticket", draft.revision())
                         .size());
     }
 
@@ -264,21 +264,21 @@ class DeclarationMigrationAutoEnqueueServiceTest {
     void unsafeTypeChangeFailsClosed(H2PlatformTables.Mode mode) {
         Fixture f = Fixture.open(mode);
         DeclarationRevision r1 =
-                f.store.saveDraft("acme", DeclarationKind.ENTITY, "repair-ticket", REPAIR_YAML, "sub-a");
-        f.auto.enqueuePlanned(r1, f.auto.planForEntityYaml("acme", "repair-ticket", REPAIR_YAML));
+                f.store.saveDraft("acme", DeclarationKind.ENTITY, "mig-repair-ticket", REPAIR_YAML, "sub-a");
+        f.auto.enqueuePlanned(r1, f.auto.planForEntityYaml("acme", "mig-repair-ticket", REPAIR_YAML));
         DeclarationMigration create = f.migrations.listForRevision(
-                        "acme", DeclarationKind.ENTITY, "repair-ticket", r1.revision())
+                        "acme", DeclarationKind.ENTITY, "mig-repair-ticket", r1.revision())
                 .get(0);
         f.migrations.markReviewed(create.migrationId());
         f.migrations.markApplied(create.migrationId());
-        f.store.markPromoted("acme", DeclarationKind.ENTITY, "repair-ticket", r1.revision());
+        f.store.markPromoted("acme", DeclarationKind.ENTITY, "mig-repair-ticket", r1.revision());
         f.store.recordPromote(
-                "acme", DeclarationKind.ENTITY, "repair-ticket", r1.revision(), "sha-rt4b", "sub-a");
+                "acme", DeclarationKind.ENTITY, "mig-repair-ticket", r1.revision(), "sha-rt4b", "sub-a");
 
         String bad =
                 """
-                entityKey: repair-ticket
-                tableName: repair_ticket
+                entityKey: mig-repair-ticket
+                tableName: mig_repair_ticket
                 version: 2
                 permission: page.read
                 tenantScoped: true
@@ -294,7 +294,7 @@ class DeclarationMigrationAutoEnqueueServiceTest {
                 """;
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> f.auto.planForEntityYaml("acme", "repair-ticket", bad));
+                () -> f.auto.planForEntityYaml("acme", "mig-repair-ticket", bad));
         assertTrue(ex.getMessage().contains("field kind") || ex.getMessage().contains("SQL type"));
     }
 

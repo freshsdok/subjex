@@ -66,8 +66,9 @@ function blankField(name = ""): BusinessTableField {
 }
 
 /**
- * Default 报修单 shape — 默认报修单模板（键/表名可改）。
- * PK = first field ticketId; urgency enum; assignee subjectRef.
+ * Default 报修单 shape — 默认报修单模板（键/表名可改；与 classpath repair-ticket 对齐）。
+ * PK = first field ticketId; urgency enum; assignee subjectRef; organization organizationRef (WF-RT-3).
+ * 主键 ticketId；紧急度枚举；经办人 subjectRef；组织 organizationRef（留给 WF-RT-3）。
  */
 export function defaultRepairTicketWizard(): BusinessTableWizardState {
   return {
@@ -108,6 +109,13 @@ export function defaultRepairTicketWizard(): BusinessTableWizardState {
       {
         name: "assignee",
         kind: "subjectRef",
+        required: false,
+        maxLength: 64,
+        enumValues: [],
+      },
+      {
+        name: "organization",
+        kind: "organizationRef",
         required: false,
         maxLength: 64,
         enumValues: [],

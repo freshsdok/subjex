@@ -146,12 +146,16 @@ public class WorkflowEndpoint {
     }
 
     public record StatusDocument(
-            InstanceDocument instance, List<HistoryDocument> history, PendingApprovalDocument pendingApproval) {
+            InstanceDocument instance,
+            List<HistoryDocument> history,
+            PendingApprovalDocument pendingApproval,
+            List<String> approvalCandidateSubjectIds) {
         static StatusDocument from(WorkflowService.WorkflowStatusView view) {
             return new StatusDocument(
                     InstanceDocument.from(view.instance()),
                     view.history().stream().map(HistoryDocument::from).toList(),
-                    PendingApprovalDocument.from(view.pendingApproval()));
+                    PendingApprovalDocument.from(view.pendingApproval()),
+                    view.approvalCandidateSubjectIds());
         }
     }
 }

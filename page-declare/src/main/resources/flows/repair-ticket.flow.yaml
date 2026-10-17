@@ -1,0 +1,31 @@
+# Repair ticket flow — 报修单流程（WF-RT-1）
+# List/detail on generic /records; submit via repair-ticket form. Console blocks match business-table wizard.
+# 列表/详情走通用 /records；提交走报修单表单。积木与新建业务表向导一致。
+flowKey: repair-ticket
+titleEn: Repair tickets
+titleZh: 报修单
+formKey: repair-ticket
+entityKey: repair-ticket
+version: 1
+permission: page.read
+tenantScoped: true
+list:
+  path: /pages/repair-ticket
+  apiPath: /api/v1/entities/repair-ticket/records
+  itemsKey: records
+  blocks:
+    - ListTable
+detail:
+  path: /pages/repair-ticket/{id}
+  apiPath: /api/v1/entities/repair-ticket/records
+  itemsKey: records
+  idField: ticketId
+  blocks:
+    - DetailReadonly
+submit:
+  path: /pages/repair-ticket/new
+  apiPath: /api/v1/forms/repair-ticket/submissions
+  redirectTo: /pages/repair-ticket
+  blocks:
+    - FormFields
+    - SubmitBar

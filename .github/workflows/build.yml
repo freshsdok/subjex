@@ -28,8 +28,8 @@ jobs:
       # TN-3：显式跨租户隔离套件（全量 mvn test 因 @Tag 也会跑到）。
       - name: tenant-isolation gates
         run: mvn -B -pl platform-app -am test -Dgroups=tenant-isolation -Dsurefire.failIfNoSpecifiedTests=false
-      # WF-4: thin workflow suite (FSM + dual-approve + cross-tenant); also in full mvn test via @Tag.
-      # WF-4：薄工作流套件（状态机+双人审+跨租户）；全量 mvn test 因 @Tag 也会跑到。
+      # WF-4 + WF-RT-1…4: FSM, dual-approve, isolation, repair-ticket hybrid/auto-start/org/audit.
+      # WF-4 + WF-RT-1…4：状态机、双人审、隔离、报修单 hybrid/自动起单/组织审批/审计关联。
       - name: workflow gates
         run: mvn -B -pl platform-app -am test -Dgroups=workflow -Dsurefire.failIfNoSpecifiedTests=false
 

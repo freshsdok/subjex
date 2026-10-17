@@ -18,10 +18,10 @@ import org.junit.jupiter.api.Test;
 class EntityCatalogTest {
 
     @Test
-    void loadsBothCheckedInEntitiesFromClasspath() {
+    void loadsCheckedInEntitiesFromClasspath() {
         EntityCatalog catalog = EntityCatalog.load(EntityCatalogTest.class.getClassLoader());
 
-        assertEquals(2, catalog.all().size());
+        assertEquals(3, catalog.all().size());
         assertTrue(catalog.find("service-note").isPresent());
         assertEquals(EntityStorageMode.HYBRID, catalog.find("service-note").orElseThrow().storageMode());
         Optional<RenderedEntity> ticket = catalog.find("demo-ticket");
@@ -35,6 +35,20 @@ class EntityCatalogTest {
         assertEquals(EntityFieldKind.ORGANIZATION_REF, ticket.get().fields().get(4).kind());
         assertEquals(64, ticket.get().fields().get(3).maxLength());
         assertEquals(64, ticket.get().fields().get(4).maxLength());
+        // WF-RT-1: first-class hybrid repair-ticket — 一等 hybrid 报修单
+        Optional<RenderedEntity> repair = catalog.find("repair-ticket");
+        assertTrue(repair.isPresent());
+        assertEquals(EntityStorageMode.HYBRID, repair.get().storageMode());
+        assertTrue(repair.get().tenantScoped());
+        assertEquals("repair_ticket", repair.get().tableName());
+        assertEquals(6, repair.get().fields().size());
+        assertEquals("urgency", repair.get().fields().get(3).name());
+        assertEquals(EntityFieldKind.ENUM, repair.get().fields().get(3).kind());
+        assertEquals(List.of("low", "medium", "high", "critical"), repair.get().fields().get(3).enumValues());
+        assertEquals("assignee", repair.get().fields().get(4).name());
+        assertEquals(EntityFieldKind.SUBJECT_REF, repair.get().fields().get(4).kind());
+        assertEquals("organization", repair.get().fields().get(5).name());
+        assertEquals(EntityFieldKind.ORGANIZATION_REF, repair.get().fields().get(5).kind());
     }
 
     @Test

@@ -11,10 +11,10 @@ import java.util.UUID;
  * OperatorActionAudit — 操作员动作审计：把一次配置覆盖或服务登记记成一条审计条目。
  * <p>
  * Default {@link #record} writes tenant {@code platform}. Form submit {@code audit.write} uses
- * {@link #recordFormEffect} so the entry carries request tenant plus declaration linkage (RT-6).
- * It writes through the single {@link AuditPort}; there is no second audit channel.
- * 默认 {@link #record} 写租户 {@code platform}。表单提交审计走 {@link #recordFormEffect}，带请求租户与声明关联（RT-6）。
- * 经唯一的 {@link AuditPort} 写入，没有第二条审计通道。
+ * {@link #recordFormEffect}; workflow uses {@link #recordWorkflow} (WF-RT-4) with request tenant
+ * plus entity / declaration linkage. One {@link AuditPort} only.
+ * 默认 {@link #record} 写租户 {@code platform}。表单走 {@link #recordFormEffect}；工作流走
+ * {@link #recordWorkflow}（WF-RT-4）带请求租户与实体/声明关联。仍唯一 {@link AuditPort}。
  */
 public final class OperatorActionAudit {
 
@@ -54,6 +54,36 @@ public final class OperatorActionAudit {
             String actionTarget,
             String entityKey,
             int declarationVersion,
+            String resolutionSource,
+            AuditOutcome outcome) {
+        Objects.requireNonNull(operator, "operator");
+        Objects.requireNonNull(outcome, "outcome");
+        String tid = requireText(tenantId, "tenantId");
+        String action = requireText(actionName, "actionName");
+        auditPort.record(new AuditEntry(
+                UUID.randomUUID().toString(),
+                tid,
+                operator.identityId(),
+                action,
+                actionTarget == null ? "" : actionTarget,
+                outcome,
+                clock.instant(),
+                blankToNull(entityKey),
+                declarationVersion,
+                blankToNull(resolutionSource)));
+    }
+
+    /**
+     * WF-RT-4 workflow audit: tenant + instance target + entity + declaration version when known —
+     * 工作流审计：租户、实例目标、实体键、可知时的声明版本。
+     */
+    public void recordWorkflow(
+            OperatorPrincipal operator,
+            String tenantId,
+            String actionName,
+            String actionTarget,
+            String entityKey,
+            Integer declarationVersion,
             String resolutionSource,
             AuditOutcome outcome) {
         Objects.requireNonNull(operator, "operator");

@@ -22,6 +22,7 @@ class FormCatalogTest {
         assertTrue(forms.stream().anyMatch(form -> "config-override".equals(form.formKey())));
         assertTrue(forms.stream().anyMatch(form -> "service-note".equals(form.formKey())));
         assertTrue(forms.stream().anyMatch(form -> "demo-ticket".equals(form.formKey())));
+        assertTrue(forms.stream().anyMatch(form -> "repair-ticket".equals(form.formKey())));
         assertEquals("endpoint-publication", catalog.publication().formKey());
         assertEquals("endpoint-publication", catalog.require("endpoint-publication").formKey());
         assertEquals("config-override", catalog.require("config-override").formKey());
@@ -32,6 +33,9 @@ class FormCatalogTest {
         assertEquals("service-note", catalog.require("service-note").entityKey());
         assertEquals("entity.record.upsert", catalog.require("demo-ticket").domainAction().key());
         assertEquals("demo-ticket", catalog.require("demo-ticket").entityKey());
+        assertEquals("entity.record.upsert", catalog.require("repair-ticket").domainAction().key());
+        assertEquals("repair-ticket", catalog.require("repair-ticket").entityKey());
+        assertEquals(true, catalog.require("repair-ticket").tenantScoped());
         assertEquals("page.read", catalog.require("service-note").permission());
         assertEquals(2, catalog.require("config-override").version());
         assertEquals("registry.write", catalog.require("endpoint-publication").permission());

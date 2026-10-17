@@ -79,6 +79,7 @@ import com.subjex.platform.app.security.JdbcOperatorMfaStore;
 import com.subjex.platform.app.security.AesGcmSecretCipher;
 import com.subjex.platform.app.tenant.TenantLifecycleService;
 import com.subjex.platform.app.workflow.JdbcWorkflowStore;
+import com.subjex.platform.app.workflow.RepairTicketOrgApproverGate;
 import com.subjex.platform.app.workflow.WorkflowService;
 import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.contract.delivery.SecretPlaceholderGuard;
@@ -543,14 +544,32 @@ public class PlatformWiring {
     }
 
     @Bean
+    RepairTicketOrgApproverGate repairTicketOrgApproverGate(
+            HybridEntityStore hybridEntityStore,
+            EntityCatalog entityCatalog,
+            OrganizationScopeResolver organizationScopeResolver,
+            JdbcOrganizationStore jdbcOrganizationStore) {
+        return new RepairTicketOrgApproverGate(
+                hybridEntityStore, entityCatalog, organizationScopeResolver, jdbcOrganizationStore);
+    }
+
+    @Bean
     WorkflowService workflowService(
             JdbcWorkflowStore jdbcWorkflowStore,
             OperatorTenantAccess operatorTenantAccess,
             CapabilityCatalog capabilityCatalog,
             OperatorActionAudit operatorActionAudit,
-            Clock clock) {
+            Clock clock,
+            RepairTicketOrgApproverGate repairTicketOrgApproverGate,
+            EffectiveDeclarationService effectiveDeclarationService) {
         return new WorkflowService(
-                jdbcWorkflowStore, operatorTenantAccess, capabilityCatalog, operatorActionAudit, clock);
+                jdbcWorkflowStore,
+                operatorTenantAccess,
+                capabilityCatalog,
+                operatorActionAudit,
+                clock,
+                repairTicketOrgApproverGate,
+                effectiveDeclarationService);
     }
 
     @Bean

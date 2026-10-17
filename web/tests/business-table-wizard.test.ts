@@ -30,6 +30,7 @@ describe("business-table-wizard — 新建业务表向导", () => {
       "location",
       "urgency",
       "assignee",
+      "organization",
     ]);
     expect(state.fields[0]).toMatchObject({
       name: "ticketId",
@@ -41,18 +42,23 @@ describe("business-table-wizard — 新建业务表向导", () => {
       enumValues: ["low", "medium", "high", "critical"],
     });
     expect(state.fields[4].kind).toBe("subjectRef");
+    expect(state.fields[5].kind).toBe("organizationRef");
   });
 
-  it("builds entity yaml with tenantScoped and subjectRef — 实体 YAML", () => {
+  it("builds entity yaml with tenantScoped hybrid and organizationRef — 实体 YAML", () => {
     const yaml = buildBusinessTableEntityYaml(defaultRepairTicketWizard());
     expect(yaml).toContain("entityKey: repair-ticket");
     expect(yaml).toContain("tableName: repair_ticket");
     expect(yaml).toContain("tenantScoped: true");
+    expect(yaml).toContain("storageMode: hybrid");
     expect(yaml).toContain("kind: subjectRef");
+    expect(yaml).toContain("kind: organizationRef");
     expect(yaml).toContain("enumValues: [low, medium, high, critical]");
     const parsed = parseEntityWizardFromYaml(yaml);
     expect(parsed.fields[0].name).toBe("ticketId");
     expect(parsed.fields[4].kind).toBe("subjectRef");
+    expect(parsed.fields[5].kind).toBe("organizationRef");
+    expect(parsed.storageMode).toBe("hybrid");
   });
 
   it("builds form yaml with audit.write and subjectRef — 表单 YAML", () => {
@@ -76,6 +82,7 @@ describe("business-table-wizard — 新建业务表向导", () => {
       },
     ]);
     expect(parsed.fields[4].kind).toBe("subjectRef");
+    expect(parsed.fields[5].kind).toBe("organizationRef");
   });
 
   it("builds flow yaml with fixed paths and four blocks — 流程路径与积木", () => {

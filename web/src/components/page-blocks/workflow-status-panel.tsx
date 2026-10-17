@@ -37,6 +37,7 @@ type StatusReply = {
   instance?: InstanceDoc;
   history?: HistoryRow[];
   pendingApproval?: PendingApproval | null;
+  approvalCandidateSubjectIds?: string[];
 };
 
 type MeReply = { subjectId?: string; permissions?: string[] };
@@ -46,7 +47,9 @@ const DEFINITION_KEY = "repair-ticket";
 /**
  * WorkflowStatusPanel — WF-3 minimal console UI for repair-ticket FSM on entity detail.
  * Loads by-record status; start / transition via /api/platform/workflows.
+ * WF-RT-2/5: after form submit, instance usually already OPEN — Start stays hidden when present.
  * WF-3：实体详情上的报修工单状态机面板；经平台代理启停与流转。
+ * WF-RT-2/5：表单提交后通常已有 OPEN 实例，存在时隐藏「启动」。
  */
 export function WorkflowStatusPanel({
   entityKey,
@@ -271,6 +274,15 @@ export function WorkflowStatusPanel({
           {pendingRequester ? (
             <p className="text-xs text-muted">
               {fillPhrase(phrases.workflowPendingRequester, { subjectId: pendingRequester })}
+            </p>
+          ) : null}
+          {state === "AWAITING_APPROVAL" ? (
+            <p className="text-xs text-muted">
+              {(status?.approvalCandidateSubjectIds?.length ?? 0) > 0
+                ? fillPhrase(phrases.workflowApprovalCandidates, {
+                    subjects: (status?.approvalCandidateSubjectIds ?? []).join(", "),
+                  })
+                : phrases.workflowApprovalCandidatesEmpty}
             </p>
           ) : null}
           {isSelfRequester ? (

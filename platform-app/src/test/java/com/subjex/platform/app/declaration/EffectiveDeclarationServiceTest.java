@@ -295,8 +295,8 @@ class EffectiveDeclarationServiceTest {
 
         String yaml =
                 """
-                entityKey: repair-ticket
-                tableName: repair_ticket
+                entityKey: solo-ticket
+                tableName: solo_ticket
                 version: 1
                 permission: page.read
                 tenantScoped: true
@@ -311,24 +311,24 @@ class EffectiveDeclarationServiceTest {
                     maxLength: 120
                 """;
         DeclarationRevision draft =
-                store.saveDraft("acme", DeclarationKind.ENTITY, "repair-ticket", yaml, "sub-editor");
+                store.saveDraft("acme", DeclarationKind.ENTITY, "solo-ticket", yaml, "sub-editor");
         DeclarationMigration job = migrations.enqueue(
                 "acme",
                 DeclarationKind.ENTITY,
-                "repair-ticket",
+                "solo-ticket",
                 draft.revision(),
-                "CREATE TABLE repair_ticket (ticket_id VARCHAR(64) NOT NULL, title VARCHAR(120) NOT NULL, tenant_id VARCHAR(64) NOT NULL)",
+                "CREATE TABLE solo_ticket (ticket_id VARCHAR(64) NOT NULL, title VARCHAR(120) NOT NULL, tenant_id VARCHAR(64) NOT NULL)",
                 "sub-editor");
         migrations.markReviewed(job.migrationId());
         migrations.markApplied(job.migrationId());
-        store.markPromoted("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision());
-        store.recordPromote("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision(), "sha-rt1", "sub-editor");
+        store.markPromoted("acme", DeclarationKind.ENTITY, "solo-ticket", draft.revision());
+        store.recordPromote("acme", DeclarationKind.ENTITY, "solo-ticket", draft.revision(), "sha-rt1", "sub-editor");
 
-        RenderedEntity runtime = effective.runtimeEntity("acme", "repair-ticket").orElseThrow();
-        assertEquals("repair-ticket", runtime.entityKey());
-        assertEquals("repair_ticket", runtime.tableName());
+        RenderedEntity runtime = effective.runtimeEntity("acme", "solo-ticket").orElseThrow();
+        assertEquals("solo-ticket", runtime.entityKey());
+        assertEquals("solo_ticket", runtime.tableName());
         assertEquals(120, fieldMax(runtime, "title"));
-        assertTrue(catalog.find("repair-ticket").isEmpty());
+        assertTrue(catalog.find("solo-ticket").isEmpty());
     }
 
     @ParameterizedTest
@@ -343,8 +343,8 @@ class EffectiveDeclarationServiceTest {
 
         String yaml =
                 """
-                entityKey: repair-ticket
-                tableName: repair_ticket
+                entityKey: solo-ticket
+                tableName: solo_ticket
                 version: 1
                 permission: page.read
                 tenantScoped: false
@@ -355,30 +355,30 @@ class EffectiveDeclarationServiceTest {
                     maxLength: 64
                 """;
         DeclarationRevision draft =
-                store.saveDraft("acme", DeclarationKind.ENTITY, "repair-ticket", yaml, "sub-editor");
-        store.markPromoted("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision());
-        store.recordPromote("acme", DeclarationKind.ENTITY, "repair-ticket", draft.revision(), "sha-meta", "sub-editor");
+                store.saveDraft("acme", DeclarationKind.ENTITY, "solo-ticket", yaml, "sub-editor");
+        store.markPromoted("acme", DeclarationKind.ENTITY, "solo-ticket", draft.revision());
+        store.recordPromote("acme", DeclarationKind.ENTITY, "solo-ticket", draft.revision(), "sha-meta", "sub-editor");
 
         // Promoted but no APPLIED migration → 409 fail-closed for JDBC.
         assertThrows(
                 DeclarationPromoteBlockedByMigration.class,
-                () -> effective.runtimeEntity("acme", "repair-ticket"));
+                () -> effective.runtimeEntity("acme", "solo-ticket"));
 
         DeclarationMigration pending = migrations.enqueue(
                 "acme",
                 DeclarationKind.ENTITY,
-                "repair-ticket",
+                "solo-ticket",
                 draft.revision(),
-                "CREATE TABLE repair_ticket (ticket_id VARCHAR(64) NOT NULL)",
+                "CREATE TABLE solo_ticket (ticket_id VARCHAR(64) NOT NULL)",
                 "sub-editor");
         assertThrows(
                 DeclarationPromoteBlockedByMigration.class,
-                () -> effective.runtimeEntity("acme", "repair-ticket"));
+                () -> effective.runtimeEntity("acme", "solo-ticket"));
 
         migrations.markReviewed(pending.migrationId());
         assertThrows(
                 DeclarationPromoteBlockedByMigration.class,
-                () -> effective.runtimeEntity("acme", "repair-ticket"));
+                () -> effective.runtimeEntity("acme", "solo-ticket"));
     }
 
     @ParameterizedTest
@@ -393,14 +393,14 @@ class EffectiveDeclarationServiceTest {
 
         String formYaml =
                 """
-                formKey: repair-ticket
+                formKey: solo-ticket
                 titleEn: Repair ticket
                 titleZh: 报修单
                 version: 1
                 permission: page.read
                 tenantScoped: true
                 domainAction: entity.record.upsert
-                entityKey: repair-ticket
+                entityKey: solo-ticket
                 fields:
                   - name: ticketId
                     kind: text
@@ -412,17 +412,17 @@ class EffectiveDeclarationServiceTest {
                     maxLength: 120
                 """;
         DeclarationRevision draft =
-                store.saveDraft("acme", DeclarationKind.FORM, "repair-ticket", formYaml, "sub-editor");
-        store.markPromoted("acme", DeclarationKind.FORM, "repair-ticket", draft.revision());
-        store.recordPromote("acme", DeclarationKind.FORM, "repair-ticket", draft.revision(), "sha-form", "sub-editor");
+                store.saveDraft("acme", DeclarationKind.FORM, "solo-ticket", formYaml, "sub-editor");
+        store.markPromoted("acme", DeclarationKind.FORM, "solo-ticket", draft.revision());
+        store.recordPromote("acme", DeclarationKind.FORM, "solo-ticket", draft.revision(), "sha-form", "sub-editor");
 
-        var form = effective.effectiveForm("acme", "repair-ticket").orElseThrow();
-        assertEquals("repair-ticket", form.formKey());
+        var form = effective.effectiveForm("acme", "solo-ticket").orElseThrow();
+        assertEquals("solo-ticket", form.formKey());
         assertEquals(1, form.version());
         assertEquals("报修单", form.titleZh());
         assertEquals(
                 EffectiveDeclarationService.SOURCE_PROMOTED,
-                effective.resolutionSource("acme", DeclarationKind.FORM, "repair-ticket"));
+                effective.resolutionSource("acme", DeclarationKind.FORM, "solo-ticket"));
     }
 
 
@@ -438,53 +438,53 @@ class EffectiveDeclarationServiceTest {
 
         String flowYaml =
                 """
-                flowKey: repair-ticket
+                flowKey: solo-ticket
                 titleEn: Repair tickets
                 titleZh: 报修单
-                formKey: repair-ticket
-                entityKey: repair-ticket
+                formKey: solo-ticket
+                entityKey: solo-ticket
                 version: 1
                 permission: page.read
                 tenantScoped: true
                 list:
-                  path: /pages/repair-ticket
-                  apiPath: /api/v1/entities/repair-ticket/records
+                  path: /pages/solo-ticket
+                  apiPath: /api/v1/entities/solo-ticket/records
                   itemsKey: records
                   blocks:
                     - ListTable
                 detail:
-                  path: /pages/repair-ticket/{id}
-                  apiPath: /api/v1/entities/repair-ticket/records
+                  path: /pages/solo-ticket/{id}
+                  apiPath: /api/v1/entities/solo-ticket/records
                   itemsKey: records
                   idField: ticketId
                   blocks:
                     - DetailReadonly
                 submit:
-                  path: /pages/repair-ticket/new
-                  apiPath: /api/v1/forms/repair-ticket/submissions
-                  redirectTo: /pages/repair-ticket
+                  path: /pages/solo-ticket/new
+                  apiPath: /api/v1/forms/solo-ticket/submissions
+                  redirectTo: /pages/solo-ticket
                   blocks:
                     - FormFields
                     - SubmitBar
                 """;
-        assertTrue(effective.effectiveRuntimePages("acme", "repair-ticket").isEmpty());
-        assertTrue(new PageCatalog().find("repair-ticket").isEmpty());
+        assertTrue(effective.effectiveRuntimePages("acme", "solo-ticket").isEmpty());
+        assertTrue(new PageCatalog().find("solo-ticket").isEmpty());
 
         DeclarationRevision draft =
-                store.saveDraft("acme", DeclarationKind.FLOW, "repair-ticket", flowYaml, "sub-editor");
-        store.markPromoted("acme", DeclarationKind.FLOW, "repair-ticket", draft.revision());
-        store.recordPromote("acme", DeclarationKind.FLOW, "repair-ticket", draft.revision(), "sha-rt5", "sub-editor");
+                store.saveDraft("acme", DeclarationKind.FLOW, "solo-ticket", flowYaml, "sub-editor");
+        store.markPromoted("acme", DeclarationKind.FLOW, "solo-ticket", draft.revision());
+        store.recordPromote("acme", DeclarationKind.FLOW, "solo-ticket", draft.revision(), "sha-rt5", "sub-editor");
 
         DeclarationRuntimePages.Binding pages =
-                effective.effectiveRuntimePages("acme", "repair-ticket").orElseThrow();
-        assertEquals("repair-ticket", pages.flowKey());
-        assertEquals("/pages/repair-ticket", pages.listPath());
-        assertEquals("/pages/repair-ticket/new", pages.newPath());
-        assertEquals("/pages/repair-ticket/{id}", pages.detailPath());
+                effective.effectiveRuntimePages("acme", "solo-ticket").orElseThrow();
+        assertEquals("solo-ticket", pages.flowKey());
+        assertEquals("/pages/solo-ticket", pages.listPath());
+        assertEquals("/pages/solo-ticket/new", pages.newPath());
+        assertEquals("/pages/solo-ticket/{id}", pages.detailPath());
         assertEquals(
                 EffectiveDeclarationService.SOURCE_PROMOTED,
-                effective.resolutionSource("acme", DeclarationKind.FLOW, "repair-ticket"));
-        assertTrue(effective.tenantDeclarationKeys("acme", DeclarationKind.FLOW).contains("repair-ticket"));
+                effective.resolutionSource("acme", DeclarationKind.FLOW, "solo-ticket"));
+        assertTrue(effective.tenantDeclarationKeys("acme", DeclarationKind.FLOW).contains("solo-ticket"));
     }
 
     private static Integer fieldMax(RenderedEntity entity, String name) {

@@ -270,6 +270,26 @@ class FormRendererTest {
     }
 
     @Test
+    void rendersRepairTicketFormHybridTenantScoped() throws IOException {
+        try (var in = FormRendererTest.class.getResourceAsStream("/forms/repair-ticket.form.yaml")) {
+            assertTrue(in != null);
+            RenderedForm form = renderer.render(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            assertEquals("repair-ticket", form.formKey());
+            assertEquals("repair-ticket", form.entityKey());
+            assertEquals(DomainActionKey.ENTITY_RECORD_UPSERT, form.domainAction());
+            assertTrue(form.tenantScoped());
+            assertEquals(6, form.fields().size());
+            assertEquals("urgency", form.fields().get(3).name());
+            assertEquals(FieldKind.ENUM, form.fields().get(3).kind());
+            assertEquals(List.of("low", "medium", "high", "critical"), form.fields().get(3).enumValues());
+            assertEquals("assignee", form.fields().get(4).name());
+            assertEquals(FieldKind.SUBJECT_REF, form.fields().get(4).kind());
+            assertEquals("organization", form.fields().get(5).name());
+            assertEquals(FieldKind.ORGANIZATION_REF, form.fields().get(5).kind());
+        }
+    }
+
+    @Test
     void entityRecordUpsertWithoutEntityKeyIsRejected() {
         String yaml = """
                 formKey: demo-ticket

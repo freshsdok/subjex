@@ -54,5 +54,18 @@ class PageCatalogTest {
         assertEquals("/api/v1/forms/demo-ticket/submissions", flow.submit().apiPath());
         assertEquals("/pages/demo-ticket", flow.submit().redirectTo());
     }
-}
 
+    @Test
+    void requiresRepairTicketFlowOnGenericRecords() {
+        RenderedFlow flow = catalog.require("repair-ticket");
+        assertEquals("repair-ticket", flow.flowKey());
+        assertEquals("repair-ticket", flow.formKey());
+        assertEquals("repair-ticket", flow.entityKey());
+        assertEquals(true, flow.tenantScoped());
+        assertEquals("/api/v1/entities/repair-ticket/records", flow.list().apiPath());
+        assertEquals("records", flow.list().itemsKey());
+        assertEquals("ticketId", flow.detail().idField());
+        assertEquals("/api/v1/forms/repair-ticket/submissions", flow.submit().apiPath());
+        assertEquals("/pages/repair-ticket", flow.submit().redirectTo());
+    }
+}

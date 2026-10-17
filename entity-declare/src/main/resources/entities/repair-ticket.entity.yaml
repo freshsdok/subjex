@@ -1,0 +1,36 @@
+# Repair ticket entity — 报修单实体（WF-RT-1 / ADR 0005）
+# First-class hybrid classpath sample; tenant-scoped. FSM status lives in workflow_instance, not here.
+# 一等 hybrid classpath 样例；租户隔离。状态机在 workflow_instance，不在本实体字段。
+# organizationRef reserved for WF-RT-3 OrgScope approval — organizationRef 留给 WF-RT-3 组织范围审批。
+entityKey: repair-ticket
+tableName: repair_ticket
+version: 1
+permission: page.read
+tenantScoped: true
+storageMode: hybrid
+fields:
+  - name: ticketId
+    kind: text
+    required: true
+    maxLength: 64
+  - name: title
+    kind: text
+    required: true
+    maxLength: 200
+  - name: location
+    kind: text
+    required: true
+    maxLength: 200
+  - name: urgency
+    kind: enum
+    required: true
+    maxLength: 32
+    enumValues: [low, medium, high, critical]
+  - name: assignee
+    kind: subjectRef
+    required: false
+    maxLength: 64
+  - name: organization
+    kind: organizationRef
+    required: false
+    maxLength: 64

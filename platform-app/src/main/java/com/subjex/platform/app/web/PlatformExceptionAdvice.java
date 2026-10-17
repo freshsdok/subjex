@@ -23,6 +23,7 @@ import com.subjex.platform.app.task.RateLimitExceeded;
 import com.subjex.platform.app.tenant.TenantQuotaExceeded;
 import com.subjex.platform.app.workflow.IllegalWorkflowTransitionException;
 import com.subjex.platform.app.workflow.WorkflowAlreadyStartedException;
+import com.subjex.platform.app.workflow.WorkflowApproverOutOfScope;
 import com.subjex.platform.app.workflow.WorkflowNotFoundException;
 import com.subjex.platform.app.workflow.WorkflowNeedsSecondApprover;
 import com.subjex.platform.app.task.SubmitLockHeld;
@@ -163,6 +164,11 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<Map<String, String>> rejected(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(WorkflowApproverOutOfScope.class)
+    ResponseEntity<Map<String, String>> workflowApproverOutOfScope(WorkflowApproverOutOfScope ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", ex.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

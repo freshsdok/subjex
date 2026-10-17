@@ -304,7 +304,7 @@ const zhPhrases = {
 
   // WF-3 thin workflow status panel — WF-3 薄工作流状态面板
   workflowPanelTitle: "工作流",
-  workflowPanelHint: "报修工单状态机（repair-ticket）：启动、流转与审批。审批人须不同于请求人。",
+  workflowPanelHint: "报修工单状态机（repair-ticket）：提交后自动启动实例；可流转与审批。审批人须不同于请求人。",
   workflowStateLabel: "当前状态",
   workflowNoInstance: "尚未启动工作流。",
   workflowStartAction: "启动工作流",
@@ -317,6 +317,8 @@ const zhPhrases = {
   workflowActionReject: "驳回",
   workflowActionClose: "关闭",
   workflowPendingRequester: "待审请求人：{subjectId}",
+  workflowApprovalCandidates: "组织范围候选人：{subjects}",
+  workflowApprovalCandidatesEmpty: "暂无组织范围候选人（工单可能未填组织）。",
   workflowSelfApproveHint: "你是审批请求人，须由另一操作员批准或驳回。",
   workflowLoadFailed: "工作流加载失败（状态码 {status}）。",
   workflowActionFailed: "操作失败（状态码 {status}）{reason}。",
@@ -1066,7 +1068,7 @@ const enPhrases: PhraseBook = {
 
   // WF-3 thin workflow status panel — WF-3 thin workflow status panel
   workflowPanelTitle: "Workflow",
-  workflowPanelHint: "Repair-ticket state machine: start, transition, and approve. Approver must differ from requester.",
+  workflowPanelHint: "Repair-ticket state machine: submit auto-starts an instance; then transition and approve. Approver must differ from requester.",
   workflowStateLabel: "Current state",
   workflowNoInstance: "No workflow started yet.",
   workflowStartAction: "Start workflow",
@@ -1079,6 +1081,8 @@ const enPhrases: PhraseBook = {
   workflowActionReject: "Reject",
   workflowActionClose: "Close",
   workflowPendingRequester: "Pending requester: {subjectId}",
+  workflowApprovalCandidates: "Org-scope candidates: {subjects}",
+  workflowApprovalCandidatesEmpty: "No org-scope candidates (ticket may lack organization).",
   workflowSelfApproveHint: "You requested approval; another operator must approve or reject.",
   workflowLoadFailed: "Failed to load workflow (status {status}).",
   workflowActionFailed: "Action failed (status {status}){reason}.",
