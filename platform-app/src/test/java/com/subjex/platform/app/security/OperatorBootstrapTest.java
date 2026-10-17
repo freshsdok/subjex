@@ -42,29 +42,7 @@ class OperatorBootstrapTest {
 
         OperatorPrincipal operator = (OperatorPrincipal) directory.loadUserByUsername("ops-one");
         assertTrue(operator.isEnabled());
-        assertEquals(
-                Set.of(
-                        "admin.read",
-                        "page.read",
-                        "config.read",
-                        "config.write",
-                        "declaration.migrate",
-                        "declaration.promote",
-                        "declaration.read",
-                        "declaration.write",
-                        "operator.manage",
-                        "org.read",
-                        "org.write",
-                        "tenant.manage",
-                        "registry.read",
-                        "registry.write",
-                        "task.write",
-                        "workflow.approve",
-                        "workflow.read",
-                        "workflow.write",
-                        "inbox.read",
-                        "inbox.send.system"),
-                operator.permissionNames());
+        assertEquals(OperatorPermission.allPermissionNames(), operator.permissionNames());
         assertTrue(encoder.matches("long-enough", operator.getPassword()));
         assertTrue(operator.getPassword().startsWith("{bcrypt}"));
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM account WHERE login_name = 'ops-one'", Integer.class));
@@ -125,29 +103,7 @@ class OperatorBootstrapTest {
                         Integer.class));
         OperatorPrincipal operator = (OperatorPrincipal) directory.loadUserByUsername("ops-one");
         assertTrue(encoder.matches("second-password", operator.getPassword()));
-        assertEquals(
-                Set.of(
-                        "admin.read",
-                        "page.read",
-                        "config.read",
-                        "config.write",
-                        "declaration.migrate",
-                        "declaration.promote",
-                        "declaration.read",
-                        "declaration.write",
-                        "operator.manage",
-                        "org.read",
-                        "org.write",
-                        "tenant.manage",
-                        "registry.read",
-                        "registry.write",
-                        "task.write",
-                        "workflow.approve",
-                        "workflow.read",
-                        "workflow.write",
-                        "inbox.read",
-                        "inbox.send.system"),
-                operator.permissionNames());
+        assertEquals(OperatorPermission.allPermissionNames(), operator.permissionNames());
     }
 
     @Test

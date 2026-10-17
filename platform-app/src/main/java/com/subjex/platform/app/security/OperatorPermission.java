@@ -1,5 +1,10 @@
 package com.subjex.platform.app.security;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * OperatorPermission — 操作员权限：一个 HTTP 动作需要的那项具名权限。
  * <p>
@@ -64,5 +69,20 @@ public enum OperatorPermission {
     /** Name stored in the table and granted as an authority — 表里存的名字，也是授权名。 */
     public String permissionName() {
         return permissionName;
+    }
+
+    /** Full catalog names (source of truth for platform_permission) — 完整目录名（platform_permission 真源）。 */
+    public static Set<String> allPermissionNames() {
+        return Arrays.stream(values())
+                .map(OperatorPermission::permissionName)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /** Sorted catalog names for ordered assertions / Flyway ORDER BY checks — 有序目录名（断言 / ORDER BY）。 */
+    public static List<String> allPermissionNamesSorted() {
+        return Arrays.stream(values())
+                .map(OperatorPermission::permissionName)
+                .sorted()
+                .toList();
     }
 }

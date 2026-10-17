@@ -24,27 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 class SuperAdminBreakGlassTest {
 
-    private static final Set<String> FULL_CATALOG = Set.of(
-            "admin.read",
-            "page.read",
-            "config.read",
-            "config.write",
-            "declaration.migrate",
-            "declaration.promote",
-            "declaration.read",
-            "declaration.write",
-            "operator.manage",
-            "org.read",
-            "org.write",
-            "tenant.manage",
-            "registry.read",
-            "registry.write",
-            "task.write",
-            "workflow.approve",
-            "workflow.read",
-            "workflow.write",
-            "inbox.read",
-            "inbox.send.system");
+    private static final Set<String> FULL_CATALOG = OperatorPermission.allPermissionNames();
 
     private final PasswordEncoder encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
     private JdbcTemplate jdbc;

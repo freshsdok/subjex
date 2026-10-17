@@ -118,7 +118,6 @@ import com.subjex.platform.app.storage.S3ObjectStorage;
 import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.app.flags.FeatureFlagService;
-import com.subjex.platform.contract.config.ConfigCenterPort;
 import com.subjex.platform.contract.config.ConfigListing;
 import com.subjex.platform.contract.config.ConfigSource;
 import com.subjex.platform.contract.config.LocalApplicationConfig;
@@ -192,18 +191,14 @@ public class PlatformWiring {
         return new ConfigCatalog(configListing, configOverrideStore);
     }
 
-    /** Item 5 lifecycle surface — same catalog instance (Config-5a). / 项 5 生命周期面——与目录同一实例。 */
-    @Bean
-    ConfigCenterPort configCenterPort(ConfigCatalog configCatalog) {
-        return configCatalog;
-    }
-
     /**
      * Feature flags resolver (config namespace flags) — 功能开关解析（flags 命名空间）。
+     * Injects {@link ConfigCatalog} (the sole {@link com.subjex.platform.contract.config.ConfigCenterPort}) to avoid a duplicate bean alias.
+     * 注入唯一的 ConfigCenterPort 实现 ConfigCatalog，避免别名 bean 与实现类型双注册。
      */
     @Bean
-    FeatureFlagService featureFlagService(ConfigCenterPort configCenterPort) {
-        return new FeatureFlagService(configCenterPort);
+    FeatureFlagService featureFlagService(ConfigCatalog configCatalog) {
+        return new FeatureFlagService(configCatalog);
     }
 
     /**
