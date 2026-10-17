@@ -54,8 +54,13 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
         <nav className="w-48 border-r border-border bg-surface p-4 text-sm">
           {/* Locked sections stay visible but greyed, with the missing permission named — 没权限的栏目不隐藏，置灰并写明缺什么权限。 */}
           {consoleSections.map((section) => {
-            const allowed =
-              section.requiredPermission === null || grantedPermissions.has(section.requiredPermission);
+            const allowed = section.requiredAnyOf
+              ? section.requiredAnyOf.some((p) => grantedPermissions.has(p))
+              : section.requiredPermission === null ||
+                grantedPermissions.has(section.requiredPermission);
+            const missingHint = section.requiredAnyOf
+              ? section.requiredAnyOf.join(" | ")
+              : (section.requiredPermission ?? "");
             return allowed ? (
               <Link key={section.href} href={section.href} className="block rounded-md px-2 py-1 hover:bg-background">
                 {phrases[section.labelKey]}
@@ -64,7 +69,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
               <span
                 key={section.href}
                 aria-disabled="true"
-                title={fillPhrase(phrases.lockedSectionHint, { permission: section.requiredPermission ?? "" })}
+                title={fillPhrase(phrases.lockedSectionHint, { permission: missingHint })}
                 className="block cursor-not-allowed px-2 py-1 text-muted opacity-60"
               >
                 {phrases[section.labelKey]}

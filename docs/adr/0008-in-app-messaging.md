@@ -2,7 +2,7 @@
 
 - Status: **Accepted**（2026-10-17 Asia/Shanghai；开放决策已按 MVP 建议默认锁死；IM-1 可开工）
 - Date: 2026-10-17 (Asia/Shanghai)
-- Relates: ADR 0003（OIDC / realms）、ADR 0004（audit）、ADR 0005（thin workflow）、ADR 0007（client triad）、[`docs/delivery/outbox-event-contract.md`](../delivery/outbox-event-contract.md)、[`docs/messaging/im-progress.md`](../messaging/im-progress.md)
+- Relates: ADR 0003（OIDC / realms）、ADR 0004（audit）、ADR 0005（thin workflow）、ADR 0007（client triad）、ADR 0009（attachments / groups / mass send · Proposed）、[`docs/delivery/outbox-event-contract.md`](../delivery/outbox-event-contract.md)、[`docs/messaging/im-progress.md`](../messaging/im-progress.md)
 
 ## Context / 背景
 
@@ -269,4 +269,5 @@ See [`docs/messaging/im-progress.md`](../messaging/im-progress.md).
 - Progress: [`docs/messaging/im-progress.md`](../messaging/im-progress.md)
 - Workflow: [`docs/adr/0005-thin-workflow-repair-ticket.md`](0005-thin-workflow-repair-ticket.md)
 - Clients: [`docs/adr/0007-client-triad.md`](0007-client-triad.md)
+- Extension (Proposed): [`0009-inbox-attachments-and-group-broadcast.md`](0009-inbox-attachments-and-group-broadcast.md)
 - Outbox: [`docs/delivery/outbox-event-contract.md`](../delivery/outbox-event-contract.md)

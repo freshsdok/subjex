@@ -8,6 +8,30 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`).
 
 ### Added / 新增
+- **IM-A7 inbox compose + groups console:** `/inbox/compose` (system / group-send / org broadcast + file attach); `/inbox/groups` CRUD + members; permission-gated nav and inbox links; BFF reuse.
+  **IM-A7 站内信写信与组控制台：** 写信三模式+附件；组与成员管理；权限导航；复用平台 BFF。
+
+- **IM-A6 async inbox fan-out:** Flyway `V45` job+recipient tables; `InboxPort.sendDeferred` / `processFanoutBatch`; `InboxFanoutWorker` after-commit drain into `inbox_entry`; group-send/broadcast accept 200<N≤2000 (`fanoutStatus=PENDING`); reject N>2000. Sync ≤200 unchanged.
+  **IM-A6 站内信异步写扩散：** V45 任务表；延迟发送+批次写 `inbox_entry`；提交后 worker 排空；组发/广播支持中等 N；超 2000 拒绝。
+
+- **IM-A5 ORG_BROADCAST sync fan-out:** `POST /api/v1/inbox/broadcast` expands ACTIVE org memberships ∩ sender OrgScope (≤200); `inbox.broadcast`; optional staging attachments; out-of-scope 403.
+  **IM-A5 组织广播（同步）：** 按组织成员∩发送者 OrgScope 写扩散（≤200）；需 broadcast；可带附件；越权 403。
+
+- **IM-A4 GROUP_SEND sync fan-out:** `POST /api/v1/inbox/group-send` expands `inbox_group` members (≤200); `inbox.broadcast`; optional staging attachments; empty/over-cap → 400.
+  **IM-A4 站内信组群发（同步）：** 展开组成员写扩散（≤200）；需 broadcast；可带暂存附件；空组/超限 400。
+
+- **IM-A3 inbox group CRUD REST:** `/api/v1/inbox/groups` list/create/update/delete + members add/remove; `inbox.group.admin`; tenant fail-closed. No GROUP_SEND yet (IM-A4).
+  **IM-A3 站内信组 CRUD REST：** 组与成员管理 API；需 `inbox.group.admin`；租户失败关闭。群发仍后置。
+
+- **IM-A2 inbox attachment upload + system send:** staging (direct + CHUNK-1 reuse) → ObjectStorage; `POST /inbox/system` accepts `attachmentStagingIds`; own-entry list/download; MIME allowlist; fail-closed AuthZ.
+  **IM-A2 站内信附件上传与系统发送：** 直传/分片暂存→对象存储；系统发送绑定暂存 id；本人列表/下载；MIME 白名单。
+
+- **IM-A1 inbox attachments + groups schema:** Flyway `V44` `inbox_attachment` / `inbox_group` / `inbox_group_member`; permissions `inbox.broadcast` / `inbox.group.admin`; `InboxPort` bind+own-entry download; `InboxGroupPort` JDBC; sync fan-out ≤200 reject. No REST/UI yet (IM-A2+).
+  **IM-A1 站内信附件与分组表：** V44 三表+新权限；发送绑定附件；本人收件可列附件；组端口 JDBC；同步写扩散上限 200。尚无 REST/UI。
+
+- **ADR 0009 Accepted — inbox attachments + groups + mass send:** ObjectStorage + `inbox_attachment`; dedicated `inbox_group` and org `ORG_BROADCAST`; sync fan-out ≤200 / async ≤2000; perms `inbox.broadcast` + `inbox.group.admin`; own-entry download only. [`docs/adr/0009-inbox-attachments-and-group-broadcast.md`](docs/adr/0009-inbox-attachments-and-group-broadcast.md).
+  **ADR 0009 Accepted — 站内信附件·分组·群发：** 对象存储附件表；专用组 + 组织广播；同步/异步限额；新权限；仅本人收件可下附件。
+
 - **IM-5 inbox unread badge:** console header polls unread-count ~60s (pause when tab hidden); tenant from cookie; click opens `/inbox`.
   **IM-5 站内信未读角标：** 顶栏约 60s 轮询未读（页签隐藏暂停）；租户来自 cookie；点击进 `/inbox`。
 

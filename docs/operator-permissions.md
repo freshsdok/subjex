@@ -4,11 +4,11 @@
 
 Flyway `V2__operator_permission.sql` adds the catalog. It writes no person and no password.
 Flyway `V6__operator_management.sql` adds `operator.manage` and `operator_tenant_grant`.
-Flyway `V7__tenant_manage.sql` adds `tenant.manage`. Flyway `V13__org_unit.sql` adds `org.read` and reserves role `platform.super-admin` (no ordinary grants). Flyway `V18__org_write.sql` adds `org.write` (granted to `platform-operator` only). Flyway `V43__inbox_message.sql` adds `inbox.read` / `inbox.send.system`.
+Flyway `V7__tenant_manage.sql` adds `tenant.manage`. Flyway `V13__org_unit.sql` adds `org.read` and reserves role `platform.super-admin` (no ordinary grants). Flyway `V18__org_write.sql` adds `org.write` (granted to `platform-operator` only). Flyway `V43__inbox_message.sql` adds `inbox.read` / `inbox.send.system`. Flyway `V44__inbox_attachment_and_group.sql` adds `inbox.broadcast` / `inbox.group.admin`.
 
 Flyway `V2__operator_permission.sql` 加入目录，不写入任何人，也不写入任何口令。
 `V6__operator_management.sql` 增加 `operator.manage` 与 `operator_tenant_grant`。
-`V7__tenant_manage.sql` 增加 `tenant.manage`。`V13__org_unit.sql` 增加 `org.read`，并预留角色 `platform.super-admin`（无普通授权）。`V18__org_write.sql` 增加 `org.write`（仅授予 `platform-operator`）。`V43__inbox_message.sql` 增加 `inbox.read` / `inbox.send.system`。
+`V7__tenant_manage.sql` 增加 `tenant.manage`。`V13__org_unit.sql` 增加 `org.read`，并预留角色 `platform.super-admin`（无普通授权）。`V18__org_write.sql` 增加 `org.write`（仅授予 `platform-operator`）。`V43__inbox_message.sql` 增加 `inbox.read` / `inbox.send.system`。`V44__inbox_attachment_and_group.sql` 增加 `inbox.broadcast` / `inbox.group.admin`。
 
 | Table / 表 | One row is / 一行是 |
 | --- | --- |
@@ -39,11 +39,13 @@ An operator is an `account` → `subject_identity` in the reserved tenant `platf
 | `org.read` | `GET /api/v1/org/units`, `GET /api/v1/org/memberships` (`tenantId` required); console `/org` |
 | `org.write` | `PUT /api/v1/org/units/{orgUnitId}`, `PUT/DELETE /api/v1/org/memberships` (`tenantId` + operator–tenant grant; audited); console `/org` write forms |
 | `inbox.read` | `GET /api/v1/inbox/entries`, `GET .../unread-count`, `GET .../entries/{id}`, `POST .../read` (own OPERATOR entries; `X-Tenant-Id`) / 本人站内信 |
-| `inbox.send.system` | `POST /api/v1/inbox/system` within tenant grant / 租户内系统发送 |
+| `inbox.send.system` | `POST /api/v1/inbox/system` within tenant grant (may attach files) / 租户内系统发送（可带附件） |
+| `inbox.broadcast` | ORG_BROADCAST / GROUP_SEND within tenant grant / 组织或站内信组群发 |
+| `inbox.group.admin` | CRUD inbox mailing groups / 管理站内信收件组 |
 
-Roles: `platform-operator` holds the full catalog (including `operator.manage`, `tenant.manage`, `org.read`, and `org.write`). `platform-reader` holds `admin.read`, `page.read`, `config.read`, `declaration.read`, `org.read`, `registry.read`, `inbox.read` (no `org.write` / `inbox.send.system`). Role `platform.super-admin` is **isolated break-glass**: keep `role_permission` empty for it; when a subject holds that role, `JdbcOperatorDirectory` expands authorities to the **full** `platform_permission` catalog at load time (no catalog rows are inserted). Ordinary `JdbcOperatorAdmin.create` and `OperatorBootstrap` **refuse** to mint or assign this role. A signed-in operator without the permission gets 403; no login or a wrong password gets 401.
+Roles: `platform-operator` holds the full catalog (including `operator.manage`, `tenant.manage`, `org.read`, and `org.write`). `platform-reader` holds `admin.read`, `page.read`, `config.read`, `declaration.read`, `org.read`, `registry.read`, `inbox.read` (no `org.write` / `inbox.send.system` / `inbox.broadcast` / `inbox.group.admin`). Role `platform.super-admin` is **isolated break-glass**: keep `role_permission` empty for it; when a subject holds that role, `JdbcOperatorDirectory` expands authorities to the **full** `platform_permission` catalog at load time (no catalog rows are inserted). Ordinary `JdbcOperatorAdmin.create` and `OperatorBootstrap` **refuse** to mint or assign this role. A signed-in operator without the permission gets 403; no login or a wrong password gets 401.
 
-角色：`platform-operator` 拥有完整目录（含 `operator.manage`、`tenant.manage`、`org.read`、`org.write`）。`platform-reader` 含 `admin.read`、`page.read`、`config.read`、`declaration.read`、`org.read`、`registry.read`、`inbox.read`（无 `org.write` / `inbox.send.system`）。`platform.super-admin` 为**隔离破窗**：对该角色保持 `role_permission` 为空；主体持有该角色时，`JdbcOperatorDirectory` 在加载时将授权展开为完整 `platform_permission` 目录（不插入目录行）。普通 `JdbcOperatorAdmin.create` 与 `OperatorBootstrap` **拒绝**签发或分配该角色。已登录但缺权限得 403；未登录或口令错误得 401。
+角色：`platform-operator` 拥有完整目录（含 `operator.manage`、`tenant.manage`、`org.read`、`org.write`）。`platform-reader` 含 `admin.read`、`page.read`、`config.read`、`declaration.read`、`org.read`、`registry.read`、`inbox.read`（无 `org.write` / `inbox.send.system` / `inbox.broadcast` / `inbox.group.admin`）。`platform.super-admin` 为**隔离破窗**：对该角色保持 `role_permission` 为空；主体持有该角色时，`JdbcOperatorDirectory` 在加载时将授权展开为完整 `platform_permission` 目录（不插入目录行）。普通 `JdbcOperatorAdmin.create` 与 `OperatorBootstrap` **拒绝**签发或分配该角色。已登录但缺权限得 403；未登录或口令错误得 401。
 
 Permission **tiers** (not separate login account types) separate console vs business operators; break-glass uses the dedicated super-admin bootstrap below.
 

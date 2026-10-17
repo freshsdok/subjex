@@ -6,10 +6,11 @@ import type { PhraseBook } from "@/i18n/phrases";
  * {@code href} is the in-app deep link (Next App Router path). {@code requiredPermission}
  * gates visibility as clickable vs greyed: null = any signed-in operator; otherwise the
  * operator must hold that named permission (layout shows locked hint = why disabled).
+ * {@code requiredAnyOf} (optional) unlocks when the operator holds any listed permission.
  * Order is the user-facing tour: overview → ops surfaces → declarations → org → capabilities.
  * <p>
  * 控制台栏目：左侧导航目录。href 为站内深链；requiredPermission 为查看门禁（null=登录即可）。
- * 无权限时不隐藏，置灰并用 title 写明缺什么权限（为何禁用）。
+ * requiredAnyOf 为「任一权限即可」；无权限时不隐藏，置灰并用 title 写明缺什么权限。
  */
 export interface ConsoleSection {
   /** In-app path (deep link) — 站内路径（深链）。 */
@@ -17,6 +18,8 @@ export interface ConsoleSection {
   labelKey: keyof PhraseBook;
   /** Permission to click; null = login only — 点击所需权限；null 表示登录即可。 */
   requiredPermission: string | null;
+  /** Unlock if operator holds any of these (overrides single requiredPermission when set). */
+  requiredAnyOf?: readonly string[];
 }
 
 export const consoleSections: ConsoleSection[] = [
@@ -25,6 +28,13 @@ export const consoleSections: ConsoleSection[] = [
   { href: "/config", labelKey: "navConfig", requiredPermission: "config.read" },
   { href: "/flags", labelKey: "navFlags", requiredPermission: "config.read" },
   { href: "/inbox", labelKey: "navInbox", requiredPermission: "inbox.read" },
+  {
+    href: "/inbox/compose",
+    labelKey: "navInboxCompose",
+    requiredPermission: "inbox.send.system",
+    requiredAnyOf: ["inbox.send.system", "inbox.broadcast"],
+  },
+  { href: "/inbox/groups", labelKey: "navInboxGroups", requiredPermission: "inbox.group.admin" },
   { href: "/audit", labelKey: "navAudit", requiredPermission: "admin.read" },
   { href: "/dead-letters", labelKey: "navDeadLetters", requiredPermission: "admin.read" },
   { href: "/deploy", labelKey: "navDeploy", requiredPermission: "page.read" },

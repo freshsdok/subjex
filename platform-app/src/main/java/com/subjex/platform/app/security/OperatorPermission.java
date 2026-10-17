@@ -49,7 +49,11 @@ public enum OperatorPermission {
     /** Read own in-app mailbox entries — 读取本人站内信。 */
     INBOX_READ("inbox.read"),
     /** Send SYSTEM notices within tenant grant — 在租户授权内发送系统站内信。 */
-    INBOX_SEND_SYSTEM("inbox.send.system");
+    INBOX_SEND_SYSTEM("inbox.send.system"),
+    /** Send ORG_BROADCAST / GROUP_SEND within tenant grant — 租户内组织或站内信组群发。 */
+    INBOX_BROADCAST("inbox.broadcast"),
+    /** Create and manage inbox mailing groups — 管理站内信收件组。 */
+    INBOX_GROUP_ADMIN("inbox.group.admin");
 
     private final String permissionName;
 

@@ -126,6 +126,8 @@ export function InboxConsole({ phrases, initialTenantId }: Props) {
         return phrases.inboxChannelWorkflow;
       case "ORG_BROADCAST":
         return phrases.inboxChannelBroadcast;
+      case "GROUP_SEND":
+        return phrases.inboxChannelGroupSend;
       default:
         return channel ?? "—";
     }

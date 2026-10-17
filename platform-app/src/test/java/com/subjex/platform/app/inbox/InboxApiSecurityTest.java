@@ -18,9 +18,17 @@ import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.app.tenant.TenantIsolationTags;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
+import com.subjex.platform.app.entity.ChunkedBlobUploadStore;
+import com.subjex.platform.app.entity.LocalDirChunkedBlobUploadStore;
+import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
+import com.subjex.platform.app.organization.JdbcOrganizationStore;
+import com.subjex.platform.app.organization.OrganizationScopeResolver;
+import com.subjex.platform.contract.inbox.InboxGroupPort;
 import com.subjex.platform.contract.inbox.InboxPort;
+import com.subjex.platform.contract.storage.ObjectStorage;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import java.nio.file.Files;
 import java.time.Clock;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -260,9 +268,75 @@ class InboxApiSecurityTest {
         }
 
         @Bean
+        InboxGroupPort inboxGroupPort(JdbcTemplate jdbc, TransactionTemplate transactionTemplate) {
+            return new JdbcInboxGroupPort(jdbc, transactionTemplate);
+        }
+
+        @Bean
+        JdbcOrganizationStore jdbcOrganizationStore(JdbcTemplate jdbc) {
+            return new JdbcOrganizationStore(jdbc);
+        }
+
+        @Bean
+        OrganizationScopeResolver organizationScopeResolver(JdbcOrganizationStore jdbcOrganizationStore) {
+            return new OrganizationScopeResolver(jdbcOrganizationStore);
+        }
+
+        @Bean
+        InboxOrgBroadcastExpander inboxOrgBroadcastExpander(
+                JdbcOrganizationStore jdbcOrganizationStore, OrganizationScopeResolver organizationScopeResolver) {
+            return new InboxOrgBroadcastExpander(jdbcOrganizationStore, organizationScopeResolver);
+        }
+
+        @Bean
+        ObjectStorage objectStorage() throws Exception {
+            return new LocalDirectoryObjectStorage(Files.createTempDirectory("inbox-api-objects"));
+        }
+
+        @Bean
+        ChunkedBlobUploadStore chunkedBlobUploadStore() throws Exception {
+            return new LocalDirChunkedBlobUploadStore(
+                    Files.createTempDirectory("inbox-api-chunks"), Clock.systemUTC());
+        }
+
+        @Bean
+        InboxAttachmentStagingStore inboxAttachmentStagingStore(Clock clock, ObjectStorage objectStorage) {
+            return new InboxAttachmentStagingStore(clock, objectStorage);
+        }
+
+        @Bean
+        Clock clock() {
+            return Clock.systemUTC();
+        }
+
+        @Bean
+        InboxFanoutWorker inboxFanoutWorker(InboxPort inboxPort) {
+            return new InboxFanoutWorker(inboxPort, Runnable::run);
+        }
+
+        @Bean
         InboxService inboxService(
-                InboxPort inboxPort, OperatorTenantAccess tenantAccess, TenantGuard tenantGuard) {
-            return new InboxService(inboxPort, tenantAccess, tenantGuard, Clock.systemUTC());
+                InboxPort inboxPort,
+                InboxGroupPort inboxGroupPort,
+                InboxOrgBroadcastExpander inboxOrgBroadcastExpander,
+                OperatorTenantAccess tenantAccess,
+                TenantGuard tenantGuard,
+                Clock clock,
+                ObjectStorage objectStorage,
+                ChunkedBlobUploadStore chunkedBlobUploadStore,
+                InboxAttachmentStagingStore staging,
+                InboxFanoutWorker inboxFanoutWorker) {
+            return new InboxService(
+                    inboxPort,
+                    inboxGroupPort,
+                    inboxOrgBroadcastExpander,
+                    tenantAccess,
+                    tenantGuard,
+                    clock,
+                    objectStorage,
+                    chunkedBlobUploadStore,
+                    staging,
+                    inboxFanoutWorker);
         }
     }
 }

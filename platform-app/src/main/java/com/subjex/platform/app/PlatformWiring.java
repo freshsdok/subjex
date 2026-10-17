@@ -7,6 +7,7 @@ import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
 import com.subjex.platform.app.delivery.JdbcDeliveryCircuitBreakerPort;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
 import com.subjex.platform.contract.delivery.DeliveryPort;
+import com.subjex.platform.contract.inbox.InboxGroupPort;
 import com.subjex.platform.contract.inbox.InboxPort;
 import com.subjex.platform.contract.delivery.DeliveryTransport;
 import com.subjex.platform.contract.delivery.OutboxTls;
@@ -63,7 +64,12 @@ import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.JdbcFormSubmissionStore;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
+import com.subjex.platform.app.inbox.InboxFanoutWorker;
 import com.subjex.platform.app.inbox.InboxService;
+import com.subjex.platform.app.inbox.InboxAttachmentStagingStore;
+import com.subjex.platform.app.inbox.InboxGroupService;
+import com.subjex.platform.app.inbox.InboxOrgBroadcastExpander;
+import com.subjex.platform.app.inbox.JdbcInboxGroupPort;
 import com.subjex.platform.app.inbox.JdbcInboxPort;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.jdbc.JdbcConfigOverride;
@@ -548,14 +554,62 @@ public class PlatformWiring {
         return new JdbcInboxPort(jdbc, transactionTemplate);
     }
 
+    @Bean
+    InboxGroupPort inboxGroupPort(JdbcTemplate jdbc, TransactionTemplate transactionTemplate) {
+        return new JdbcInboxGroupPort(jdbc, transactionTemplate);
+    }
+
+    @Bean
+    InboxGroupService inboxGroupService(
+            InboxGroupPort inboxGroupPort,
+            OperatorTenantAccess operatorTenantAccess,
+            TenantGuard tenantGuard,
+            Clock clock) {
+        return new InboxGroupService(inboxGroupPort, operatorTenantAccess, tenantGuard, clock);
+    }
+
+
+    @Bean
+    InboxAttachmentStagingStore inboxAttachmentStagingStore(Clock clock, ObjectStorage objectStorage) {
+        return new InboxAttachmentStagingStore(clock, objectStorage);
+    }
+
+    @Bean
+    InboxOrgBroadcastExpander inboxOrgBroadcastExpander(
+            JdbcOrganizationStore jdbcOrganizationStore, OrganizationScopeResolver organizationScopeResolver) {
+        return new InboxOrgBroadcastExpander(jdbcOrganizationStore, organizationScopeResolver);
+    }
+
+    @Bean
+    InboxFanoutWorker inboxFanoutWorker(InboxPort inboxPort) {
+        // Same-thread drain keeps local/dev deterministic; production can swap Executor.
+        // 同线程排空便于本地确定性；生产可换线程池。
+        return new InboxFanoutWorker(inboxPort, Runnable::run);
+    }
 
     @Bean
     InboxService inboxService(
             InboxPort inboxPort,
+            InboxGroupPort inboxGroupPort,
+            InboxOrgBroadcastExpander inboxOrgBroadcastExpander,
             OperatorTenantAccess operatorTenantAccess,
             TenantGuard tenantGuard,
-            Clock clock) {
-        return new InboxService(inboxPort, operatorTenantAccess, tenantGuard, clock);
+            Clock clock,
+            ObjectStorage objectStorage,
+            ChunkedBlobUploadStore chunkedBlobUploadStore,
+            InboxAttachmentStagingStore inboxAttachmentStagingStore,
+            InboxFanoutWorker inboxFanoutWorker) {
+        return new InboxService(
+                inboxPort,
+                inboxGroupPort,
+                inboxOrgBroadcastExpander,
+                operatorTenantAccess,
+                tenantGuard,
+                clock,
+                objectStorage,
+                chunkedBlobUploadStore,
+                inboxAttachmentStagingStore,
+                inboxFanoutWorker);
     }
 
     @Bean
