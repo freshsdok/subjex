@@ -42,7 +42,9 @@ class SuperAdminBreakGlassTest {
             "task.write",
             "workflow.approve",
             "workflow.read",
-            "workflow.write");
+            "workflow.write",
+            "inbox.read",
+            "inbox.send.system");
 
     private final PasswordEncoder encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
     private JdbcTemplate jdbc;

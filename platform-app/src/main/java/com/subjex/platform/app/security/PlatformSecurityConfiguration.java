@@ -176,6 +176,14 @@ public class PlatformSecurityConfiguration {
                         // 搜索读路径 MVP（仅 entity_record；无写）。
                         .requestMatchers(HttpMethod.GET, "/api/v1/search", "/api/v1/search/**")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                        // IM-2 in-app mailbox: read vs system-send; tenant grant in InboxService.
+                        // IM-2 站内信：读与系统发送分权；租户授权在 InboxService 内核对。
+                        .requestMatchers(HttpMethod.POST, "/api/v1/inbox/system")
+                                .hasAuthority(OperatorPermission.INBOX_SEND_SYSTEM.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/inbox/entries/**")
+                                .hasAuthority(OperatorPermission.INBOX_READ.permissionName())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/inbox", "/api/v1/inbox/**")
+                                .hasAuthority(OperatorPermission.INBOX_READ.permissionName())
                         // WF-1 thin workflow: read vs write/approve split; tenant grant in service.
                         // WF-1 薄工作流：读与写/审批分权；租户授权在服务内核对。
                         .requestMatchers(HttpMethod.GET, "/api/v1/workflows/**")

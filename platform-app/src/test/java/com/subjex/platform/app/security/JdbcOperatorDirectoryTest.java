@@ -46,7 +46,8 @@ class JdbcOperatorDirectoryTest {
         assertEquals(LocalOperatorSeeder.IDENTITY_ID, operator.identityId());
         assertEquals(LocalOperatorSeeder.SUBJECT_ID, operator.subjectId());
         assertEquals(Set.of("admin.read", "page.read", "config.read", "config.write", "declaration.migrate",
-                "declaration.promote", "declaration.read", "declaration.write", "operator.manage", "org.read",
+                "declaration.promote", "declaration.read", "declaration.write", "inbox.read", "inbox.send.system",
+                "operator.manage", "org.read",
                 "org.write", "tenant.manage", "registry.read", "registry.write", "task.write", "workflow.approve",
                 "workflow.read", "workflow.write"), operator.permissionNames());
         assertTrue(encoder.matches("change-me", operator.getPassword()));
@@ -57,8 +58,8 @@ class JdbcOperatorDirectoryTest {
     void readerRoleGetsOnlyReadPermissions() {
         OperatorDirectoryTestConfiguration.addViewer(jdbc, encoder);
         OperatorPrincipal viewer = (OperatorPrincipal) directory.loadUserByUsername("platform-viewer");
-        assertEquals(Set.of("admin.read", "page.read", "config.read", "declaration.read", "org.read", "registry.read",
-                "workflow.read"), viewer.permissionNames());
+        assertEquals(Set.of("admin.read", "page.read", "config.read", "declaration.read", "inbox.read", "org.read",
+                "registry.read", "workflow.read"), viewer.permissionNames());
     }
 
     @Test

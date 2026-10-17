@@ -7,6 +7,7 @@ import com.subjex.platform.contract.delivery.DeliveryCircuitBreakerPort;
 import com.subjex.platform.app.delivery.JdbcDeliveryCircuitBreakerPort;
 import com.subjex.platform.app.delivery.OutboxSocketPublisher;
 import com.subjex.platform.contract.delivery.DeliveryPort;
+import com.subjex.platform.contract.inbox.InboxPort;
 import com.subjex.platform.contract.delivery.DeliveryTransport;
 import com.subjex.platform.contract.delivery.OutboxTls;
 import com.subjex.platform.contract.delivery.OutboxTransportPolicy;
@@ -62,6 +63,8 @@ import com.subjex.platform.app.form.FormSideEffectRunner;
 import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.JdbcFormSubmissionStore;
 import com.subjex.platform.app.jdbc.JdbcAdminReader;
+import com.subjex.platform.app.inbox.InboxService;
+import com.subjex.platform.app.inbox.JdbcInboxPort;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.jdbc.JdbcConfigOverride;
 import com.subjex.platform.app.jdbc.JdbcRowLock;
@@ -80,6 +83,7 @@ import com.subjex.platform.app.security.AesGcmSecretCipher;
 import com.subjex.platform.app.tenant.TenantLifecycleService;
 import com.subjex.platform.app.workflow.JdbcWorkflowStore;
 import com.subjex.platform.app.workflow.RepairTicketOrgApproverGate;
+import com.subjex.platform.app.workflow.RepairTicketWorkflowInboxHook;
 import com.subjex.platform.app.workflow.WorkflowService;
 import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.contract.delivery.SecretPlaceholderGuard;
@@ -538,6 +542,22 @@ public class PlatformWiring {
     }
 
 
+
+    @Bean
+    InboxPort inboxPort(JdbcTemplate jdbc, TransactionTemplate transactionTemplate) {
+        return new JdbcInboxPort(jdbc, transactionTemplate);
+    }
+
+
+    @Bean
+    InboxService inboxService(
+            InboxPort inboxPort,
+            OperatorTenantAccess operatorTenantAccess,
+            TenantGuard tenantGuard,
+            Clock clock) {
+        return new InboxService(inboxPort, operatorTenantAccess, tenantGuard, clock);
+    }
+
     @Bean
     JdbcWorkflowStore jdbcWorkflowStore(JdbcTemplate jdbc, TransactionTemplate transactionTemplate) {
         return new JdbcWorkflowStore(jdbc, transactionTemplate);
@@ -554,6 +574,12 @@ public class PlatformWiring {
     }
 
     @Bean
+    RepairTicketWorkflowInboxHook repairTicketWorkflowInboxHook(
+            InboxPort inboxPort, RepairTicketOrgApproverGate repairTicketOrgApproverGate) {
+        return new RepairTicketWorkflowInboxHook(inboxPort, repairTicketOrgApproverGate);
+    }
+
+    @Bean
     WorkflowService workflowService(
             JdbcWorkflowStore jdbcWorkflowStore,
             OperatorTenantAccess operatorTenantAccess,
@@ -561,7 +587,8 @@ public class PlatformWiring {
             OperatorActionAudit operatorActionAudit,
             Clock clock,
             RepairTicketOrgApproverGate repairTicketOrgApproverGate,
-            EffectiveDeclarationService effectiveDeclarationService) {
+            EffectiveDeclarationService effectiveDeclarationService,
+            RepairTicketWorkflowInboxHook repairTicketWorkflowInboxHook) {
         return new WorkflowService(
                 jdbcWorkflowStore,
                 operatorTenantAccess,
@@ -569,7 +596,8 @@ public class PlatformWiring {
                 operatorActionAudit,
                 clock,
                 repairTicketOrgApproverGate,
-                effectiveDeclarationService);
+                effectiveDeclarationService,
+                repairTicketWorkflowInboxHook);
     }
 
     @Bean

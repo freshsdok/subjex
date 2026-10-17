@@ -32,6 +32,12 @@
 - No second mobile stack (Taro/RN/…) without a new ADR.
 - Full decision: ADR 0007; contributor rule: root `AGENTS.md`.
 
+## 2.2 站内信（架构） / In-app messaging (architecture)
+
+- **ADR 0008 Accepted + IM-1：** 平台级站内信（系统通知 + 工作流/审批提醒）；**不是**聊天/IM，也**不是**用审计或出箱冒充收件箱。操作员收件箱在 `web/`；终端收件箱后置于 `clients/uni-app/`（ADR 0007）。MVP 七决策已锁。IM-1/IM-2：`V43` 表 + JDBC `InboxPort` + `/api/v1/inbox` REST（尚无控制台 UI）。进度：[`docs/messaging/im-progress.md`](docs/messaging/im-progress.md)。
+- **ADR 0008 Accepted + IM-1:** platform mailbox; seven MVP decisions locked; Flyway `V43` + JDBC `InboxPort` + `/api/v1/inbox` REST (no console UI yet). Progress: [`docs/messaging/im-progress.md`](docs/messaging/im-progress.md).
+
+
 ## 3. 第一版实现
 
 保留并收口：边界测试、身份三分、租户默认拦截、outbox、存储 SPI、迁移门禁、安全默认开启。幂等、限流、消息各只留一个端口。

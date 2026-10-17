@@ -8,6 +8,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`).
 
 ### Added / 新增
+- **IM-5 inbox unread badge:** console header polls unread-count ~60s (pause when tab hidden); tenant from cookie; click opens `/inbox`.
+  **IM-5 站内信未读角标：** 顶栏约 60s 轮询未读（页签隐藏暂停）；租户来自 cookie；点击进 `/inbox`。
+
+- **IM-4 console inbox:** `web/` `/inbox` — list/filter unread, mark-read, deep link; nav 站内信 (`inbox.read`).
+  **IM-4 控制台站内信：** `/inbox` 列表/未读筛选/已读/深链；导航「站内信」。
+
+- **IM-3 workflow inbox hooks:** repair-ticket `request_approval` → ACTION to org candidates; `approve`/`reject`/`close` → INFO to reporter; same-TX `InboxPort` fan-out.
+  **IM-3 工作流站内信钩子：** 待审 ACTION 给组织候选人；批准/驳回/关闭 INFO 给报告人；同事务写扩散。
+
+- **IM-2 inbox REST:** `/api/v1/inbox` list / unread-count / entry detail / mark-read (one+batch) / system send; `inbox.read` + `inbox.send.system`; tenant grant fail-closed; own-entry isolation.
+  **IM-2 站内信 REST：** 列表/未读/详情/已读/系统发送；权限与租户失败关闭；本人隔离。
+
+- **IM-1 inbox schema + InboxPort:** Flyway `V43` `inbox_message` / `inbox_entry`; JDBC `InboxPort` (send fan-out, list, unread, mark-read, get); permissions `inbox.read` / `inbox.send.system`; TN-3-style isolation tests. No REST/UI yet (IM-2+).
+  **IM-1 站内信表与 InboxPort：** V43 双表；JDBC 端口写扩散/列表/未读/已读；权限入库；隔离测试。尚无 REST/UI。
+
+- **ADR 0008 Accepted — in-app messaging MVP decisions locked:** seven recommended defaults (per-tenant SYSTEM fan-out; no auto-purge; no ORG_BROADCAST API; external push deferred; ~60s unread poll; END_USER after uni-app auth; Chinese copy first). [`docs/adr/0008-in-app-messaging.md`](docs/adr/0008-in-app-messaging.md); progress [`docs/messaging/im-progress.md`](docs/messaging/im-progress.md).
+  **ADR 0008 Accepted — 站内信 MVP 决策锁死：** 七条建议默认（按租户写 SYSTEM；不自动清理；广播 API 后置；外推后置；约 60s 轮询；终端后置；首波中文）。
+
 - **FE-1 client triad:** ADR [`0007-client-triad.md`](docs/adr/0007-client-triad.md) — `web/` = operator console; `clients/uni-app/` = end-user H5 + WeChat mini-program (uni-app Vue3+Vite, HBuilderX). Root `AGENTS.md`; ARCHITECTURE §2.1; scaffold shell (index + login placeholder). No C-end inside console; no Taro/RN without new ADR.
   **FE-1 客户端三端原则：** ADR 0007；控制台 vs uni-app H5/小程序；根 `AGENTS.md`；脚手架壳页。
 - **CI clients H5:** GitHub Actions job `clients-uni-app` runs `npm ci` + `npm run build:h5` (mp-weixin stays local/HBuilderX).

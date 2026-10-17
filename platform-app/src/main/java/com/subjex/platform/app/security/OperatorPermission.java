@@ -45,7 +45,11 @@ public enum OperatorPermission {
     /** Start workflow and apply work transitions — 启动工作流并执行作业类流转。 */
     WORKFLOW_WRITE("workflow.write"),
     /** Approve or reject awaiting workflow steps — 审批或驳回待审工作流步骤。 */
-    WORKFLOW_APPROVE("workflow.approve");
+    WORKFLOW_APPROVE("workflow.approve"),
+    /** Read own in-app mailbox entries — 读取本人站内信。 */
+    INBOX_READ("inbox.read"),
+    /** Send SYSTEM notices within tenant grant — 在租户授权内发送系统站内信。 */
+    INBOX_SEND_SYSTEM("inbox.send.system");
 
     private final String permissionName;
 

@@ -25,10 +25,12 @@ import java.util.UUID;
  * WF-2: {@code request_approval} opens PENDING; {@code approve}/{@code reject} require a second operator.
  * WF-RT-3: repair-ticket approve/reject also require org scope via {@link RepairTicketOrgApproverGate}.
  * WF-RT-4: workflow audits use tenant + entityKey + declaration version + instance id target.
+ * IM-3: curated repair-ticket edges fan-out WORKFLOW inbox via {@link RepairTicketWorkflowInboxHook}.
  * 经 requireGranted 核租户；动作权限来自定义；边上的可选能力 id 只校验目录、不执行。
  * WF-2：request_approval 开 PENDING；approve/reject 须第二操作员。
  * WF-RT-3：报修单 approve/reject 另须组织范围。
  * WF-RT-4：工作流审计带租户、实体键、声明版本与实例 id。
+ * IM-3：报修精选边经站内信钩子写 WORKFLOW 收件。
  */
 public final class WorkflowService {
 
@@ -46,6 +48,8 @@ public final class WorkflowService {
     private final RepairTicketOrgApproverGate orgApproverGate;
     /** Null in legacy tests; production resolves entity declaration version — 旧测可空；生产解析声明版本。 */
     private final EffectiveDeclarationService declarations;
+    /** Null in legacy tests; IM-3 repair-ticket inbox fan-out — 旧测可空；IM-3 报修站内信写扩散。 */
+    private final RepairTicketWorkflowInboxHook inboxHook;
 
     public WorkflowService(
             JdbcWorkflowStore store,
@@ -54,7 +58,8 @@ public final class WorkflowService {
             OperatorActionAudit audit,
             Clock clock,
             RepairTicketOrgApproverGate orgApproverGate,
-            EffectiveDeclarationService declarations) {
+            EffectiveDeclarationService declarations,
+            RepairTicketWorkflowInboxHook inboxHook) {
         this.store = Objects.requireNonNull(store, "store");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
         this.capabilityCatalog = Objects.requireNonNull(capabilityCatalog, "capabilityCatalog");
@@ -62,9 +67,22 @@ public final class WorkflowService {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.orgApproverGate = orgApproverGate;
         this.declarations = declarations;
+        this.inboxHook = inboxHook;
     }
 
-    /** Production-shaped ctor without skipping declarations — 生产形态（声明服务可空仅测用）。 */
+    /** Production-shaped ctor with declarations, no inbox hook — 带声明、无站内信钩子。 */
+    public WorkflowService(
+            JdbcWorkflowStore store,
+            OperatorTenantAccess tenantAccess,
+            CapabilityCatalog capabilityCatalog,
+            OperatorActionAudit audit,
+            Clock clock,
+            RepairTicketOrgApproverGate orgApproverGate,
+            EffectiveDeclarationService declarations) {
+        this(store, tenantAccess, capabilityCatalog, audit, clock, orgApproverGate, declarations, null);
+    }
+
+    /** Org gate only — 仅组织门闩。 */
     public WorkflowService(
             JdbcWorkflowStore store,
             OperatorTenantAccess tenantAccess,
@@ -72,17 +90,17 @@ public final class WorkflowService {
             OperatorActionAudit audit,
             Clock clock,
             RepairTicketOrgApproverGate orgApproverGate) {
-        this(store, tenantAccess, capabilityCatalog, audit, clock, orgApproverGate, null);
+        this(store, tenantAccess, capabilityCatalog, audit, clock, orgApproverGate, null, null);
     }
 
-    /** Test helper without org gate / declarations — 无组织门闩与声明服务的测试构造。 */
+    /** Test helper without org gate / declarations / inbox — 无组织门闩、声明与站内信的测试构造。 */
     public WorkflowService(
             JdbcWorkflowStore store,
             OperatorTenantAccess tenantAccess,
             CapabilityCatalog capabilityCatalog,
             OperatorActionAudit audit,
             Clock clock) {
-        this(store, tenantAccess, capabilityCatalog, audit, clock, null, null);
+        this(store, tenantAccess, capabilityCatalog, audit, clock, null, null, null);
     }
 
     /**
@@ -236,8 +254,28 @@ public final class WorkflowService {
             approvalSideEffect = () -> approvalHolder[0] =
                     store.consumeApproval(id, operator.subjectId(), action.wireName(), now);
         }
-        store.applyTransition(id, edge.to(), now, history, approvalSideEffect);
         DeclarationLinkage linkage = resolveLinkage(current.tenantId(), current.entityKey());
+        // IM-3: same-TX fan-out after approval row mutation (nested REQUIRED joins).
+        // IM-3：审批行变更后同事务写扩散（嵌套 REQUIRED 并入外层事务）。
+        final Runnable approvalOnly = approvalSideEffect;
+        Runnable sideEffect = null;
+        if (approvalOnly != null || inboxHook != null) {
+            sideEffect = () -> {
+                if (approvalOnly != null) {
+                    approvalOnly.run();
+                }
+                if (inboxHook != null) {
+                    inboxHook.onTransition(
+                            current,
+                            action,
+                            operator.subjectId(),
+                            approvalHolder[0],
+                            linkage.version(),
+                            now);
+                }
+            };
+        }
+        store.applyTransition(id, edge.to(), now, history, sideEffect);
         if (approvalHolder[0] != null) {
             if (action == WorkflowAction.REQUEST_APPROVAL) {
                 recordWorkflowAudit(

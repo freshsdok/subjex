@@ -61,7 +61,9 @@ class OperatorBootstrapTest {
                         "task.write",
                         "workflow.approve",
                         "workflow.read",
-                        "workflow.write"),
+                        "workflow.write",
+                        "inbox.read",
+                        "inbox.send.system"),
                 operator.permissionNames());
         assertTrue(encoder.matches("long-enough", operator.getPassword()));
         assertTrue(operator.getPassword().startsWith("{bcrypt}"));
@@ -91,7 +93,8 @@ class OperatorBootstrapTest {
                         "declaration.read",
                         "org.read",
                         "registry.read",
-                        "workflow.read"),
+                        "workflow.read",
+                        "inbox.read"),
                 reader.permissionNames());
     }
 
@@ -141,7 +144,9 @@ class OperatorBootstrapTest {
                         "task.write",
                         "workflow.approve",
                         "workflow.read",
-                        "workflow.write"),
+                        "workflow.write",
+                        "inbox.read",
+                        "inbox.send.system"),
                 operator.permissionNames());
     }
 
