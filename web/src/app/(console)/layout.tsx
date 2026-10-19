@@ -8,24 +8,35 @@ import { fillPhrase } from "@/i18n/phrases";
 import { currentLanguage } from "@/i18n/server-language";
 import { declarationTenantCookieName, parseDeclarationTenantCookie } from "@/lib/declaration-draft";
 import { orgTenantCookieName } from "@/lib/org-console";
+import {
+  buildConsoleNavItems,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
 import { consoleSections } from "./console-sections";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { cookies } from "next/headers";
 
 /**
- * Console shell — top bar (operator + sign-out) + left nav from {@link consoleSections}.
- * Unauthenticated requests are redirected to /login (middleware / session).
- * Locked nav stays visible but greyed with missing permission in title (why disabled).
+ * Console shell — top bar + left nav gated by UI permission Manifest (ADR 0010 / PC-3).
+ * Unauthenticated → /login. Locked nav stays visible but greyed with missing permission in title.
  * <p>
- * 控制台外框：顶栏操作员/退出 + 左侧栏目。未登录跳 /login。
- * 无权限栏目不隐藏，置灰并用 title 写明缺权限（为何禁用）。
+ * 控制台外框：顶栏 + 左侧栏门禁来自 UI 权限 Manifest。未登录跳 /login。
+ * 无权限栏目不隐藏，置灰并用 title 写明缺权限。
  */
 // ReactNode keeps typecheck independent of Next-generated LayoutProps / `.next/types`.
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
   const { language, phrases } = await currentLanguage();
   const { skinNames, chosenSkinName, skinStyle } = await currentSkin();
-  const { body: operator } = await readPlatform<OperatorSelfDocument>("me");
+  const [{ body: operator }, uiPermissionsRead] = await Promise.all([
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
   const grantedPermissions = new Set(operator?.permissions ?? []);
+  const navItems = buildConsoleNavItems(
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined,
+    consoleSections,
+    grantedPermissions,
+  );
   const jar = await cookies();
   const inboxTenantHint =
     (jar.get(orgTenantCookieName)?.value ?? "").trim() ||
@@ -52,30 +63,29 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
       </header>
       <div className="flex flex-1">
         <nav className="w-48 border-r border-border bg-surface p-4 text-sm">
-          {/* Locked sections stay visible but greyed, with the missing permission named — 没权限的栏目不隐藏，置灰并写明缺什么权限。 */}
-          {consoleSections.map((section) => {
-            const allowed = section.requiredAnyOf
-              ? section.requiredAnyOf.some((p) => grantedPermissions.has(p))
-              : section.requiredPermission === null ||
-                grantedPermissions.has(section.requiredPermission);
-            const missingHint = section.requiredAnyOf
-              ? section.requiredAnyOf.join(" | ")
-              : (section.requiredPermission ?? "");
-            return allowed ? (
-              <Link key={section.href} href={section.href} className="block rounded-md px-2 py-1 hover:bg-background">
-                {phrases[section.labelKey]}
+          {/* Locked sections stay visible but greyed — 没权限的栏目不隐藏，置灰并写明缺什么权限。 */}
+          {navItems.map((item) =>
+            item.allowed ? (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="block rounded-md px-2 py-1 hover:bg-background"
+              >
+                {phrases[item.labelKey]}
               </Link>
             ) : (
               <span
-                key={section.href}
+                key={item.id}
                 aria-disabled="true"
-                title={fillPhrase(phrases.lockedSectionHint, { permission: missingHint })}
+                title={fillPhrase(phrases.lockedSectionHint, {
+                  permission: item.missingPermissionHint,
+                })}
                 className="block cursor-not-allowed px-2 py-1 text-muted opacity-60"
               >
-                {phrases[section.labelKey]}
+                {phrases[item.labelKey]}
               </span>
-            );
-          })}
+            ),
+          )}
         </nav>
         <main className="flex-1 p-6">{children}</main>
       </div>

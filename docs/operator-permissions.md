@@ -198,3 +198,12 @@ Table `operator_tenant_grant (subject_id, tenant_id)`. Wildcard `*` means every 
 Tests run the real Flyway scripts on H2 in PostgreSQL and MySQL compatibility mode (test scope only). That proves the SQL without Docker; it is not the live-vendor proof, which stays in the Docker-gated `VendorStartupTest`.
 
 测试在 H2 的 PostgreSQL 与 MySQL 兼容模式（只在测试范围）上执行真实的 Flyway 脚本，不需要 Docker 就能证明 SQL；真实厂商的证明仍由需要 Docker 的 `VendorStartupTest` 负责。
+
+## UI permission Manifest (ADR 0010) / UI 权限 Manifest
+
+Console menus and sample buttons bind via classpath YAML under `platform-app/src/main/resources/ui-authz/`
+(`GET /api/v1/ui-permissions`). See [`docs/adr/0010-ui-permission-manifest.md`](adr/0010-ui-permission-manifest.md)
+and [`ui-authz/README.md`](../platform-app/src/main/resources/ui-authz/README.md). FE disable is UX only;
+HTTP APIs still require the named permissions above.
+
+控制台菜单与样例按钮经 ui-authz YAML / GET 投影绑定；前端禁用仅为体验，接口仍核具名权限。

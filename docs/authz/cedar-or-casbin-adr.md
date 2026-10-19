@@ -59,7 +59,8 @@ Keep `SqlRbacPolicyEngine` until dual-run gates pass, then cut over wiring (defa
 
 - Self-authored policy DSL or in-house interpreter.
 - Zanzibar / ReBAC graph store.
-- Online permission/role editor (operators still SQL/declarations).
+- Online **role** / Cedar **policy** editor (operators still SQL/declarations). **Carve-out:** UI binding Manifest editor is allowed — see ADR 0010 (`docs/adr/0010-ui-permission-manifest.md`); it does not edit roles or Cedar policies.
+  - 不上线**角色** / Cedar **策略**编辑器。**例外：** UI 绑定 Manifest 可视化编辑见 ADR 0010（不改角色与 Cedar 策略）。
 - Replacing named platform permissions (`page.read`, …) with free-form strings in v1 policies — map **existing** permission names to Cedar actions.
 - Changing AUTH-01 (relationship ≠ authorization) or reintroducing legacy `org_unit` scope tables.
 - Casbin dual-engine product support.

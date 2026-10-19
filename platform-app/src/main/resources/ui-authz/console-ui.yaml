@@ -1,0 +1,104 @@
+# Console UI permission Manifest (ADR 0010 / PC-1)
+# Baseline nav bindings migrated from web/.../console-sections.ts.
+# permission / anyOf must be OperatorPermission catalog names; invent → load fail.
+# 控制台 UI 权限 Manifest：侧栏绑定自 console-sections 迁入；权限只选自目录。
+version: 1
+client: console
+defaults:
+  lockedMenuEffect: grey
+  missingButtonEffect: disable
+entries:
+  # Login-only (no permission / anyOf) — 登录即可
+  - id: nav.overview
+    kind: menu
+    href: /
+  - id: nav.services
+    kind: menu
+    href: /services
+    permission: registry.read
+  - id: nav.config
+    kind: menu
+    href: /config
+    permission: config.read
+  - id: nav.flags
+    kind: menu
+    href: /flags
+    permission: config.read
+  - id: nav.inbox
+    kind: menu
+    href: /inbox
+    permission: inbox.read
+  - id: nav.inbox.compose
+    kind: menu
+    href: /inbox/compose
+    permission: inbox.send.system
+    anyOf:
+      - inbox.send.system
+      - inbox.broadcast
+  - id: nav.inbox.groups
+    kind: menu
+    href: /inbox/groups
+    permission: inbox.group.admin
+  - id: nav.audit
+    kind: menu
+    href: /audit
+    permission: admin.read
+  - id: nav.dead-letters
+    kind: menu
+    href: /dead-letters
+    permission: admin.read
+  - id: nav.deploy
+    kind: menu
+    href: /deploy
+    permission: page.read
+  - id: nav.forms
+    kind: menu
+    href: /forms
+    permission: page.read
+  - id: nav.pages
+    kind: menu
+    href: /pages
+    permission: page.read
+  - id: nav.search
+    kind: menu
+    href: /search
+    permission: page.read
+  - id: nav.declarations
+    kind: menu
+    href: /declarations
+    permission: declaration.read
+  - id: nav.codegen
+    kind: menu
+    href: /codegen
+    permission: page.read
+  - id: nav.operators
+    kind: menu
+    href: /operators
+  - id: nav.tenants
+    kind: menu
+    href: /tenants
+    permission: admin.read
+  - id: nav.org
+    kind: menu
+    href: /org
+    permission: org.read
+  - id: nav.capabilities
+    kind: menu
+    href: /capabilities
+    permission: page.read
+  - id: nav.ui-authz
+    kind: menu
+    href: /ui-authz
+    permission: declaration.read
+
+  # Buttons (PC-4) — UX disable only; APIs still enforce permissions
+  # 按钮：仅前端禁用；后端仍强制校验
+  - id: btn.inbox.compose.send
+    kind: button
+    anyOf:
+      - inbox.send.system
+      - inbox.broadcast
+  - id: btn.org.write
+    kind: button
+    permission: org.write
+

@@ -208,6 +208,11 @@ public final class DeclarationPromoteService {
                     RenderedFlow flow = pageRenderer.render(yaml);
                     DeclarationDraftConstraints.requireFlow(flow);
                 }
+                case UI_AUTHZ -> {
+                    // PC-6b: fail-closed parse (catalog + schema); live overlay via store PROMOTED —
+                    // PC-6b：解析失败关闭（目录+模式）；线上叠层经 store PROMOTED。
+                    com.subjex.platform.app.uiauthz.UiPermissionManifestCatalog.parseYaml(yaml);
+                }
             }
         } catch (IllegalArgumentException ex) {
             throw ex;

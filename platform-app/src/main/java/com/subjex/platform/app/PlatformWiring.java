@@ -53,6 +53,8 @@ import com.subjex.platform.app.organization.OrganizationOntologyBackfill;
 import com.subjex.platform.app.capability.AiWriteBackSink;
 import com.subjex.platform.app.capability.AiWriteConfirmGate;
 import com.subjex.platform.app.capability.CapabilityCatalog;
+import com.subjex.platform.app.uiauthz.UiPermissionDraftService;
+import com.subjex.platform.app.uiauthz.UiPermissionManifestCatalog;
 import com.subjex.platform.app.capability.CapabilityRunner;
 import com.subjex.platform.app.capability.InMemoryAiWriteConfirmGate;
 import com.subjex.platform.app.capability.ModelCompletionClient;
@@ -856,6 +858,41 @@ public class PlatformWiring {
     CapabilityCatalog capabilityCatalog() {
         return new CapabilityCatalog();
     }
+
+    /**
+     * UI permission Manifest classpath baseline (ADR 0010 / PC-1) — UI 权限 Manifest classpath 基线。
+     * <p>
+     * Fail-closed on unknown permission names at startup.
+     * 启动时未知权限名失败关闭。
+     */
+    @Bean
+    UiPermissionManifestCatalog uiPermissionManifestCatalog() {
+        return new UiPermissionManifestCatalog();
+    }
+
+    /**
+     * UI permission Manifest drafts + promote (declaration-store dual-track, PC-6a/6b) —
+     * UI 权限 Manifest 草稿与晋升（声明库双轨语义，PC-6a/6b）。
+     * <p>
+     * Live GET resolves PROMOTED overlay over classpath baseline.
+     * 线上 GET：已晋升叠层优先于 classpath 基线。
+     */
+    @Bean
+    UiPermissionDraftService uiPermissionDraftService(
+            JdbcDeclarationStore declarationStore,
+            UiPermissionManifestCatalog uiPermissionManifestCatalog,
+            InternalDeclarationGit internalDeclarationGit,
+            TransactionTemplate transactionTemplate,
+            @Value("${platform.declaration.git.dir:./data/declaration-git}") String gitDir) {
+        return new UiPermissionDraftService(
+                declarationStore,
+                uiPermissionManifestCatalog,
+                internalDeclarationGit,
+                Path.of(gitDir),
+                transactionTemplate);
+    }
+
+
 
     /**
      * AI completion client: stub (default) or http (needs env secrets; transport gated).

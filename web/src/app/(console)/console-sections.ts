@@ -1,16 +1,14 @@
 import type { PhraseBook } from "@/i18n/phrases";
 
 /**
- * Console sections — nav catalog for the left rail.
+ * Console sections — label / emergency fallback catalog for the left rail (PC-3).
  * <p>
- * {@code href} is the in-app deep link (Next App Router path). {@code requiredPermission}
- * gates visibility as clickable vs greyed: null = any signed-in operator; otherwise the
- * operator must hold that named permission (layout shows locked hint = why disabled).
- * {@code requiredAnyOf} (optional) unlocks when the operator holds any listed permission.
- * Order is the user-facing tour: overview → ops surfaces → declarations → org → capabilities.
+ * Gate source of truth is {@code GET /api/v1/ui-permissions} (classpath Manifest). This list
+ * still supplies {@code labelKey} via href when merging, and is used if the Manifest API fails.
+ * Do not add new gated menus here alone — update {@code ui-authz/console-ui.yaml} + label map.
  * <p>
- * 控制台栏目：左侧导航目录。href 为站内深链；requiredPermission 为查看门禁（null=登录即可）。
- * requiredAnyOf 为「任一权限即可」；无权限时不隐藏，置灰并用 title 写明缺什么权限。
+ * 控制台栏目：文案与应急回退目录（PC-3）。门禁真源为 GET ui-permissions；本表仍提供 labelKey，
+ * 并在 Manifest API 失败时回退。新增栏目请改 YAML + id→labelKey 映射，勿只改本文件。
  */
 export interface ConsoleSection {
   /** In-app path (deep link) — 站内路径（深链）。 */
@@ -47,4 +45,5 @@ export const consoleSections: ConsoleSection[] = [
   { href: "/tenants", labelKey: "navTenants", requiredPermission: "admin.read" },
   { href: "/org", labelKey: "navOrg", requiredPermission: "org.read" },
   { href: "/capabilities", labelKey: "navCapabilities", requiredPermission: "page.read" },
+  { href: "/ui-authz", labelKey: "navUiAuthz", requiredPermission: "declaration.read" },
 ];

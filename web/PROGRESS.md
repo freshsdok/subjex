@@ -736,6 +736,46 @@ CI-green wave. [done] 2026-10-17 CST; match build.yml locally.
     Local only (no push). Ready to squash-push when user asks.
     本地 CI 等价全绿；无 Docker 故镜像扫描/Trivy/真库启动测跳过。未推送。
 
+## UI permission Manifest (ADR 0010) / UI 权限 Manifest
+
+PC-0. [done] 2026-10-18 CST; lock five defaults + console visual editor for UI bindings.
+    ADR `docs/adr/0010-ui-permission-manifest.md` **Accepted**; proposal `docs/proposals/permission-ui-config-draft.md`;
+    progress `docs/authz/ui-permission-progress.md`.
+    Locks: Git YAML Manifest; menu grey; no OrgScope in Manifest wave-1; button disable; runtime GET;
+    visual editor edits bindings only (pick OperatorPermission; draft→promote dual-track; not role_permission).
+    No runtime code. Local commit only (no push). **Next: PC-1** schema + classpath sample.
+    五项默认 + 可视化绑定编辑器已锁；仅文档。下一步 PC-1。
+
+PC-1. [done] 2026-10-18 CST; Manifest schema + classpath sample + validate.
+    `ui-authz/console-ui.yaml` (19 menus ≡ `console-sections.ts`); `UiPermissionManifestCatalog`
+    fail-closed on unknown permission/anyOf; `PlatformWiring` bean; unit tests green.
+    No GET API / editor / web migrate. Local commit only (no push). **Next: PC-2**.
+    schema+样例+校验；侧栏等价；未做 API/编辑器。下一步 PC-2。
+
+PC-2. [done] 2026-10-18 CST; GET /api/v1/ui-permissions with allowed.
+    Authenticated; Manifest + per-entry `allowed` from principal; MockMvc 401/200; unknown client 400.
+    No web FE / editor. Local commit only (no push). **Next: PC-3**.
+    运行时 GET + allowed；未改前端。下一步 PC-3。
+
+PC-3. [done] 2026-10-18 CST; console layout gates nav from ui-permissions API.
+    `buildConsoleNavItems` + id→labelKey map; grey locked UX unchanged; console-sections fallback.
+    Vitest ui-permissions. Local commit only (no push). **Next: PC-4**.
+    侧栏改读 Manifest API；文案映射；回退保留。下一步 PC-4。
+
+PC-4. [done] 2026-10-18 CST; button Manifest samples + FE disable wiring.
+    `btn.inbox.compose.send` + `btn.org.write` in console-ui.yaml; `buttonAllowed`; compose send / org write.
+    ui-authz README. Local commit only (no push). **Next: PC-5 or PC-6**.
+    按钮样例绑定；发送/组织写禁用走 Manifest。
+
+PC-6a. [done] 2026-10-18 CST; console UI permission draft editor.
+    `/ui-authz` + draft GET/PUT; declaration.* gates; store kind ui-authz on platform tenant.
+    Promote live overlay = PC-6b/PC-7. PC-5 deferred. Local commit only (no push).
+    可视化草稿编辑器；晋升未做。
+
+PC-6b. [done] 2026-10-18 CST; ui-authz promote → live overlay.
+    POST draft/promote + GET export; live GET = PROMOTED > classpath.
+    Console promote gated by declaration.promote. Local commit only (no push).
+
 ## Related (not console)
 
 FE-1 client triad + `clients/uni-app` shell: see [`clients/PROGRESS.md`](../clients/PROGRESS.md) / ADR 0007 (2026-10-17 CST). Console stays `web/` only.

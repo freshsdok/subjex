@@ -1,6 +1,7 @@
 package com.subjex.platform.app.web;
 
 import com.subjex.platform.app.capability.CapabilityRejected;
+import com.subjex.platform.app.uiauthz.UiPermissionRejected;
 import com.subjex.platform.app.declaration.DeclarationAlreadyPromoted;
 import com.subjex.platform.app.declaration.DeclarationMigrationApplyFailed;
 import com.subjex.platform.app.declaration.DeclarationMigrationNotReady;
@@ -158,6 +159,11 @@ public class PlatformExceptionAdvice {
 
     @ExceptionHandler(CapabilityRejected.class)
     ResponseEntity<Map<String, String>> capabilityRejected(CapabilityRejected ex) {
+        return ResponseEntity.badRequest().body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(UiPermissionRejected.class)
+    ResponseEntity<Map<String, String>> uiPermissionRejected(UiPermissionRejected ex) {
         return ResponseEntity.badRequest().body(Map.of("reason", ex.getMessage()));
     }
 

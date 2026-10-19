@@ -22,13 +22,15 @@ type Props = {
   phrases: PhraseBook;
   initialTenantId: string;
   permissionNames: string[];
+  /** Manifest button btn.inbox.compose.send — 发送按钮 Manifest 门禁（PC-4）。 */
+  canSend: boolean;
 };
 
 /**
  * InboxComposeConsole — IM-A7 client compose (system / group / org + staging attach).
  * 写信控制台：三种发送方式 + 暂存附件。
  */
-export function InboxComposeConsole({ phrases, initialTenantId, permissionNames }: Props) {
+export function InboxComposeConsole({ phrases, initialTenantId, permissionNames, canSend }: Props) {
   const allowedModes = useMemo(() => availableComposeModes(permissionNames), [permissionNames]);
   const canUpload = permissionNames.includes("inbox.send.system");
   const [tenantId, setTenantId] = useState(initialTenantId);
@@ -214,6 +216,7 @@ export function InboxComposeConsole({ phrases, initialTenantId, permissionNames 
         attachmentStagingIds: stagingIds,
       };
     }
+    if (!canSend) return;
     setSending(true);
     const reply = await fetch(`${path}?tenantId=${encodeURIComponent(tid)}`, {
       method: "POST",
@@ -460,7 +463,7 @@ export function InboxComposeConsole({ phrases, initialTenantId, permissionNames 
       <div>
         <button
           type="button"
-          disabled={sending}
+          disabled={sending || !canSend}
           onClick={() => void send()}
           className="rounded-md bg-foreground px-4 py-2 text-sm text-background hover:opacity-90 disabled:opacity-60"
         >

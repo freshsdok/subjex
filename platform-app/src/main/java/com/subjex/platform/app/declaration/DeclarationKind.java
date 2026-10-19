@@ -10,7 +10,9 @@ public enum DeclarationKind {
 
     ENTITY("entity"),
     FORM("form"),
-    FLOW("flow");
+    FLOW("flow"),
+    /** UI permission Manifest (ADR 0010 / PC-6a) — UI 权限 Manifest。 */
+    UI_AUTHZ("ui-authz");
 
     private final String wireName;
 

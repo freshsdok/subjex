@@ -99,6 +99,19 @@ public class PlatformSecurityConfiguration {
                         // JSON twins under /api/v1: same named permissions as their pages.
                         // /api/v1 下的 JSON 孪生接口：与对应页面相同的具名权限。
                         .requestMatchers(HttpMethod.GET, "/api/v1/me").authenticated()
+                        // UI permission Manifest draft editor (PC-6a/6b) — declaration.read/write/promote.
+                        // UI 权限 Manifest 草稿编辑器：declaration.read / write / promote。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ui-permissions/draft",
+                                "/api/v1/ui-permissions/draft/baseline",
+                                "/api/v1/ui-permissions/draft/export")
+                                .hasAuthority(OperatorPermission.DECLARATION_READ.permissionName())
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/ui-permissions/draft")
+                                .hasAuthority(OperatorPermission.DECLARATION_WRITE.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/ui-permissions/draft/promote")
+                                .hasAuthority(OperatorPermission.DECLARATION_PROMOTE.permissionName())
+                        // UI permission Manifest projection (ADR 0010 / PC-2 / PC-6b) — any signed-in; allowed is UX only.
+                        // UI 权限 Manifest 投影：已登录即可；allowed 仅体验门禁。生效=PROMOTED>classpath。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ui-permissions").authenticated()
                         // Self password change: any signed-in operator (current password checked in endpoint).
                         // 自己改密：已登录即可（端点内核对当前口令）。
                         .requestMatchers(HttpMethod.POST, "/api/v1/operators/me/password").authenticated()

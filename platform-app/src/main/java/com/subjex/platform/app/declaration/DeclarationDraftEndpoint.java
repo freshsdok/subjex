@@ -9,6 +9,8 @@ import com.subjex.page.declare.RenderedFlow;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.uiauthz.UiPermissionManifest;
+import com.subjex.platform.app.uiauthz.UiPermissionManifestCatalog;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -142,6 +144,25 @@ public class DeclarationDraftEndpoint {
                 yield new EffectiveDocument(
                         k.wireName(), flow.flowKey(), flow.version(), List.of(), fromDraft, source);
             }
+            case UI_AUTHZ -> {
+                // PC-6b: PROMOTED else open DRAFT for /effective preview (live GET uses DraftService) —
+                // PC-6b：/effective 预览用已晋升否则草稿（线上 GET 走 DraftService）。
+                String yaml = store.latestPromoted(tid, k, key)
+                        .or(() -> store.latestDraft(tid, k, key))
+                        .map(r -> r.yamlBody())
+                        .orElse(null);
+                if (yaml == null) {
+                    throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+                }
+                UiPermissionManifest manifest = UiPermissionManifestCatalog.parseYaml(yaml);
+                yield new EffectiveDocument(
+                        k.wireName(),
+                        manifest.client(),
+                        manifest.version(),
+                        List.of(),
+                        fromDraft,
+                        source);
+            }
         };
     }
 
@@ -198,6 +219,12 @@ public class DeclarationDraftEndpoint {
                         throw new IllegalArgumentException("flowKey must match path key");
                     }
                     DeclarationDraftConstraints.requireFlow(flow);
+                }
+                case UI_AUTHZ -> {
+                    UiPermissionManifest manifest = UiPermissionManifestCatalog.parseYaml(yaml);
+                    if (!key.equals(manifest.client())) {
+                        throw new IllegalArgumentException("ui-authz client must match path key");
+                    }
                 }
             }
         } catch (IllegalArgumentException ex) {
