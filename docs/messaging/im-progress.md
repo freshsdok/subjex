@@ -156,3 +156,8 @@
 - uni-app `/pages/inbox/inbox` consumes me/inbox with stored Bearer + `X-Tenant-Id`
 - Auth prerequisite (#3a): password login and/or wechat:mini IdP callback → opaque Bearer (operator-linked until dedicated END_USER identity)
 - Not in IM-6: compose/broadcast from uni-app, WeChat push (IM-8), separate end-user account store
+
+## Deferred (order #6 skip) / 暂缓
+
+- Operator **sent-box** / Org Later extras: **有诉求再开** — no slice until explicit ask.
+- 操作员发件箱 / Org Later 扩展：有诉求再开。

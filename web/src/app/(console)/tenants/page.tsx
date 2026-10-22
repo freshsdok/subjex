@@ -1,7 +1,14 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
-import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { isReservedTenant } from "@/lib/tenant-admin";
+import {
+  BUTTON_TENANTS_MANAGE,
+  PAGE_TENANTS,
+  buttonAllowed,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
+import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { CreateTenantForm } from "./create-tenant-form";
 import { TenantAdminActions } from "./tenant-admin-actions";
 
@@ -13,13 +20,25 @@ type TenantsDocument = {
   }>;
 };
 
-// Tenants page — 租户页：admin.read 可列表；tenant.manage 可创建、改名、禁用/启用。
+/**
+ * Tenants page — list with admin.read; manage via Manifest {@code btn.tenants.manage}.
+ * 租户页：进入 page.tenants；管理走 btn.tenants.manage。
+ */
 export default async function TenantsPage() {
   const { phrases } = await currentLanguage();
-  const { body: me } = await readPlatform<OperatorSelfDocument>("me");
+  const [{ body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
   const permissions = new Set(me?.permissions ?? []);
-  const canRead = permissions.has("admin.read");
-  const canManage = permissions.has("tenant.manage");
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  const canRead = pageAllowed(manifest, PAGE_TENANTS, permissions.has("admin.read"));
+  const canManage = buttonAllowed(
+    manifest,
+    BUTTON_TENANTS_MANAGE,
+    permissions.has("tenant.manage"),
+  );
 
   if (!canRead) {
     return <ForbiddenNotice phrases={phrases} permission="admin.read" />;

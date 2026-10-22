@@ -5,6 +5,14 @@ import {
   declarationTenantCookieName,
   parseDeclarationTenantCookie,
 } from "@/lib/declaration-draft";
+import {
+  BUTTON_DECLARATIONS_PROMOTE,
+  BUTTON_DECLARATIONS_WRITE,
+  PAGE_DECLARATIONS,
+  buttonAllowed,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { DeclarationsConsole } from "./declarations-console";
 
@@ -13,24 +21,33 @@ type TenantsDocument = {
 };
 
 /**
- * Declarations page — entry for YAML drafts console.
- * Gates: {@code declaration.read} to enter; {@code declaration.write} to save;
- * {@code declaration.promote} / {@code declaration.migrate} passed as flags for buttons.
- * Deep link state: tenant cookie {@code subjex_declaration_tenant}.
- * <p>
- * 声明页：declaration.read 可进；write 才可保存；promote/migrate 控制按钮。
- * 深链状态：租户 cookie。
+ * Declarations page — YAML drafts console.
+ * Enter: Manifest {@code page.declarations}; write/promote buttons via #5 ids.
+ * 声明页：进入 page.declarations；写/晋升走 Manifest 按钮（#5）。
  */
 export default async function DeclarationsPage() {
   const { language, phrases } = await currentLanguage();
-  const { body: me } = await readPlatform<OperatorSelfDocument>("me");
+  const [{ body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
   const permissions = new Set(me?.permissions ?? []);
-  if (!permissions.has("declaration.read")) {
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_DECLARATIONS, permissions.has("declaration.read"))) {
     return <ForbiddenNotice phrases={phrases} permission="declaration.read" />;
   }
 
-  const canWrite = permissions.has("declaration.write");
-  const canPromote = permissions.has("declaration.promote");
+  const canWrite = buttonAllowed(
+    manifest,
+    BUTTON_DECLARATIONS_WRITE,
+    permissions.has("declaration.write"),
+  );
+  const canPromote = buttonAllowed(
+    manifest,
+    BUTTON_DECLARATIONS_PROMOTE,
+    permissions.has("declaration.promote"),
+  );
   const canMigrate = permissions.has("declaration.migrate");
   const canListTenants = permissions.has("admin.read");
   let tenantOptions: Array<{ tenantId: string; tenantName: string }> = [];

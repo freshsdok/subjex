@@ -70,7 +70,7 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.client").value("console"))
                 .andExpect(jsonPath("$.defaults.lockedMenuEffect").value("grey"))
                 .andExpect(jsonPath("$.defaults.missingButtonEffect").value("disable"))
-                .andExpect(jsonPath("$.entries.length()").value(22))
+                .andExpect(jsonPath("$.entries.length()").value(32))
                 .andExpect(jsonPath("$.entries[0].id").value("nav.overview"))
                 .andExpect(jsonPath("$.entries[0].kind").value("menu"))
                 .andExpect(jsonPath("$.entries[0].href").value("/"))
@@ -84,7 +84,13 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.entries[20].kind").value("button"))
                 .andExpect(jsonPath("$.entries[20].allowed").value(true))
                 .andExpect(jsonPath("$.entries[21].id").value("btn.org.write"))
-                .andExpect(jsonPath("$.entries[21].allowed").value(true));
+                .andExpect(jsonPath("$.entries[21].allowed").value(true))
+                .andExpect(jsonPath("$.entries[22].id").value("btn.flags.write"))
+                .andExpect(jsonPath("$.entries[22].allowed").value(true))
+                .andExpect(jsonPath("$.entries[27].id").value("btn.tenants.manage"))
+                .andExpect(jsonPath("$.entries[28].id").value("page.flags"))
+                .andExpect(jsonPath("$.entries[28].kind").value("page"))
+                .andExpect(jsonPath("$.entries[31].id").value("page.tenants"));
     }
 
     @Test

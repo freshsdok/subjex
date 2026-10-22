@@ -146,9 +146,21 @@ export function buildConsoleNavItems(
   });
 }
 
-/** Known console button ids (PC-4) — 控制台已知按钮 id。 */
+/** Known console button ids (PC-4 / #5) — 控制台已知按钮 id。 */
 export const BUTTON_INBOX_COMPOSE_SEND = "btn.inbox.compose.send";
 export const BUTTON_ORG_WRITE = "btn.org.write";
+export const BUTTON_FLAGS_WRITE = "btn.flags.write";
+export const BUTTON_UI_AUTHZ_WRITE = "btn.ui-authz.write";
+export const BUTTON_UI_AUTHZ_PROMOTE = "btn.ui-authz.promote";
+export const BUTTON_DECLARATIONS_WRITE = "btn.declarations.write";
+export const BUTTON_DECLARATIONS_PROMOTE = "btn.declarations.promote";
+export const BUTTON_TENANTS_MANAGE = "btn.tenants.manage";
+
+/** Known console page ids for ForbiddenNotice (#5) — 页面 Forbidden 用 page id。 */
+export const PAGE_FLAGS = "page.flags";
+export const PAGE_UI_AUTHZ = "page.ui-authz";
+export const PAGE_DECLARATIONS = "page.declarations";
+export const PAGE_TENANTS = "page.tenants";
 
 /**
  * Whether a button entry is allowed; Manifest wins when present, else {@code fallback}.
@@ -161,6 +173,22 @@ export function buttonAllowed(
 ): boolean {
   const entry = (manifest?.entries ?? []).find(
     (e) => e.kind === "button" && e.id === buttonId,
+  );
+  if (!entry) return fallback;
+  return Boolean(entry.allowed);
+}
+
+/**
+ * Whether a page entry is allowed; Manifest wins when present, else {@code fallback}.
+ * 页面是否允许：Manifest 有该 id 时用 allowed，否则用 fallback。
+ */
+export function pageAllowed(
+  manifest: UiPermissionManifestDocument | undefined,
+  pageId: string,
+  fallback: boolean,
+): boolean {
+  const entry = (manifest?.entries ?? []).find(
+    (e) => e.kind === "page" && e.id === pageId,
   );
   if (!entry) return fallback;
   return Boolean(entry.allowed);

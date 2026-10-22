@@ -5,9 +5,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 
 ## [Unreleased]
 
-Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`).
+Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes `6d52bc5` (PC-5/#3) + #4/#5.
 
 ### Added / 新增
+- **ADR 0011 Accepted — no standalone questionnaire (near-term):** Form stays operator business entry (not renamed 问卷); future survey/quiz needs a new ADR (types, public/anon, stats, export, subject). [`docs/adr/0011-no-standalone-questionnaire.md`](docs/adr/0011-no-standalone-questionnaire.md).
+  **ADR 0011 Accepted — 近端不做独立问卷：** Form 仍作操作员业务录入（不改名问卷）；未来问卷须新 ADR。
+
+- **UI Manifest deepen (#5):** console classpath +6 write buttons + 4 `page.*` Forbidden gates; flags / ui-authz / declarations / tenants consume Manifest `buttonAllowed` / `pageAllowed`.
+  **UI Manifest 加深（#5）：** 高价值写按钮与页面 Forbidden 绑定；四页改读 Manifest。
+
+- **PC-5 + #3 terminal auth / IM-6:** uni-app UI permission shell; Bearer password + wechat:mini IdP; `/api/v1/me/inbox/**` END_USER read+mark-read + uni-app inbox page (`6d52bc5` lineage).
+  **PC-5 + #3 终端认证 / IM-6：** uni-app Manifest 壳；薄 Bearer；终端收件只读。
+
+- **ADR 0010 / PC-0…PC-6b UI permission Manifest:** classpath YAML + GET + console grey menus + sample buttons + visual editor draft→promote; uni-app client (PC-5).
+  **ADR 0010 / PC-0…PC-6b UI 权限 Manifest：** classpath+GET+置灰菜单+样例按钮+可视化编辑晋升；uni-app 壳。
+
+- **CI-1 green:** Pages/DeadLetter test flakes fixed; runtime image `eclipse-temurin:21-…-noble` (Trivy). Tip `cb3ecf1` / Actions `39702424977`.
+  **CI-1 全绿：** Pages/DeadLetter 测试与 noble 运行镜像。
+
 - **IM-A7 inbox compose + groups console:** `/inbox/compose` (system / group-send / org broadcast + file attach); `/inbox/groups` CRUD + members; permission-gated nav and inbox links; BFF reuse.
   **IM-A7 站内信写信与组控制台：** 写信三模式+附件；组与成员管理；权限导航；复用平台 BFF。
 

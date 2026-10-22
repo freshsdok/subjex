@@ -102,3 +102,40 @@ entries:
     kind: button
     permission: org.write
 
+  # PC-deepen (#5): high-value write buttons — #5 加深高价值写按钮
+  - id: btn.flags.write
+    kind: button
+    permission: config.write
+  - id: btn.ui-authz.write
+    kind: button
+    permission: declaration.write
+  - id: btn.ui-authz.promote
+    kind: button
+    permission: declaration.promote
+  - id: btn.declarations.write
+    kind: button
+    permission: declaration.write
+  - id: btn.declarations.promote
+    kind: button
+    permission: declaration.promote
+  - id: btn.tenants.manage
+    kind: button
+    permission: tenant.manage
+
+  # Page gates for ForbiddenNotice (#5) — 页面 Forbidden 门禁
+  - id: page.flags
+    kind: page
+    route: /flags
+    permission: config.read
+  - id: page.ui-authz
+    kind: page
+    route: /ui-authz
+    permission: declaration.read
+  - id: page.declarations
+    kind: page
+    route: /declarations
+    permission: declaration.read
+  - id: page.tenants
+    kind: page
+    route: /tenants
+    permission: admin.read

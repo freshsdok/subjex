@@ -18,9 +18,10 @@ Unpromoted **DRAFT** rows never affect live GET (editor-only).
 
 1. **Gate source:** edit via console `/ui-authz` (draft → promote) or edit `console-ui.yaml` then redeploy. Do **not** invent permission names — only `OperatorPermission` catalog values.
 2. **Menus:** `kind: menu` + `href` + `permission` or `anyOf`. Console labels: add id → phrase in `web/src/lib/ui-permissions.ts` (`CONSOLE_MENU_LABEL_BY_ID`).
-3. **Buttons (PC-4):** `kind: button` + `permission` or `anyOf`. Wire FE with `buttonAllowed(manifest, id, fallback)` and **disable** when false (`missingButtonEffect: disable`). Backend APIs still enforce.
-4. **Sample button ids:** `btn.inbox.compose.send`, `btn.org.write`.
-5. Unknown permission / unknown YAML keys → **fail-closed** at parse / promote / startup.
+3. **Pages (#5):** `kind: page` + `route` + `permission`/`anyOf`. FE: `pageAllowed` → ForbiddenNotice.
+4. **Buttons (PC-4/#5):** `kind: button` + `permission` or `anyOf`. Wire FE with `buttonAllowed(manifest, id, fallback)` and **disable** when false (`missingButtonEffect: disable`). Backend APIs still enforce.
+5. **Sample button ids:** `btn.inbox.compose.send`, `btn.org.write`, plus #5 deepen (`btn.flags.write`, `btn.ui-authz.*`, `btn.declarations.*`, `btn.tenants.manage`). Page Forbidden samples: `page.flags`, `page.ui-authz`, `page.declarations`, `page.tenants`.
+6. Unknown permission / unknown YAML keys → **fail-closed** at parse / promote / startup.
 
 门禁改 YAML；权限只选目录；按钮用 `buttonAllowed` 禁用；后端仍强制校验。
 

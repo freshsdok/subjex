@@ -28,6 +28,7 @@
 | **PC-6a** | **done** | 可视化编辑器 DRAFT CRUD（permission 只选目录） |
 | **PC-6b / PC-7** | **done** | Promote → live PROMOTED overlay + YAML export |
 | **PC-5** | **done** | uni-app shell consumes GET |
+| **PC-deepen / #5** | **done** | +6 write buttons + 4 page Forbidden ids; flags/ui-authz/declarations/tenants wired |
 
 PC-6 可与 PC-3/4 在 PC-2 之后并行；PC-7 依赖 PC-6。
 
@@ -98,3 +99,10 @@ PC-6 可与 PC-3/4 在 PC-2 之后并行；PC-7 依赖 PC-6。
 - `clients/uni-app`: `fetchUiPermissions` → index/login grey menus / disable buttons per `allowed`
 - Soft-fail without Bearer (prompt for #3 terminal auth); FE not a security boundary
 - Tests: catalog knows uni-app; `UiPermissionApiSecurityTest.operatorGetsUniAppClasspathManifest`
+
+## PC-deepen / #5 landed (2026-10-22 Asia/Shanghai)
+
+- Buttons: `btn.flags.write`, `btn.ui-authz.write|promote`, `btn.declarations.write|promote`, `btn.tenants.manage`
+- Pages: `page.flags`, `page.ui-authz`, `page.declarations`, `page.tenants` for ForbiddenNotice
+- FE: `pageAllowed` + wired console pages; APIs still enforce
+- Console classpath entry count: **32**
