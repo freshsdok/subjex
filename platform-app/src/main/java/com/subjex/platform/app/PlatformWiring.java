@@ -73,6 +73,8 @@ import com.subjex.platform.app.inbox.InboxGroupService;
 import com.subjex.platform.app.inbox.InboxOrgBroadcastExpander;
 import com.subjex.platform.app.inbox.JdbcInboxGroupPort;
 import com.subjex.platform.app.inbox.JdbcInboxPort;
+import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
+import com.subjex.platform.contract.questionnaire.QuestionnairePort;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.jdbc.JdbcConfigOverride;
 import com.subjex.platform.app.jdbc.JdbcRowLock;
@@ -549,6 +551,15 @@ public class PlatformWiring {
     @Bean
     InboxPort inboxPort(JdbcTemplate jdbc, TransactionTemplate transactionTemplate) {
         return new JdbcInboxPort(jdbc, transactionTemplate);
+    }
+
+    @Bean
+    QuestionnairePort questionnairePort(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            Clock clock,
+            RateLimitPort rateLimitPort) {
+        return new JdbcQuestionnairePort(jdbc, transactionTemplate, clock, rateLimitPort);
     }
 
     @Bean

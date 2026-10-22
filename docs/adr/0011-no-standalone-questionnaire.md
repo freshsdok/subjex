@@ -2,7 +2,8 @@
 
 - Status: **Accepted**（2026-10-22 Asia/Shanghai；autonomous order #4 — educated default lock）
 - Date: 2026-10-22 (Asia/Shanghai)
-- Relates: ADR 0007 (client triad)、低代码 Form / `docs/form-ui.md`、`docs/node6-progress.md`、ADR 0010（UI Manifest）、[`docs/forms/questionnaire-progress.md`](../forms/questionnaire-progress.md)
+- Amended by: [`0013-questionnaire-platform-capability.md`](0013-questionnaire-platform-capability.md)（2026-10-22 — **§D1 near-term NO superseded**; §D2/§D3 Form boundary **unchanged**）
+- Relates: ADR 0007 (client triad)、ADR 0013（问卷平台能力）、低代码 Form / `docs/form-ui.md`、`docs/node6-progress.md`、ADR 0010（UI Manifest）、[`docs/forms/questionnaire-progress.md`](../forms/questionnaire-progress.md)
 
 ## Context / 背景
 
@@ -18,9 +19,13 @@ Ask for this release / near-term: lock an educated default — **do not** ship a
 
 ### D1 — Near-term: NO standalone questionnaire
 
-**This release and the near-term roadmap do not include** a standalone questionnaire / survey / quiz product (no new module, console nav item named 问卷, public collect surface, or quiz runtime).
+> **Amended 2026-10-22:** §D1 is **superseded** by [ADR 0013](0013-questionnaire-platform-capability.md). Questionnaire is now an Accepted **platform capability** track. **§D2 and §D3 below remain in force** (Form stays Form; Form vs 问卷 boundary).
+>
+> **2026-10-22 修订：** §D1 由 ADR 0013 **取代**；问卷已作为平台能力开工。**下方 §D2 / §D3 仍然有效**。
 
-**本发布与近端路线不包含**独立问卷/survey/quiz 产品（无新模块、无「问卷」导航、无公开采集面、无测验运行时）。
+~~**This release and the near-term roadmap do not include** a standalone questionnaire / survey / quiz product (no new module, console nav item named 问卷, public collect surface, or quiz runtime).~~
+
+~~**本发布与近端路线不包含**独立问卷/survey/quiz 产品（无新模块、无「问卷」导航、无公开采集面、无测验运行时）。~~
 
 ### D2 — Operator Form stays Form (not renamed to 问卷)
 
@@ -36,7 +41,7 @@ Keep the existing operator low-code **Form** as the business data-entry surface:
 
 ### D3 — Form vs 问卷 boundary
 
-| Dimension | **Form（in scope）** | **问卷 / survey / quiz（out until new ADR）** |
+| Dimension | **Form（in scope）** | **问卷 / survey（ADR 0013 capability; still not Form）** |
 | --- | --- | --- |
 | Audience | Authenticated **operators** (console) filling business records | End-users / public / anon respondents |
 | Purpose | Structured **business entry** tied to declarations / config / registry | Opinion/measure collect, quiz scoring, research |
@@ -45,9 +50,9 @@ Keep the existing operator low-code **Form** as the business data-entry surface:
 | Analytics | Submission history / audit | Stats dashboards, funnels, export packs |
 | Clients | Primarily `web/` console | Would need uni-app / public pages (ADR 0007) |
 
-**Rule of thumb:** if the primary consumer is an **operator recording business data**, it is Form. If the primary consumer is a **respondent answering questions for aggregation**, it is 问卷 — and needs a new ADR.
+**Rule of thumb:** if the primary consumer is an **operator recording business data**, it is Form. If the primary consumer is a **respondent answering questions for aggregation**, it is 问卷 — implement under **ADR 0013**, never by renaming Form.
 
-经验法则：主消费者是**操作员录业务数据** → Form；主消费者是**答卷人供汇总** → 问卷，须新 ADR。
+经验法则：主消费者是**操作员录业务数据** → Form；主消费者是**答卷人供汇总** → 问卷，按 **ADR 0013** 做，禁止改名 Form。
 
 ### D4 — Future questionnaire requires a new ADR
 
@@ -59,9 +64,13 @@ Any questionnaire / survey / quiz work **must** open a **new ADR** covering at l
 4. Subject / identity model (vs operator / END_USER inbox subject)
 5. Client placement (console vs uni-app vs public) per ADR 0007
 
-Future ADR may **reuse** FormRenderer / submission storage patterns where fit — reuse is not automatic product merge.
+**Fulfilled by ADR 0013** (Accepted). Future deepen (quiz scoring, branching engine, extra types) may need further ADRs/slices under that track.
 
-未来问卷须新 ADR；可复用 Form 技术切片，但不得默认合并成同一产品。
+**已由 ADR 0013 落实。** 测验计分、跳题引擎、额外题型等加深仍可在该轨下另开切片/ADR。
+
+Future work may **reuse** FormRenderer / validation patterns where fit — reuse is not automatic product merge.
+
+可复用 Form 技术切片，但不得默认合并成同一产品。
 
 ## Non-goals / 明确不做（本 ADR）
 
@@ -73,9 +82,9 @@ Future ADR may **reuse** FormRenderer / submission storage patterns where fit �
 
 ## Consequences / 后果
 
-- Roadmap and sales language: say **Form** for operator entry; say **问卷 not in near-term** unless a follow-up ADR is Accepted.
-- Contributors: reject PRs that add 问卷 nav, anon collect, or quiz scoring **without** that ADR.
-- Progress pointer: [`docs/forms/questionnaire-progress.md`](../forms/questionnaire-progress.md)
+- Roadmap and sales language: say **Form** for operator entry; say **问卷** only for the ADR 0013 capability (never as a Form rename).
+- Contributors: reject PRs that rename Form → 问卷 or store survey answers in `form_submission`; questionnaire work follows ADR 0013 slices.
+- Progress pointer: [`docs/forms/questionnaire-progress.md`](../forms/questionnaire-progress.md)（now tracks ADR 0013）
 
 ## References
 

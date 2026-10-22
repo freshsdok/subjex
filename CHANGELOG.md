@@ -8,6 +8,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes PC-deepen-2/3 (local) on `49172c3`+.
 
 ### Added / 新增
+- **Questionnaire Q5 thin stats + CSV:** `stats` / `exportCsv`; production responses only (exclude OPERATOR preview); choice/rating bucket counts; CSV metadata + per-item columns.
+  **问卷 Q5 薄汇总 + CSV：** 仅生产答卷；选择/评分桶计数；CSV 元数据+按题列。
+
+- **Questionnaire Q4 ANON_LINK collect token:** Flyway `V48__questionnaire_collect_token`; auto-issue on publish; `submitAnon` + `RateLimitPort` bucket per questionnaire/clientKey; revoke; `QuestionnaireRateLimited`.
+  **问卷 Q4 匿名采集令牌：** V48 令牌表；发布自动签发；submitAnon + 按问卷/客户端限流；可撤销。
+
+- **Questionnaire Q3 auth submit + list:** `submit` / `listResponses`; END_USER one-shot; OPERATOR preview excluded from production list (`countsForStats=false`); ANON deferred to Q4.
+  **问卷 Q3 认证答卷：** 提交/列表；终端用户每卷一份；操作员预览不进生产列表；匿名待 Q4。
+
+- **Questionnaire Q2 items + lifecycle:** `replaceItems` / `publish` / `close`; DRAFT in-place edit; PUBLISHED revision bump (prior item rows kept); CLOSED read-only; `QuestionnaireItemSupport`.
+  **问卷 Q2 题目与生命周期：** 替换题目/发布/关闭；草稿原地改；已发布升 revision（旧题保留）；已关闭只读。
+
+- **Questionnaire Q1 definition store:** Flyway `V47__questionnaire` (definition/item/response/answer + perms); `MemoryQuestionnairePort` + `JdbcQuestionnairePort` create/get/list; `PlatformWiring` bean. No HTTP yet.
+  **问卷 Q1 定义存储：** V47 四表+权限；Memory/JDBC 端口 create/get/list；已接线。尚无 HTTP。
+
+- **ADR 0013 Accepted — questionnaire platform capability:** survey as architecture foundation (not Form rename); MVP types/collect/stats/clients locked; amends ADR 0011 §D1; Q0 contract stub `QuestionnairePort`. [`docs/adr/0013-questionnaire-platform-capability.md`](docs/adr/0013-questionnaire-platform-capability.md).
+  **ADR 0013 Accepted — 问卷平台能力：** 调研采集作架构基础能力（不改名 Form）；锁定 MVP 题型/采集/统计/客户端；修订 0011 §D1；Q0 契约桩。
+
 - **Config-7a restore from history:** `POST /api/v1/config/{key}/history/{revision}/restore`; console confirm restore; audit `config.restore`.
   **Config-7a 从历史恢复：** POST restore；控制台确认；审计 config.restore。
 
