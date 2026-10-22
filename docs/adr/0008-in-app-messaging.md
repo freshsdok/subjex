@@ -244,7 +244,7 @@ See [`docs/messaging/im-progress.md`](../messaging/im-progress.md).
 | **IM-3** | Workflow hooks (repair-ticket approve path) | IM-2, ADR 0005 |
 | **IM-4** | Console `/inbox` + nav | IM-2 |
 | **IM-5** | Console unread badge (~60s poll) | IM-4 |
-| **IM-6** | uni-app thin inbox (`END_USER`) | Client auth |
+| **IM-6** | **done** (thin) uni-app `/me/inbox` + client page | #3a Bearer |
 | **IM-7** | `ORG_BROADCAST` API | Product bound-N when opened |
 | **IM-8** | Optional outbox → external push | Product confirm WeChat/email |
 

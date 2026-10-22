@@ -52,7 +52,7 @@ import tools.jackson.databind.ObjectMapper;
  * InboxApiSecurityTest — IM-2: REST AuthZ + own-entry isolation + tenant fail-closed.
  * 门禁：权限 / 本人收件 / 租户失败关闭。
  */
-@WebMvcTest(controllers = InboxEndpoint.class)
+@WebMvcTest(controllers = {InboxEndpoint.class, EndUserInboxEndpoint.class})
 @Import({
     PlatformSecurityConfiguration.class,
     OperatorDirectoryTestConfiguration.class,
@@ -240,6 +240,70 @@ class InboxApiSecurityTest {
                         .header(TenantEnforcementFilter.TENANT_HEADER, "tenant-no-grant")
                         .with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isForbidden());
+    }
+
+
+    @Test
+    void endUserMailboxIsIsolatedFromOperatorRealm() throws Exception {
+        // IM-6: SYSTEM to END_USER appears on /me/inbox, not operator /inbox/entries.
+        // IM-6：END_USER 系统信只在 /me/inbox 可见，不进操作员收件箱。
+        mockMvc.perform(post(InboxEndpoint.BASE + "/system")
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "终端通知",
+                                  "body": "给 END_USER",
+                                  "recipientSubjectIds": ["%s"],
+                                  "recipientRealm": "END_USER"
+                                }
+                                """.formatted(LocalOperatorSeeder.SUBJECT_ID))
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entryIds", hasSize(1)));
+
+        // Operator mailbox must not include the END_USER title (shared DB may have prior OPERATOR rows).
+        // 操作员收件箱不得出现 END_USER 标题（共享库可能已有操作员行）。
+        MvcResult opList = mockMvc.perform(get(InboxEndpoint.BASE + "/entries")
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String opBody = opList.getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertFalse(opBody.contains("终端通知"));
+
+        MvcResult list = mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/entries")
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries", hasSize(1)))
+                .andExpect(jsonPath("$.entries[0].title").value("终端通知"))
+                .andReturn();
+
+        String entryId = objectMapper
+                .readTree(list.getResponse().getContentAsString())
+                .get("entries")
+                .get(0)
+                .get("entryId")
+                .asText();
+
+        mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/unread-count")
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1));
+
+        mockMvc.perform(post(EndUserInboxEndpoint.BASE + "/entries/" + entryId + "/read")
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.marked").value(1));
+
+        mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/unread-count")
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(0));
     }
 
     @Test

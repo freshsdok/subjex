@@ -103,12 +103,12 @@ Editor gate: list/open `declaration.read`; no new permission names in wave 1.
 | **PC-2** | **done** `GET /api/v1/ui-permissions` |
 | **PC-3** | **done** Console layout reads GET |
 | **PC-4** | **done** Sample button bindings |
-| **PC-5** | uni-app shell consumes GET |
+| **PC-5** | **done** uni-app shell consumes GET |
 | **PC-6a** | **done** Visual editor DRAFT CRUD |
 | **PC-6b / PC-7** | **done** Promote `ui-authz` + export YAML + effective read |
-| **PC-5** | deferred (after editor) | uni-app shell |
+| **PC-5** | **done** | uni-app shell |
 
-**Next:** **PC-5** uni-app shell (deferred) or follow-ons.
+**Next:** owner order #3 terminal auth → IM-6.
 
 ## References
 

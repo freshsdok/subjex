@@ -1,7 +1,6 @@
 package com.subjex.platform.app.uiauthz;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,7 +28,8 @@ class UiPermissionManifestCatalogTest {
                 UiPermissionManifestDefaults.EFFECT_DISABLE, manifest.defaults().missingButtonEffect());
         assertEquals(20, manifest.menus().size());
         assertTrue(catalog.knows("console"));
-        assertFalse(catalog.knows("uni-app"));
+        assertTrue(catalog.knows("uni-app"));
+        assertEquals(2, catalog.list().size());
     }
 
     @Test

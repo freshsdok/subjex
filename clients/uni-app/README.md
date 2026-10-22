@@ -49,6 +49,13 @@ npm run build:mp-weixin  # 产出 dist/build/mp-weixin
 
 本工程是标准 Vite uni-app 结构，与 HBuilderX「Vue3 + Vite」项目兼容；若 HBuilderX 提示升级 uni 版本，与 `package.json` 中 `@dcloudio/*` 对齐即可。
 
+## UI 权限 Manifest（PC-5）
+
+壳页调用 `GET /api/v1/ui-permissions?client=uni-app`（需 Bearer；无令牌时软失败并提示）。
+菜单按 `allowed` **置灰**；按钮按 `allowed` **禁用**。classpath 基线：`platform-app/.../ui-authz/uni-app-ui.yaml`。
+
+Shell calls `GET /api/v1/ui-permissions?client=uni-app` (Bearer required; soft-fail without). Menus grey / buttons disable per `allowed`.
+
 ## 非目标（首波脚手架）
 
 - 不克隆操作员控制台菜单 / 组织构建器 / 声明编辑器

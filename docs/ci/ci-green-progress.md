@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | **CI-1a** | **done** (local) | Fix Pages ghost key + DeadLetter accept-before-ACK race |
 | **CI-1b** | **done** (local) | Pin runtime `FROM eclipse-temurin:21.0.12.1_1-jre-noble`; `docs/release/image-scan.md` note |
-| **CI-1c** | pending push | User must push for GitHub Actions confirmation |
+| **CI-1c** | **pushed** | tip `cb3ecf1` — Actions https://github.com/freshsdok/subjex/actions/runs/39702424977 |
 
 ## Local verification / 本机核对
 

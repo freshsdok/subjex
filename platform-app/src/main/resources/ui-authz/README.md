@@ -1,6 +1,7 @@
 # ui-authz — UI permission Manifest (ADR 0010)
 
-Classpath baseline for console (and later uni-app) UI bindings.
+Classpath baselines: `console-ui.yaml` (operator console) and `uni-app-ui.yaml` (end-user shell, PC-5).
+classpath 基线：控制台 `console-ui.yaml`；终端壳 `uni-app-ui.yaml`（PC-5）。
 
 ## Resolution order / 解析顺序（PC-6b）
 

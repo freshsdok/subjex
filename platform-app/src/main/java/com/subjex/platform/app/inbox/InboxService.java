@@ -88,36 +88,87 @@ public final class InboxService {
             InboxChannel channel,
             int limit,
             int offset) {
+        return listOwnInRealm(
+                operator, tenantId, InboxRecipientRealm.OPERATOR, unreadOnly, channel, limit, offset);
+    }
+
+    /**
+     * List own END_USER entries (IM-6 / uni-app) — 列本人终端收件（IM-6）。
+     */
+    public List<InboxEntryView> listOwnEndUser(
+            OperatorPrincipal principal,
+            String tenantId,
+            boolean unreadOnly,
+            InboxChannel channel,
+            int limit,
+            int offset) {
+        return listOwnInRealm(
+                principal, tenantId, InboxRecipientRealm.END_USER, unreadOnly, channel, limit, offset);
+    }
+
+    private List<InboxEntryView> listOwnInRealm(
+            OperatorPrincipal operator,
+            String tenantId,
+            InboxRecipientRealm realm,
+            boolean unreadOnly,
+            InboxChannel channel,
+            int limit,
+            int offset) {
         String tid = requireTenantAndGrant(operator, tenantId);
         requirePermission(operator, OperatorPermission.INBOX_READ.permissionName());
         return inbox.listEntries(
-                tid,
-                InboxRecipientRealm.OPERATOR,
-                operator.subjectId(),
-                new InboxListQuery(unreadOnly, channel, limit, offset));
+                tid, realm, operator.subjectId(), new InboxListQuery(unreadOnly, channel, limit, offset));
     }
 
-    /** Unread badge count — 未读角标计数. */
+    /** Unread badge count (OPERATOR) — 操作员未读角标. */
     public long unreadCount(OperatorPrincipal operator, String tenantId) {
-        String tid = requireTenantAndGrant(operator, tenantId);
-        requirePermission(operator, OperatorPermission.INBOX_READ.permissionName());
-        return inbox.unreadCount(tid, InboxRecipientRealm.OPERATOR, operator.subjectId());
+        return unreadCountInRealm(operator, tenantId, InboxRecipientRealm.OPERATOR);
     }
 
-    /** Own entry detail — 本人详情. */
+    /** Unread badge count (END_USER / IM-6) — 终端未读角标. */
+    public long unreadCountEndUser(OperatorPrincipal principal, String tenantId) {
+        return unreadCountInRealm(principal, tenantId, InboxRecipientRealm.END_USER);
+    }
+
+    private long unreadCountInRealm(OperatorPrincipal operator, String tenantId, InboxRecipientRealm realm) {
+        String tid = requireTenantAndGrant(operator, tenantId);
+        requirePermission(operator, OperatorPermission.INBOX_READ.permissionName());
+        return inbox.unreadCount(tid, realm, operator.subjectId());
+    }
+
+    /** Own entry detail (OPERATOR) — 操作员本人详情. */
     public InboxEntryView getOwn(OperatorPrincipal operator, String tenantId, String entryId) {
-        String tid = requireTenantAndGrant(operator, tenantId);
-        requirePermission(operator, OperatorPermission.INBOX_READ.permissionName());
-        return requireOwnEntry(operator, tid, entryId);
+        return getOwnInRealm(operator, tenantId, entryId, InboxRecipientRealm.OPERATOR);
     }
 
-    /** Mark one own entry read (idempotent) — 标记本人一条已读（幂等）. */
-    public void markRead(OperatorPrincipal operator, String tenantId, String entryId) {
+    /** Own entry detail (END_USER / IM-6) — 终端本人详情. */
+    public InboxEntryView getOwnEndUser(OperatorPrincipal principal, String tenantId, String entryId) {
+        return getOwnInRealm(principal, tenantId, entryId, InboxRecipientRealm.END_USER);
+    }
+
+    private InboxEntryView getOwnInRealm(
+            OperatorPrincipal operator, String tenantId, String entryId, InboxRecipientRealm realm) {
         String tid = requireTenantAndGrant(operator, tenantId);
         requirePermission(operator, OperatorPermission.INBOX_READ.permissionName());
-        requireOwnEntry(operator, tid, entryId);
-        inbox.markRead(
-                tid, InboxRecipientRealm.OPERATOR, operator.subjectId(), entryId, clock.instant());
+        return requireOwnEntry(operator, tid, entryId, realm);
+    }
+
+    /** Mark one own OPERATOR entry read — 标记操作员本人一条已读. */
+    public void markRead(OperatorPrincipal operator, String tenantId, String entryId) {
+        markReadInRealm(operator, tenantId, entryId, InboxRecipientRealm.OPERATOR);
+    }
+
+    /** Mark one own END_USER entry read (IM-6) — 标记终端本人一条已读. */
+    public void markReadEndUser(OperatorPrincipal principal, String tenantId, String entryId) {
+        markReadInRealm(principal, tenantId, entryId, InboxRecipientRealm.END_USER);
+    }
+
+    private void markReadInRealm(
+            OperatorPrincipal operator, String tenantId, String entryId, InboxRecipientRealm realm) {
+        String tid = requireTenantAndGrant(operator, tenantId);
+        requirePermission(operator, OperatorPermission.INBOX_READ.permissionName());
+        requireOwnEntry(operator, tid, entryId, realm);
+        inbox.markRead(tid, realm, operator.subjectId(), entryId, clock.instant());
     }
 
     /**
@@ -137,7 +188,7 @@ public final class InboxService {
                 throw new IllegalArgumentException("entryIds must not contain blank ids");
             }
             String entryId = raw.trim();
-            requireOwnEntry(operator, tid, entryId);
+            requireOwnEntry(operator, tid, entryId, InboxRecipientRealm.OPERATOR);
             if (inbox.markRead(tid, InboxRecipientRealm.OPERATOR, operator.subjectId(), entryId, at)) {
                 marked++;
             }
@@ -158,18 +209,45 @@ public final class InboxService {
             List<String> recipientSubjectIds,
             String deepLink,
             List<String> attachmentStagingIds) {
+        return sendSystem(
+                operator,
+                tenantId,
+                title,
+                body,
+                severity,
+                recipientSubjectIds,
+                deepLink,
+                attachmentStagingIds,
+                InboxRecipientRealm.OPERATOR);
+    }
+
+    /**
+     * SYSTEM send with explicit recipient realm (IM-6 seeding uses {@link InboxRecipientRealm#END_USER}).
+     * 系统发送可指定收件域（IM-6 种数用 END_USER）。
+     */
+    public InboxSendResult sendSystem(
+            OperatorPrincipal operator,
+            String tenantId,
+            String title,
+            String body,
+            InboxSeverity severity,
+            List<String> recipientSubjectIds,
+            String deepLink,
+            List<String> attachmentStagingIds,
+            InboxRecipientRealm recipientRealm) {
         String tid = requireTenantAndGrant(operator, tenantId);
         requirePermission(operator, OperatorPermission.INBOX_SEND_SYSTEM.permissionName());
         if (recipientSubjectIds == null || recipientSubjectIds.isEmpty()) {
             throw new IllegalArgumentException("recipientSubjectIds must not be empty");
         }
+        InboxRecipientRealm realm = recipientRealm == null ? InboxRecipientRealm.OPERATOR : recipientRealm;
         InboxSeverity sev = severity == null ? InboxSeverity.INFO : severity;
         List<InboxRecipient> recipients = new ArrayList<>(recipientSubjectIds.size());
         for (String subjectId : recipientSubjectIds) {
             if (subjectId == null || subjectId.isBlank()) {
                 throw new IllegalArgumentException("recipientSubjectIds must not contain blank ids");
             }
-            recipients.add(new InboxRecipient(InboxRecipientRealm.OPERATOR, subjectId.trim()));
+            recipients.add(new InboxRecipient(realm, subjectId.trim()));
         }
         List<InboxAttachmentBind> binds = takeStagingBinds(tid, operator.subjectId(), attachmentStagingIds);
         return inbox.send(new InboxSendRequest(
@@ -376,7 +454,7 @@ public final class InboxService {
     public List<InboxAttachment> listAttachments(OperatorPrincipal operator, String tenantId, String entryId) {
         String tid = requireTenantAndGrant(operator, tenantId);
         requirePermission(operator, OperatorPermission.INBOX_READ.permissionName());
-        requireOwnEntry(operator, tid, entryId);
+        requireOwnEntry(operator, tid, entryId, InboxRecipientRealm.OPERATOR);
         return inbox.listAttachmentsForOwnEntry(
                 tid, InboxRecipientRealm.OPERATOR, operator.subjectId(), entryId);
     }
@@ -388,7 +466,7 @@ public final class InboxService {
             OperatorPrincipal operator, String tenantId, String entryId, String attachmentId) {
         String tid = requireTenantAndGrant(operator, tenantId);
         requirePermission(operator, OperatorPermission.INBOX_READ.permissionName());
-        requireOwnEntry(operator, tid, entryId);
+        requireOwnEntry(operator, tid, entryId, InboxRecipientRealm.OPERATOR);
         InboxAttachment meta = inbox.findAttachmentForOwnEntry(
                         tid, InboxRecipientRealm.OPERATOR, operator.subjectId(), entryId, attachmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "attachment not found"));
@@ -472,10 +550,11 @@ public final class InboxService {
         return session;
     }
 
-    private InboxEntryView requireOwnEntry(OperatorPrincipal operator, String tenantId, String entryId) {
+    private InboxEntryView requireOwnEntry(
+            OperatorPrincipal operator, String tenantId, String entryId, InboxRecipientRealm realm) {
         InboxEntryView view = inbox.findEntryInTenant(tenantId, entryId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "inbox entry not found"));
-        if (view.entry().recipientRealm() != InboxRecipientRealm.OPERATOR
+        if (view.entry().recipientRealm() != realm
                 || !view.entry().recipientSubjectId().equals(operator.subjectId())) {
             throw new AccessDeniedException("inbox entry belongs to another recipient");
         }

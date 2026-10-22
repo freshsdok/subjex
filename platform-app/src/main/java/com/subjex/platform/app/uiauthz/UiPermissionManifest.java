@@ -6,13 +6,16 @@ import java.util.Objects;
 /**
  * UiPermissionManifest — 一份客户端 UI 权限 Manifest（ADR 0010）。
  * <p>
- * {@code client} e.g. {@code console}; {@code entries} ordered as authored (nav tour order).
- * 客户端如 console；entries 保持作者顺序（侧栏巡览序）。
+ * {@code client} e.g. {@code console} or {@code uni-app}; {@code entries} ordered as authored.
+ * 客户端如 console / uni-app；entries 保持作者顺序。
  */
 public record UiPermissionManifest(
         int version, String client, UiPermissionManifestDefaults defaults, List<UiPermissionEntry> entries) {
 
     public static final String CLIENT_CONSOLE = "console";
+
+    /** End-user uni-app H5/MP client id (ADR 0007 / PC-5) — 终端 uni-app 客户端 id。 */
+    public static final String CLIENT_UNI_APP = "uni-app";
 
     public UiPermissionManifest {
         Objects.requireNonNull(client, "client");

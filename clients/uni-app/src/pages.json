@@ -11,6 +11,12 @@
       "style": {
         "navigationBarTitleText": "登录 / Sign in"
       }
+    },
+    {
+      "path": "pages/inbox/inbox",
+      "style": {
+        "navigationBarTitleText": "站内信 / Inbox"
+      }
     }
   ],
   "globalStyle": {

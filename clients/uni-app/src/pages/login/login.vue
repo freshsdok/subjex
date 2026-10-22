@@ -1,100 +1,175 @@
 <template>
   <view class="page">
     <view class="card">
-      <text class="title">登录占位 / Login placeholder</text>
+      <text class="title">登录 / Sign in (#3a)</text>
       <text class="body">
-        微信小程序路径：wx.login → jsCode → 平台 IdP
-        <text class="mono">POST /api/v1/auth/idp/{provider}/callback</text>
-        （issuer <text class="mono">wechat:mini</text>，见
-        <text class="mono">platform.idp.wechat.*</text>）。
+        H5：口令 → POST /api/v1/auth/login → Bearer。小程序：jsCode →
+        POST /api/v1/auth/idp/wechat/callback（须预先 IdP 绑定）。
       </text>
       <text class="body">
-        Mini-program path: wx.login → jsCode → platform IdP callback
-        (issuer <text class="mono">wechat:mini</text>). Protocol only on the
-        server; this page does not call WeChat or store secrets.
+        H5: password login issues opaque Bearer. Mini-program: jsCode via WeChat IdP
+        (link-required, no auto-provision). Not the operator Redis session.
       </text>
-      <text class="warn">
-        端用户令牌形态（Bearer / OP）尚未定稿；禁止复用操作员控制台 Redis 会话。
-        End-user token shape TBD; do not reuse operator console Redis sessions.
+
+      <text class="label">口令登录（H5 / 开发）/ Password (H5 / dev)</text>
+      <input class="input" v-model="loginName" placeholder="loginName" />
+      <input class="input" v-model="password" password placeholder="password" />
+      <button size="mini" type="primary" :disabled="busy" @click="onPasswordLogin">
+        登录 / Sign in
+      </button>
+
+      <button
+        size="mini"
+        :disabled="!wxStubAllowed || busy"
+        :class="{ locked: !wxStubAllowed }"
+        @click="onWeChatMini"
+      >
+        微信小程序 jsCode 登录 / WeChat mini login
+      </button>
+      <text v-if="!wxStubAllowed" class="hint">
+        按钮已禁用（Manifest）/ disabled by Manifest
       </text>
-      <text class="muted" v-if="jsCodeHint">{{ jsCodeHint }}</text>
-      <button size="mini" @click="tryWxLoginStub">演示：读取 jsCode 占位 / Demo stub</button>
-      <navigator url="/pages/index/index" class="link">← 返回壳首页 / Back</navigator>
+
+      <button size="mini" v-if="signedIn" @click="onLogout">退出 / Sign out</button>
+
+      <text class="muted" v-if="status">{{ status }}</text>
+      <text class="muted">{{ manifestStatus }}</text>
+      <navigator url="/pages/index/index" class="link">← 首页 / Home</navigator>
+      <navigator url="/pages/inbox/inbox" class="link">站内信 / Inbox →</navigator>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 /**
- * Login placeholder — documents WeChat mini IdP; no real credentials.
- * 登录占位：说明微信小程序 IdP；不接真实密钥。
+ * Login — password (H5) + wechat:mini jsCode callback (#3a).
+ * 登录：H5 口令 + 小程序 jsCode 回调。
  */
-import { ref } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { readBearer } from "../../api/auth-token";
+import {
+  clearTokens,
+  isSignedIn,
+  loginWithPassword,
+  loginWithWeChatMini,
+} from "../../api/auth";
+import {
+  BUTTON_SHELL_WX_LOGIN_STUB,
+  buttonAllowed,
+  fetchUiPermissions,
+  type UiPermissionManifest,
+} from "../../api/ui-permissions";
 
-const jsCodeHint = ref("");
+const loginName = ref("platform-operator");
+const password = ref("change-me");
+const status = ref("");
+const busy = ref(false);
+const signedIn = ref(isSignedIn());
+const manifest = ref<UiPermissionManifest | undefined>(undefined);
+const manifestError = ref<string | null>(null);
 
-function tryWxLoginStub() {
+const wxStubAllowed = computed(() =>
+  buttonAllowed(manifest.value, BUTTON_SHELL_WX_LOGIN_STUB, true)
+);
+
+const manifestStatus = computed(() => {
+  if (manifestError.value) return `Manifest: ${manifestError.value}`;
+  if (!manifest.value) return "Manifest: （未加载）";
+  return `Manifest: client=${manifest.value.client}`;
+});
+
+async function onPasswordLogin() {
+  busy.value = true;
+  status.value = "登录中… / signing in…";
+  try {
+    const tokens = await loginWithPassword(loginName.value.trim(), password.value);
+    signedIn.value = true;
+    status.value = `已登录 / signed in (token len ${tokens.accessToken.length})`;
+    void refreshManifest();
+  } catch (e) {
+    status.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    busy.value = false;
+  }
+}
+
+function onWeChatMini() {
+  if (!wxStubAllowed.value) return;
+  busy.value = true;
+  status.value = "";
   // #ifdef MP-WEIXIN
   uni.login({
     provider: "weixin",
-    success: (res) => {
-      // Do not POST to production IdP from this scaffold without product auth design.
-      // 脚手架不向生产 IdP 提交；仅展示拿到的 code 长度。
+    success: async (res) => {
       const code = res.code || "";
-      jsCodeHint.value = code
-        ? `拿到 jsCode（长度 ${code.length}，未上传）/ got jsCode (len ${code.length}, not sent)`
-        : "uni.login 无 code / no code";
+      if (!code) {
+        status.value = "uni.login 无 code / no code";
+        busy.value = false;
+        return;
+      }
+      try {
+        const tokens = await loginWithWeChatMini(code);
+        signedIn.value = true;
+        status.value = `微信登录成功 / WeChat ok (token len ${tokens.accessToken.length})`;
+        void refreshManifest();
+      } catch (e) {
+        status.value = e instanceof Error ? e.message : String(e);
+      } finally {
+        busy.value = false;
+      }
     },
     fail: (err) => {
-      jsCodeHint.value = `uni.login 失败 / failed: ${JSON.stringify(err)}`;
+      status.value = `uni.login 失败 / failed: ${JSON.stringify(err)}`;
+      busy.value = false;
     },
   });
   // #endif
   // #ifndef MP-WEIXIN
-  jsCodeHint.value =
-    "当前非微信小程序运行时；H5 请走开放平台扫码 / OIDC（wechat:open）。 / Not mp-weixin; use open-platform QR / OIDC on H5.";
+  status.value =
+    "非小程序运行时：请用上方口令登录，或真机微信开发者工具跑 mp-weixin。 / Not mp-weixin; use password or WeChat DevTools.";
+  busy.value = false;
   // #endif
 }
+
+function onLogout() {
+  clearTokens();
+  signedIn.value = false;
+  status.value = "已退出 / signed out";
+}
+
+async function refreshManifest() {
+  manifestError.value = null;
+  try {
+    manifest.value = await fetchUiPermissions(readBearer());
+  } catch (e) {
+    manifest.value = undefined;
+    const msg = e instanceof Error ? e.message : String(e);
+    manifestError.value = msg.includes("401")
+      ? "需先登录 / sign in first"
+      : msg.slice(0, 120);
+  }
+}
+
+onMounted(() => {
+  signedIn.value = isSignedIn();
+  void refreshManifest();
+});
 </script>
 
 <style scoped>
-.page {
-  padding: 24rpx;
-}
+.page { padding: 24rpx; }
 .card {
-  background: #fff;
-  border-radius: 12rpx;
-  padding: 28rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  border: 1px solid #e5e5e5;
+  background: #fff; border-radius: 12rpx; padding: 28rpx;
+  display: flex; flex-direction: column; gap: 16rpx; border: 1px solid #e5e5e5;
 }
-.title {
-  font-size: 32rpx;
-  font-weight: 600;
+.title { font-size: 32rpx; font-weight: 600; }
+.body { font-size: 26rpx; color: #333; }
+.label { font-size: 22rpx; color: #888; margin-top: 8rpx; }
+.input {
+  border: 1px solid #ddd; border-radius: 8rpx; padding: 12rpx 16rpx; font-size: 26rpx;
 }
-.body {
-  font-size: 26rpx;
-  color: #333;
-}
-.warn {
-  font-size: 24rpx;
-  color: #b45309;
-  background: #fffbeb;
-  padding: 16rpx;
-  border-radius: 8rpx;
-}
-.muted {
-  font-size: 24rpx;
-  color: #666;
-}
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 22rpx;
-}
-.link {
-  color: #2563eb;
-  margin-top: 12rpx;
-}
+.muted { font-size: 24rpx; color: #666; }
+.hint { color: #b45309; font-size: 22rpx; }
+.link { color: #2563eb; }
+button.locked { opacity: 0.5; }
 </style>

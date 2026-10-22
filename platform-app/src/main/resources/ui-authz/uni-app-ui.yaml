@@ -1,0 +1,28 @@
+# uni-app end-user shell UI permission Manifest (ADR 0010 / PC-5)
+# Thin shell bindings — not a console clone. Labels live in the uni-app client.
+# Buttons require permission/anyOf (schema); page.read gates placeholder actions.
+# 终端壳 UI 权限 Manifest：薄壳绑定，不克隆控制台；按钮须带权限；占位动作用 page.read。
+version: 1
+client: uni-app
+defaults:
+  lockedMenuEffect: grey
+  missingButtonEffect: disable
+entries:
+  # Login-authenticated shell home (no named permission) — 登录即可的壳首页
+  - id: nav.home
+    kind: menu
+    href: /pages/index/index
+  - id: nav.login
+    kind: menu
+    href: /pages/login/login
+  - id: nav.inbox
+    kind: menu
+    href: /pages/inbox/inbox
+    permission: inbox.read
+  # Placeholder actions — 壳页占位动作
+  - id: btn.shell.reprobe
+    kind: button
+    permission: page.read
+  - id: btn.shell.wxLoginStub
+    kind: button
+    permission: page.read

@@ -24,10 +24,10 @@
 | **PC-2** | **done** | `GET /api/v1/ui-permissions?client=console` |
 | **PC-3** | **done** | web layout / Forbidden 改读 GET |
 | **PC-4** | **done** | 按钮样例绑定 |
-| **PC-5** | deferred | uni-app 壳消费 GET |
+| **PC-5** | **done** | uni-app 壳消费 GET（client=uni-app） |
 | **PC-6a** | **done** | 可视化编辑器 DRAFT CRUD（permission 只选目录） |
 | **PC-6b / PC-7** | **done** | Promote → live PROMOTED overlay + YAML export |
-| **PC-5** | deferred | uni-app shell (user deferred) |
+| **PC-5** | **done** | uni-app shell consumes GET |
 
 PC-6 可与 PC-3/4 在 PC-2 之后并行；PC-7 依赖 PC-6。
 
@@ -90,3 +90,11 @@ PC-6 可与 PC-3/4 在 PC-2 之后并行；PC-7 依赖 PC-6。
 - Console `/ui-authz`: Promote + Export actions; promote gated by `declaration.promote`
 - Tests: unauthorized cannot promote; after promote live `allowed` reflects new bindings
 - PC-5 uni-app still deferred
+
+## PC-5 landed / 已落地（2026-10-22 Asia/Shanghai）
+
+- Classpath `ui-authz/uni-app-ui.yaml` (`client: uni-app`) — shell menus + placeholder buttons
+- `UiPermissionManifestCatalog` loads console **and** uni-app baselines
+- `clients/uni-app`: `fetchUiPermissions` → index/login grey menus / disable buttons per `allowed`
+- Soft-fail without Bearer (prompt for #3 terminal auth); FE not a security boundary
+- Tests: catalog knows uni-app; `UiPermissionApiSecurityTest.operatorGetsUniAppClasspathManifest`

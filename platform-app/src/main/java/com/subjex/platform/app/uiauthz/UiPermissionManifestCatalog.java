@@ -19,13 +19,17 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 /**
  * UiPermissionManifestCatalog — classpath UI 权限 Manifest 目录（ADR 0010 / PC-1）。
  * <p>
- * Loads {@code /ui-authz/console-ui.yaml}. Every {@code permission} / {@code anyOf} name must be in
- * {@link OperatorPermission} catalog; unknown → {@link UiPermissionRejected} (fail-closed).
- * 加载控制台 YAML；权限名必须在 OperatorPermission 目录内；未知失败关闭。
+ * Loads {@code /ui-authz/console-ui.yaml} and {@code /ui-authz/uni-app-ui.yaml}. Every
+ * {@code permission} / {@code anyOf} name must be in {@link OperatorPermission} catalog;
+ * unknown → {@link UiPermissionRejected} (fail-closed).
+ * 加载控制台与 uni-app YAML；权限名必须在 OperatorPermission 目录内；未知失败关闭。
  */
 public final class UiPermissionManifestCatalog {
 
     public static final String CONSOLE_RESOURCE = "/ui-authz/console-ui.yaml";
+
+    /** End-user shell baseline (PC-5) — 终端壳基线。 */
+    public static final String UNI_APP_RESOURCE = "/ui-authz/uni-app-ui.yaml";
 
     private static final Set<String> ROOT_KEYS = Set.of("version", "client", "defaults", "entries");
     private static final Set<String> DEFAULT_KEYS = Set.of("lockedMenuEffect", "missingButtonEffect");
@@ -34,9 +38,11 @@ public final class UiPermissionManifestCatalog {
 
     private final Map<String, UiPermissionManifest> byClient;
 
-    /** Load classpath console baseline — 加载 classpath 控制台基线。 */
+    /** Load classpath console + uni-app baselines — 加载 classpath 控制台与 uni-app 基线。 */
     public UiPermissionManifestCatalog() {
-        this(Map.of(UiPermissionManifest.CLIENT_CONSOLE, loadResource(CONSOLE_RESOURCE)));
+        this(Map.of(
+                UiPermissionManifest.CLIENT_CONSOLE, loadResource(CONSOLE_RESOURCE),
+                UiPermissionManifest.CLIENT_UNI_APP, loadResource(UNI_APP_RESOURCE)));
     }
 
     /**

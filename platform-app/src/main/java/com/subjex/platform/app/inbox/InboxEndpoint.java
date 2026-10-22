@@ -10,6 +10,7 @@ import com.subjex.platform.contract.inbox.InboxChannel;
 import com.subjex.platform.contract.inbox.InboxEntryView;
 import com.subjex.platform.contract.inbox.InboxListQuery;
 import com.subjex.platform.contract.inbox.InboxSendResult;
+import com.subjex.platform.contract.inbox.InboxRecipientRealm;
 import com.subjex.platform.contract.inbox.InboxSeverity;
 import java.time.Instant;
 import java.util.List;
@@ -132,7 +133,8 @@ public class InboxEndpoint {
                 parseSeverity(body.severity()),
                 body.recipientSubjectIds(),
                 body.deepLink(),
-                body.attachmentStagingIds());
+                body.attachmentStagingIds(),
+                parseRecipientRealm(body.recipientRealm()));
         return SendDocument.from(sent);
     }
 
@@ -339,6 +341,19 @@ public class InboxEndpoint {
         }
     }
 
+
+    /** Parse recipient realm; blank → OPERATOR — 解析收件域；空则 OPERATOR. */
+    private static InboxRecipientRealm parseRecipientRealm(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return InboxRecipientRealm.OPERATOR;
+        }
+        try {
+            return InboxRecipientRealm.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("unknown recipientRealm " + raw);
+        }
+    }
+
     public record BatchReadRequest(List<String> entryIds) {}
 
     public record SystemSendRequest(
@@ -347,7 +362,9 @@ public class InboxEndpoint {
             String severity,
             List<String> recipientSubjectIds,
             String deepLink,
-            List<String> attachmentStagingIds) {}
+            List<String> attachmentStagingIds,
+            /** Optional: OPERATOR (default) or END_USER for IM-6 seeding — 可选收件域. */
+            String recipientRealm) {}
 
     public record GroupSendRequest(
             String groupId,

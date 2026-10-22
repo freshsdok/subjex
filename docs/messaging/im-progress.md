@@ -16,7 +16,7 @@
 | IM-3 Workflow hooks | **done** | repair-ticket `request_approval`→ACTION candidates; `approve`/`reject`/`close`→INFO reporter |
 | IM-4 Console `/inbox` | **done** | `web/` `/inbox` list + mark-read + deep link + nav (`inbox.read`) |
 | IM-5 Unread badge poll | **done** | header badge ~60s poll + visibility pause; click → `/inbox` |
-| IM-6 uni-app END_USER | not started | After client auth (locked) |
+| IM-6 uni-app END_USER | **done** (thin) | `/api/v1/me/inbox` + uni-app page; after #3a Bearer |
 | IM-7 ORG_BROADCAST | **superseded by IM-A5** | Schema enum existed; API now planned under ADR 0009 |
 | IM-8 External push via outbox | deferred | WeChat/email after MVP (locked) |
 
@@ -148,3 +148,11 @@
 5. Unread poll → ~60s + manual
 6. END_USER → after uni-app auth
 7. Copy → Chinese first; i18n structure later
+
+## IM-6 notes (2026-10-22 Asia/Shanghai)
+
+- API: `GET/POST /api/v1/me/inbox/**` always `InboxRecipientRealm.END_USER` (list/unread/detail/mark-read)
+- SYSTEM send accepts optional `recipientRealm=END_USER` for seeding
+- uni-app `/pages/inbox/inbox` consumes me/inbox with stored Bearer + `X-Tenant-Id`
+- Auth prerequisite (#3a): password login and/or wechat:mini IdP callback → opaque Bearer (operator-linked until dedicated END_USER identity)
+- Not in IM-6: compose/broadcast from uni-app, WeChat push (IM-8), separate end-user account store

@@ -197,6 +197,12 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.INBOX_READ.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/inbox", "/api/v1/inbox/**")
                                 .hasAuthority(OperatorPermission.INBOX_READ.permissionName())
+                        // IM-6 end-user mailbox (uni-app): read + mark-read only.
+                        // IM-6 终端收件箱：仅读与已读。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/me/inbox", "/api/v1/me/inbox/**")
+                                .hasAuthority(OperatorPermission.INBOX_READ.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/me/inbox/entries/**")
+                                .hasAuthority(OperatorPermission.INBOX_READ.permissionName())
                         // WF-1 thin workflow: read vs write/approve split; tenant grant in service.
                         // WF-1 薄工作流：读与写/审批分权；租户授权在服务内核对。
                         .requestMatchers(HttpMethod.GET, "/api/v1/workflows/**")

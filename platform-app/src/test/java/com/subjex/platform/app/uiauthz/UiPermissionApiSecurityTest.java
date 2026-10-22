@@ -89,6 +89,28 @@ class UiPermissionApiSecurityTest {
 
     @Test
     @Order(3)
+    void operatorGetsUniAppClasspathManifest() throws Exception {
+        // PC-5: uni-app client baseline from classpath uni-app-ui.yaml.
+        // PC-5：uni-app 客户端基线来自 classpath uni-app-ui.yaml。
+        mockMvc.perform(get(UiPermissionEndpoint.PATH)
+                        .queryParam("client", "uni-app")
+                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.client").value("uni-app"))
+                .andExpect(jsonPath("$.defaults.lockedMenuEffect").value("grey"))
+                .andExpect(jsonPath("$.defaults.missingButtonEffect").value("disable"))
+                .andExpect(jsonPath("$.entries.length()").value(5))
+                .andExpect(jsonPath("$.entries[0].id").value("nav.home"))
+                .andExpect(jsonPath("$.entries[0].kind").value("menu"))
+                .andExpect(jsonPath("$.entries[0].href").value("/pages/index/index"))
+                .andExpect(jsonPath("$.entries[0].allowed").value(true))
+                .andExpect(jsonPath("$.entries[3].id").value("btn.shell.reprobe"))
+                .andExpect(jsonPath("$.entries[3].kind").value("button"))
+                .andExpect(jsonPath("$.entries[2].allowed").value(true));
+    }
+
+    @Test
+    @Order(4)
     void viewerGetsAllowedFalseForComposeWithoutSendPermission() throws Exception {
         mockMvc.perform(get(UiPermissionEndpoint.PATH)
                         .queryParam("client", "console")
@@ -104,7 +126,7 @@ class UiPermissionApiSecurityTest {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     void defaultClientIsConsole() throws Exception {
         mockMvc.perform(get(UiPermissionEndpoint.PATH).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isOk())
@@ -112,7 +134,7 @@ class UiPermissionApiSecurityTest {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     void unknownClientGets400() throws Exception {
         mockMvc.perform(get(UiPermissionEndpoint.PATH)
                         .queryParam("client", "no-such-client")
@@ -122,7 +144,7 @@ class UiPermissionApiSecurityTest {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     void afterPromoteLiveGetServesPromotedBindingsAndAllowedFlags() throws Exception {
         // Promote a slim Manifest: overview (open) + compose (needs inbox.send.system) + org.write button.
         // 晋升精简 Manifest：概览（开放）+ 撰写（需 inbox.send.system）+ org.write 按钮。
