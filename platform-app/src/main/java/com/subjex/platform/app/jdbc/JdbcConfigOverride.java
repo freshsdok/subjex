@@ -1,8 +1,12 @@
 package com.subjex.platform.app.jdbc;
 
 import com.subjex.platform.contract.config.ConfigNamespaces;
+import com.subjex.platform.contract.config.ConfigOverrideHistoryEntry;
 import com.subjex.platform.contract.config.ConfigOverrideStore;
+import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -13,7 +17,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * JdbcConfigOverride — JDBC 配置覆盖：按命名空间存在共享库 {@code config_override}，带修订号。
  * <p>
  * Every process on the same database shares rows. Flat methods use {@link ConfigNamespaces#DEFAULT}.
- * 连同一库的进程共享行。扁平方法走默认命名空间。
+ * Config-6a: each successful put also appends {@code config_override_history}.
+ * 连同一库的进程共享行。扁平方法走默认命名空间。Config-6a：每次成功 put 追加历史行。
  */
 public final class JdbcConfigOverride implements ConfigOverrideStore {
 
@@ -34,6 +39,8 @@ public final class JdbcConfigOverride implements ConfigOverrideStore {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("config value is missing");
         }
+        Instant at = clock.instant();
+        Timestamp stamped = PlatformTables.timestamp(at);
         int updated = jdbc.update(
                 """
                 UPDATE config_override
@@ -41,36 +48,41 @@ public final class JdbcConfigOverride implements ConfigOverrideStore {
                 WHERE namespace = ? AND config_key = ?
                 """,
                 value,
-                PlatformTables.timestamp(clock.instant()),
+                stamped,
                 ns,
                 key);
+        long revision;
         if (updated == 1) {
-            return requireRevision(ns, key);
+            revision = requireRevision(ns, key);
+        } else {
+            try {
+                jdbc.update(
+                        """
+                        INSERT INTO config_override (namespace, config_key, config_value, revision, overridden_at)
+                        VALUES (?, ?, ?, 1, ?)
+                        """,
+                        ns,
+                        key,
+                        value,
+                        stamped);
+                revision = 1L;
+            } catch (DuplicateKeyException raced) {
+                jdbc.update(
+                        """
+                        UPDATE config_override
+                        SET config_value = ?, revision = revision + 1, overridden_at = ?
+                        WHERE namespace = ? AND config_key = ?
+                        """,
+                        value,
+                        stamped,
+                        ns,
+                        key);
+                revision = requireRevision(ns, key);
+            }
         }
-        try {
-            jdbc.update(
-                    """
-                    INSERT INTO config_override (namespace, config_key, config_value, revision, overridden_at)
-                    VALUES (?, ?, ?, 1, ?)
-                    """,
-                    ns,
-                    key,
-                    value,
-                    PlatformTables.timestamp(clock.instant()));
-            return 1L;
-        } catch (DuplicateKeyException raced) {
-            jdbc.update(
-                    """
-                    UPDATE config_override
-                    SET config_value = ?, revision = revision + 1, overridden_at = ?
-                    WHERE namespace = ? AND config_key = ?
-                    """,
-                    value,
-                    PlatformTables.timestamp(clock.instant()),
-                    ns,
-                    key);
-            return requireRevision(ns, key);
-        }
+        // Config-6a: audit row for this revision — 本修订号的审计行。
+        appendHistory(ns, key, value, revision, stamped);
+        return revision;
     }
 
     @Override
@@ -108,6 +120,44 @@ public final class JdbcConfigOverride implements ConfigOverrideStore {
                         key)
                 .stream()
                 .findFirst();
+    }
+
+
+    @Override
+    public List<ConfigOverrideHistoryEntry> history(String namespace, String key) {
+        if (key == null || key.isBlank()) {
+            return List.of();
+        }
+        String ns = ConfigNamespaces.require(namespace);
+        return jdbc.query(
+                """
+                SELECT namespace, config_key, config_value, revision, overridden_at
+                FROM config_override_history
+                WHERE namespace = ? AND config_key = ?
+                ORDER BY revision ASC
+                """,
+                (rs, rowNum) -> new ConfigOverrideHistoryEntry(
+                        rs.getString("namespace"),
+                        rs.getString("config_key"),
+                        rs.getString("config_value"),
+                        rs.getLong("revision"),
+                        rs.getTimestamp("overridden_at").toInstant()),
+                ns,
+                key);
+    }
+
+    private void appendHistory(String namespace, String key, String value, long revision, Timestamp at) {
+        jdbc.update(
+                """
+                INSERT INTO config_override_history
+                    (namespace, config_key, config_value, revision, overridden_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                namespace,
+                key,
+                value,
+                revision,
+                at);
     }
 
     private long requireRevision(String namespace, String key) {

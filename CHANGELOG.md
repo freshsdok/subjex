@@ -8,6 +8,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes PC-deepen-2/3 (local) on `49172c3`+.
 
 ### Added / 新增
+- **Config-7a restore from history:** `POST /api/v1/config/{key}/history/{revision}/restore`; console confirm restore; audit `config.restore`.
+  **Config-7a 从历史恢复：** POST restore；控制台确认；审计 config.restore。
+
+- **Config-6b history API + console:** `GET /api/v1/config/{key}/history`; web `/config?historyKey=` thin list (uni-app out of scope).
+  **Config-6b 历史 API + 控制台：** GET 覆盖历史；web 薄列表（uni-app 本片不做）。
+
+- **Config-6a override history (ADR 0012):** post–Item 5 deepen track; Flyway `V46__config_override_history`; JDBC/Memory put appends history; `ConfigOverrideStore.history`.
+  **Config-6a 覆盖历史（ADR 0012）：** Item 5 后加深轨；V46 历史表；put 追加；store.history。
+
 - **AuthZ-1g upsert via PolicyEngine:** `EntityRecordUpsertDomainActionHandler` uses `DeclarationAccess.requireVia`; declaration AuthZ widen inventory clear.
   **AuthZ-1g upsert 走 PolicyEngine：** 实体 upsert 领域动作改 requireVia；声明鉴权拓宽盘点清空。
 

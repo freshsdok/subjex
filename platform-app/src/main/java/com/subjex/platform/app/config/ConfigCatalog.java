@@ -5,6 +5,7 @@ import com.subjex.platform.contract.config.ConfigEntry;
 import com.subjex.platform.contract.config.ConfigListing;
 import com.subjex.platform.contract.config.ConfigNamespaces;
 import com.subjex.platform.contract.config.ConfigOrigin;
+import com.subjex.platform.contract.config.ConfigOverrideHistoryEntry;
 import com.subjex.platform.contract.config.ConfigOverrideStore;
 import com.subjex.platform.contract.discovery.PlatformServiceNames;
 import com.subjex.platform.contract.discovery.StaticServiceFallback;
@@ -15,7 +16,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * ConfigCatalog — 配置目录：按命名空间列出关注的键与覆盖，并带修订号（Config-5b）。
+ * ConfigCatalog — 配置目录：列表/覆盖/历史（5b/6b）；从历史显式恢复 put（Config-7a，不静默倒带）。
  * <p>
  * Default namespace keeps today’s flat keys + local application fallthrough. Other namespaces are
  * override-only. Implements {@link ConfigCenterPort}.
@@ -94,6 +95,39 @@ public final class ConfigCatalog implements ConfigCenterPort {
         String ns = ConfigNamespaces.require(namespace);
         long revision = overrides.put(ns, key, value);
         return new ConfigEntry(ns, key, value, ConfigOrigin.OVERRIDE, revision);
+    }
+
+
+
+    /**
+     * Restore by putting the value from a history revision (Config-7a).
+     * Never mutates past history rows — bumps a new revision.
+     * 从历史修订号取值再 put（Config-7a）；不改写旧历史行，只递增新修订。
+     *
+     * @throws IllegalArgumentException when the history revision is missing
+     */
+    public ConfigEntry restore(String namespace, String key, long fromRevision) {
+        String ns = ConfigNamespaces.require(namespace);
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("config key is missing");
+        }
+        if (fromRevision < 1L) {
+            throw new IllegalArgumentException("history revision must be >= 1");
+        }
+        ConfigOverrideHistoryEntry source = overrides.history(ns, key).stream()
+                .filter(row -> row.revision() == fromRevision)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "config history revision not found: " + ns + "/" + key + "@" + fromRevision));
+        return put(ns, key, source.value());
+    }
+
+    /**
+     * Override history for one key, oldest revision first (Config-6b).
+     * 某一键的覆盖历史，修订升序（Config-6b）。
+     */
+    public List<ConfigOverrideHistoryEntry> history(String namespace, String key) {
+        return overrides.history(namespace, key);
     }
 
     private ConfigEntry enrich(String namespace, ConfigEntry row) {

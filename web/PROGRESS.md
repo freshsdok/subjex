@@ -794,3 +794,15 @@ AuthZ-1f. [done] 2026-10-22 CST; FormsApiEndpoint + FormSubmissionEndpoint + Gen
 
 AuthZ-1g. [done] 2026-10-22 CST; EntityRecordUpsertDomainActionHandler → requireVia(PolicyEngine, entity.permission). Inventory clear for declaration widen. Local commit only (no push). AuthZ declaration-path widen closed.
     upsert 领域动作迁 requireVia；声明鉴权拓宽收口。仅本地提交。
+
+## Config center deepen (post–Item 5) / 配置中心加深
+
+Config-6a. [done] 2026-10-22 CST; ADR 0012 Accepted; V46 `config_override_history`; JDBC/Memory put appends; `history(ns,key)`; `JdbcConfigOverrideHistoryTest`. Local commit only (no second push). Next = **Config-6b** HTTP GET history + console thin list.
+    ADR 0012 + 历史表 + put 追加；仅本地提交。下一步 6b 读 API/控制台薄列表。
+
+Config-6b. [done] 2026-10-22 CST; GET /api/v1/config/{key}/history (config.read); console thin history panel via ?historyKey=; uni-app out of scope. Local commit only (no push). Next = **Config-7a** restore put from history.
+    历史 GET + 控制台薄列表；仅本地提交。下一步 7a 从历史显式恢复 put。
+
+Config-7a. [done] 2026-10-22 CST; POST /api/v1/config/{key}/history/{revision}/restore (config.write, optional If-Match); ConfigCatalog.restore; console restore confirm; audit config.restore. Local only. Next = optional Config-8 push/watch or await push.
+    从历史显式 restore put；仅本地提交。下一步可选 Config-8 或等推送。
+

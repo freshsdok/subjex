@@ -133,9 +133,11 @@ public class PlatformSecurityConfiguration {
                         .requestMatchers("/api/v1/openapi.json", "/api/v1/openapi.json/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/services")
                                 .hasAuthority(OperatorPermission.REGISTRY_READ.permissionName())
-                        .requestMatchers(HttpMethod.GET, "/api/v1/config")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/config", "/api/v1/config/**")
                                 .hasAuthority(OperatorPermission.CONFIG_READ.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/config/**")
+                                .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/config/**")
                                 .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
                         // Feature flags MVP — namespace flags via ConfigCenterPort.
                         // 功能开关 MVP — 经 ConfigCenterPort 的 flags 命名空间。

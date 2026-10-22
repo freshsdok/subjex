@@ -11,6 +11,8 @@ import {
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { ConfigNamespacePicker } from "./config-namespace-picker";
 import { ConfigOverrideCell } from "./config-override-cell";
+import { ConfigHistoryPanel, type ConfigHistoryEntry } from "./config-history-panel";
+import Link from "next/link";
 
 type ConfigDocument = components["schemas"]["ConfigDocument"];
 
@@ -24,26 +26,36 @@ function resolveNamespace(raw: string | undefined): string {
 /**
  * Config page — namespace picker (at least {@code default}) + override cells.
  * Enter: Manifest {@code page.config}; write column: {@code btn.config.write}.
- * Deep link: {@code /config?namespace=...}. Config-5d honesty notice + 5c If-Match on save.
+ * Deep link: {@code /config?namespace=...&historyKey=...}. Config-5d honesty + 5c If-Match;
+ * Config-6b thin history panel when {@code historyKey} is set; Config-7a restore when write allowed.
  * <p>
- * 配置页：进入走 page.config；修改列走 btn.config.write。深链 ?namespace=。
+ * 配置页：page.config / btn.config.write；historyKey 历史（6b）；写权限可恢复（7a）。
  */
 export default async function ConfigPage({
   searchParams,
 }: {
-  searchParams: Promise<{ namespace?: string }>;
+  searchParams: Promise<{ namespace?: string; historyKey?: string }>;
 }) {
   const { phrases } = await currentLanguage();
   const params = await searchParams;
   const namespace = resolveNamespace(params.namespace);
+  const historyKey = (params.historyKey ?? "").trim();
   const configPath =
     namespace === DEFAULT_NAMESPACE
       ? "config"
       : `config?namespace=${encodeURIComponent(namespace)}`;
-  const [{ status, body }, { body: operator }, uiPermissionsRead] = await Promise.all([
+  const historyPath =
+    historyKey === ""
+      ? null
+      : `config/${encodeURIComponent(historyKey)}/history?namespace=${encodeURIComponent(namespace)}`;
+  type HistoryDoc = { namespace?: string; key?: string; entries?: ConfigHistoryEntry[] };
+  const [{ status, body }, { body: operator }, uiPermissionsRead, historyRead] = await Promise.all([
     readPlatform<ConfigDocument>(configPath),
     readPlatform<OperatorSelfDocument>("me"),
     readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+    historyPath
+      ? readPlatform<HistoryDoc>(historyPath)
+      : Promise.resolve({ status: 0, body: undefined as HistoryDoc | undefined }),
   ]);
   const permissions = new Set(operator?.permissions ?? []);
   const manifest =
@@ -67,6 +79,18 @@ export default async function ConfigPage({
         {phrases.configHonestyNotice}
       </p>
       <ConfigNamespacePicker selected={activeNamespace} phrases={phrases} />
+      {historyKey !== "" && (
+        <ConfigHistoryPanel
+          namespace={activeNamespace}
+          historyKey={historyKey}
+          entries={historyRead.status === 200 ? (historyRead.body?.entries ?? []) : []}
+          phrases={phrases}
+          canRestore={canOverride}
+          currentRevision={
+            configEntries.find((row) => row.key === historyKey)?.revision ?? 0
+          }
+        />
+      )}
       {!canOverride && (
         <p role="status" className="mb-4 max-w-3xl rounded-md border border-border bg-surface px-3 py-2 text-sm text-muted">
           {phrases.configReadOnlyNotice}
@@ -88,7 +112,19 @@ export default async function ConfigPage({
           <tbody>
             {configEntries.map((configEntry) => (
               <tr key={`${activeNamespace}:${configEntry.key}`} className="border-t border-border align-top">
-                <td className="px-3 py-2 font-mono text-xs">{configEntry.key}</td>
+                <td className="px-3 py-2 font-mono text-xs">
+                  <div>{configEntry.key}</div>
+                  <Link
+                    href={
+                      activeNamespace === DEFAULT_NAMESPACE
+                        ? `/config?historyKey=${encodeURIComponent(configEntry.key ?? "")}`
+                        : `/config?namespace=${encodeURIComponent(activeNamespace)}&historyKey=${encodeURIComponent(configEntry.key ?? "")}`
+                    }
+                    className="text-[11px] text-muted underline"
+                  >
+                    {phrases.configHistoryLink}
+                  </Link>
+                </td>
                 <td className="px-3 py-2 font-mono text-xs">{configEntry.value}</td>
                 <td className="px-3 py-2 text-xs">
                   <span title={configEntry.origin}>

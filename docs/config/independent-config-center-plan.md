@@ -130,4 +130,11 @@
 - UI notes: [`docs/config-ui.md`](../config-ui.md)  
 - ARCHITECTURE §7 / §10 config thin slice  
 - Pre-release assessment ([`docs/pre-release-assessment.md`](../pre-release-assessment.md)): **superseded** snapshot; config row there is stale — Item 5 DONE  
-- Permissions: `config.read` / `config.write`; audit `config.override`  
+- Permissions: `config.read` / `config.write`; audit `config.override`
+
+---
+
+## Post–Item 5 deepen / Item 5 之后加深
+
+See ADR [`../adr/0012-config-center-deepen.md`](../adr/0012-config-center-deepen.md) and [`config-center-deepen-progress.md`](config-center-deepen-progress.md) (Config-6 history → 7 restore → 8 optional push).
+

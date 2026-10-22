@@ -20,6 +20,8 @@ public final class OperatorActionAudit {
 
     /** Config key overridden — 覆盖了一个配置键。 */
     public static final String CONFIG_OVERRIDE = "config.override";
+    /** Config restore from history (Config-7a explicit put) — 从历史显式恢复写入。 */
+    public static final String CONFIG_RESTORE = "config.restore";
     /** Service endpoint registered — 登记了一个服务端点。 */
     public static final String REGISTRY_REGISTER = "registry.register";
 

@@ -60,6 +60,8 @@ import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import com.subjex.platform.contract.config.ConfigEntry;
 import com.subjex.platform.contract.config.ConfigNamespaces;
 import com.subjex.platform.contract.config.ConfigOrigin;
+import com.subjex.platform.contract.config.ConfigOverrideHistoryEntry;
+import java.time.Instant;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.List;
@@ -168,6 +170,19 @@ class JsonApiSecurityTest {
         when(configCatalog.put(eq(ConfigNamespaces.DEFAULT), eq("subjex.greeting"), eq("hi")))
                 .thenReturn(new ConfigEntry(
                         ConfigNamespaces.DEFAULT, "subjex.greeting", "hi", ConfigOrigin.OVERRIDE, 1L));
+        when(configCatalog.history(eq(ConfigNamespaces.DEFAULT), eq("subjex.greeting")))
+                .thenReturn(List.of(new ConfigOverrideHistoryEntry(
+                        ConfigNamespaces.DEFAULT,
+                        "subjex.greeting",
+                        "hi",
+                        1L,
+                        Instant.parse("2026-10-22T02:00:00Z"))));
+        when(configCatalog.restore(eq(ConfigNamespaces.DEFAULT), eq("subjex.greeting"), eq(1L)))
+                .thenReturn(new ConfigEntry(
+                        ConfigNamespaces.DEFAULT, "subjex.greeting", "hi", ConfigOrigin.OVERRIDE, 2L));
+        when(configCatalog.get(eq(ConfigNamespaces.DEFAULT), eq("subjex.greeting")))
+                .thenReturn(Optional.of(new ConfigEntry(
+                        ConfigNamespaces.DEFAULT, "subjex.greeting", "hi", ConfigOrigin.OVERRIDE, 1L)));
     }
 
     @Test
@@ -204,6 +219,49 @@ class JsonApiSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.entries[0].key").value("subjex.greeting"))
                 .andExpect(jsonPath("$.entries[0].origin").value("local"));
+    }
+
+
+
+    @Test
+    void configRestoreNeedsConfigWriteAndPutsFromHistory() throws Exception {
+        String path = JsonApi.BASE + "/config/subjex.greeting/history/1/restore";
+        mockMvc.perform(post(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post(path).with(httpBasic(VIEWER, VIEWER_PASSWORD))).andExpect(status().isForbidden());
+        mockMvc.perform(post(path).with(httpBasic(BARE, BARE_PASSWORD))).andExpect(status().isForbidden());
+
+        mockMvc.perform(post(path).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.key").value("subjex.greeting"))
+                .andExpect(jsonPath("$.value").value("hi"))
+                .andExpect(jsonPath("$.revision").value(2))
+                .andExpect(jsonPath("$.origin").value("override"));
+        verify(configCatalog).restore(ConfigNamespaces.DEFAULT, "subjex.greeting", 1L);
+        verify(operatorActionAudit).record(
+                any(), eq(OperatorActionAudit.CONFIG_RESTORE), eq("subjex.greeting@1"), eq(AuditOutcome.ALLOWED));
+    }
+
+    @Test
+    void configRestoreMissingHistoryIsNotFound() throws Exception {
+        when(configCatalog.restore(eq(ConfigNamespaces.DEFAULT), eq("subjex.greeting"), eq(99L)))
+                .thenThrow(new IllegalArgumentException("config history revision not found"));
+        String path = JsonApi.BASE + "/config/subjex.greeting/history/99/restore";
+        mockMvc.perform(post(path).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                .andExpect(status().isNotFound());
+        verify(operatorActionAudit, never()).record(any(), eq(OperatorActionAudit.CONFIG_RESTORE), anyString(), any());
+    }
+
+    @Test
+    void configHistoryNeedsConfigRead() throws Exception {
+        String path = JsonApi.BASE + "/config/subjex.greeting/history";
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(path).with(httpBasic(BARE, BARE_PASSWORD))).andExpect(status().isForbidden());
+        mockMvc.perform(get(path).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.namespace").value(ConfigNamespaces.DEFAULT))
+                .andExpect(jsonPath("$.key").value("subjex.greeting"))
+                .andExpect(jsonPath("$.entries[0].revision").value(1))
+                .andExpect(jsonPath("$.entries[0].value").value("hi"));
     }
 
     @Test

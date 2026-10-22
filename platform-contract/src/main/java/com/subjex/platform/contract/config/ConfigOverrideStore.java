@@ -1,10 +1,11 @@
 package com.subjex.platform.contract.config;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * ConfigOverrideStore — 配置覆盖存放处：按命名空间压过具名键，可写、可列出键、可查修订号。
+ * ConfigOverrideStore — 配置覆盖存放处：按命名空间压过具名键，可写、可列出键/历史、可查修订号。
  * <p>
  * platform-app stores overrides in the shared database so every process on that database sees the same value.
  * {@link MemoryConfigOverride} keeps them in one JVM and is for tests. Flat {@link #lookup(String)} /
@@ -42,4 +43,14 @@ public interface ConfigOverrideStore extends ConfigSource {
 
     /** Revision of an override row, empty when missing — 覆盖行修订号，无行时为空。 */
     Optional<Long> revision(String namespace, String key);
+
+    /**
+     * Append-only history for one key, oldest revision first (Config-6a).
+     * 某一键的只追加历史，修订号升序（Config-6a）。
+     * Default empty for stores that do not retain history.
+     * 不保留历史的存放处默认空列表。
+     */
+    default List<ConfigOverrideHistoryEntry> history(String namespace, String key) {
+        return List.of();
+    }
 }
