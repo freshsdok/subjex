@@ -37,7 +37,10 @@ RUN mvn -B -q -DskipTests -pl platform-app -am package \
 
 # Stage 2, runtime: JRE + jar as unprivileged user.
 # 第二阶段 runtime：JRE + jar，无特权用户。
-FROM eclipse-temurin:21-jre
+# Pin noble (Ubuntu 24.04): floating :21-jre moved to Ubuntu 26.04 with /usr/bin/pebble
+# (Go stdlib HIGH CVEs). Noble Temurin has no pebble; ENTRYPOINT is java -jar only.
+# 钉死 noble：浮动 :21-jre 已到 Ubuntu 26.04 且带 pebble（Go stdlib 高危）。noble 无 pebble。
+FROM eclipse-temurin:21.0.12.1_1-jre-noble
 RUN groupadd --system --gid 10001 subjex \
     && useradd --system --uid 10001 --gid subjex --home-dir /app --shell /usr/sbin/nologin subjex \
     && mkdir -p /app \

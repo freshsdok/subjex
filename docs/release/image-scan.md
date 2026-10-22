@@ -44,3 +44,13 @@ Boot **4.0.8** migration (Boot4-1) lands Framework **7.0.9** / spring-webmvc fix
 **Boot4-2 overrides (2026-10-09):** `tomcat.version=11.0.26` (≥11.0.25), `jackson-bom.version=3.1.7`, `jackson-2-bom.version=2.21.7` (clears leftover `com.fasterxml.jackson` 2.21.5 from flyway/swagger). Do not tag `v0.1.0-alpha.1` until image-scan job is green.
 
 Boot4-1 已升 Framework 7.0.9；推送后看 CI image-scan；全绿再打 alpha tag。
+
+## Runtime base pin (CI-1 / 2026-10-22 Asia/Shanghai) / 运行时基镜像钉死
+
+Floating `eclipse-temurin:21-jre` resolved to **Ubuntu 26.04** and shipped `/usr/bin/pebble` with Go stdlib **HIGH** CVEs (CVE-2026-78667 / 78669 / 97031). Platform ENTRYPOINT is `java -jar` only — pebble unused.
+
+浮动 `21-jre` 解析到 **Ubuntu 26.04** 并带有含 Go stdlib 高危 CVE 的 `pebble`。平台入口仅为 `java -jar`，不用 pebble。
+
+**Fix:** runtime `FROM eclipse-temurin:21.0.12.1_1-jre-noble` in all three Dockerfiles (no pebble). Rebuild + Trivy HIGH/CRITICAL must be clean before relying on image-scan green.
+
+**修复：** 三份 Dockerfile 运行时钉 `21.0.12.1_1-jre-noble`。发版前 image-scan 须绿。

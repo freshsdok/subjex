@@ -200,10 +200,13 @@ class DeadLetterReplayTest {
                     try (socket) {
                         socket.setSoTimeout(3_000);
                         OutboxSocketFrame.readNotice(socket.getInputStream());
-                        OutboxSocketFrame.writeOutcome(socket.getOutputStream(), acceptOutcome);
+                        // Count before writeOutcome so publisher's readAccepted cannot win the race
+                        // and observe accepted==0 while already PUBLISHED.
+                        // 先计数再写 ACK，避免主线程在 PUBLISHED 后读到 accepted==0 的竞态。
                         if (acceptOutcome) {
                             accepted.incrementAndGet();
                         }
+                        OutboxSocketFrame.writeOutcome(socket.getOutputStream(), acceptOutcome);
                     }
                 } catch (IOException ex) {
                     if (!server.isClosed()) {

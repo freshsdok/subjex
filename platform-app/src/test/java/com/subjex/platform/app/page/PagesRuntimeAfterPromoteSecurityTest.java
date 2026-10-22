@@ -47,6 +47,9 @@ class PagesRuntimeAfterPromoteSecurityTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-09T02:00:00Z"), ZoneOffset.UTC);
 
+    /** Not on classpath — fail-closed probes (repair-ticket became a sample in WF-RT-1). / 不在 classpath：失败关闭探针（WF-RT-1 后 repair-ticket 已是样例）。 */
+    private static final String GHOST_FLOW_KEY = "ghost-flow-ci1";
+
     private static final String REPAIR_FLOW =
             """
             flowKey: repair-ticket
@@ -116,7 +119,9 @@ class PagesRuntimeAfterPromoteSecurityTest {
 
     @Test
     void withoutPromoteOrClasspathDetailIsNotFound() throws Exception {
-        mockMvc.perform(get(PagesApiEndpoint.PATH + "/repair-ticket")
+        // repair-ticket is a classpath sample since WF-RT-1; use a ghost key for 404.
+        // WF-RT-1 起 repair-ticket 已在 classpath；404 探针改用幽灵键。
+        mockMvc.perform(get(PagesApiEndpoint.PATH + "/" + GHOST_FLOW_KEY)
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD))
                         .header(TenantEnforcementFilter.TENANT_HEADER, "acme"))
                 .andExpect(status().isNotFound());
@@ -125,8 +130,8 @@ class PagesRuntimeAfterPromoteSecurityTest {
     @Test
     void withoutTenantHeaderUnknownKeyIsBadRequest() throws Exception {
         // Classpath catalog.require → IllegalArgumentException → 400 (no overlay without tenant header).
-        // 无租户头走 classpath；未知键 400。
-        mockMvc.perform(get(PagesApiEndpoint.PATH + "/repair-ticket")
+        // 无租户头走 classpath；未知键 400。tenantScoped classpath sample would be 403 tenant_missing.
+        mockMvc.perform(get(PagesApiEndpoint.PATH + "/" + GHOST_FLOW_KEY)
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
                 .andExpect(status().isBadRequest());
     }
