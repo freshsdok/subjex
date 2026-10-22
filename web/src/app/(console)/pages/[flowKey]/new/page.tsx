@@ -2,6 +2,11 @@ import Link from "next/link";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import { platformPathFromApi } from "@/lib/page-flow";
+import {
+  PAGE_PAGES,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
 import { readDeclarationTenantId, readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { DeclaredSubmitForm } from "./submit-form";
 
@@ -30,10 +35,17 @@ export default async function DeclaredSubmitPage({
   const { flowKey } = await params;
   const { language, phrases } = await currentLanguage();
   const tenantId = await readDeclarationTenantId();
-  const [flowRead, meRead] = await Promise.all([
+  const [flowRead, meRead, uiPermissionsRead] = await Promise.all([
     readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`, { tenantId }),
     readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
   ]);
+  const permissions = new Set(meRead.body?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_PAGES, permissions.has("page.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="page.read" />;
+  }
   if (flowRead.status === 403) {
     return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   }

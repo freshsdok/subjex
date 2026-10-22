@@ -1,21 +1,40 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import type { components } from "@/api/schema";
-import { readPlatform } from "@/server/platform-reader";
+import {
+  PAGE_SERVICES,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
+import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 type ServiceListDocument = components["schemas"]["ServiceListDocument"];
 
-// Status badge colors — 状态徽标颜色：up 绿色，其余（down/unknown）用醒目色，避免只靠颜色区分，文字照样写出来。
+/** Status badge colors — 状态徽标：up 绿，其余醒目色；文字仍写出状态。 */
 function statusBadgeClass(status: string | undefined): string {
   return status === "up"
     ? "border-green-600 text-green-700"
     : "border-danger text-danger";
 }
 
-// Services page — 服务页：列出已登记的服务实例。
+/**
+ * Services page — registered service instances.
+ * Enter: Manifest {@code page.services} (registry.read).
+ * 服务页：进入走 page.services。
+ */
 export default async function ServicesPage() {
   const { phrases } = await currentLanguage();
-  const { status, body } = await readPlatform<ServiceListDocument>("services");
+  const [{ status, body }, { body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<ServiceListDocument>("services"),
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
+  const permissions = new Set(me?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_SERVICES, permissions.has("registry.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="registry.read" />;
+  }
   if (status === 403) return <ForbiddenNotice phrases={phrases} permission="registry.read" />;
   if (!body) return <LoadFailedNotice phrases={phrases} status={status} />;
   const services = body.services ?? [];

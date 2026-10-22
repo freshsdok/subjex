@@ -13,8 +13,7 @@ import com.subjex.platform.app.form.action.ConfigOverrideDomainActionHandler;
 import com.subjex.platform.app.form.action.EntityRecordUpsertDomainActionHandler;
 import com.subjex.platform.app.form.action.RegistryRegisterDomainActionHandler;
 import com.subjex.platform.app.security.OperatorPrincipal;
-import com.subjex.platform.app.security.OperatorTenantAccess;
-import com.subjex.platform.contract.tenant.TenantGuard;
+import com.subjex.platform.app.security.PolicyEngine;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -51,10 +50,9 @@ public final class FormDomainActionRunner {
             GenericEntityStore tableEntities,
             HybridEntityStore hybridEntities,
             CapabilityRunner capabilities,
-            TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess) {
+            PolicyEngine policyEngine) {
         this(builtinHandlers(
-                services, config, effective, tableEntities, hybridEntities, capabilities, tenantGuard, tenantAccess));
+                services, config, effective, tableEntities, hybridEntities, capabilities, policyEngine));
     }
 
     public String apply(RenderedForm form, Map<String, Object> accepted) {
@@ -116,13 +114,12 @@ public final class FormDomainActionRunner {
             GenericEntityStore tableEntities,
             HybridEntityStore hybridEntities,
             CapabilityRunner capabilities,
-            TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess) {
+            PolicyEngine policyEngine) {
         List<DomainActionHandler> list = new ArrayList<>();
         list.add(new RegistryRegisterDomainActionHandler(services));
         list.add(new ConfigOverrideDomainActionHandler(config));
         list.add(new EntityRecordUpsertDomainActionHandler(
-                effective, tableEntities, hybridEntities, tenantGuard, tenantAccess));
+                effective, tableEntities, hybridEntities, policyEngine));
         list.add(new CapabilityInvokeDomainActionHandler(
                 DomainActionKey.CAPABILITY_ALGO_HASH_FINGERPRINT, "algo.hashFingerprint", capabilities));
         list.add(new CapabilityInvokeDomainActionHandler(

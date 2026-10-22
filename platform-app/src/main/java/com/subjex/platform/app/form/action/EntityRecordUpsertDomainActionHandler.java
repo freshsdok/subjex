@@ -13,10 +13,9 @@ import com.subjex.platform.app.security.AccessAction;
 import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
-import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.workflow.RepairTicketWorkflowDefinitions;
 import com.subjex.platform.app.workflow.WorkflowService;
-import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -33,6 +32,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * provided so a start failure rolls back the row (fail-closed, no silent orphan). Without a TX
  * template (unit tests), start errors still propagate after save.
  * WF-RT-2：entityKey 为 repair-ticket 时，保存成功后幂等启动工作流；有事务模板则同事务失败关闭。
+ * AuthZ-1g: entity tenant/permission gate via {@link DeclarationAccess#requireVia} / {@link PolicyEngine}.
+ * AuthZ-1g：实体租户/权限门禁经 PolicyEngine。
  */
 @Component
 public final class EntityRecordUpsertDomainActionHandler implements DomainActionHandler {
@@ -40,8 +41,7 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
     private final EffectiveDeclarationService effective;
     private final GenericEntityStore tableEntities;
     private final HybridEntityStore hybridEntities;
-    private final TenantGuard tenantGuard;
-    private final OperatorTenantAccess tenantAccess;
+    private final PolicyEngine policyEngine;
     private final WorkflowService workflows;
     private final TransactionTemplate transactionTemplate;
 
@@ -50,15 +50,13 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
             EffectiveDeclarationService effective,
             GenericEntityStore tableEntities,
             HybridEntityStore hybridEntities,
-            TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess,
+            PolicyEngine policyEngine,
             WorkflowService workflows,
             TransactionTemplate transactionTemplate) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.tableEntities = Objects.requireNonNull(tableEntities, "tableEntities");
         this.hybridEntities = Objects.requireNonNull(hybridEntities, "hybridEntities");
-        this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
-        this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
+        this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
         this.workflows = Objects.requireNonNull(workflows, "workflows");
         this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
     }
@@ -70,13 +68,11 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
             EffectiveDeclarationService effective,
             GenericEntityStore tableEntities,
             HybridEntityStore hybridEntities,
-            TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess) {
+            PolicyEngine policyEngine) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.tableEntities = Objects.requireNonNull(tableEntities, "tableEntities");
         this.hybridEntities = Objects.requireNonNull(hybridEntities, "hybridEntities");
-        this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
-        this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
+        this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
         this.workflows = null;
         this.transactionTemplate = null;
     }
@@ -96,15 +92,17 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
         RenderedEntity entity = effective
                 .runtimeEntity(tenantHeader, entityKey)
                 .orElseThrow(() -> new IllegalArgumentException("unknown entity: " + entityKey));
-        DeclarationAccess.requireTenantWhenScoped(
-                tenantGuard,
-                tenantAccess,
+        // AuthZ-1g: full entity gate via PolicyEngine (permission + tenantScoped) — 经 PolicyEngine 做权限+租户。
+        // Prefer entity.permission over form.permission so entity declaration is SoT for this write.
+        // 以实体声明 permission 为准（表单侧 FormSubmission 已先检 form.permission）。
+        DeclarationAccess.requireVia(
+                policyEngine,
                 operator,
+                entity.permission(),
                 entity.tenantScoped(),
                 tenantHeader,
                 AccessResource.of("entity", entityKey),
-                AccessAction.of("upsert"),
-                form.permission());
+                AccessAction.of("upsert"));
         Map<String, Object> values = new LinkedHashMap<>();
         for (EntityField field : entity.fields()) {
             if (accepted.containsKey(field.name())) {

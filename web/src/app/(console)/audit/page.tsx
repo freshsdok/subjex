@@ -1,20 +1,35 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import type { components } from "@/api/schema";
-import { readPlatform } from "@/server/platform-reader";
+import {
+  PAGE_AUDIT,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
+import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 type AuditDocument = components["schemas"]["AuditDocument"];
 
 /**
  * Audit page — newest-first list; action/outcome words follow console language;
- * raw {@code actionName} in title for operators debugging. Gate: {@code admin.read}.
- * Deep link from overview “view all” → {@code /audit}.
+ * raw {@code actionName} in title for operators debugging.
+ * Enter: Manifest {@code page.audit} (admin.read). Deep link from overview → {@code /audit}.
  * <p>
- * 审计页：时间倒序；动作/结果跟当前语言；原始动作名悬停排查。门禁 admin.read。概览深链 /audit。
+ * 审计页：进入走 page.audit。时间倒序；动作/结果跟当前语言；原始动作名悬停排查。
  */
 export default async function AuditPage() {
   const { language, phrases } = await currentLanguage();
-  const { status, body } = await readPlatform<AuditDocument>("audit");
+  const [{ status, body }, { body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<AuditDocument>("audit"),
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
+  const permissions = new Set(me?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_AUDIT, permissions.has("admin.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="admin.read" />;
+  }
   if (status === 403) return <ForbiddenNotice phrases={phrases} permission="admin.read" />;
   if (!body) return <LoadFailedNotice phrases={phrases} status={status} />;
   const auditEntries = [...(body.entries ?? [])].sort((left, right) =>

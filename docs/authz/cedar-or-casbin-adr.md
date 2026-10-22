@@ -86,6 +86,7 @@ Keep `SqlRbacPolicyEngine` until dual-run gates pass, then cut over wiring (defa
 | **1b** | **Done:** `platform-app` + `com.cedarpolicy:cedar-java:4.10.0:uber` (no separate module — `PolicyEngine` lives in app); `CedarPolicyEngine` + `authz/baseline.cedar` (allow + forbid_anonymous); tests green; SQL still default. FFI fail-soft → `cedar_unavailable`. | Tests green; SQL still default |
 | **1c** | **Done:** `PolicyEngineDualRunGatesTest` — 12 golden cases (allow/deny permission, blank, tenant mismatch/grant, org in/out/missing); assert `allowed` + `denyReason` (+ `matchedPermission` on allow). Intentional divergence: `Subject::"anonymous"` forbid in Cedar vs SQL allow — documented, not in golden set. | Mismatch → test failure |
 | **1d** | **Done:** default `cedar` via `platform.authz.engine` / `PLATFORM_AUTHZ_ENGINE`; `sql` fallback; fail-closed if cedar selected but FFI down; removed `forbid_anonymous`; null subject → `__unauthenticated__`. Residuals: many paths still call `AccessChecker`/`DeclarationAccess` directly. | Focused auth suite green; item 1 done |
+| **1e** | **Done:** caller inventory [`policy-engine-caller-inventory.md`](policy-engine-caller-inventory.md); `DeclarationAccess.requireVia(PolicyEngine,…)`; first widen `PagesApiEndpoint` detail. | Inventory + pages detail on PolicyEngine |
 
 **1b landed files:**
 
@@ -105,9 +106,9 @@ Keep `SqlRbacPolicyEngine` until dual-run gates pass, then cut over wiring (defa
 
 **Anonymous / unauthenticated:** removed Cedar `forbid_anonymous`. Subject id `anonymous` is a normal principal (SQL parity). Null/blank `subjectId` → Cedar EntityUID `Subject::__unauthenticated__` (empty permissions → deny).
 
-**Residuals (post–item 1):** declaration/form/entity paths still largely call `AccessChecker` / `DeclarationAccess` directly — widen to `PolicyEngine` later. CI/Docker must ship `cedar-java` uber natives (or set `PLATFORM_AUTHZ_ENGINE=sql`).
+**Residuals (post–1g):** declaration-path AuthZ widen **closed** (see inventory). CI/Docker must ship `cedar-java` uber natives (or set `PLATFORM_AUTHZ_ENGINE=sql`).
 
-**Next track item:** **2** controlled migration UX deepen.
+**Next:** other tracks (Manifest done; AuthZ widen done). Pre-alpha items 2–5 already done historically.
 
 ---
 

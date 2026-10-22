@@ -1,6 +1,7 @@
 package com.subjex.platform.app.security;
 
 import com.subjex.platform.contract.tenant.TenantGuard;
+import java.util.Objects;
 
 /**
  * DeclarationAccess — 声明访问：按 YAML 上的权限名与租户标志做失败关闭检查，产出可解释 {@link AccessDecision}。
@@ -10,9 +11,12 @@ import com.subjex.platform.contract.tenant.TenantGuard;
  * and {@link OperatorTenantAccess} (operator–tenant grant).
  * Denied checks throw {@link AccessDecisionDeniedException} with a full decision record.
  * Org scope is applied when callers pass OrganizationScope (AX-2 / O8).
+ * Prefer {@link #requireVia(PolicyEngine, ...)} so {@code platform.authz.engine=cedar} applies
+ * (AuthZ-1e); legacy {@link #require} still hits {@link AccessChecker} directly.
  * 复用操作员已授予的权限名。权限缺失或空白即拒绝。
  * {@code tenantScoped} 为 true 时，租户头必须通过 {@link TenantGuard} 与 {@link OperatorTenantAccess}。
  * 拒绝抛出带完整决策的 {@link AccessDecisionDeniedException}。组织范围由调用方传入（AX-2）。
+ * 优先 requireVia 走 PolicyEngine（AuthZ-1e）；旧 require 仍直调 AccessChecker。
  */
 public final class DeclarationAccess {
 
@@ -34,6 +38,37 @@ public final class DeclarationAccess {
             AccessAction action) {
         return AccessChecker.require(
                 operator, permission, tenantScoped, tenantId, tenantGuard, tenantAccess, resource, action);
+    }
+
+    /**
+     * Same gate as {@link #require} but via {@link PolicyEngine} (Cedar when default engine).
+     * Maps declaration permission + tenantScoped into {@link PolicyPrincipal}/{@link PolicyResource}/
+     * {@link PolicyContext}. Prefer this over {@link #require} for new/widened callers (AuthZ-1e/1f).
+     * <p>
+     * 与 {@link #require} 同门禁，但经 PolicyEngine（默认 Cedar）。AuthZ-1e/1f 优先此路径。
+     */
+    public static AccessDecision requireVia(
+            PolicyEngine policyEngine,
+            OperatorPrincipal operator,
+            String permission,
+            boolean tenantScoped,
+            String tenantId,
+            AccessResource resource,
+            AccessAction action) {
+        Objects.requireNonNull(policyEngine, "policyEngine");
+        Objects.requireNonNull(resource, "resource");
+        Objects.requireNonNull(action, "action");
+        String tid = tenantId == null || tenantId.isBlank() ? null : tenantId.trim();
+        PolicyResource policyResource = PolicyResource.of(resource.kind(), resource.id());
+        if (tid != null) {
+            policyResource = policyResource.withAttribute(PolicyResource.ATTR_TENANT_ID, tid);
+        }
+        return policyEngine.require(
+                PolicyPrincipal.from(operator),
+                permission,
+                action,
+                policyResource,
+                PolicyContext.of(tid, tenantScoped, null));
     }
 
     /**

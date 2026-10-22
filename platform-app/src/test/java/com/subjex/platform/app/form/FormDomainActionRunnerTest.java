@@ -30,6 +30,7 @@ import com.subjex.platform.app.entity.GenericEntityStore;
 import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.contract.discovery.ServiceEndpoint;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
@@ -57,6 +58,9 @@ class FormDomainActionRunnerTest {
     private final HybridEntityStore hybridEntities = mock(HybridEntityStore.class);
     private final TenantGuard tenantGuard = new DenyWhenTenantMissing();
     private final OperatorTenantAccess tenantAccess = mock(OperatorTenantAccess.class);
+    /** AuthZ-1g: upsert requireVia needs a principal with entity.permission — upsert 需持实体权限的主体。 */
+    private final OperatorPrincipal pageReader = new OperatorPrincipal(
+            "op", "hash", "id-1", "sub-1", Set.of("page.read"), true);
     private final FormDomainActionRunner runner =
             new FormDomainActionRunner(
                     services,
@@ -65,8 +69,7 @@ class FormDomainActionRunnerTest {
                     genericEntities,
                     hybridEntities,
                     new CapabilityRunner(new CapabilityCatalog()),
-                    tenantGuard,
-                    tenantAccess);
+                    PolicyEngineFactory.create("sql", tenantGuard, tenantAccess));
 
     @BeforeEach
     void stubRuntimeEntity() {
@@ -147,7 +150,7 @@ class FormDomainActionRunnerTest {
         // HY-1: classpath service-note is hybrid — 样例已迁 hybrid
         RenderedForm form = form("service-note", DomainActionKey.ENTITY_RECORD_UPSERT, "service-note");
         String summary = runner.apply(
-                form, Map.of("noteId", "n1", "title", "Hello", "body", "world", "priority", 3));
+                form, Map.of("noteId", "n1", "title", "Hello", "body", "world", "priority", 3), null, pageReader);
         assertEquals("service-note:n1", summary);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> values = ArgumentCaptor.forClass(Map.class);
@@ -177,7 +180,9 @@ class FormDomainActionRunnerTest {
                         "assignee",
                         "u1",
                         "extraIgnored",
-                        "x"));
+                        "x"),
+                null,
+                pageReader);
         assertEquals("demo-ticket:t1", summary);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> values = ArgumentCaptor.forClass(Map.class);
@@ -221,12 +226,12 @@ class FormDomainActionRunnerTest {
                 """);
         when(effective.runtimeEntity(eq("acme"), eq("scoped-note"))).thenReturn(Optional.of(scoped));
         RenderedForm form = form("scoped-note", DomainActionKey.ENTITY_RECORD_UPSERT, "scoped-note");
-        OperatorPrincipal operator = new OperatorPrincipal(
-                "op", "hash", "id-1", "sub-1", Set.of("page.read"), true);
-        when(tenantAccess.isGranted(operator, "acme")).thenReturn(true);
-        String summary = runner.apply(form, Map.of("id", "1", "title", "Hi"), "acme", operator);
+        // PolicyEngine bridges principal → new OperatorPrincipal; stub any() not the same instance.
+        // PolicyEngine 会桥接出新主体实例；桩用 any() 而非同一引用。
+        when(tenantAccess.isGranted(any(), eq("acme"))).thenReturn(true);
+        String summary = runner.apply(form, Map.of("id", "1", "title", "Hi"), "acme", pageReader);
         assertEquals("scoped-note:1", summary);
-        verify(tenantAccess).isGranted(operator, "acme");
+        verify(tenantAccess).isGranted(any(), eq("acme"));
         verify(genericEntities).save(eq(scoped), any(), eq("acme"));
     }
 
@@ -290,7 +295,7 @@ class FormDomainActionRunnerTest {
     @Test
     void upsertsHybridEntityViaHybridStore() {
         RenderedForm form = form("hybrid-form", DomainActionKey.ENTITY_RECORD_UPSERT, "hybrid-asset");
-        String summary = runner.apply(form, Map.of("assetId", "a-1", "title", "Alpha"));
+        String summary = runner.apply(form, Map.of("assetId", "a-1", "title", "Alpha"), null, pageReader);
         assertEquals("hybrid-asset:a-1", summary);
         verify(hybridEntities).save(any(RenderedEntity.class), any(), isNull());
         verify(genericEntities, never()).save(any(RenderedEntity.class), any(), any());
@@ -300,7 +305,7 @@ class FormDomainActionRunnerTest {
     void upsertsDocumentEntityViaHybridStore() {
         // DOC-1: document routes to same HybridEntityStore — document 与 hybrid 同店
         RenderedForm form = form("doc-form", DomainActionKey.ENTITY_RECORD_UPSERT, "doc-asset");
-        String summary = runner.apply(form, Map.of("assetId", "d-1", "title", "Doc"));
+        String summary = runner.apply(form, Map.of("assetId", "d-1", "title", "Doc"), null, pageReader);
         assertEquals("doc-asset:d-1", summary);
         verify(hybridEntities).save(any(RenderedEntity.class), any(), isNull());
         verify(genericEntities, never()).save(any(RenderedEntity.class), any(), any());

@@ -139,3 +139,78 @@ entries:
     kind: page
     route: /tenants
     permission: admin.read
+
+  # PC-deepen-2: more page Forbidden + config write — 加深更多页面门禁与配置写
+  - id: btn.config.write
+    kind: button
+    permission: config.write
+
+  - id: page.org
+    kind: page
+    route: /org
+    permission: org.read
+  - id: page.inbox
+    kind: page
+    route: /inbox
+    permission: inbox.read
+  - id: page.inbox.compose
+    kind: page
+    route: /inbox/compose
+    anyOf:
+      - inbox.send.system
+      - inbox.broadcast
+  - id: page.inbox.groups
+    kind: page
+    route: /inbox/groups
+    permission: inbox.group.admin
+  - id: page.config
+    kind: page
+    route: /config
+    permission: config.read
+  - id: page.audit
+    kind: page
+    route: /audit
+    permission: admin.read
+  - id: page.dead-letters
+    kind: page
+    route: /dead-letters
+    permission: admin.read
+
+  # PC-deepen-3: remaining console page Forbidden — 余下控制台页 Forbidden
+  - id: btn.operators.manage
+    kind: button
+    permission: operator.manage
+
+  - id: page.services
+    kind: page
+    route: /services
+    permission: registry.read
+  - id: page.deploy
+    kind: page
+    route: /deploy
+    permission: page.read
+  - id: page.forms
+    kind: page
+    route: /forms
+    permission: page.read
+  - id: page.pages
+    kind: page
+    route: /pages
+    permission: page.read
+  - id: page.search
+    kind: page
+    route: /search
+    permission: page.read
+  - id: page.codegen
+    kind: page
+    route: /codegen
+    permission: page.read
+  - id: page.capabilities
+    kind: page
+    route: /capabilities
+    permission: page.read
+  - id: page.operators
+    kind: page
+    route: /operators
+    # login-only (matches nav.operators); manage writes use btn.operators.manage
+    # 登录即可（与侧栏一致）；管理写走 btn.operators.manage

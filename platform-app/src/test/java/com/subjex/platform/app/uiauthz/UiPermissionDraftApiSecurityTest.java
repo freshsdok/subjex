@@ -61,7 +61,7 @@ class UiPermissionDraftApiSecurityTest {
                         .with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.client").value("console"))
-                .andExpect(jsonPath("$.entries.length()").value(32));
+                .andExpect(jsonPath("$.entries.length()").value(49));
         mockMvc.perform(put(UiPermissionDraftEndpoint.PATH)
                         .queryParam("client", "console")
                         .with(httpBasic(VIEWER, VIEWER_PASSWORD))

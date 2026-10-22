@@ -779,3 +779,18 @@ PC-6b. [done] 2026-10-18 CST; ui-authz promote → live overlay.
 ## Related (not console)
 
 FE-1 client triad + `clients/uni-app` shell: see [`clients/PROGRESS.md`](../clients/PROGRESS.md) / ADR 0007 (2026-10-17 CST). Console stays `web/` only.
+
+PC-deepen-2. [done] 2026-10-22 CST; Manifest +7 page Forbidden (org/inbox/compose/groups/config/audit/dead-letters) + btn.config.write; FE pageAllowed/buttonAllowed. Local commit only (no push). Next: remaining page.* (operators/search/forms/pages/…) or push when asked.
+    Manifest 再加深七页+配置写；仅本地提交。下一片余页或待推送。
+
+PC-deepen-3. [done] 2026-10-22 CST; Manifest +8 remaining console pages + btn.operators.manage; nested /pages/* → page.pages; entries 40→49. Local commit only (no push). Next: push when asked, or other track.
+    Manifest 收齐余下控制台页；条目 49；仅本地提交。
+
+AuthZ-1e. [done] 2026-10-22 CST; PolicyEngine caller inventory + DeclarationAccess.requireVia; PagesApiEndpoint detail widened off raw AccessChecker. Local commit only (no push). Next: AuthZ-1f Forms/Entity/Blob requireVia.
+    PolicyEngine 调用盘点 + requireVia；页面详情首个 widen。仅本地提交。下一片 1f。
+
+AuthZ-1f. [done] 2026-10-22 CST; FormsApiEndpoint + FormSubmissionEndpoint + GenericEntityEndpoint + EntityBlobEndpoint → DeclarationAccess.requireVia(PolicyEngine). Inventory/ADR updated. Local commit only (no push). Remainder: EntityRecordUpsertDomainActionHandler requireTenantWhenScoped.
+    表单/提交/实体/附件迁 requireVia；仅本地提交。余下 upsert 租户辅助。
+
+AuthZ-1g. [done] 2026-10-22 CST; EntityRecordUpsertDomainActionHandler → requireVia(PolicyEngine, entity.permission). Inventory clear for declaration widen. Local commit only (no push). AuthZ declaration-path widen closed.
+    upsert 领域动作迁 requireVia；声明鉴权拓宽收口。仅本地提交。

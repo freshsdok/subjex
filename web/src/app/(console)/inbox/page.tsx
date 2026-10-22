@@ -5,18 +5,29 @@ import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reade
 import { declarationTenantCookieName, parseDeclarationTenantCookie } from "@/lib/declaration-draft";
 import { canOpenCompose } from "@/lib/inbox-compose";
 import { orgTenantCookieName } from "@/lib/org-console";
+import {
+  PAGE_INBOX,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
 import { cookies } from "next/headers";
 import { InboxConsole } from "./inbox-console";
 
 /**
- * Inbox page — IM-4 operator mailbox (inbox.read); IM-A7 links to compose/groups.
- * 站内信页：操作员收件箱；写信/组管理入口。
+ * Inbox page — IM-4 operator mailbox; IM-A7 links to compose/groups.
+ * Enter: Manifest {@code page.inbox} (inbox.read).
+ * 站内信页：进入走 page.inbox；写信/组管理入口。
  */
 export default async function InboxPage() {
   const { phrases } = await currentLanguage();
-  const { body: me } = await readPlatform<OperatorSelfDocument>("me");
+  const [{ body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
   const permissions = new Set(me?.permissions ?? []);
-  if (!permissions.has("inbox.read")) {
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_INBOX, permissions.has("inbox.read"))) {
     return <ForbiddenNotice phrases={phrases} permission="inbox.read" />;
   }
   const jar = await cookies();

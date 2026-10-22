@@ -155,12 +155,29 @@ export const BUTTON_UI_AUTHZ_PROMOTE = "btn.ui-authz.promote";
 export const BUTTON_DECLARATIONS_WRITE = "btn.declarations.write";
 export const BUTTON_DECLARATIONS_PROMOTE = "btn.declarations.promote";
 export const BUTTON_TENANTS_MANAGE = "btn.tenants.manage";
+export const BUTTON_CONFIG_WRITE = "btn.config.write";
+export const BUTTON_OPERATORS_MANAGE = "btn.operators.manage";
 
-/** Known console page ids for ForbiddenNotice (#5) — 页面 Forbidden 用 page id。 */
+/** Known console page ids for ForbiddenNotice (#5 / deepen-2/3) — 页面 Forbidden 用 page id。 */
 export const PAGE_FLAGS = "page.flags";
 export const PAGE_UI_AUTHZ = "page.ui-authz";
 export const PAGE_DECLARATIONS = "page.declarations";
 export const PAGE_TENANTS = "page.tenants";
+export const PAGE_ORG = "page.org";
+export const PAGE_INBOX = "page.inbox";
+export const PAGE_INBOX_COMPOSE = "page.inbox.compose";
+export const PAGE_INBOX_GROUPS = "page.inbox.groups";
+export const PAGE_CONFIG = "page.config";
+export const PAGE_AUDIT = "page.audit";
+export const PAGE_DEAD_LETTERS = "page.dead-letters";
+export const PAGE_SERVICES = "page.services";
+export const PAGE_DEPLOY = "page.deploy";
+export const PAGE_FORMS = "page.forms";
+export const PAGE_PAGES = "page.pages";
+export const PAGE_SEARCH = "page.search";
+export const PAGE_CODEGEN = "page.codegen";
+export const PAGE_CAPABILITIES = "page.capabilities";
+export const PAGE_OPERATORS = "page.operators";
 
 /**
  * Whether a button entry is allowed; Manifest wins when present, else {@code fallback}.

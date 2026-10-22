@@ -6,7 +6,9 @@ import { canOpenCompose } from "@/lib/inbox-compose";
 import { orgTenantCookieName } from "@/lib/org-console";
 import {
   BUTTON_INBOX_COMPOSE_SEND,
+  PAGE_INBOX_COMPOSE,
   buttonAllowed,
+  pageAllowed,
   type UiPermissionManifestDocument,
 } from "@/lib/ui-permissions";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
@@ -15,8 +17,8 @@ import { InboxComposeConsole } from "./compose-console";
 
 /**
  * Inbox compose page — IM-A7: system / group-send / org broadcast (+ attachments).
- * Send button gated by Manifest {@code btn.inbox.compose.send} (PC-4); APIs still enforce.
- * 写信页：发送按钮走 Manifest btn.inbox.compose.send；后端仍强制校验。
+ * Enter: Manifest {@code page.inbox.compose}; send: {@code btn.inbox.compose.send} (PC-4).
+ * 写信页：进入走 page.inbox.compose；发送按钮走 btn.inbox.compose.send；后端仍强制校验。
  */
 export default async function InboxComposePage() {
   const { phrases } = await currentLanguage();
@@ -25,11 +27,11 @@ export default async function InboxComposePage() {
     readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
   ]);
   const permissions = new Set(me?.permissions ?? []);
-  if (!canOpenCompose(permissions)) {
-    return <ForbiddenNotice phrases={phrases} permission="inbox.send.system|inbox.broadcast" />;
-  }
   const manifest =
     uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_INBOX_COMPOSE, canOpenCompose(permissions))) {
+    return <ForbiddenNotice phrases={phrases} permission="inbox.send.system|inbox.broadcast" />;
+  }
   const canSend = buttonAllowed(
     manifest,
     BUTTON_INBOX_COMPOSE_SEND,
@@ -50,8 +52,8 @@ export default async function InboxComposePage() {
       <InboxComposeConsole
         phrases={phrases}
         initialTenantId={tenantHint}
-        permissionNames={[...permissions]}
         canSend={canSend}
+        permissionNames={[...permissions]}
       />
     </section>
   );

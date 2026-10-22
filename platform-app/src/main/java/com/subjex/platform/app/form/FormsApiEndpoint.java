@@ -10,8 +10,8 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
-import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +31,8 @@ import org.springframework.web.server.ResponseStatusException;
  * With non-blank {@code X-Tenant-Id} (and tenant grant), index merges classpath with effective tenant
  * declarations (DRAFT/PROMOTED keys). Detail uses the same overlay; otherwise classpath {@link FormCatalog}.
  * 目录在安全层要 {@code page.read}；带租户头时合并租户生效声明。详情同样覆盖，否则 classpath。
+ * Detail AuthZ via {@link DeclarationAccess#requireVia} / {@link PolicyEngine} (AuthZ-1f).
+ * 详情鉴权经 PolicyEngine（AuthZ-1f）。
  */
 @RestController
 public class FormsApiEndpoint {
@@ -40,18 +42,18 @@ public class FormsApiEndpoint {
 
     private final FormCatalog catalog;
     private final EffectiveDeclarationService effective;
-    private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
+    private final PolicyEngine policyEngine;
 
     public FormsApiEndpoint(
             FormCatalog catalog,
             EffectiveDeclarationService effective,
-            TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess) {
+            OperatorTenantAccess tenantAccess,
+            PolicyEngine policyEngine) {
         this.catalog = Objects.requireNonNull(catalog, "catalog");
         this.effective = Objects.requireNonNull(effective, "effective");
-        this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
+        this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
     }
 
     @GetMapping(PATH)
@@ -90,13 +92,13 @@ public class FormsApiEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = resolveForm(formKey, tenantId);
-        DeclarationAccess.require(
+        // AuthZ-1f: PolicyEngine (Cedar default) — 经 PolicyEngine，默认 Cedar。
+        DeclarationAccess.requireVia(
+                policyEngine,
                 operator,
                 form.permission(),
                 form.tenantScoped(),
                 tenantId,
-                tenantGuard,
-                tenantAccess,
                 AccessResource.of("form", formKey),
                 AccessAction.of("read"));
         if (TenantDeclarationContext.overlayRequested(tenantId) && !form.tenantScoped()) {

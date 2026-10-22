@@ -8,7 +8,12 @@ import {
   platformPathFromApi,
   recordDetailPlatformPath,
 } from "@/lib/page-flow";
-import { readDeclarationTenantId, readPlatform } from "@/server/platform-reader";
+import {
+  PAGE_PAGES,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
+import { readDeclarationTenantId, readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 type PageFlowDocument = {
   flowKey?: string;
@@ -28,6 +33,16 @@ export default async function DeclaredDetailPage({
   const { flowKey, id } = await params;
   const { language, phrases } = await currentLanguage();
   const tenantId = await readDeclarationTenantId();
+  const [{ body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
+  const permissions = new Set(me?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_PAGES, permissions.has("page.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="page.read" />;
+  }
   const flowRead = await readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`, {
     tenantId,
   });

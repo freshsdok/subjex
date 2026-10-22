@@ -29,6 +29,8 @@
 | **PC-6b / PC-7** | **done** | Promote → live PROMOTED overlay + YAML export |
 | **PC-5** | **done** | uni-app shell consumes GET |
 | **PC-deepen / #5** | **done** | +6 write buttons + 4 page Forbidden ids; flags/ui-authz/declarations/tenants wired |
+| **PC-deepen-2** | **done** | +7 pages (org/inbox/compose/groups/config/audit/dead-letters) + `btn.config.write`; FE pageAllowed wired |
+| **PC-deepen-3** | **done** | +8 pages (services/deploy/forms/pages/search/codegen/capabilities/operators) + `btn.operators.manage`; nested `/pages/*` reuse `page.pages` |
 
 PC-6 可与 PC-3/4 在 PC-2 之后并行；PC-7 依赖 PC-6。
 
@@ -106,3 +108,19 @@ PC-6 可与 PC-3/4 在 PC-2 之后并行；PC-7 依赖 PC-6。
 - Pages: `page.flags`, `page.ui-authz`, `page.declarations`, `page.tenants` for ForbiddenNotice
 - FE: `pageAllowed` + wired console pages; APIs still enforce
 - Console classpath entry count: **32**
+
+## PC-deepen-2 landed (2026-10-22 Asia/Shanghai)
+
+- Buttons: `btn.config.write`
+- Pages: `page.org`, `page.inbox`, `page.inbox.compose`, `page.inbox.groups`, `page.config`, `page.audit`, `page.dead-letters`
+- FE: org / inbox (+compose/groups) / config / audit / dead-letters use `pageAllowed`; config write uses Manifest button
+- Console classpath entry count: **40** (was 32 after #5)
+- Still hard-coded Forbidden (later): operators, search, forms, pages, deploy, capabilities, codegen, services
+
+## PC-deepen-3 landed (2026-10-22 Asia/Shanghai)
+
+- Buttons: `btn.operators.manage`
+- Pages: `page.services|deploy|forms|pages|search|codegen|capabilities|operators` (operators login-only)
+- FE: remaining console nav pages + nested `/pages/[flowKey]/**` use `pageAllowed`
+- Console classpath entry count: **49** (was 40 after deepen-2)
+- Intentionally not Manifest-gated: `oauth/consent` (OP consent flow, not nav), login

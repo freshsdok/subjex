@@ -15,7 +15,10 @@ import com.subjex.platform.app.declaration.JdbcDeclarationMigrationStore;
 import com.subjex.platform.app.declaration.JdbcDeclarationStore;
 import com.subjex.platform.app.form.FormCatalog;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
+import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
+import com.subjex.platform.app.security.PolicyEngine;
+import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
@@ -141,6 +144,12 @@ class PagesRuntimeAfterPromoteSecurityTest {
         @Bean
         TenantGuard tenantGuard() {
             return new DenyWhenTenantMissing();
+        }
+
+        /** SQL engine in WebMvcTest (parity for permission+tenant; avoid Cedar FFI here) — 切片测用 sql 引擎。 */
+        @Bean
+        PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
+            return PolicyEngineFactory.create("sql", tenantGuard, tenantAccess);
         }
 
         @Bean

@@ -1,6 +1,13 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import type { components } from "@/api/schema";
+import {
+  BUTTON_CONFIG_WRITE,
+  PAGE_CONFIG,
+  buttonAllowed,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { ConfigNamespacePicker } from "./config-namespace-picker";
 import { ConfigOverrideCell } from "./config-override-cell";
@@ -16,10 +23,10 @@ function resolveNamespace(raw: string | undefined): string {
 
 /**
  * Config page — namespace picker (at least {@code default}) + override cells.
- * Deep link: {@code /config?namespace=...}. Why no edit column: missing {@code config.write}
- * (read-only notice). Config-5d honesty notice + 5c If-Match on save.
+ * Enter: Manifest {@code page.config}; write column: {@code btn.config.write}.
+ * Deep link: {@code /config?namespace=...}. Config-5d honesty notice + 5c If-Match on save.
  * <p>
- * 配置页：命名空间选择；深链 ?namespace=。无 config.write 不出现修改列（只读说明）。
+ * 配置页：进入走 page.config；修改列走 btn.config.write。深链 ?namespace=。
  */
 export default async function ConfigPage({
   searchParams,
@@ -33,13 +40,24 @@ export default async function ConfigPage({
     namespace === DEFAULT_NAMESPACE
       ? "config"
       : `config?namespace=${encodeURIComponent(namespace)}`;
-  const [{ status, body }, { body: operator }] = await Promise.all([
+  const [{ status, body }, { body: operator }, uiPermissionsRead] = await Promise.all([
     readPlatform<ConfigDocument>(configPath),
     readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
   ]);
+  const permissions = new Set(operator?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_CONFIG, permissions.has("config.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="config.read" />;
+  }
   if (status === 403) return <ForbiddenNotice phrases={phrases} permission="config.read" />;
   if (!body) return <LoadFailedNotice phrases={phrases} status={status} />;
-  const canOverride = (operator?.permissions ?? []).includes("config.write");
+  const canOverride = buttonAllowed(
+    manifest,
+    BUTTON_CONFIG_WRITE,
+    permissions.has("config.write"),
+  );
   const activeNamespace = body.namespace?.trim() || namespace;
   const configEntries = body.entries ?? [];
   return (

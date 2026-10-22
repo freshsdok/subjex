@@ -1,14 +1,33 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import type { components } from "@/api/schema";
-import { readPlatform } from "@/server/platform-reader";
+import {
+  PAGE_CODEGEN,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
+import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 type CodegenDocument = components["schemas"]["CodegenDocument"];
 
-// Codegen page — 代码生成页：先给出生成的 record 源码预览，再列字段与类型对照。
+/**
+ * Codegen page — record source preview + field/type table.
+ * Enter: Manifest {@code page.codegen} (page.read).
+ * 代码生成页：进入走 page.codegen。
+ */
 export default async function CodegenPage() {
   const { language, phrases } = await currentLanguage();
-  const { status, body } = await readPlatform<CodegenDocument>("codegen");
+  const [{ status, body }, { body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<CodegenDocument>("codegen"),
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
+  const permissions = new Set(me?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_CODEGEN, permissions.has("page.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="page.read" />;
+  }
   if (status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   if (!body) return <LoadFailedNotice phrases={phrases} status={status} />;
   const recordComponents = body.components ?? [];
@@ -42,3 +61,4 @@ export default async function CodegenPage() {
     </section>
   );
 }
+

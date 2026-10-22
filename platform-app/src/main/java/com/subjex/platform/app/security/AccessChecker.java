@@ -9,10 +9,10 @@ import java.util.Objects;
  * <p>
  * Returns an {@link AccessDecision} every time (allow or deny). Does not throw; callers
  * that need fail-closed use {@link #require} or {@link DeclarationAccess}.
- * No new role names; no Zanzibar. External-shaped entry is {@link PolicyEngine}
- * (SqlRbacPolicyEngine delegates here). Cedar/Casbin jars are later swap-ins behind that port.
- * 每次返回 {@link AccessDecision}（允许或拒绝）。本身不抛；需失败关闭时用 require / DeclarationAccess。
- * 不加角色名；不上 Zanzibar。外置形状入口见 {@link PolicyEngine}；完整 Cedar/Casbin 后置换入。
+ * No new role names; no Zanzibar. Prefer {@link PolicyEngine} / {@link DeclarationAccess#requireVia}
+ * at call sites (AuthZ-1d/1e); this class remains the SQL RBAC core used by both Cedar and sql adapters.
+ * 每次返回 {@link AccessDecision}（允许或拒绝）。本身不抛；需失败关闭时用 PolicyEngine / DeclarationAccess.requireVia。
+ * 不加角色名；不上 Zanzibar。调用面优先 PolicyEngine；本类仍是 Cedar/sql 适配器共用的 SQL RBAC 核心。
  */
 public final class AccessChecker {
 

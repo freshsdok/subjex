@@ -4,7 +4,9 @@ import { currentLanguage } from "@/i18n/server-language";
 import { orgTenantCookieName, parseOrgTenantCookie } from "@/lib/org-console";
 import {
   BUTTON_ORG_WRITE,
+  PAGE_ORG,
   buttonAllowed,
+  pageAllowed,
   type UiPermissionManifestDocument,
 } from "@/lib/ui-permissions";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
@@ -16,10 +18,10 @@ type TenantsDocument = {
 
 /**
  * Org page — Organization ontology console (O5 paths under /api/v1/organizations).
- * Gates: {@code org.read} enter; write controls use Manifest button {@code btn.org.write} (PC-4).
+ * Enter: Manifest {@code page.org} (org.read); write: {@code btn.org.write} (PC-4).
  * Deep link tenant cookie {@code subjex_org_tenant}. Read-only banner when write disallowed.
  * <p>
- * 组织页：org.read 可进；写入控件走 Manifest 按钮 btn.org.write（PC-4）。
+ * 组织页：进入走 page.org；写入控件走 Manifest 按钮 btn.org.write（PC-4）。
  * 租户 cookie 深链；无写权限时只读横幅。
  */
 export default async function OrgPage() {
@@ -29,12 +31,12 @@ export default async function OrgPage() {
     readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
   ]);
   const permissions = new Set(me?.permissions ?? []);
-  if (!permissions.has("org.read")) {
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_ORG, permissions.has("org.read"))) {
     return <ForbiddenNotice phrases={phrases} permission="org.read" />;
   }
 
-  const manifest =
-    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
   // Manifest button gate; fallback to me.permissions if entry missing — Manifest 按钮门禁；缺条目时回退。
   const canWrite = buttonAllowed(manifest, BUTTON_ORG_WRITE, permissions.has("org.write"));
   const canListTenants = permissions.has("admin.read");

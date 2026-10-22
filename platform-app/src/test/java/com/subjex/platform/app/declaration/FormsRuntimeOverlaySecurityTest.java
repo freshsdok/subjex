@@ -14,6 +14,9 @@ import com.subjex.platform.app.page.PageCatalog;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
+import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
+import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
@@ -105,6 +108,12 @@ class FormsRuntimeOverlaySecurityTest {
         @Bean
         TenantGuard tenantGuard() {
             return new DenyWhenTenantMissing();
+        }
+
+        /** SQL PolicyEngine for WebMvcTest AuthZ-1f — 切片测用 sql 引擎。 */
+        @Bean
+        PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
+            return PolicyEngineFactory.create("sql", tenantGuard, tenantAccess);
         }
 
         @Bean

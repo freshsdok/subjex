@@ -9,8 +9,8 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
-import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.http.HttpHeaders;
@@ -37,6 +37,8 @@ import org.springframework.web.server.ResponseStatusException;
  * Paths under {@code /api/v1/entities/{entityKey}/records/{id}/blobs}. Bytes via {@link EntityBlobStore};
  * never written into attrs. Upload: octet-stream, multipart (SHARED-3), or chunked sessions (CHUNK-1).
  * 路径见上。字节走 EntityBlobStore。上传：octet-stream / multipart / 分片会话（CHUNK-1）。
+ * AuthZ via {@link DeclarationAccess#requireVia} / {@link PolicyEngine} (AuthZ-1f).
+ * 鉴权经 PolicyEngine（AuthZ-1f）。
  */
 @RestController
 public class EntityBlobEndpoint {
@@ -53,25 +55,25 @@ public class EntityBlobEndpoint {
     private final EntityBlobStore blobs;
     private final GenericEntityStore tableStore;
     private final HybridEntityStore hybridStore;
-    private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
     private final ChunkedBlobUploadStore chunkedUploads;
+    private final PolicyEngine policyEngine;
 
     public EntityBlobEndpoint(
             EffectiveDeclarationService effective,
             EntityBlobStore blobs,
             GenericEntityStore tableStore,
             HybridEntityStore hybridStore,
-            TenantGuard tenantGuard,
             OperatorTenantAccess tenantAccess,
-            ChunkedBlobUploadStore chunkedUploads) {
+            ChunkedBlobUploadStore chunkedUploads,
+            PolicyEngine policyEngine) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.blobs = Objects.requireNonNull(blobs, "blobs");
         this.tableStore = Objects.requireNonNull(tableStore, "tableStore");
         this.hybridStore = Objects.requireNonNull(hybridStore, "hybridStore");
-        this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
         this.chunkedUploads = Objects.requireNonNull(chunkedUploads, "chunkedUploads");
+        this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
     }
 
     /** List blob metadata for a record — 列出记录的附件元数据。 */
@@ -315,13 +317,13 @@ public class EntityBlobEndpoint {
         RenderedEntity entity = effective
                 .runtimeEntity(tenantId, entityKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        DeclarationAccess.require(
+        // AuthZ-1f: PolicyEngine (Cedar default) — 经 PolicyEngine。
+        DeclarationAccess.requireVia(
+                policyEngine,
                 operator,
                 entity.permission(),
                 entity.tenantScoped(),
                 tenantId,
-                tenantGuard,
-                tenantAccess,
                 AccessResource.of("entity", entityKey),
                 AccessAction.of(write ? "blob-write" : "blob-read"));
         String storeTenant = entity.tenantScoped() ? tenantId : null;

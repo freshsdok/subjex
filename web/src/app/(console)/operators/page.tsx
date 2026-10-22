@@ -1,5 +1,12 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
+import {
+  BUTTON_OPERATORS_MANAGE,
+  PAGE_OPERATORS,
+  buttonAllowed,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { ChangePasswordForm } from "./change-password-form";
 import { MfaEnrollForm } from "./mfa-enroll-form";
@@ -27,11 +34,30 @@ type IdpLinkDocument = {
   linked?: boolean;
 };
 
-// Operators page — 操作员页：人人可改自己的口令；operator.manage 可新建、重置口令、禁用/启用并编辑租户授权。
+/**
+ * Operators page — any login may change own password; manage CRUD needs Manifest button.
+ * Enter: Manifest {@code page.operators} (login-only); manage: {@code btn.operators.manage}.
+ * 操作员页：进入走 page.operators（登录即可）；管理写走 btn.operators.manage。
+ */
 export default async function OperatorsPage() {
   const { phrases } = await currentLanguage();
-  const { body: me } = await readPlatform<OperatorSelfDocument & { mfaEnrolled?: boolean }>("me");
-  const canManage = new Set(me?.permissions ?? []).has("operator.manage");
+  const [{ body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<OperatorSelfDocument & { mfaEnrolled?: boolean }>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
+  const permissions = new Set(me?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  // Login-only page entry; fallback true so self-service password still works without Manifest.
+  // 页面登录即可；缺 Manifest 时回退 true，保证改密口令仍可用。
+  if (!pageAllowed(manifest, PAGE_OPERATORS, true)) {
+    return <ForbiddenNotice phrases={phrases} permission="login" />;
+  }
+  const canManage = buttonAllowed(
+    manifest,
+    BUTTON_OPERATORS_MANAGE,
+    permissions.has("operator.manage"),
+  );
   const mfaEnrolled = Boolean(me?.mfaEnrolled);
 
   let operators: NonNullable<OperatorsDocument["operators"]> = [];

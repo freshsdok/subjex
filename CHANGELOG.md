@@ -5,9 +5,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 
 ## [Unreleased]
 
-Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes `6d52bc5` (PC-5/#3) + #4/#5.
+Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes PC-deepen-2/3 (local) on `49172c3`+.
 
 ### Added / 新增
+- **AuthZ-1g upsert via PolicyEngine:** `EntityRecordUpsertDomainActionHandler` uses `DeclarationAccess.requireVia`; declaration AuthZ widen inventory clear.
+  **AuthZ-1g upsert 走 PolicyEngine：** 实体 upsert 领域动作改 requireVia；声明鉴权拓宽盘点清空。
+
+- **AuthZ-1f PolicyEngine widen:** Forms / FormSubmission / GenericEntity / EntityBlob use `DeclarationAccess.requireVia` so default Cedar covers declaration CRUD paths. Inventory updated.
+  **AuthZ-1f PolicyEngine 拓宽：** 表单/提交/实体/附件改走 requireVia；默认 Cedar 覆盖声明 CRUD。
+
+- **AuthZ-1e PolicyEngine widen start:** inventory of AccessChecker/DeclarationAccess vs PolicyEngine callers; `DeclarationAccess.requireVia`; `PagesApiEndpoint` detail uses PolicyEngine (Cedar default applies). [`docs/authz/policy-engine-caller-inventory.md`](docs/authz/policy-engine-caller-inventory.md).
+  **AuthZ-1e PolicyEngine 拓宽起步：** 调用盘点；`requireVia`；页面详情走 PolicyEngine（默认 Cedar 生效）。
+
+- **PC-deepen-3 UI Manifest coverage:** +8 remaining console `page.*` (services / deploy / forms / pages / search / codegen / capabilities / operators) + `btn.operators.manage`; nested `/pages/*` reuse `page.pages`. Classpath **49**.
+  **PC-deepen-3 UI Manifest 加深：** 余下八个控制台页 + 操作员管理按钮；嵌套 pages 共用 page.pages；条目 49。
+
+- **PC-deepen-2 UI Manifest coverage:** +7 `page.*` Forbidden gates (org / inbox / compose / groups / config / audit / dead-letters) + `btn.config.write`; console pages wired to `pageAllowed` / `buttonAllowed`.
+  **PC-deepen-2 UI Manifest 加深：** 七个页面 Forbidden + 配置写按钮；控制台页改读 Manifest。
+
 - **ADR 0011 Accepted — no standalone questionnaire (near-term):** Form stays operator business entry (not renamed 问卷); future survey/quiz needs a new ADR (types, public/anon, stats, export, subject). [`docs/adr/0011-no-standalone-questionnaire.md`](docs/adr/0011-no-standalone-questionnaire.md).
   **ADR 0011 Accepted — 近端不做独立问卷：** Form 仍作操作员业务录入（不改名问卷）；未来问卷须新 ADR。
 

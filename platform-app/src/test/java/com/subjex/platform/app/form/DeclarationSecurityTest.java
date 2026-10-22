@@ -37,6 +37,8 @@ import com.subjex.platform.app.entity.HybridEntityStore;
 import com.subjex.platform.app.discovery.ServiceCatalog;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
+import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
@@ -146,6 +148,12 @@ class DeclarationSecurityTest {
             return new DenyWhenTenantMissing();
         }
 
+        /** SQL PolicyEngine for WebMvcTest AuthZ-1f — 切片测用 sql 引擎。 */
+        @Bean
+        PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
+            return PolicyEngineFactory.create("sql", tenantGuard, tenantAccess);
+        }
+
         @Bean
         FormSideEffectRunner formSideEffectRunner(
                 OperatorActionAudit operatorActionAudit, TaskMessagePort taskMessagePort) {
@@ -179,8 +187,7 @@ class DeclarationSecurityTest {
                     mock(GenericEntityStore.class),
                     mock(HybridEntityStore.class),
                     new CapabilityRunner(new CapabilityCatalog()),
-                    tenantGuard,
-                    operatorTenantAccess);
+                    PolicyEngineFactory.create("sql", tenantGuard, operatorTenantAccess));
         }
 
         @Bean

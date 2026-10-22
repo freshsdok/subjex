@@ -36,6 +36,8 @@ import com.subjex.platform.app.form.FormSubmissionStore;
 import com.subjex.platform.app.form.FormsApiEndpoint;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
+import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.contract.extension.PlatformExtension;
 import com.subjex.platform.contract.task.TaskMessagePort;
 import com.subjex.platform.app.page.PageCatalog;
@@ -182,6 +184,12 @@ class OpenApiDocumentTest {
             return new DenyWhenTenantMissing();
         }
 
+        /** SQL PolicyEngine for WebMvcTest AuthZ-1f — 切片测用 sql 引擎。 */
+        @Bean
+        PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
+            return PolicyEngineFactory.create("sql", tenantGuard, tenantAccess);
+        }
+
         @Bean
         JdbcAdminReader jdbcAdminReader(JdbcTemplate jdbc) {
             return new JdbcAdminReader(jdbc);
@@ -220,8 +228,7 @@ class OpenApiDocumentTest {
                     mock(GenericEntityStore.class),
                     mock(HybridEntityStore.class),
                     new CapabilityRunner(new CapabilityCatalog()),
-                    tenantGuard,
-                    operatorTenantAccess);
+                    PolicyEngineFactory.create("sql", tenantGuard, operatorTenantAccess));
         }
 
         @Bean

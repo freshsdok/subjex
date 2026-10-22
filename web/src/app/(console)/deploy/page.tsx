@@ -1,14 +1,33 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import type { components } from "@/api/schema";
-import { readPlatform } from "@/server/platform-reader";
+import {
+  PAGE_DEPLOY,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
+import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 type DeployDocument = components["schemas"]["DeployDocument"];
 
-// Deploy page — 部署页：先说清“是否已应用”，再列工作负载，避免把清单误当成线上实况。
+/**
+ * Deploy page — applied vs workload inventory (do not confuse manifest with live cluster).
+ * Enter: Manifest {@code page.deploy} (page.read).
+ * 部署页：进入走 page.deploy；先说清是否已应用，再列工作负载。
+ */
 export default async function DeployPage() {
   const { phrases } = await currentLanguage();
-  const { status, body } = await readPlatform<DeployDocument>("deploy");
+  const [{ status, body }, { body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<DeployDocument>("deploy"),
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
+  const permissions = new Set(me?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_DEPLOY, permissions.has("page.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="page.read" />;
+  }
   if (status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   if (!body) return <LoadFailedNotice phrases={phrases} status={status} />;
   const workloads = body.workloads ?? [];
@@ -49,3 +68,4 @@ export default async function DeployPage() {
     </section>
   );
 }
+

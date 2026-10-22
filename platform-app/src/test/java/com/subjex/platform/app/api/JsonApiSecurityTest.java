@@ -48,6 +48,8 @@ import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.language.LanguageApiEndpoint;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
+import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
 import com.subjex.platform.app.security.OperatorSelfEndpoint;
 import com.subjex.platform.app.security.PlatformSecurityConfiguration;
@@ -472,6 +474,12 @@ class JsonApiSecurityTest {
             return new DenyWhenTenantMissing();
         }
 
+        /** SQL PolicyEngine for WebMvcTest AuthZ-1f — 切片测用 sql 引擎。 */
+        @Bean
+        PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
+            return PolicyEngineFactory.create("sql", tenantGuard, tenantAccess);
+        }
+
         @Bean
         JdbcAdminReader jdbcAdminReader(JdbcTemplate jdbc) {
             return new JdbcAdminReader(jdbc);
@@ -510,8 +518,7 @@ class JsonApiSecurityTest {
                     mock(GenericEntityStore.class),
                     mock(HybridEntityStore.class),
                     new CapabilityRunner(new CapabilityCatalog()),
-                    tenantGuard,
-                    operatorTenantAccess);
+                    PolicyEngineFactory.create("sql", tenantGuard, operatorTenantAccess));
         }
 
         @Bean

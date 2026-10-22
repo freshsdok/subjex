@@ -9,8 +9,8 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
-import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +37,8 @@ import org.springframework.web.server.ResponseStatusException;
  * {@code X-Tenant-Id} (and operator–tenant grant).
  * 路径在 {@code /api/v1/entities/{entityKey}/records}。table 轨走 {@link GenericEntityStore}，hybrid/document 走
  * {@link HybridEntityStore}；删记录级联附件（ES-3）。大载荷用 EntityBlobStore。租户隔离须头与授权。
+ * AuthZ via {@link DeclarationAccess#requireVia} / {@link PolicyEngine} (AuthZ-1f).
+ * 鉴权经 PolicyEngine（AuthZ-1f）。
  */
 @RestController
 public class GenericEntityEndpoint {
@@ -54,25 +56,25 @@ public class GenericEntityEndpoint {
     private final GenericEntityStore tableStore;
     private final HybridEntityStore hybridStore;
     private final EntityBlobStore blobStore;
-    private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
+    private final PolicyEngine policyEngine;
 
     public GenericEntityEndpoint(
             EffectiveDeclarationService effective,
             GenericEntityStore tableStore,
             HybridEntityStore hybridStore,
             EntityBlobStore blobStore,
-            TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess) {
+            OperatorTenantAccess tenantAccess,
+            PolicyEngine policyEngine) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.tableStore = Objects.requireNonNull(tableStore, "tableStore");
         this.hybridStore = Objects.requireNonNull(hybridStore, "hybridStore");
         this.blobStore = Objects.requireNonNull(blobStore, "blobStore");
-        this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
+        this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
     }
 
-    /** List records via runtimeEntity + DeclarationAccess — 经 runtimeEntity + DeclarationAccess 列记录。 */
+    /** List records via runtimeEntity + PolicyEngine gate — 经 runtimeEntity + PolicyEngine 门禁。 */
     @GetMapping(RECORDS_PATH)
     public RecordsDocument list(
             @PathVariable("entityKey") String entityKey,
@@ -183,13 +185,13 @@ public class GenericEntityEndpoint {
         RenderedEntity entity = effective
                 .runtimeEntity(tenantId, entityKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        DeclarationAccess.require(
+        // AuthZ-1f: PolicyEngine (Cedar default) — 经 PolicyEngine。
+        DeclarationAccess.requireVia(
+                policyEngine,
                 operator,
                 entity.permission(),
                 entity.tenantScoped(),
                 tenantId,
-                tenantGuard,
-                tenantAccess,
                 AccessResource.of("entity", entityKey),
                 AccessAction.of("access"));
         return entity;

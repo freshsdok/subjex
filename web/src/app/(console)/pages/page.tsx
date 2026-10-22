@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
+import {
+  PAGE_PAGES,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
 import { readDeclarationTenantId, readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 type PagesIndexDocument = {
@@ -15,19 +20,29 @@ type PagesIndexDocument = {
   }[];
 };
 
-// Pages index — 页面目录：按检入的流程声明列出列表入口；标明权限，无权限则不给打开链接。
+/**
+ * Pages index — checked-in flow declarations as list entries.
+ * Enter: Manifest {@code page.pages} (page.read).
+ * 页面目录：进入走 page.pages；标明权限，无权限不给打开链接。
+ */
 export default async function PagesIndexPage() {
   const { language, phrases } = await currentLanguage();
   const tenantId = await readDeclarationTenantId();
-  const [indexRead, meRead] = await Promise.all([
+  const [indexRead, meRead, uiPermissionsRead] = await Promise.all([
     readPlatform<PagesIndexDocument>("pages", { tenantId }),
     readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
   ]);
+  const myPermissions = new Set(meRead.body?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_PAGES, myPermissions.has("page.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="page.read" />;
+  }
   if (indexRead.status === 403) return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   if (!indexRead.body?.pages) {
     return <LoadFailedNotice phrases={phrases} status={indexRead.status || 500} />;
   }
-  const myPermissions = new Set(meRead.body?.permissions ?? []);
   const pages = indexRead.body.pages.filter(
     (entry): entry is {
       flowKey: string;

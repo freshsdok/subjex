@@ -10,8 +10,8 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
-import com.subjex.platform.contract.tenant.TenantGuard;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +34,8 @@ import org.springframework.web.server.ResponseStatusException;
  * catalog entries appear from the promoted (or draft) flow at read time.
  * 目录要 {@code page.read}；带租户头合并租户生效流程（草稿 &gt; 已晋升 &gt; classpath）。
  * RT-5：不另写 page YAML；晋升 FLOW 只校验固定路径，目录在读时从生效 flow 出现。
+ * Detail AuthZ goes through {@link PolicyEngine} via {@link DeclarationAccess#requireVia} (AuthZ-1e).
+ * 详情鉴权经 PolicyEngine（AuthZ-1e）。
  */
 @RestController
 public class PagesApiEndpoint {
@@ -43,18 +45,18 @@ public class PagesApiEndpoint {
 
     private final PageCatalog catalog;
     private final EffectiveDeclarationService effective;
-    private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
+    private final PolicyEngine policyEngine;
 
     public PagesApiEndpoint(
             PageCatalog catalog,
             EffectiveDeclarationService effective,
-            TenantGuard tenantGuard,
-            OperatorTenantAccess tenantAccess) {
+            OperatorTenantAccess tenantAccess,
+            PolicyEngine policyEngine) {
         this.catalog = Objects.requireNonNull(catalog, "catalog");
         this.effective = Objects.requireNonNull(effective, "effective");
-        this.tenantGuard = Objects.requireNonNull(tenantGuard, "tenantGuard");
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
+        this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
     }
 
     @GetMapping(PATH)
@@ -93,13 +95,13 @@ public class PagesApiEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedFlow flow = resolveFlow(flowKey, tenantId);
-        DeclarationAccess.require(
+        // AuthZ-1e: PolicyEngine (Cedar default) instead of raw AccessChecker — 经 PolicyEngine，不再直调 AccessChecker。
+        DeclarationAccess.requireVia(
+                policyEngine,
                 operator,
                 flow.permission(),
                 flow.tenantScoped(),
                 tenantId,
-                tenantGuard,
-                tenantAccess,
                 AccessResource.of("flow", flowKey),
                 AccessAction.of("read"));
         if (TenantDeclarationContext.overlayRequested(tenantId) && !flow.tenantScoped()) {

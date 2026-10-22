@@ -26,6 +26,7 @@ import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorPermission;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import java.time.Clock;
 import java.time.Instant;
@@ -85,8 +86,7 @@ class RepairTicketWorkflowAuditTest {
                 effective,
                 mock(GenericEntityStore.class),
                 hybrid,
-                new DenyWhenTenantMissing(),
-                tenantAccess,
+                PolicyEngineFactory.create("sql", new DenyWhenTenantMissing(), tenantAccess),
                 workflows,
                 tx);
         operator = new OperatorPrincipal(

@@ -1,6 +1,11 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import type { CapabilityRow } from "@/lib/capabilities-console";
+import {
+  PAGE_CAPABILITIES,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { CapabilitiesConsole } from "./capabilities-console";
 
@@ -10,15 +15,19 @@ type CapabilitiesDocument = {
 
 /**
  * Capabilities page — catalog + try-run stubs (no real gateway / no DB write by default).
- * Gate: {@code page.read}. Deep link: {@code /capabilities}.
- * <p>
- * 能力页：目录 + 试跑桩（默认不经真网关、不写库）。门禁 page.read。
+ * Enter: Manifest {@code page.capabilities} (page.read).
+ * 能力页：进入走 page.capabilities；目录 + 试跑桩。
  */
 export default async function CapabilitiesPage() {
   const { language, phrases } = await currentLanguage();
-  const { body: me } = await readPlatform<OperatorSelfDocument>("me");
+  const [{ body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
   const permissions = new Set(me?.permissions ?? []);
-  if (!permissions.has("page.read")) {
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_CAPABILITIES, permissions.has("page.read"))) {
     return <ForbiddenNotice phrases={phrases} permission="page.read" />;
   }
 

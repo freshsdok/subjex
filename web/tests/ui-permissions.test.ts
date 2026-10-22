@@ -5,6 +5,9 @@ import {
   BUTTON_ORG_WRITE,
   buildConsoleNavItems,
   buttonAllowed,
+  pageAllowed,
+  PAGE_ORG,
+  PAGE_INBOX,
   CONSOLE_MENU_LABEL_BY_ID,
   missingPermissionHint,
   resolveConsoleMenuLabelKey,
@@ -100,5 +103,19 @@ describe("ui-permissions console nav (PC-3/PC-4)", () => {
     expect(buttonAllowed(manifest, BUTTON_ORG_WRITE, true)).toBe(false);
     expect(buttonAllowed(manifest, BUTTON_INBOX_COMPOSE_SEND, false)).toBe(true);
     expect(buttonAllowed(undefined, BUTTON_ORG_WRITE, true)).toBe(true);
+  });
+
+  it("pageAllowed uses Manifest allowed when page present", () => {
+    const manifest: UiPermissionManifestDocument = {
+      version: 1,
+      client: "console",
+      entries: [
+        { id: PAGE_ORG, kind: "page", route: "/org", permission: "org.read", allowed: false },
+        { id: PAGE_INBOX, kind: "page", route: "/inbox", permission: "inbox.read", allowed: true },
+      ],
+    };
+    expect(pageAllowed(manifest, PAGE_ORG, true)).toBe(false);
+    expect(pageAllowed(manifest, PAGE_INBOX, false)).toBe(true);
+    expect(pageAllowed(undefined, PAGE_ORG, true)).toBe(true);
   });
 });

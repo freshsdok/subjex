@@ -70,7 +70,7 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.client").value("console"))
                 .andExpect(jsonPath("$.defaults.lockedMenuEffect").value("grey"))
                 .andExpect(jsonPath("$.defaults.missingButtonEffect").value("disable"))
-                .andExpect(jsonPath("$.entries.length()").value(32))
+                .andExpect(jsonPath("$.entries.length()").value(49))
                 .andExpect(jsonPath("$.entries[0].id").value("nav.overview"))
                 .andExpect(jsonPath("$.entries[0].kind").value("menu"))
                 .andExpect(jsonPath("$.entries[0].href").value("/"))

@@ -1,6 +1,11 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
-import { readPlatform } from "@/server/platform-reader";
+import {
+  PAGE_DEAD_LETTERS,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
+import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { DeadLetterActions } from "./dead-letter-actions";
 
 type DeadLettersDocument = {
@@ -15,12 +20,23 @@ type DeadLettersDocument = {
 };
 
 /**
- * Dead letters console — list + replay/discard (admin.read).
- * 死信控制台：列表与重放/丢弃。
+ * Dead letters console — list + replay/discard.
+ * Enter: Manifest {@code page.dead-letters} (admin.read).
+ * 死信控制台：进入走 page.dead-letters；列表与重放/丢弃。
  */
 export default async function DeadLettersPage() {
   const { phrases } = await currentLanguage();
-  const { status, body } = await readPlatform<DeadLettersDocument>("dead-letters");
+  const [{ status, body }, { body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<DeadLettersDocument>("dead-letters"),
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
+  const permissions = new Set(me?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  if (!pageAllowed(manifest, PAGE_DEAD_LETTERS, permissions.has("admin.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="admin.read" />;
+  }
   if (status === 403) return <ForbiddenNotice phrases={phrases} permission="admin.read" />;
   if (!body) return <LoadFailedNotice phrases={phrases} status={status} />;
   const letters = (body.deadLetters ?? [])

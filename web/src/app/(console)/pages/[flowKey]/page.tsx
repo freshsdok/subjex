@@ -10,7 +10,12 @@ import {
   platformPathWithListFilter,
 } from "@/lib/list-filter-query";
 import { itemsFromBody, platformPathFromApi } from "@/lib/page-flow";
-import { readDeclarationTenantId, readPlatform } from "@/server/platform-reader";
+import {
+  PAGE_PAGES,
+  pageAllowed,
+  type UiPermissionManifestDocument,
+} from "@/lib/ui-permissions";
+import { readDeclarationTenantId, readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 
 type PageFlowDocument = {
   flowKey?: string;
@@ -37,6 +42,17 @@ export default async function DeclaredListPage({
   const rawSearch = await searchParams;
   const { language, phrases } = await currentLanguage();
   const tenantId = await readDeclarationTenantId();
+  const [{ body: me }, uiPermissionsRead] = await Promise.all([
+    readPlatform<OperatorSelfDocument>("me"),
+    readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+  ]);
+  const permissions = new Set(me?.permissions ?? []);
+  const manifest =
+    uiPermissionsRead.status === 200 ? uiPermissionsRead.body : undefined;
+  // Same Manifest page gate as /pages index — 与页面目录共用 page.pages。
+  if (!pageAllowed(manifest, PAGE_PAGES, permissions.has("page.read"))) {
+    return <ForbiddenNotice phrases={phrases} permission="page.read" />;
+  }
   const flowRead = await readPlatform<PageFlowDocument>(`pages/${encodeURIComponent(flowKey)}`, {
     tenantId,
   });

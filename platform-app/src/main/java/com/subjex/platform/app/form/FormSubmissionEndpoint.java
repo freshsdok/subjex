@@ -13,9 +13,9 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.tenant.TenantQuotaService;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
-import com.subjex.platform.contract.tenant.TenantGuard;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -44,6 +44,8 @@ import org.springframework.http.HttpStatus;
  * 每张表单按声明的 {@code permission} 检查（失败关闭）；{@code tenantScoped} 时还要租户。
  * 领域动作来自表单声明的 {@code domainAction}（目录键）。审计 / 任务副作用来自 YAML {@code effects}（租户草稿白名单；classpath 仍可 extension.invoke）。
  * 成功响应含提交编号、声明版本、时间戳与副作用摘要，供控制台调试面板；字段违规返回结构化 fieldErrors；缺权限 403 带权限名。
+ * AuthZ via {@link DeclarationAccess#requireVia} / {@link PolicyEngine} (AuthZ-1f).
+ * 鉴权经 PolicyEngine（AuthZ-1f）。
  */
 @RestController
 public class FormSubmissionEndpoint {
@@ -58,9 +60,9 @@ public class FormSubmissionEndpoint {
     private final FormSubmissionStore submissions;
     private final FormDomainActionRunner domainActions;
     private final FormSideEffectRunner sideEffects;
-    private final TenantGuard tenantGuard;
     private final OperatorTenantAccess tenantAccess;
     private final TenantQuotaService tenantQuota;
+    private final PolicyEngine policyEngine;
 
     public FormSubmissionEndpoint(
             FormCatalog forms,
@@ -68,17 +70,17 @@ public class FormSubmissionEndpoint {
             FormSubmissionStore submissions,
             FormDomainActionRunner domainActions,
             FormSideEffectRunner sideEffects,
-            TenantGuard tenantGuard,
             OperatorTenantAccess tenantAccess,
-            TenantQuotaService tenantQuota) {
+            TenantQuotaService tenantQuota,
+            PolicyEngine policyEngine) {
         this.forms = Objects.requireNonNull(forms, "forms");
         this.effective = Objects.requireNonNull(effective, "effective");
         this.submissions = submissions;
         this.domainActions = domainActions;
         this.sideEffects = sideEffects;
-        this.tenantGuard = tenantGuard;
         this.tenantAccess = tenantAccess;
         this.tenantQuota = Objects.requireNonNull(tenantQuota, "tenantQuota");
+        this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
     }
 
     @PostMapping(PATH)
@@ -88,13 +90,13 @@ public class FormSubmissionEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = resolveForm(formKey, tenantId);
-        DeclarationAccess.require(
+        // AuthZ-1f: PolicyEngine (Cedar default) — 经 PolicyEngine。
+        DeclarationAccess.requireVia(
+                policyEngine,
                 operator,
                 form.permission(),
                 form.tenantScoped(),
                 tenantId,
-                tenantGuard,
-                tenantAccess,
                 AccessResource.of("form", formKey),
                 AccessAction.of("submit"));
         requireGrantForNonScopedOverlay(operator, form, tenantId);
@@ -131,13 +133,13 @@ public class FormSubmissionEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantId) {
         RenderedForm form = resolveForm(formKey, tenantId);
-        DeclarationAccess.require(
+        // AuthZ-1f: PolicyEngine (Cedar default) — 经 PolicyEngine。
+        DeclarationAccess.requireVia(
+                policyEngine,
                 operator,
                 form.permission(),
                 form.tenantScoped(),
                 tenantId,
-                tenantGuard,
-                tenantAccess,
                 AccessResource.of("form", formKey),
                 AccessAction.of("read"));
         requireGrantForNonScopedOverlay(operator, form, tenantId);
