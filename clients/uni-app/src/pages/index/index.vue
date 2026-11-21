@@ -1,11 +1,8 @@
 <template>
   <view class="page">
     <view class="card">
-      <text class="title">subjex 终端壳 / End-user shell</text>
-      <text class="muted">
-        本工程是 H5 + 微信小程序（uni-app），不是操作员控制台 `web/`。
-        This is H5 + WeChat mini-program (uni-app), not the operator console.
-      </text>
+      <text class="title">欢迎</text>
+      <text class="muted">请从下面进入资料、站内信、问卷和文件。</text>
     </view>
 
     <view class="card">
@@ -14,7 +11,9 @@
       <text class="label">API 根 / API base</text>
       <text class="value mono">{{ base }}</text>
       <text class="label">登录状态 / Auth</text>
-      <text class="value">{{ signedIn ? "已登录 Bearer / signed in" : "未登录 / signed out" }}</text>
+      <text class="value">{{ signedIn ? "已登录" : "未登录" }}</text>
+      <text class="label">业务租户 / Tenant</text>
+      <text class="value mono">{{ tenantLabel }}</text>
       <text class="label">存活探针 / Liveness</text>
       <text class="value">{{ livenessText }}</text>
       <button
@@ -62,8 +61,9 @@
  */
 import { ref, computed, onMounted } from "vue";
 import { apiBase, probeLiveness } from "../../api/platform";
-import { isSignedIn } from "../../api/auth";
+import { ensureSession, isSignedIn } from "../../api/auth";
 import { readBearer } from "../../api/auth-token";
+import { readTenantId } from "../../api/tenant";
 import {
   BUTTON_SHELL_REPROBE,
   SHELL_MENU_LABEL_BY_ID,
@@ -78,6 +78,7 @@ const base = ref(apiBase());
 const platformLabel = ref("unknown");
 const livenessText = ref("（未探测 / not probed）");
 const signedIn = ref(false);
+const tenantLabel = ref("（未设置 / not set）");
 const manifest = ref<UiPermissionManifest | undefined>(undefined);
 const manifestError = ref<string | null>(null);
 
@@ -93,8 +94,27 @@ const manifestStatus = computed(() => {
 
 type NavItem = { id: string; href: string; label: string; allowed: boolean; hint: string };
 
+const FALLBACK_NAV: NavItem[] = [
+  { id: "nav.home", href: "/pages/index/index", label: SHELL_MENU_LABEL_BY_ID["nav.home"], allowed: true, hint: "" },
+  { id: "nav.login", href: "/pages/login/login", label: SHELL_MENU_LABEL_BY_ID["nav.login"], allowed: true, hint: "" },
+  { id: "nav.profile", href: "/pages/profile/profile", label: SHELL_MENU_LABEL_BY_ID["nav.profile"], allowed: true, hint: "" },
+  { id: "nav.inbox", href: "/pages/inbox/inbox", label: SHELL_MENU_LABEL_BY_ID["nav.inbox"], allowed: true, hint: "" },
+  {
+    id: "nav.questionnaires",
+    href: "/pages/questionnaire/list",
+    label: SHELL_MENU_LABEL_BY_ID["nav.questionnaires"],
+    allowed: true,
+    hint: "",
+  },
+  { id: "nav.files", href: "/pages/files/files", label: SHELL_MENU_LABEL_BY_ID["nav.files"], allowed: true, hint: "" },
+];
+
 const navItems = computed<NavItem[]>(() => {
-  return menuEntries(manifest.value).map((e) => ({
+  const entries = menuEntries(manifest.value);
+  // End-user tokens are 403 on the operator UI-permission API; keep the shell usable.
+  // 终端令牌访问操作员 UI 权限接口会 403；用本地导航保证壳仍可用。
+  if (entries.length === 0) return FALLBACK_NAV;
+  return entries.map((e) => ({
     id: e.id,
     href: (e.href || "").trim(),
     label: SHELL_MENU_LABEL_BY_ID[e.id] || e.id,
@@ -136,8 +156,10 @@ function onReprobe() {
 }
 
 /**
- * Load Manifest; 401 without Bearer → soft fail (shell still usable).
- * 加载 Manifest；无 Bearer 时 401 软失败（壳仍可用）。
+ * Load Manifest; 401/403 soft-fail and fall back to local nav.
+ * 加载 Manifest；401/403 软失败并回退到本地导航。
+ * GET /api/v1/ui-permissions is operator-gated (WP2-5); end-user tokens receive 403.
+ * 该接口仍要求操作员主体；终端令牌会被拒绝，这是预期而非登录失败。
  */
 async function refreshManifest() {
   manifestError.value = null;
@@ -146,17 +168,26 @@ async function refreshManifest() {
   } catch (e) {
     manifest.value = undefined;
     const msg = e instanceof Error ? e.message : String(e);
-    manifestError.value = msg.includes("401")
-      ? "需登录 Bearer（#3 终端认证后）/ Bearer required (after #3 auth)"
-      : msg.slice(0, 160);
+    if (msg.includes("403") || msg.includes("operator-authentication-required")) {
+      manifestError.value =
+        "终端令牌不能读取操作员 UI 权限清单，已使用本地导航 / end-user tokens cannot read the operator UI-permission manifest; using local nav";
+    } else if (msg.includes("401")) {
+      manifestError.value = "需先登录终端令牌 / sign in with an end-user token first";
+    } else {
+      manifestError.value = msg.slice(0, 160);
+    }
   }
 }
 
 onMounted(() => {
   platformLabel.value = detectPlatform();
-  signedIn.value = isSignedIn();
+  tenantLabel.value = readTenantId() || "（未设置 / not set）";
+  void (async () => {
+    await ensureSession();
+    signedIn.value = isSignedIn();
+    void refreshManifest();
+  })();
   void refreshProbe();
-  void refreshManifest();
 });
 </script>
 

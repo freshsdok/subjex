@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import com.subjex.platform.contract.storage.StoredObject;
 import java.io.ByteArrayInputStream;
+import java.net.URI;
+import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,5 +103,24 @@ class S3ObjectStorageTest {
     @Test
     void blankBucketRejected() {
         assertThrows(IllegalArgumentException.class, () -> new S3ObjectStorage(client, "  "));
+    }
+
+    @Test
+    void presignGetUsesTenantPrefixedKeyAndTtl() {
+        S3GetObjectPresigner fake = (bucket, key, ttl) -> URI.create(
+                "https://s3.test/" + bucket + "/" + key + "?X-Amz-Expires=" + ttl.toSeconds()
+                        + "&X-Amz-Signature=test");
+        S3ObjectStorage withSigner = new S3ObjectStorage(client, "subjex-blobs", fake);
+        URI url = withSigner.presignGet("tenant-a", "blob-1", Duration.ofMinutes(15));
+        assertEquals(
+                "https://s3.test/subjex-blobs/tenant-a/blob-1?X-Amz-Expires=900&X-Amz-Signature=test",
+                url.toString());
+    }
+
+    @Test
+    void presignGetWithoutPresignerFailsClosed() {
+        assertThrows(
+                IllegalStateException.class,
+                () -> storage.presignGet("tenant-a", "blob-1", Duration.ofMinutes(15)));
     }
 }

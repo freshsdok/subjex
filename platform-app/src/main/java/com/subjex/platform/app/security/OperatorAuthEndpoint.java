@@ -16,11 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
  * OperatorAuthEndpoint — 登录 / 刷新 / 退出 / MFA 校验：口令只用于签发不透明 Bearer（或 MFA 挑战）。
  * <p>
  * Login validates username/password once. If TOTP is enrolled, returns a short-lived {@code mfaToken}
- * instead of access/refresh; {@code POST .../mfa/verify} completes the flow. Refresh rotates; reuse of
- * an old refresh revokes the family. Logout revokes the refresh family.
+ * instead of access/refresh; {@code POST .../mfa/verify} completes the flow. If policy requires MFA
+ * ({@code platform.mfa.required=true}) and the operator has not enrolled, login fails closed with
+ * 403 {@code reason=mfa-enrollment-required} and does not issue access/refresh.
+ * Refresh rotates; reuse of an old refresh revokes the family. Logout revokes the refresh family.
  * Failed password (or MFA) attempts feed {@link JdbcOperatorLoginLockout}; active lockout returns 429.
- * 登录核对一次口令。若已登记 TOTP 则先发短时 mfaToken；校验后再签发访问/刷新。刷新轮换；重用旧刷新吊销整族。
- * 口令（及 MFA）失败计入锁定；仍在锁定窗口内返回 429。
+ * 登录核对一次口令。若已登记 TOTP 则先发短时 mfaToken；校验后再签发访问/刷新。
+ * 若策略强制 MFA 且尚未登记，则失败关闭（403 {@code reason=mfa-enrollment-required}），不签发访问/刷新。
+ * 刷新轮换；重用旧刷新吊销整族。口令（及 MFA）失败计入锁定；仍在锁定窗口内返回 429。
  */
 @RestController
 public class OperatorAuthEndpoint {
@@ -126,8 +129,13 @@ public class OperatorAuthEndpoint {
     }
 
     @PostMapping(PATH + "/refresh")
-    public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshRequest body, HttpServletRequest request) {
+    public ResponseEntity<?> refresh(@RequestBody RefreshRequest body, HttpServletRequest request) {
         String refreshToken = body == null ? null : body.refreshToken();
+        if (refreshToken != null && refreshToken.trim().startsWith("eu.")) {
+            // End-user refresh tokens are a different realm — 终端刷新令牌属于另一领域。
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("reason", EndUserRealmGateFilter.REASON));
+        }
         try {
             JdbcOperatorTokenStore.IssuedTokens issued =
                     tokenStore.refresh(refreshToken, request.getHeader("User-Agent"), clientIp(request));
@@ -138,9 +146,14 @@ public class OperatorAuthEndpoint {
     }
 
     @PostMapping(PATH + "/logout")
-    public ResponseEntity<Void> logout(@RequestBody(required = false) RefreshRequest body) {
-        if (body != null && body.refreshToken() != null && !body.refreshToken().isBlank()) {
-            tokenStore.revokeByRefreshToken(body.refreshToken());
+    public ResponseEntity<?> logout(@RequestBody(required = false) RefreshRequest body) {
+        String refreshToken = body == null ? null : body.refreshToken();
+        if (refreshToken != null && refreshToken.trim().startsWith("eu.")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("reason", EndUserRealmGateFilter.REASON));
+        }
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            tokenStore.revokeByRefreshToken(refreshToken);
         }
         return ResponseEntity.noContent().build();
     }

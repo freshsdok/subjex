@@ -1,0 +1,30 @@
+# Order approval form — 订单审批表单（WP4-3）
+# Fields align with entities/order-approval.entity.yaml. Generic upsert via entity.record.upsert.
+# Auto-start follows the workflow declaration hook, not a form effect.
+# 字段与实体声明对齐。经 entity.record.upsert 通用写入。自动起实例跟工作流声明钩子走，不是本表单副作用。
+formKey: order-approval
+titleEn: Order approval
+titleZh: 订单审批
+version: 1
+permission: page.read
+tenantScoped: true
+domainAction: entity.record.upsert
+entityKey: order-approval
+fields:
+  - name: orderId
+    kind: text
+    required: true
+    maxLength: 64
+  - name: title
+    kind: text
+    required: true
+    maxLength: 200
+  - name: organization
+    kind: organizationRef
+    required: false
+    maxLength: 64
+effects:
+  - key: audit.write
+    params:
+      actionName: entity.record.upsert
+      actionTargetField: orderId

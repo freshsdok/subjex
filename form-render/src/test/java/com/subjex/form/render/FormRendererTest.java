@@ -290,6 +290,22 @@ class FormRendererTest {
     }
 
     @Test
+    void rendersOrderApprovalFormHybridTenantScoped() throws IOException {
+        try (var in = FormRendererTest.class.getResourceAsStream("/forms/order-approval.form.yaml")) {
+            assertTrue(in != null);
+            RenderedForm form = renderer.render(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            assertEquals("order-approval", form.formKey());
+            assertEquals("order-approval", form.entityKey());
+            assertEquals(DomainActionKey.ENTITY_RECORD_UPSERT, form.domainAction());
+            assertTrue(form.tenantScoped());
+            assertEquals(3, form.fields().size());
+            assertEquals("orderId", form.fields().get(0).name());
+            assertEquals("organization", form.fields().get(2).name());
+            assertEquals(FieldKind.ORGANIZATION_REF, form.fields().get(2).kind());
+        }
+    }
+
+    @Test
     void entityRecordUpsertWithoutEntityKeyIsRejected() {
         String yaml = """
                 formKey: demo-ticket

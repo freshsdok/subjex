@@ -9,6 +9,11 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantAccess;
+import com.subjex.platform.app.storage.ObjectAccessAudit;
+import com.subjex.platform.app.storage.ObjectContentTypes;
+import com.subjex.platform.app.storage.ObjectGrantStore;
+import com.subjex.platform.app.storage.ObjectUploadLimits;
+import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import java.util.List;
@@ -58,6 +63,9 @@ public class EntityBlobEndpoint {
     private final OperatorTenantAccess tenantAccess;
     private final ChunkedBlobUploadStore chunkedUploads;
     private final PolicyEngine policyEngine;
+    private final ObjectUploadLimits uploadLimits;
+    private final AuthorizedObjectRegistrar authorizedUploads;
+    private final ObjectAccessAudit objectAudit;
 
     public EntityBlobEndpoint(
             EffectiveDeclarationService effective,
@@ -66,7 +74,10 @@ public class EntityBlobEndpoint {
             HybridEntityStore hybridStore,
             OperatorTenantAccess tenantAccess,
             ChunkedBlobUploadStore chunkedUploads,
-            PolicyEngine policyEngine) {
+            PolicyEngine policyEngine,
+            ObjectUploadLimits uploadLimits,
+            AuthorizedObjectRegistrar authorizedUploads,
+            ObjectAccessAudit objectAudit) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.blobs = Objects.requireNonNull(blobs, "blobs");
         this.tableStore = Objects.requireNonNull(tableStore, "tableStore");
@@ -74,6 +85,9 @@ public class EntityBlobEndpoint {
         this.tenantAccess = Objects.requireNonNull(tenantAccess, "tenantAccess");
         this.chunkedUploads = Objects.requireNonNull(chunkedUploads, "chunkedUploads");
         this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
+        this.uploadLimits = uploadLimits == null ? ObjectUploadLimits.defaults() : uploadLimits;
+        this.authorizedUploads = Objects.requireNonNull(authorizedUploads, "authorizedUploads");
+        this.objectAudit = Objects.requireNonNull(objectAudit, "objectAudit");
     }
 
     /** List blob metadata for a record — 列出记录的附件元数据。 */
@@ -109,8 +123,8 @@ public class EntityBlobEndpoint {
         if (semi >= 0) {
             type = type.substring(0, semi).trim();
         }
-        EntityBlobMetadata meta =
-                blobs.put(ctx.blobTenant(), entityKey, id, fieldName, body == null ? new byte[0] : body, type);
+        EntityBlobMetadata meta = storeNewBlob(
+                ctx, entityKey, id, fieldName, body == null ? new byte[0] : body, type, operator);
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(BlobMetadataDocument.from(meta));
     }
 
@@ -119,8 +133,8 @@ public class EntityBlobEndpoint {
      * Upload multipart file part {@code file} (SHARED-3) — multipart 上传 {@code file} 部件（SHARED-3）。
      * <p>
      * Form fields: {@code file} (required), {@code fieldName} (optional, default {@code attachment}).
-     * Size capped by {@link JdbcEntityBlobStore#MAX_BYTES}.
-     * 表单：{@code file} 必填；{@code fieldName} 可选（默认 attachment）。大小上限见 MAX_BYTES。
+     * Size capped by {@link ObjectUploadLimits} ({@code platform.storage.upload.max-bytes}).
+     * 表单：{@code file} 必填；{@code fieldName} 可选（默认 attachment）。大小上限见上传配置。
      */
     @PostMapping(
             value = BLOBS_PATH,
@@ -138,9 +152,9 @@ public class EntityBlobEndpoint {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("multipart part 'file' is required");
         }
-        if (file.getSize() > JdbcEntityBlobStore.MAX_BYTES) {
+        if (file.getSize() > uploadLimits.maxBytes()) {
             throw new IllegalArgumentException(
-                    "content exceeds maxBytes=" + JdbcEntityBlobStore.MAX_BYTES);
+                    "content exceeds maxBytes=" + uploadLimits.maxBytes());
         }
         byte[] body = file.getBytes();
         String type = file.getContentType();
@@ -151,8 +165,7 @@ public class EntityBlobEndpoint {
         if (semi >= 0) {
             type = type.substring(0, semi).trim();
         }
-        EntityBlobMetadata meta =
-                blobs.put(ctx.blobTenant(), entityKey, id, fieldName, body, type);
+        EntityBlobMetadata meta = storeNewBlob(ctx, entityKey, id, fieldName, body, type, operator);
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(BlobMetadataDocument.from(meta));
     }
 
@@ -160,7 +173,7 @@ public class EntityBlobEndpoint {
     /**
      * CHUNK-1: start chunked upload session — 开启分片上传会话。
      * <p>
-     * Body: {@code fieldName}, {@code contentType}, {@code totalBytes} (0..MAX_BYTES).
+     * Body: {@code fieldName}, {@code contentType}, {@code totalBytes} (0..configured max).
      */
     @PostMapping(value = UPLOADS_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public UploadInitDocument initChunkedUpload(
@@ -181,6 +194,7 @@ public class EntityBlobEndpoint {
         if (semi >= 0) {
             type = type.substring(0, semi).trim();
         }
+        type = requireAllowedTypeForTrack(ctx.blobTenant(), type, operator, entityKey);
         ChunkedBlobUploadSession session = chunkedUploads.init(
                 ctx.blobTenant(),
                 entityKey,
@@ -188,8 +202,8 @@ public class EntityBlobEndpoint {
                 fieldName,
                 type,
                 body.totalBytes(),
-                JdbcEntityBlobStore.MAX_BYTES);
-        return UploadInitDocument.from(session);
+                uploadLimits.maxBytes());
+        return UploadInitDocument.from(session, uploadLimits.maxBytes());
     }
 
     /**
@@ -227,13 +241,8 @@ public class EntityBlobEndpoint {
         ChunkedBlobUploadSession session = requireOwnedSession(ctx, entityKey, id, uploadId);
         byte[] assembled = chunkedUploads.assemble(session.uploadId());
         try {
-            EntityBlobMetadata meta = blobs.put(
-                    ctx.blobTenant(),
-                    entityKey,
-                    id,
-                    session.fieldName(),
-                    assembled,
-                    session.contentType());
+            EntityBlobMetadata meta = storeNewBlob(
+                    ctx, entityKey, id, session.fieldName(), assembled, session.contentType(), operator);
             return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(BlobMetadataDocument.from(meta));
         } finally {
             chunkedUploads.abort(session.uploadId());
@@ -341,6 +350,71 @@ public class EntityBlobEndpoint {
 
     private record Context(RenderedEntity entity, String blobTenant) {}
 
+
+    /**
+     * Authorized-track uploads go through MIME + register + audit; unscoped sentinels stay legacy.
+     * 授权轨走 MIME、登记与审计；未限定占位仍走既有路径，不回填。
+     */
+    private EntityBlobMetadata storeNewBlob(
+            Context ctx,
+            String entityKey,
+            String recordId,
+            String fieldName,
+            byte[] content,
+            String contentType,
+            OperatorPrincipal operator) {
+        String objectTenant = JdbcEntityBlobStore.objectTenant(ctx.blobTenant());
+        if (isAuthorizedTrackTenant(objectTenant)) {
+            return authorizedUploads.putRegistered(
+                    ctx.blobTenant(),
+                    entityKey,
+                    recordId,
+                    fieldName,
+                    content,
+                    contentType,
+                    operator.subjectId(),
+                    operator.identityId());
+        }
+        return blobs.put(ctx.blobTenant(), entityKey, recordId, fieldName, content, contentType);
+    }
+
+    /**
+     * Enforce the shared MIME allowlist only on the authorized track (fail closed).
+     * 仅在授权轨强制共用 MIME 白名单（失败关闭）。
+     */
+    private String requireAllowedTypeForTrack(
+            String blobTenant, String contentType, OperatorPrincipal operator, String entityKey) {
+        String objectTenant = JdbcEntityBlobStore.objectTenant(blobTenant);
+        if (!isAuthorizedTrackTenant(objectTenant)) {
+            return contentType;
+        }
+        try {
+            return ObjectContentTypes.requireAllowed(contentType);
+        } catch (IllegalArgumentException ex) {
+            objectAudit.recordUpload(
+                    objectTenant,
+                    operator.identityId(),
+                    "contentType=" + (contentType == null ? "" : contentType),
+                    entityKey,
+                    AuditOutcome.REFUSED);
+            throw ex;
+        }
+    }
+
+    /**
+     * True when the object-storage tenant can be an authorized-track home (not blank, not
+     * reserved {@code platform}, not the unscoped {@code _platform_} sentinel).
+     * 是否可作为授权轨归属租户（非空、非保留 platform、非未限定 {@code _platform_} 占位）。
+     */
+    static boolean isAuthorizedTrackTenant(String objectTenant) {
+        if (objectTenant == null || objectTenant.isBlank()) {
+            return false;
+        }
+        return !JdbcEntityBlobStore.OBJECT_TENANT_PLATFORM.equals(objectTenant)
+                && !ObjectGrantStore.RESERVED_TENANT.equals(objectTenant);
+    }
+
+
     /** BlobsDocument — 附件元数据列表。 */
     /** JSON-friendly blob metadata (Instant as ISO-8601 string) — JSON 友好元数据。 */
     public record BlobMetadataDocument(
@@ -378,13 +452,13 @@ public class EntityBlobEndpoint {
     /** CHUNK-1 init reply — 分片上传初始化响应。 */
     public record UploadInitDocument(
             String uploadId, int chunkSize, int chunkCount, long totalBytes, int maxBytes) {
-        static UploadInitDocument from(ChunkedBlobUploadSession session) {
+        static UploadInitDocument from(ChunkedBlobUploadSession session, int maxBytes) {
             return new UploadInitDocument(
                     session.uploadId(),
                     session.chunkSize(),
                     session.chunkCount(),
                     session.totalBytes(),
-                    JdbcEntityBlobStore.MAX_BYTES);
+                    maxBytes);
         }
     }
 

@@ -116,4 +116,37 @@ public final class JdbcAdminReader {
                     return found;
                 });
     }
+
+    /**
+     * Tenant-scoped chronological export window (WP9-1). Tenant id is required.
+     * 按租户、按时间正序导出窗口；租户标识必填。
+     */
+    public List<AuditRow> exportEntries(String tenantId, Instant from, Instant to, int limit) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
+        int cap = Math.max(limit, 0);
+        return jdbc.query(
+                """
+                SELECT e.audit_entry_id, e.occurred_at, e.tenant_id, e.actor_identity_id, a.login_name,
+                       e.action_name, e.action_target, e.outcome,
+                       e.entity_key, e.declaration_version, e.resolution_source
+                FROM audit_entry e
+                LEFT JOIN subject_identity i ON i.identity_id = e.actor_identity_id
+                LEFT JOIN account a ON a.account_id = i.account_id
+                WHERE e.tenant_id = ? AND e.occurred_at >= ? AND e.occurred_at <= ?
+                ORDER BY e.occurred_at ASC, e.audit_entry_id ASC
+                """,
+                rows -> {
+                    ArrayList<AuditRow> found = new ArrayList<>();
+                    while (rows.next() && found.size() < cap) {
+                        found.add(PlatformTables.mapAuditRow(rows));
+                    }
+                    return found;
+                },
+                tenantId.trim(),
+                PlatformTables.timestamp(from),
+                PlatformTables.timestamp(to));
+    }
+
 }

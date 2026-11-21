@@ -32,11 +32,11 @@ export function OrganizationPicker({
 }) {
   const [organizations, setOrganizations] = useState<OrganizationOption[] | null>(null);
   const [liveFailed, setLiveFailed] = useState(false);
+  const organizationsView = tenantId ? organizations : null;
+  const liveFailedView = tenantId ? liveFailed : false;
 
   useEffect(() => {
     if (!tenantId) {
-      setOrganizations(null);
-      setLiveFailed(false);
       return;
     }
     let cancelled = false;
@@ -64,7 +64,7 @@ export function OrganizationPicker({
   }, [tenantId]);
 
   const useSelect =
-    Boolean(tenantId) && !liveFailed && organizations !== null && organizations.length > 0;
+    Boolean(tenantId) && !liveFailedView && organizationsView !== null && organizationsView.length > 0;
 
   if (useSelect) {
     return (
@@ -79,7 +79,7 @@ export function OrganizationPicker({
           className="rounded-md border border-border bg-background px-2 py-1"
         >
           <option value="">—</option>
-          {organizations!.map((org) => {
+          {organizationsView!.map((org) => {
             const id = org.organizationId ?? "";
             if (!id) return null;
             return (

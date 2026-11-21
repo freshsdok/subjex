@@ -132,7 +132,8 @@ class TenantManagementSecurityTest {
                 "INSERT INTO tenant (tenant_id, tenant_name, tenant_state) VALUES ('tenant-off', 'Off', 'SUSPENDED')");
         Assertions.assertThrows(
                 TenantDisabledException.class, () -> tenantAdmin.requireActiveForTaskWrite("tenant-off"));
-        tenantAdmin.requireActiveForTaskWrite("missing-ok-to-auto-create");
+        Assertions.assertThrows(
+                TenantNotFoundException.class, () -> tenantAdmin.requireActiveForTaskWrite("missing-no-auto-create"));
     }
 
     @TestConfiguration

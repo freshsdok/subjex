@@ -1,5 +1,9 @@
 # Thin workflow progress — 薄工作流进度
 
+WP4 (thin reusable workflow) is **closed**. See [`wp4-thin-workflow-progress.md`](wp4-thin-workflow-progress.md) and ADR [`0016`](../adr/0016-thin-reusable-workflow.md). This note remains the WF-0…WF-RT-5 inventory and is not rewritten.
+
+WP4（可声明通用薄工作流）已关闭，详见上述进度笔记与 ADR 0016。本页保留 WF-0…WF-RT-5 盘点，不改写历史。
+
 Wave **after** TN-0…TN-3 (`c044faf`). Goal: a **thin** repair-ticket + approval state machine — not a BPM engine.
 
 多租户加固之后。目标是薄的报修工单 + 审批状态机，不是通用 BPM。

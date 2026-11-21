@@ -88,6 +88,7 @@ class RepairTicketWorkflowAuditTest {
                 hybrid,
                 PolicyEngineFactory.create("sql", new DenyWhenTenantMissing(), tenantAccess),
                 workflows,
+                new WorkflowCatalog(),
                 tx);
         operator = new OperatorPrincipal(
                 "wf-rt4",

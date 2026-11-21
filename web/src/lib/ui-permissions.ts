@@ -64,6 +64,7 @@ export const CONSOLE_MENU_LABEL_BY_ID: Readonly<Record<string, keyof PhraseBook>
   "nav.dead-letters": "navDeadLetters",
   "nav.deploy": "navDeploy",
   "nav.forms": "navForms",
+  "nav.questionnaires": "navQuestionnaires",
   "nav.pages": "navPages",
   "nav.search": "navSearch",
   "nav.declarations": "navDeclarations",
@@ -157,6 +158,7 @@ export const BUTTON_DECLARATIONS_PROMOTE = "btn.declarations.promote";
 export const BUTTON_TENANTS_MANAGE = "btn.tenants.manage";
 export const BUTTON_CONFIG_WRITE = "btn.config.write";
 export const BUTTON_OPERATORS_MANAGE = "btn.operators.manage";
+export const BUTTON_QUESTIONNAIRES_WRITE = "btn.questionnaires.write";
 
 /** Known console page ids for ForbiddenNotice (#5 / deepen-2/3) — 页面 Forbidden 用 page id。 */
 export const PAGE_FLAGS = "page.flags";
@@ -173,6 +175,7 @@ export const PAGE_DEAD_LETTERS = "page.dead-letters";
 export const PAGE_SERVICES = "page.services";
 export const PAGE_DEPLOY = "page.deploy";
 export const PAGE_FORMS = "page.forms";
+export const PAGE_QUESTIONNAIRES = "page.questionnaires";
 export const PAGE_PAGES = "page.pages";
 export const PAGE_SEARCH = "page.search";
 export const PAGE_CODEGEN = "page.codegen";

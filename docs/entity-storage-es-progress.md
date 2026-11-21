@@ -77,7 +77,7 @@ Core ADR decisions are now coded: hybrid default + shared table, optional physic
 ### SHARED-2 [done] — S3-compatible ObjectStorage
 
 - **Port:** existing `ObjectStorage` (`put` / `find` / `delete`) + `JdbcEntityBlobStore` / `entity_blob` unchanged.
-- **Impl:** `LocalDirectoryObjectStorage` (default) | `S3ObjectStorage` (AWS SDK v2) selected by `platform.storage.type=local|s3`.
+- **Impl:** `LocalDirectoryObjectStorage` (base / `local` profile) | `S3ObjectStorage` (AWS SDK v2; **prod default**) selected by `platform.storage.type=local|s3`.
 - **S3 config:** `platform.storage.s3.{endpoint,region,bucket,access-key,secret-key,path-style-access}` (MinIO-friendly path-style default true).
 - **Keys:** `{tenantId}/{objectKey}` in bucket; Content-Type = media type.
 - **Tests:** `S3ObjectStorageTest` with mocked `S3Client` (no live AWS). Ops note: [`docs/storage/object-storage.md`](storage/object-storage.md).
@@ -88,8 +88,8 @@ Core ADR decisions are now coded: hybrid default + shared table, optional physic
 
 - **API:** `POST /api/v1/entities/{entityKey}/records/{id}/blobs` now accepts
   `multipart/form-data` (part `file`, optional `fieldName`, default `attachment`)
-  in addition to existing `application/octet-stream`. Size ≤ `JdbcEntityBlobStore.MAX_BYTES` (5 MiB);
-  Spring `spring.servlet.multipart.max-file-size=5MB`.
+  in addition to existing `application/octet-stream`. Size ≤ `platform.storage.upload.max-bytes` (WP3-3 default 50 MiB; was 5 MiB in ES/CHUNK-1).
+  Spring `spring.servlet.multipart.max-file-size` follows the same key (default 50MB).
 - **Console:** `EntityBlobPanel` on declared detail pages when flow has `entityKey`
   (`web/.../pages/[flowKey]/[id]/page.tsx`); list / multipart upload / download / delete.
 - **Proxy:** `/api/platform/[...segments]` forwards multipart as `ArrayBuffer` and preserves
@@ -117,9 +117,9 @@ Core ADR decisions are now coded: hybrid default + shared table, optional physic
 
 - **API:** `POST …/blobs/uploads` (init) → `PUT …/uploads/{id}/chunks/{i}` → `POST …/complete`; `DELETE` abort.
 - **Store:** `LocalDirChunkedBlobUploadStore` temp chunks; assemble → `EntityBlobStore.put` (local or S3 ObjectStorage).
-- **Limits:** total ≤ 5 MiB; default chunk 256 KiB; session TTL 1h + purge on init.
+- **Limits:** total ≤ 50 MiB as of WP3-3 (`platform.storage.upload.max-bytes`); default chunk 256 KiB; session TTL 1h + purge on init.
 - **Console:** `EntityBlobPanel` uses chunked path when file > 256 KiB; proxy forwards octet-stream binary.
-- **Not in CHUNK-1:** true S3 multipart protocol; cross-replica shared chunk store; raising max above 5 MiB.
+- **Not in CHUNK-1:** true S3 multipart protocol; cross-replica shared chunk store (sticky routing or a later session store is still required). The 5 MiB cap was raised to 50 MiB in WP3-3.
 
 ### Squash on github/main — 已压到 github/main（2026-10-15 CST）
 

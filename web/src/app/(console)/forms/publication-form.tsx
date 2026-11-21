@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FormDebugPanel } from "@/components/form-debug-panel";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 import { parseSubmitReply, type FormDebugState } from "@/lib/form-debug";
@@ -36,13 +36,6 @@ export function PublicationForm({
   const [values, setValues] = useState<Record<string, string>>(emptyValues);
   const [step, setStep] = useState<SubmitStep>("editing");
   const [debug, setDebug] = useState<FormDebugState>({ kind: "idle" });
-
-  // Reset edit state when the operator picks another form — 换表单时清空填写状态。
-  useEffect(() => {
-    setValues(emptyValues);
-    setStep("editing");
-    setDebug({ kind: "idle" });
-  }, [formKey, emptyValues]);
 
   function updateField(name: string, next: string) {
     setValues((current) => ({ ...current, [name]: next }));

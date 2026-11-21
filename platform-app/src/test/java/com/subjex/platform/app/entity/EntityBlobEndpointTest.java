@@ -25,6 +25,8 @@ import com.subjex.platform.app.security.PlatformSecurityConfiguration;
 import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.PolicyEngineFactory;
+import com.subjex.platform.app.storage.ObjectAccessAudit;
+import com.subjex.platform.app.storage.ObjectUploadLimits;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
@@ -79,6 +81,12 @@ class EntityBlobEndpointTest {
 
     @MockitoBean
     private ChunkedBlobUploadStore chunkedUploads;
+
+    @MockitoBean
+    private AuthorizedObjectRegistrar authorizedUploads;
+
+    @MockitoBean
+    private ObjectAccessAudit objectAudit;
 
     @Test
     void uploadDownloadAndList() throws Exception {
@@ -309,6 +317,11 @@ class EntityBlobEndpointTest {
         @Bean
         PolicyEngine policyEngine(TenantGuard tenantGuard, OperatorTenantAccess tenantAccess) {
             return PolicyEngineFactory.create("sql", tenantGuard, tenantAccess);
+        }
+
+        @Bean
+        ObjectUploadLimits objectUploadLimits() {
+            return ObjectUploadLimits.defaults();
         }
     }
 }

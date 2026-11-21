@@ -14,7 +14,7 @@ import com.subjex.platform.app.security.AccessResource;
 import com.subjex.platform.app.security.DeclarationAccess;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.PolicyEngine;
-import com.subjex.platform.app.workflow.RepairTicketWorkflowDefinitions;
+import com.subjex.platform.app.workflow.WorkflowCatalog;
 import com.subjex.platform.app.workflow.WorkflowService;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -27,11 +27,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * entity.record.upsert — upsert by form entityKey; routes table vs hybrid/document stores.
  * entity.record.upsert — 按表单 entityKey 写入；按 storageMode 路由 table / hybrid·document。
  * <p>
- * WF-RT-2: when {@code entityKey} is {@code repair-ticket}, after a successful save starts a
- * workflow instance (idempotent). Upsert + start run in one {@link TransactionTemplate} when
- * provided so a start failure rolls back the row (fail-closed, no silent orphan). Without a TX
- * template (unit tests), start errors still propagate after save.
- * WF-RT-2：entityKey 为 repair-ticket 时，保存成功后幂等启动工作流；有事务模板则同事务失败关闭。
+ * WP4-2: after a successful save, auto-start a workflow instance when the entity is bound to a
+ * machine with {@code autoStartOnUpsert} (idempotent). Upsert + start run in one
+ * {@link TransactionTemplate} when provided so a start failure rolls back the row (fail-closed).
+ * Without a TX template (unit tests), start errors still propagate after save.
+ * WP4-2：保存成功后，若该实体绑定的机器声明了自动启动，则幂等起实例；有事务模板则同事务失败关闭。
  * AuthZ-1g: entity tenant/permission gate via {@link DeclarationAccess#requireVia} / {@link PolicyEngine}.
  * AuthZ-1g：实体租户/权限门禁经 PolicyEngine。
  */
@@ -43,6 +43,7 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
     private final HybridEntityStore hybridEntities;
     private final PolicyEngine policyEngine;
     private final WorkflowService workflows;
+    private final WorkflowCatalog workflowCatalog;
     private final TransactionTemplate transactionTemplate;
 
     @Autowired
@@ -52,12 +53,14 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
             HybridEntityStore hybridEntities,
             PolicyEngine policyEngine,
             WorkflowService workflows,
+            WorkflowCatalog workflowCatalog,
             TransactionTemplate transactionTemplate) {
         this.effective = Objects.requireNonNull(effective, "effective");
         this.tableEntities = Objects.requireNonNull(tableEntities, "tableEntities");
         this.hybridEntities = Objects.requireNonNull(hybridEntities, "hybridEntities");
         this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
         this.workflows = Objects.requireNonNull(workflows, "workflows");
+        this.workflowCatalog = Objects.requireNonNull(workflowCatalog, "workflowCatalog");
         this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
     }
 
@@ -74,6 +77,7 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
         this.hybridEntities = Objects.requireNonNull(hybridEntities, "hybridEntities");
         this.policyEngine = Objects.requireNonNull(policyEngine, "policyEngine");
         this.workflows = null;
+        this.workflowCatalog = null;
         this.transactionTemplate = null;
     }
 
@@ -111,7 +115,7 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
         }
         String pkName = entity.primaryKey().name();
         String storeTenant = entity.tenantScoped() ? tenantHeader : null;
-        if (transactionTemplate != null && isRepairTicket(entityKey)) {
+        if (transactionTemplate != null && autoStarts(entityKey)) {
             transactionTemplate.executeWithoutResult(status -> saveAndMaybeStart(
                     entity, values, storeTenant, entityKey, pkName, tenantHeader, operator));
         } else {
@@ -133,25 +137,25 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
         } else {
             tableEntities.save(entity, values, storeTenant);
         }
-        maybeAutoStartRepairTicket(entity, values.get(pkName), tenantHeader, operator);
+        maybeAutoStartWorkflow(entity, values.get(pkName), tenantHeader, operator);
     }
 
-    private void maybeAutoStartRepairTicket(
+    private void maybeAutoStartWorkflow(
             RenderedEntity entity, Object recordIdRaw, String tenantHeader, OperatorPrincipal operator) {
         String entityKey = entity.entityKey();
-        if (workflows == null || !isRepairTicket(entityKey)) {
+        if (workflows == null || !autoStarts(entityKey)) {
             return;
         }
         if (operator == null) {
             throw new IllegalStateException(
-                    "repair-ticket upsert requires an authenticated operator to auto-start workflow");
+                    "workflow auto-start requires an authenticated operator");
         }
         if (tenantHeader == null || tenantHeader.isBlank()) {
             throw new IllegalStateException(
-                    "repair-ticket upsert requires X-Tenant-Id to auto-start workflow");
+                    "workflow auto-start requires X-Tenant-Id");
         }
         if (recordIdRaw == null || recordIdRaw.toString().isBlank()) {
-            throw new IllegalStateException("repair-ticket upsert missing primary key for workflow start");
+            throw new IllegalStateException("workflow auto-start missing primary key");
         }
         // WF-RT-4: pass declaration version from the same runtime entity used for upsert.
         // WF-RT-4：用本次 upsert 的生效实体版本写入工作流审计。
@@ -168,11 +172,11 @@ public final class EntityRecordUpsertDomainActionHandler implements DomainAction
             // Fail closed: surface clearly (TX rolls back upsert when template present).
             // 失败关闭：明确抛出（有事务模板时回滚 upsert）。
             throw new IllegalStateException(
-                    "repair-ticket upsert succeeded path but workflow start failed: " + ex.getMessage(), ex);
+                    "entity upsert succeeded path but workflow start failed: " + ex.getMessage(), ex);
         }
     }
 
-    private static boolean isRepairTicket(String entityKey) {
-        return RepairTicketWorkflowDefinitions.REPAIR_TICKET.equals(entityKey);
+    private boolean autoStarts(String entityKey) {
+        return workflowCatalog != null && workflowCatalog.findAutoStart(entityKey).isPresent();
     }
 }

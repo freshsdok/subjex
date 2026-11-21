@@ -29,11 +29,11 @@ export function SubjectPicker({
 }) {
   const [subjectIds, setSubjectIds] = useState<string[] | null>(null);
   const [liveFailed, setLiveFailed] = useState(false);
+  const subjectIdsView = tenantId ? subjectIds : null;
+  const liveFailedView = tenantId ? liveFailed : false;
 
   useEffect(() => {
     if (!tenantId) {
-      setSubjectIds(null);
-      setLiveFailed(false);
       return;
     }
     let cancelled = false;
@@ -69,7 +69,7 @@ export function SubjectPicker({
   }, [tenantId]);
 
   const useSelect =
-    Boolean(tenantId) && !liveFailed && subjectIds !== null && subjectIds.length > 0;
+    Boolean(tenantId) && !liveFailedView && subjectIdsView !== null && subjectIdsView.length > 0;
 
   if (useSelect) {
     return (
@@ -84,7 +84,7 @@ export function SubjectPicker({
           className="rounded-md border border-border bg-background px-2 py-1"
         >
           <option value="">—</option>
-          {subjectIds!.map((id) => (
+          {subjectIdsView!.map((id) => (
             <option key={id} value={id}>
               {id}
             </option>

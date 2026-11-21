@@ -29,10 +29,10 @@ Plan / inventory: [`docs/scale/horizontal-mvp-plan.md`](../scale/horizontal-mvp-
 | Submit `RateLimitPort` | Per pod | Shared `rate_limit_window` |
 | Outbox `DeliveryCircuitBreakerPort` | Per pod | Shared `delivery_circuit_breaker` |
 | `entry-gateway` client rate-limit | Per gateway process (jdbc rejected) | Still per process |
-| Object storage (`LocalDirectoryObjectStorage` → `platform.storage.directory`) | **Local disk — not shared** | **Still not shared** — multi-pod needs a shared volume (PVC) or a different storage SPI later |
+| Object storage (`platform.storage.type`) | **Dev `local`:** per-pod disk (`object-store`). **Prod default `s3`:** shared bucket (MinIO / S3 API). | Same — production must use S3-compatible storage, not a local-disk PVC, as the multi-instance plan. JDBC backends are still required to advertise replicas>1. |
 
-Object storage caveat: scaling `platform-app` without a shared filesystem (or replacing the local-directory SPI) means each pod sees a different `object-store` tree. Do not claim HA object storage.
-对象存储注意：不挂共享盘（或不换 SPI）时，各副本本地 `object-store` 互不可见。不要宣称对象存储高可用。
+Object storage: production defaults to S3-compatible (`platform.storage.type=s3`, e.g. MinIO). Local directory storage is for development only and is not a multi-instance plan — each pod would see a different `object-store` tree. Do not advertise shared blobs on local disk.
+对象存储：生产默认 S3 兼容（如 MinIO）。本地目录仅用于开发，不得作为多实例方案——各副本本地树互不可见。不要在本地盘上宣称共享对象。
 
 ---
 
@@ -50,4 +50,4 @@ Object storage caveat: scaling `platform-app` without a shared filesystem (or re
 
 - Full HA, multi-region, sticky sessions for platform-app, HPA.
 - Shared gateway rate-limit across `entry-gateway` replicas.
-- Shared local object-store without PVC / different SPI.
+- Shared local object-store (local disk is not a multi-instance plan; production uses S3-compatible storage).

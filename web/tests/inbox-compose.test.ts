@@ -18,7 +18,7 @@ describe("inbox-compose helpers (IM-A7)", () => {
 
   it("exposes attachment caps aligned with ADR 0009", () => {
     expect(INBOX_ATTACH_MAX_FILES).toBe(5);
-    expect(INBOX_ATTACH_MAX_BYTES).toBe(5 * 1024 * 1024);
+    expect(INBOX_ATTACH_MAX_BYTES).toBe(50 * 1024 * 1024);
   });
 
   it("allowlists attachment MIME types", () => {

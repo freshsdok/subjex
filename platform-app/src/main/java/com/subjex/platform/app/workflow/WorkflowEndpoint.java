@@ -4,6 +4,7 @@ import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -78,6 +79,19 @@ public class WorkflowEndpoint {
         return StatusDocument.from(workflows.statusByRecord(operator, tenantId, entityKey, recordId));
     }
 
+    /**
+     * Resolve the classpath machine bound to an entity key (WP4-2). Missing → 404.
+     * 按实体键解析 classpath 机器；没有则 404。不把定义写死为 repair-ticket。
+     */
+    @GetMapping(BASE + "/definitions/by-entity")
+    public DefinitionDocument byEntity(
+            @AuthenticationPrincipal OperatorPrincipal operator, @RequestParam("entityKey") String entityKey) {
+        requireOperator(operator);
+        return workflows.findByEntityKey(entityKey)
+                .map(DefinitionDocument::from)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "workflow-definition-not-found"));
+    }
+
     private static void requireOperator(OperatorPrincipal operator) {
         if (operator == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
@@ -149,13 +163,45 @@ public class WorkflowEndpoint {
             InstanceDocument instance,
             List<HistoryDocument> history,
             PendingApprovalDocument pendingApproval,
-            List<String> approvalCandidateSubjectIds) {
+            List<String> approvalCandidateSubjectIds,
+            List<LegalActionDocument> legalActions) {
         static StatusDocument from(WorkflowService.WorkflowStatusView view) {
             return new StatusDocument(
                     InstanceDocument.from(view.instance()),
                     view.history().stream().map(HistoryDocument::from).toList(),
                     PendingApprovalDocument.from(view.pendingApproval()),
-                    view.approvalCandidateSubjectIds());
+                    view.approvalCandidateSubjectIds(),
+                    view.legalActions().stream().map(LegalActionDocument::from).toList());
+        }
+    }
+
+    public record LegalActionDocument(
+            String action, String toState, String requiredPermission, boolean consumeApproval) {
+        static LegalActionDocument from(WorkflowService.LegalAction action) {
+            return new LegalActionDocument(
+                    action.action(), action.toState(), action.requiredPermission(), action.consumeApproval());
+        }
+    }
+
+    public record DefinitionDocument(
+            String definitionKey,
+            String entityKey,
+            String initialState,
+            boolean autoStartOnUpsert,
+            List<LegalActionDocument> transitions) {
+        static DefinitionDocument from(WorkflowDefinition definition) {
+            return new DefinitionDocument(
+                    definition.definitionKey(),
+                    definition.entityKey(),
+                    definition.initialState().wireName(),
+                    definition.autoStartOnUpsert(),
+                    definition.transitions().stream()
+                            .map(edge -> new LegalActionDocument(
+                                    edge.action().wireName(),
+                                    edge.to().wireName(),
+                                    edge.requiredPermission(),
+                                    false))
+                            .toList());
         }
     }
 }

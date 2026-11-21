@@ -68,4 +68,18 @@ class PageCatalogTest {
         assertEquals("/api/v1/forms/repair-ticket/submissions", flow.submit().apiPath());
         assertEquals("/pages/repair-ticket", flow.submit().redirectTo());
     }
+
+    @Test
+    void requiresOrderApprovalFlowOnGenericRecords() {
+        RenderedFlow flow = catalog.require("order-approval");
+        assertEquals("order-approval", flow.flowKey());
+        assertEquals("order-approval", flow.formKey());
+        assertEquals("order-approval", flow.entityKey());
+        assertEquals(true, flow.tenantScoped());
+        assertEquals("/api/v1/entities/order-approval/records", flow.list().apiPath());
+        assertEquals("records", flow.list().itemsKey());
+        assertEquals("orderId", flow.detail().idField());
+        assertEquals("/api/v1/forms/order-approval/submissions", flow.submit().apiPath());
+        assertEquals("/pages/order-approval", flow.submit().redirectTo());
+    }
 }

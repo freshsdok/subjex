@@ -9,6 +9,14 @@ import com.subjex.platform.app.delivery.OutboxSocketPublisher;
 import com.subjex.platform.contract.delivery.DeliveryPort;
 import com.subjex.platform.contract.inbox.InboxGroupPort;
 import com.subjex.platform.contract.inbox.InboxPort;
+import com.subjex.platform.contract.notification.NotificationPort;
+import com.subjex.platform.contract.consent.ConsentPort;
+import com.subjex.platform.contract.payment.PaymentPort;
+import com.subjex.platform.contract.payment.PaymentProviderIds;
+import com.subjex.platform.contract.payment.PaymentProviderAdapter;
+import com.subjex.platform.contract.notification.NotificationChannel;
+import com.subjex.platform.contract.notification.NotificationChannelAdapter;
+import com.subjex.platform.contract.notification.NotificationDispatcher;
 import com.subjex.platform.contract.delivery.DeliveryTransport;
 import com.subjex.platform.contract.delivery.OutboxTls;
 import com.subjex.platform.contract.delivery.OutboxTransportPolicy;
@@ -24,6 +32,7 @@ import com.subjex.platform.app.entity.AttrsJsonbQueries;
 import com.subjex.platform.app.entity.JdbcHybridEntityStore;
 import com.subjex.platform.app.search.EntityRecordSearchStore;
 import com.subjex.platform.app.search.JdbcEntityRecordSearchStore;
+import com.subjex.platform.app.entity.AuthorizedObjectRegistrar;
 import com.subjex.platform.app.entity.ChunkedBlobUploadStore;
 import com.subjex.platform.app.identity.JdbcOauthAuthCodeStore;
 import com.subjex.platform.app.identity.JdbcOauthClientStore;
@@ -73,7 +82,26 @@ import com.subjex.platform.app.inbox.InboxGroupService;
 import com.subjex.platform.app.inbox.InboxOrgBroadcastExpander;
 import com.subjex.platform.app.inbox.JdbcInboxGroupPort;
 import com.subjex.platform.app.inbox.JdbcInboxPort;
+import com.subjex.platform.app.notification.JdbcNotificationPort;
+import com.subjex.platform.app.consent.JdbcConsentPort;
+import com.subjex.platform.app.exporthook.ExportApprovalGate;
+import com.subjex.platform.app.exporthook.ExportRequestService;
+import com.subjex.platform.contract.exporthook.SubjectRecordExporter;
+import com.subjex.platform.app.workflow.WorkflowExportHook;
+import com.subjex.platform.app.exporthook.GenericSubjectRecordExporter;
+import com.subjex.platform.app.exporthook.ExportGenerationService;
+import com.subjex.platform.app.exporthook.ExportExpiryService;
+import com.subjex.platform.app.exporthook.JdbcExportRequestStore;
+import com.subjex.platform.app.payment.JdbcPaymentPort;
+import com.subjex.platform.app.payment.RecordingPaymentSink;
+import com.subjex.platform.app.payment.MockPaymentAdapter;
+import com.subjex.platform.app.payment.FailClosedPaymentAdapter;
+import com.subjex.platform.app.notification.FailClosedNotificationAdapter;
+import com.subjex.platform.app.notification.JdbcNotificationDispatcher;
+import com.subjex.platform.app.notification.MockNotificationAdapter;
+import com.subjex.platform.app.notification.RecordingNotificationSink;
 import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
+import com.subjex.platform.app.questionnaire.QuestionnaireService;
 import com.subjex.platform.contract.questionnaire.QuestionnairePort;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.jdbc.JdbcConfigOverride;
@@ -87,12 +115,31 @@ import com.subjex.platform.app.security.JdbcOperatorAdmin;
 import com.subjex.platform.app.security.JdbcTenantAdmin;
 import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.JdbcOperatorTokenStore;
+import com.subjex.platform.app.identity.enduser.EndUserAccountStore;
+import com.subjex.platform.app.identity.enduser.EndUserShellService;
+import com.subjex.platform.app.identity.enduser.EndUserObjectService;
+import com.subjex.platform.app.identity.enduser.JdbcEndUserAccountStore;
+import com.subjex.platform.app.identity.enduser.JdbcEndUserTokenStore;
+import com.subjex.platform.app.identity.enduser.DevVerificationCodeSender;
+import com.subjex.platform.app.identity.enduser.EndUserPhoneAuthService;
+import com.subjex.platform.app.identity.enduser.AdapterEndUserWeChatAssertion;
+import com.subjex.platform.app.identity.enduser.DevEndUserWeChatAssertion;
+import com.subjex.platform.app.identity.enduser.EndUserWeChatAssertion;
+import com.subjex.platform.app.identity.enduser.EndUserWeChatAuthService;
+import com.subjex.platform.app.identity.enduser.FailClosedEndUserWeChatAssertion;
+import com.subjex.platform.app.identity.enduser.FailClosedVerificationCodeSender;
+import com.subjex.platform.app.identity.enduser.JdbcEndUserLoginLockout;
+import com.subjex.platform.app.identity.enduser.MemoryVerificationCodePort;
+import com.subjex.platform.app.identity.enduser.VerificationCodePort;
+import com.subjex.platform.app.identity.enduser.VerificationCodeSender;
+import com.subjex.platform.app.security.ProductionProfileGuard;
 import com.subjex.platform.app.security.JdbcOperatorLoginLockout;
 import com.subjex.platform.app.security.JdbcOperatorMfaStore;
 import com.subjex.platform.app.security.AesGcmSecretCipher;
 import com.subjex.platform.app.tenant.TenantLifecycleService;
 import com.subjex.platform.app.workflow.JdbcWorkflowStore;
-import com.subjex.platform.app.workflow.RepairTicketOrgApproverGate;
+import com.subjex.platform.app.workflow.WorkflowCatalog;
+import com.subjex.platform.app.workflow.WorkflowOrgApproverGate;
 import com.subjex.platform.app.workflow.RepairTicketWorkflowInboxHook;
 import com.subjex.platform.app.workflow.WorkflowService;
 import com.subjex.platform.app.tenant.TenantQuotaService;
@@ -117,9 +164,24 @@ import com.subjex.platform.app.security.OperatorTenantAccess;
 import com.subjex.platform.app.security.PolicyEngine;
 import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.app.security.OperatorActionAudit;
-import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
+import com.subjex.platform.app.storage.ObjectStorageFactory;
+import com.subjex.platform.app.storage.ObjectAccessAudit;
+import com.subjex.platform.app.storage.ObjectGrantStore;
+import com.subjex.platform.app.storage.ObjectUploadLimits;
+import com.subjex.platform.app.storage.ObjectAccessAuthorizer;
+import com.subjex.platform.app.storage.LocalDownloadSignature;
+import com.subjex.platform.app.storage.LocalHmacDownloadIssuer;
+import com.subjex.platform.app.storage.ObjectDownloadLinkService;
+import com.subjex.platform.app.storage.ObjectDownloadProperties;
+import com.subjex.platform.app.storage.ObjectDownloadUrlIssuer;
 import com.subjex.platform.app.storage.S3ObjectStorage;
+import com.subjex.platform.app.storage.S3PresignedDownloadIssuer;
+import com.subjex.platform.app.storage.JdbcObjectGrantStore;
 import com.subjex.platform.contract.audit.AuditPort;
+import com.subjex.platform.contract.audit.AuditSink;
+import com.subjex.platform.app.admin.SinkingAuditPort;
+import com.subjex.platform.app.admin.NdjsonAuditSink;
+import com.subjex.platform.app.admin.AuditExportService;
 import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.app.flags.FeatureFlagService;
 import com.subjex.platform.contract.config.ConfigListing;
@@ -284,8 +346,10 @@ public class PlatformWiring {
     }
 
     /**
-     * Object storage: {@code local} (default) or {@code s3} (SHARED-2 MinIO/AWS) —
-     * 对象存储：默认 local，或 s3（SHARED-2 MinIO/AWS）。
+     * Object storage: {@code local} (base / laptop) or {@code s3} (prod default, MinIO-compatible) —
+     * 对象存储：本机/基础配置为 local；生产默认 s3（MinIO 兼容）。
+     * Production refuses local disk and fails fast when S3 settings are missing.
+     * 生产配置拒绝本地盘；S3 配置缺失时启动失败，不回退到本地目录。
      */
     @Bean
     ObjectStorage objectStorage(
@@ -296,17 +360,19 @@ public class PlatformWiring {
             @Value("${platform.storage.s3.bucket:}") String s3Bucket,
             @Value("${platform.storage.s3.access-key:}") String s3AccessKey,
             @Value("${platform.storage.s3.secret-key:}") String s3SecretKey,
-            @Value("${platform.storage.s3.path-style-access:true}") boolean s3PathStyle) {
-        String mode = type == null ? "local" : type.trim().toLowerCase();
-        return switch (mode) {
-            case "local" -> new LocalDirectoryObjectStorage(Path.of(directory));
-            case "s3" -> new S3ObjectStorage(
-                    S3ObjectStorage.createClient(
-                            s3Endpoint, s3Region, s3AccessKey, s3SecretKey, s3PathStyle),
-                    s3Bucket);
-            default -> throw new IllegalArgumentException(
-                    "platform.storage.type must be local or s3, got: " + type);
-        };
+            @Value("${platform.storage.s3.path-style-access:true}") boolean s3PathStyle,
+            Environment environment) {
+        boolean productionProfile = environment.matchesProfiles("prod") || environment.matchesProfiles("production");
+        return ObjectStorageFactory.create(
+                type,
+                directory,
+                s3Endpoint,
+                s3Region,
+                s3Bucket,
+                s3AccessKey,
+                s3SecretKey,
+                s3PathStyle,
+                productionProfile);
     }
 
     @Bean
@@ -320,8 +386,26 @@ public class PlatformWiring {
     }
 
     @Bean
-    AuditPort auditPort(JdbcTemplate jdbc) {
-        return new JdbcAuditPort(jdbc);
+    AuditSink auditSink(
+            @Value("${platform.audit.sink.enabled:false}") boolean enabled,
+            @Value("${platform.audit.sink.type:stdout}") String type,
+            @Value("${platform.audit.sink.file:}") String file) {
+        java.nio.file.Path path = (file == null || file.isBlank()) ? null : java.nio.file.Path.of(file);
+        return new NdjsonAuditSink(enabled, type, path);
+    }
+
+    @Bean
+    AuditPort auditPort(JdbcTemplate jdbc, AuditSink auditSink) {
+        return new SinkingAuditPort(new JdbcAuditPort(jdbc), auditSink);
+    }
+
+    @Bean
+    AuditExportService auditExportService(
+            JdbcAdminReader jdbcAdminReader,
+            OperatorTenantAccess operatorTenantAccess,
+            AuditPort auditPort,
+            Clock clock) {
+        return new AuditExportService(jdbcAdminReader, operatorTenantAccess, auditPort, clock);
     }
 
     /**
@@ -342,6 +426,242 @@ public class PlatformWiring {
             @Value("${platform.auth.refresh-token-ttl:PT8H}") Duration refreshTokenTtl) {
         return new JdbcOperatorTokenStore(
                 jdbc, transactionTemplate, operatorDirectory, clock, accessTokenTtl, refreshTokenTtl);
+    }
+
+    /**
+     * End-user account + token stores (WP2-1/2). Not the operator token store.
+     * 终端账号与令牌仓库（WP2-1/2）。不是操作员令牌仓库。
+     */
+    @Bean
+    JdbcEndUserAccountStore endUserAccountStore(
+            JdbcTemplate jdbc, TransactionTemplate transactionTemplate, Clock clock) {
+        return new JdbcEndUserAccountStore(jdbc, transactionTemplate, clock);
+    }
+
+    /**
+     * WP7-1 end-user profile / inbox / questionnaire shell (ADR 0019).
+     * 终端资料、收件箱与认证问卷外壳；不拓宽操作员路由。
+     */
+    @Bean
+    EndUserShellService endUserShellService(
+            EndUserAccountStore endUserAccountStore,
+            InboxPort inbox,
+            QuestionnairePort questionnaires,
+            AuditPort auditPort,
+            Clock clock) {
+        return new EndUserShellService(endUserAccountStore, inbox, questionnaires, auditPort, clock);
+    }
+
+    /**
+     * WP8-1 purpose-consent ledger (ADR 0020). Grant/withdraw audit via AuditPort; no outbox in this slice.
+     * 目的同意台账；授予/撤销经 AuditPort 审计；本切片不写出箱。
+     */
+    @Bean
+    ConsentPort consentPort(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            Clock clock,
+            AuditPort auditPort) {
+        return new JdbcConsentPort(jdbc, transactionTemplate, clock, auditPort);
+    }
+
+    /**
+     * WP8-2 export request store, approval gate, and service (ADR 0020). No artifact generation, no outbox.
+     * 导出申请存储、审批门禁与服务；不生成产物、不写出箱。
+     */
+    @Bean
+    JdbcExportRequestStore jdbcExportRequestStore(JdbcTemplate jdbc) {
+        return new JdbcExportRequestStore(jdbc);
+    }
+
+    @Bean
+    ExportApprovalGate exportApprovalGate(JdbcExportRequestStore jdbcExportRequestStore, AuditPort auditPort, Clock clock) {
+        return new ExportApprovalGate(jdbcExportRequestStore, auditPort, clock);
+    }
+
+    @Bean
+    ExportRequestService exportRequestService(
+            JdbcTemplate jdbc,
+            JdbcExportRequestStore jdbcExportRequestStore,
+            WorkflowService workflowService,
+            EndUserAccountStore endUserAccountStore,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine,
+            AuditPort auditPort,
+            Clock clock) {
+        return new ExportRequestService(
+                jdbc,
+                jdbcExportRequestStore,
+                workflowService,
+                endUserAccountStore,
+                operatorTenantAccess,
+                policyEngine,
+                auditPort,
+                clock);
+    }
+
+    @Bean
+    WorkflowExportHook workflowExportHook(WorkflowService workflowService) {
+        return new WorkflowExportHook(workflowService);
+    }
+
+    @Bean
+    ExportExpiryService exportExpiryService(
+            JdbcExportRequestStore jdbcExportRequestStore, Clock clock, WorkflowExportHook workflowExportHook) {
+        return new ExportExpiryService(jdbcExportRequestStore, clock, workflowExportHook);
+    }
+
+    @Bean
+    GenericSubjectRecordExporter genericSubjectRecordExporter(
+            JdbcTemplate jdbc,
+            ConsentPort consentPort,
+            InboxPort inboxPort,
+            QuestionnairePort questionnairePort,
+            ObjectGrantStore objectGrantStore,
+            Clock clock) {
+        return new GenericSubjectRecordExporter(
+                jdbc, consentPort, inboxPort, questionnairePort, objectGrantStore, clock);
+    }
+
+    @Bean
+    ExportGenerationService exportGenerationService(
+            JdbcExportRequestStore jdbcExportRequestStore,
+            ExportApprovalGate exportApprovalGate,
+            ExportExpiryService exportExpiryService,
+            List<SubjectRecordExporter> subjectRecordExporters,
+            ObjectStorage objectStorage,
+            ObjectGrantStore objectGrantStore,
+            ObjectDownloadLinkService objectDownloadLinkService,
+            WorkflowService workflowService,
+            EndUserAccountStore endUserAccountStore,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine,
+            AuditPort auditPort,
+            Clock clock,
+            @Value("${platform.export.artifact-ttl:P7D}") Duration artifactTtl,
+            TransactionTemplate transactionTemplate) {
+        return new ExportGenerationService(
+                jdbcExportRequestStore,
+                exportApprovalGate,
+                exportExpiryService,
+                subjectRecordExporters,
+                objectStorage,
+                objectGrantStore,
+                objectDownloadLinkService,
+                workflowService,
+                endUserAccountStore,
+                operatorTenantAccess,
+                policyEngine,
+                auditPort,
+                clock,
+                artifactTtl,
+                transactionTemplate);
+    }
+
+    @Bean
+    JdbcEndUserTokenStore endUserTokenStore(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            EndUserAccountStore endUserAccountStore,
+            Clock clock,
+            @Value("${platform.end-user.auth.access-token-ttl:PT30M}") Duration accessTokenTtl,
+            @Value("${platform.end-user.auth.refresh-token-ttl:PT8H}") Duration refreshTokenTtl) {
+        return new JdbcEndUserTokenStore(
+                jdbc, transactionTemplate, endUserAccountStore, clock, accessTokenTtl, refreshTokenTtl);
+    }
+
+    /**
+     * End-user phone verification codes + lockout (WP2-3). Production without a real sender is fail-closed.
+     * 终端手机验证码与锁定。生产未配置真实发送器则失败关闭，不在日志中打印验证码。
+     */
+    @Bean
+    VerificationCodeSender endUserVerificationCodeSender(
+            Environment environment,
+            @Value("${platform.end-user.auth.verification-code.reveal-in-response:false}") boolean revealInResponse) {
+        boolean production = ProductionProfileGuard.isProductionProfile(environment.getActiveProfiles());
+        if (production && revealInResponse) {
+            throw new IllegalStateException(
+                    "platform.end-user.auth.verification-code.reveal-in-response must stay false under prod/production");
+        }
+        if (production) {
+            return new FailClosedVerificationCodeSender();
+        }
+        return new DevVerificationCodeSender();
+    }
+
+    @Bean
+    MemoryVerificationCodePort endUserVerificationCodePort(
+            Clock clock,
+            VerificationCodeSender endUserVerificationCodeSender,
+            @Value("${platform.end-user.auth.verification-code.ttl:PT5M}") Duration ttl,
+            @Value("${platform.end-user.auth.verification-code.reveal-in-response:false}") boolean revealInResponse) {
+        return new MemoryVerificationCodePort(clock, ttl, revealInResponse, endUserVerificationCodeSender);
+    }
+
+    @Bean
+    JdbcEndUserLoginLockout endUserLoginLockout(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            Clock clock,
+            @Value("${platform.end-user.auth.lockout-max-failures:5}") int maxFailures,
+            @Value("${platform.end-user.auth.lockout-duration:PT15M}") Duration lockoutDuration) {
+        return new JdbcEndUserLoginLockout(
+                jdbc, transactionTemplate, clock, maxFailures, lockoutDuration);
+    }
+
+    @Bean
+    EndUserPhoneAuthService endUserPhoneAuthService(
+            EndUserAccountStore endUserAccountStore,
+            JdbcEndUserTokenStore endUserTokenStore,
+            VerificationCodePort endUserVerificationCodePort,
+            JdbcEndUserLoginLockout endUserLoginLockout,
+            JdbcTemplate jdbc) {
+        return new EndUserPhoneAuthService(
+                endUserAccountStore,
+                endUserTokenStore,
+                endUserVerificationCodePort,
+                endUserLoginLockout,
+                jdbc);
+    }
+
+    /**
+     * End-user WeChat mini-program assertion (WP2-4). Dev stub is local-only; prod without mini
+     * config is fail-closed and never auto-provisions.
+     * 终端微信小程序断言。开发桩仅限本机；生产未配置则失败关闭，绝不自动开户。
+     */
+    @Bean
+    EndUserWeChatAssertion endUserWeChatAssertion(
+            Environment environment,
+            WeChatIdpAdapter weChatIdpAdapter,
+            WeChatProperties weChatProperties,
+            @Value("${platform.end-user.auth.wechat.dev-stub:false}") boolean devStub) {
+        boolean production = ProductionProfileGuard.isProductionProfile(environment.getActiveProfiles());
+        if (production && devStub) {
+            throw new IllegalStateException(
+                    "platform.end-user.auth.wechat.dev-stub must stay false under prod/production");
+        }
+        if (devStub) {
+            return new DevEndUserWeChatAssertion();
+        }
+        if (production && !weChatProperties.miniReady()) {
+            return new FailClosedEndUserWeChatAssertion();
+        }
+        return new AdapterEndUserWeChatAssertion(weChatIdpAdapter, weChatProperties);
+    }
+
+    @Bean
+    EndUserWeChatAuthService endUserWeChatAuthService(
+            EndUserAccountStore endUserAccountStore,
+            JdbcEndUserTokenStore endUserTokenStore,
+            EndUserWeChatAssertion endUserWeChatAssertion,
+            JdbcEndUserLoginLockout endUserLoginLockout,
+            JdbcTemplate jdbc) {
+        return new EndUserWeChatAuthService(
+                endUserAccountStore,
+                endUserTokenStore,
+                endUserWeChatAssertion,
+                endUserLoginLockout,
+                jdbc);
     }
 
     @Bean
@@ -548,6 +868,86 @@ public class PlatformWiring {
 
 
 
+
+    @Bean
+    NotificationPort notificationPort(JdbcTemplate jdbc, ObjectMapper objectMapper, Clock clock) {
+        return new JdbcNotificationPort(jdbc, objectMapper, clock);
+    }
+
+    @Bean
+    RecordingPaymentSink paymentAdapterSink() {
+        return new RecordingPaymentSink();
+    }
+
+    /**
+     * Payment adapters: mock/dev by default for {@code MOCK}; production fails closed when no vendor bean is registered.
+     * {@code WECHAT_PAY} / {@code ALIPAY} stay reserved identifiers; a later vendor bean can drop in (SPI).
+     * 默认开发为 {@code MOCK} 挂模拟适配器；生产且未注册厂商 Bean 时失败关闭。
+     * {@code WECHAT_PAY} / {@code ALIPAY} 只是预留标识，后续厂商 Bean 可按 SPI 接入。
+     */
+    @Bean
+    PaymentPort paymentPort(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            Clock clock,
+            ObjectMapper objectMapper,
+            Environment environment,
+            ObjectProvider<PaymentProviderAdapter> providedAdapters,
+            RecordingPaymentSink paymentAdapterSink) {
+        boolean production = ProductionProfileGuard.isProductionProfile(environment.getActiveProfiles());
+        java.util.LinkedHashMap<String, PaymentProviderAdapter> map = new java.util.LinkedHashMap<>();
+        providedAdapters.orderedStream().forEach(adapter -> map.putIfAbsent(adapter.providerId(), adapter));
+        map.putIfAbsent(
+                PaymentProviderIds.MOCK,
+                production
+                        ? new FailClosedPaymentAdapter(PaymentProviderIds.MOCK)
+                        : new MockPaymentAdapter(paymentAdapterSink));
+        return new JdbcPaymentPort(jdbc, transactionTemplate, clock, objectMapper, map.values());
+    }
+
+    @Bean
+    RecordingNotificationSink notificationDispatchSink() {
+        return new RecordingNotificationSink();
+    }
+
+    /**
+     * Channel adapters: mock/dev by default, fail-closed under prod when no vendor bean is registered.
+     * A later {@link NotificationChannelAdapter} bean for a channel replaces the default (SPI).
+     * 默认开发用模拟适配器；生产且未注册厂商 Bean 时失败关闭。之后注册的渠道适配器 Bean 会替换默认实现（SPI）。
+     */
+    @Bean
+    NotificationDispatcher notificationDispatcher(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            DistributedLockPort lock,
+            ObjectMapper objectMapper,
+            Clock clock,
+            Environment environment,
+            ObjectProvider<NotificationChannelAdapter> providedAdapters,
+            RecordingNotificationSink notificationDispatchSink) {
+        boolean production = ProductionProfileGuard.isProductionProfile(environment.getActiveProfiles());
+        java.util.EnumMap<NotificationChannel, NotificationChannelAdapter> map =
+                new java.util.EnumMap<>(NotificationChannel.class);
+        providedAdapters.orderedStream().forEach(adapter -> map.putIfAbsent(adapter.channel(), adapter));
+        for (NotificationChannel channel : NotificationChannel.values()) {
+            if (!map.containsKey(channel)) {
+                map.put(
+                        channel,
+                        production
+                                ? new FailClosedNotificationAdapter(channel)
+                                : new MockNotificationAdapter(channel, notificationDispatchSink));
+            }
+        }
+        return new JdbcNotificationDispatcher(
+                jdbc,
+                transactionTemplate,
+                lock,
+                objectMapper,
+                clock,
+                java.util.List.copyOf(map.values()));
+    }
+
+
     @Bean
     InboxPort inboxPort(JdbcTemplate jdbc, TransactionTemplate transactionTemplate) {
         return new JdbcInboxPort(jdbc, transactionTemplate);
@@ -560,6 +960,14 @@ public class PlatformWiring {
             Clock clock,
             RateLimitPort rateLimitPort) {
         return new JdbcQuestionnairePort(jdbc, transactionTemplate, clock, rateLimitPort);
+    }
+
+    @Bean
+    QuestionnaireService questionnaireService(
+            QuestionnairePort questionnairePort,
+            OperatorTenantAccess operatorTenantAccess,
+            TenantGuard tenantGuard) {
+        return new QuestionnaireService(questionnairePort, operatorTenantAccess, tenantGuard);
     }
 
     @Bean
@@ -606,7 +1014,8 @@ public class PlatformWiring {
             ObjectStorage objectStorage,
             ChunkedBlobUploadStore chunkedBlobUploadStore,
             InboxAttachmentStagingStore inboxAttachmentStagingStore,
-            InboxFanoutWorker inboxFanoutWorker) {
+            InboxFanoutWorker inboxFanoutWorker,
+            ObjectUploadLimits objectUploadLimits) {
         return new InboxService(
                 inboxPort,
                 inboxGroupPort,
@@ -617,7 +1026,8 @@ public class PlatformWiring {
                 objectStorage,
                 chunkedBlobUploadStore,
                 inboxAttachmentStagingStore,
-                inboxFanoutWorker);
+                inboxFanoutWorker,
+                objectUploadLimits);
     }
 
     @Bean
@@ -626,19 +1036,24 @@ public class PlatformWiring {
     }
 
     @Bean
-    RepairTicketOrgApproverGate repairTicketOrgApproverGate(
+    WorkflowOrgApproverGate workflowOrgApproverGate(
             HybridEntityStore hybridEntityStore,
             EntityCatalog entityCatalog,
             OrganizationScopeResolver organizationScopeResolver,
-            JdbcOrganizationStore jdbcOrganizationStore) {
-        return new RepairTicketOrgApproverGate(
-                hybridEntityStore, entityCatalog, organizationScopeResolver, jdbcOrganizationStore);
+            JdbcOrganizationStore jdbcOrganizationStore,
+            WorkflowCatalog workflowCatalog) {
+        return new WorkflowOrgApproverGate(
+                hybridEntityStore,
+                entityCatalog,
+                organizationScopeResolver,
+                jdbcOrganizationStore,
+                workflowCatalog);
     }
 
     @Bean
     RepairTicketWorkflowInboxHook repairTicketWorkflowInboxHook(
-            InboxPort inboxPort, RepairTicketOrgApproverGate repairTicketOrgApproverGate) {
-        return new RepairTicketWorkflowInboxHook(inboxPort, repairTicketOrgApproverGate);
+            InboxPort inboxPort, WorkflowOrgApproverGate workflowOrgApproverGate) {
+        return new RepairTicketWorkflowInboxHook(inboxPort, workflowOrgApproverGate);
     }
 
     @Bean
@@ -648,18 +1063,20 @@ public class PlatformWiring {
             CapabilityCatalog capabilityCatalog,
             OperatorActionAudit operatorActionAudit,
             Clock clock,
-            RepairTicketOrgApproverGate repairTicketOrgApproverGate,
+            WorkflowOrgApproverGate workflowOrgApproverGate,
             EffectiveDeclarationService effectiveDeclarationService,
-            RepairTicketWorkflowInboxHook repairTicketWorkflowInboxHook) {
+            RepairTicketWorkflowInboxHook repairTicketWorkflowInboxHook,
+            WorkflowCatalog workflowCatalog) {
         return new WorkflowService(
                 jdbcWorkflowStore,
                 operatorTenantAccess,
                 capabilityCatalog,
                 operatorActionAudit,
                 clock,
-                repairTicketOrgApproverGate,
+                workflowOrgApproverGate,
                 effectiveDeclarationService,
-                repairTicketWorkflowInboxHook);
+                repairTicketWorkflowInboxHook,
+                workflowCatalog);
     }
 
     @Bean
@@ -729,7 +1146,8 @@ public class PlatformWiring {
             @Value("${platform.delivery.transport:socket}") String transportRaw,
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
-            Clock clock) {
+            Clock clock,
+            @Value("${platform.tenant.auto-create-on-submit:false}") boolean autoCreateTenantOnSubmit) {
         DeliveryPort port = deliveryPort.getIfAvailable();
         if (port == null) {
             DeliveryTransport transport = DeliveryTransport.parse(transportRaw);
@@ -743,7 +1161,16 @@ public class PlatformWiring {
                             + " but no DeliveryPort bean is registered");
         }
         return new JdbcTaskMessagePort(
-                jdbc, transaction, idempotencyPort, auditPort, lock, port, openTelemetry, objectMapper, clock);
+                jdbc,
+                transaction,
+                idempotencyPort,
+                auditPort,
+                lock,
+                port,
+                openTelemetry,
+                objectMapper,
+                clock,
+                autoCreateTenantOnSubmit);
     }
 
     @Bean
@@ -797,10 +1224,114 @@ public class PlatformWiring {
      * Entity attachment metadata + ObjectStorage bytes (ES-2 / ADR 0002) —
      * 实体附件元数据 + ObjectStorage 字节（ES-2）。
      */
+    /**
+     * WP3-3 generic single-file cap (ADR 0015 D4) — 通用单文件上限。
+     * Key: {@code platform.storage.upload.max-bytes} / {@code PLATFORM_STORAGE_UPLOAD_MAX_BYTES} (default 50MB).
+     */
     @Bean
-    EntityBlobStore entityBlobStore(JdbcTemplate jdbc, ObjectStorage objectStorage, Clock clock) {
-        return new JdbcEntityBlobStore(jdbc, objectStorage, clock);
+    ObjectUploadLimits objectUploadLimits(
+            @Value("${platform.storage.upload.max-bytes:50MB}") String maxBytes) {
+        return new ObjectUploadLimits(
+                ObjectUploadLimits.parseMaxBytes(maxBytes, ObjectUploadLimits.DEFAULT_MAX_BYTES));
     }
+
+    @Bean
+    EntityBlobStore entityBlobStore(
+            JdbcTemplate jdbc, ObjectStorage objectStorage, Clock clock, ObjectUploadLimits objectUploadLimits) {
+        return new JdbcEntityBlobStore(jdbc, objectStorage, clock, objectUploadLimits);
+    }
+
+    /**
+     * Authorized-object registry and grants (ADR 0015 / WP3-1), above the blob port.
+     * 授权对象登记与授权（在对象存储端口之上）。
+     */
+    @Bean
+    ObjectAccessAudit objectAccessAudit(AuditPort auditPort, Clock clock) {
+        return new ObjectAccessAudit(auditPort, clock);
+    }
+
+    @Bean
+    ObjectGrantStore objectGrantStore(JdbcTemplate jdbc, Clock clock, ObjectAccessAudit objectAccessAudit) {
+        return new JdbcObjectGrantStore(jdbc, clock, objectAccessAudit);
+    }
+
+    /**
+     * WP7-2 end-user object upload and list (ADR 0019). No chunked upload in this slice.
+     * 终端对象上传与列表；本切片不做分块上传。
+     */
+    @Bean
+    EndUserObjectService endUserObjectService(
+            EndUserAccountStore endUserAccountStore,
+            ObjectStorage objectStorage,
+            ObjectGrantStore objectGrantStore,
+            ObjectUploadLimits objectUploadLimits,
+            ObjectAccessAudit objectAccessAudit) {
+        return new EndUserObjectService(
+                endUserAccountStore, objectStorage, objectGrantStore, objectUploadLimits, objectAccessAudit);
+    }
+
+    @Bean
+    AuthorizedObjectRegistrar authorizedObjectRegistrar(
+            EntityBlobStore entityBlobStore, ObjectGrantStore objectGrantStore, ObjectAccessAudit objectAccessAudit) {
+        return new AuthorizedObjectRegistrar(entityBlobStore, objectGrantStore, objectAccessAudit);
+    }
+
+    /**
+     * Deny-by-default owner-or-grant decision (WP3-1). Does not issue signed URLs.
+     * 默认拒绝的所有者或显式授权判定。不签发签名链接。
+     */
+    @Bean
+    ObjectAccessAuthorizer objectAccessAuthorizer(ObjectGrantStore objectGrantStore, JdbcTemplate jdbc, Clock clock) {
+        return new ObjectAccessAuthorizer(objectGrantStore, jdbc, clock);
+    }
+
+    /**
+     * WP3-2 signed-download settings (ADR 0015 D3) — 短时签名下载配置。
+     * Keys: {@code platform.storage.download.ttl} / {@code PLATFORM_STORAGE_DOWNLOAD_TTL} (default PT15M),
+     * {@code platform.storage.download.ttl-max} / {@code PLATFORM_STORAGE_DOWNLOAD_TTL_MAX} (hard cap PT1H in code),
+     * {@code platform.storage.download.public-base-url} / {@code PLATFORM_STORAGE_DOWNLOAD_PUBLIC_BASE_URL},
+     * {@code platform.storage.download.signing-key} / {@code PLATFORM_STORAGE_DOWNLOAD_SIGNING_KEY}.
+     */
+    @Bean
+    ObjectDownloadProperties objectDownloadProperties(
+            @Value("${platform.storage.download.ttl:PT15M}") String ttl,
+            @Value("${platform.storage.download.ttl-max:PT1H}") String ttlMax,
+            @Value("${platform.storage.download.public-base-url:http://127.0.0.1:8080}") String publicBaseUrl,
+            @Value("${platform.storage.download.signing-key:}") String signingKey) {
+        return new ObjectDownloadProperties(
+                ObjectDownloadProperties.parseIso(ttl, ObjectDownloadProperties.DEFAULT_TTL),
+                ObjectDownloadProperties.parseIso(ttlMax, ObjectDownloadProperties.HARD_CAP),
+                publicBaseUrl,
+                signingKey);
+    }
+
+    @Bean
+    LocalDownloadSignature localDownloadSignature(ObjectDownloadProperties properties) {
+        return new LocalDownloadSignature(properties.signingKey());
+    }
+
+    @Bean
+    ObjectDownloadUrlIssuer objectDownloadUrlIssuer(
+            ObjectStorage objectStorage, ObjectDownloadProperties properties, LocalDownloadSignature signature, Clock clock) {
+        if (objectStorage instanceof S3ObjectStorage s3) {
+            return new S3PresignedDownloadIssuer(s3, clock);
+        }
+        return new LocalHmacDownloadIssuer(signature, properties.publicBaseUrl(), clock);
+    }
+
+    @Bean
+    ObjectDownloadLinkService objectDownloadLinkService(
+            ObjectAccessAuthorizer authorizer,
+            ObjectDownloadUrlIssuer issuer,
+            LocalDownloadSignature signature,
+            ObjectStorage objectStorage,
+            ObjectDownloadProperties properties,
+            Clock clock,
+            ObjectAccessAudit objectAccessAudit) {
+        return new ObjectDownloadLinkService(
+                authorizer, issuer, signature, objectStorage, properties, clock, objectAccessAudit);
+    }
+
 
     /**
      * CHUNK-1: local temp chunk sessions; assemble then EntityBlobStore.put (works for local|s3 ObjectStorage) —

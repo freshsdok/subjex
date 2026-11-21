@@ -26,8 +26,10 @@ public record InboxAttachmentBind(
     /** Max attachments per message (ADR 0009) — 每条消息附件上限. */
     public static final int MAX_PER_MESSAGE = 5;
 
-    /** Max bytes per file; aligns entity blob MVP — 单文件上限，对齐实体附件 MVP. */
-    public static final int MAX_BYTES = 5 * 1024 * 1024;
+    /** Max bytes per file; default aligns WP3-3 / ADR 0015 D4 (50 MiB).
+     * Runtime cap is {@code platform.storage.upload.max-bytes}.
+     * 单文件默认上限 50 MiB，与通用对象上限对齐；运行时以配置为准。 */
+    public static final int MAX_BYTES = 50 * 1024 * 1024;
 
     public InboxAttachmentBind {
         Objects.requireNonNull(fileName, "fileName");

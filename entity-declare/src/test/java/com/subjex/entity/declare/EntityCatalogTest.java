@@ -21,7 +21,7 @@ class EntityCatalogTest {
     void loadsCheckedInEntitiesFromClasspath() {
         EntityCatalog catalog = EntityCatalog.load(EntityCatalogTest.class.getClassLoader());
 
-        assertEquals(3, catalog.all().size());
+        assertEquals(4, catalog.all().size());
         assertTrue(catalog.find("service-note").isPresent());
         assertEquals(EntityStorageMode.HYBRID, catalog.find("service-note").orElseThrow().storageMode());
         Optional<RenderedEntity> ticket = catalog.find("demo-ticket");
@@ -49,6 +49,16 @@ class EntityCatalogTest {
         assertEquals(EntityFieldKind.SUBJECT_REF, repair.get().fields().get(4).kind());
         assertEquals("organization", repair.get().fields().get(5).name());
         assertEquals(EntityFieldKind.ORGANIZATION_REF, repair.get().fields().get(5).kind());
+        // WP4-3: official generic order-approval sample — 正式通用订单审批样例
+        Optional<RenderedEntity> order = catalog.find("order-approval");
+        assertTrue(order.isPresent());
+        assertEquals(EntityStorageMode.HYBRID, order.get().storageMode());
+        assertTrue(order.get().tenantScoped());
+        assertEquals("order_approval", order.get().tableName());
+        assertEquals(3, order.get().fields().size());
+        assertEquals("orderId", order.get().fields().get(0).name());
+        assertEquals("organization", order.get().fields().get(2).name());
+        assertEquals(EntityFieldKind.ORGANIZATION_REF, order.get().fields().get(2).kind());
     }
 
     @Test

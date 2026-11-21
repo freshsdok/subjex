@@ -132,7 +132,9 @@ public class OperatorDirectoryTestConfiguration {
             JdbcTemplate jdbc,
             DataSource operatorTables,
             JdbcOperatorDirectory operatorDirectory,
-            AesGcmSecretCipher mfaSecretCipher) {
+            AesGcmSecretCipher mfaSecretCipher,
+            @Value("${platform.mfa.required:false}") boolean required,
+            @Value("${platform.mfa.required-for-platform-operator:false}") boolean requiredForPlatformOperator) {
         return new JdbcOperatorMfaStore(
                 jdbc,
                 new TransactionTemplate(new DataSourceTransactionManager(operatorTables)),
@@ -141,8 +143,8 @@ public class OperatorDirectoryTestConfiguration {
                 Clock.systemUTC(),
                 Duration.ofMinutes(5),
                 "subjex-test",
-                false,
-                false);
+                required,
+                requiredForPlatformOperator);
     }
 
 

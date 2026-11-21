@@ -37,9 +37,12 @@ export type UiPermissionManifest = {
 
 /** Local labels for shell menu ids — 壳菜单 id 的本地文案。 */
 export const SHELL_MENU_LABEL_BY_ID: Readonly<Record<string, string>> = {
-  "nav.home": "首页 / Home",
-  "nav.login": "登录 / Sign in",
-  "nav.inbox": "站内信 / Inbox",
+  "nav.home": "首页",
+  "nav.login": "登录",
+  "nav.profile": "我的资料",
+  "nav.inbox": "站内信",
+  "nav.questionnaires": "问卷",
+  "nav.files": "我的文件",
 };
 
 /**

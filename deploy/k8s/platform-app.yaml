@@ -11,9 +11,9 @@ spec:
   # P4/Scale-4d: default remains replicas: 1. Advertise N>1 only with BOTH
   # PLATFORM_RATE_LIMIT_BACKEND=jdbc AND PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc
   # (see docs/release/single-replica-gate.md and platform-app-shared-backends.snippet.yaml).
-  # Object store is still local disk unless a shared PVC is mounted.
+  # WP1-4: production object storage is S3-compatible (env/Secret below). Local disk is not the plan.
   # P4/Scale-4d：默认仍 replicas: 1。对外 N>1 须两个后端都为 jdbc（见单副本门禁文档与可选片段）。
-  # 对象存储仍是本地盘，除非挂共享 PVC。
+  # WP1-4：生产对象存储为 S3 兼容（下方环境变量/Secret）。本地盘不是生产方案。
   replicas: 1
   selector:
     matchLabels:
@@ -40,6 +40,10 @@ spec:
             - name: management
               containerPort: 8089
           env:
+            # Dedicated production profile; never combine with local (ProductionProfileGuard).
+            # 专用生产 profile；不可与 local 组合（ProductionProfileGuard）。
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
             - name: PLATFORM_CONNECTION_VENDOR
               value: postgresql
             - name: PLATFORM_JDBC_URL
@@ -75,6 +79,40 @@ spec:
               value: "8089"
             - name: PLATFORM_OTLP_ENDPOINT
               value: ""
+            # WP1-4: S3-compatible object storage (MinIO or any S3 API). No real credentials here.
+            # Prod profile already defaults type=s3; these Secret keys must be provided or startup fails.
+            # Do not mount a local object-store volume as the production plan.
+            # WP1-4：S3 兼容对象存储（MinIO 等）。此处无真实密钥。
+            # prod 已默认 type=s3；须提供下列 Secret，否则启动失败。不要把本地盘当生产方案。
+            - name: PLATFORM_STORAGE_TYPE
+              value: s3
+            - name: PLATFORM_STORAGE_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: platform-object-storage
+                  key: endpoint
+            - name: PLATFORM_STORAGE_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: platform-object-storage
+                  key: region
+            - name: PLATFORM_STORAGE_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-object-storage
+                  key: bucket
+            - name: PLATFORM_STORAGE_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: platform-object-storage
+                  key: access-key
+            - name: PLATFORM_STORAGE_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: platform-object-storage
+                  key: secret-key
+            - name: PLATFORM_STORAGE_S3_PATH_STYLE
+              value: "true"
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness

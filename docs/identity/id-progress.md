@@ -1,5 +1,8 @@
 # Identity / user-center progress — 身份与用户中心进度
 
+Track for ADR 0003 (**operators**). End-user (`END_USER`) identity is a separate track: [`wp2-end-user-progress.md`](wp2-end-user-progress.md) and [ADR 0014](../adr/0014-end-user-identity.md). Do not apply this page’s “IdP unlinked → deny / no auto-provision” policy to end-user WeChat login.
+本页是 ADR 0003 **操作员**用户中心轨。终端用户身份见 WP2 进度与 ADR 0014。不要把「未绑定即拒绝 / 不自动开户」套到终端微信登录。
+
 Track for ADR 0003. Order: **identity callable user-center first**, then audit/tracing observability.
 
 先做可调用用户中心，再做审计/追踪可观测性。

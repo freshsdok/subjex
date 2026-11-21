@@ -33,23 +33,34 @@ type InstanceDoc = {
   updatedAt?: string;
 };
 
+type LegalAction = {
+  action?: string;
+  toState?: string;
+  requiredPermission?: string;
+  consumeApproval?: boolean;
+};
+
 type StatusReply = {
   instance?: InstanceDoc;
   history?: HistoryRow[];
   pendingApproval?: PendingApproval | null;
   approvalCandidateSubjectIds?: string[];
+  legalActions?: LegalAction[];
+};
+
+type DefinitionReply = {
+  definitionKey?: string;
+  entityKey?: string;
+  initialState?: string;
+  autoStartOnUpsert?: boolean;
 };
 
 type MeReply = { subjectId?: string; permissions?: string[] };
 
-const DEFINITION_KEY = "repair-ticket";
-
 /**
- * WorkflowStatusPanel — WF-3 minimal console UI for repair-ticket FSM on entity detail.
- * Loads by-record status; start / transition via /api/platform/workflows.
- * WF-RT-2/5: after form submit, instance usually already OPEN — Start stays hidden when present.
- * WF-3：实体详情上的报修工单状态机面板；经平台代理启停与流转。
- * WF-RT-2/5：表单提交后通常已有 OPEN 实例，存在时隐藏「启动」。
+ * WorkflowStatusPanel — WF-3 / WP4-2 console UI for the machine bound to this entityKey.
+ * Resolves the definition by entity (not a hardcoded repair-ticket key). Unbound entities hide the panel.
+ * WF-3 / WP4-2：按 entityKey 解析声明，不写死 repair-ticket；未绑定实体隐藏本面板。
  */
 export function WorkflowStatusPanel({
   entityKey,
@@ -62,6 +73,8 @@ export function WorkflowStatusPanel({
   phrases: PhraseBook;
   tenantId?: string;
 }) {
+  const [definition, setDefinition] = useState<DefinitionReply | null>(null);
+  const [unbound, setUnbound] = useState(false);
   const [status, setStatus] = useState<StatusReply | null>(null);
   const [missing, setMissing] = useState(false);
   const [subjectId, setSubjectId] = useState<string | null>(null);
@@ -77,6 +90,11 @@ export function WorkflowStatusPanel({
     }
     return headers;
   }, [tenantId]);
+
+  const definitionUrl = useMemo(() => {
+    const q = new URLSearchParams({ entityKey });
+    return `/api/platform/workflows/definitions/by-entity?${q.toString()}`;
+  }, [entityKey]);
 
   const byRecordUrl = useMemo(() => {
     const q = new URLSearchParams({
@@ -94,6 +112,29 @@ export function WorkflowStatusPanel({
     setSubjectId(typeof body.subjectId === "string" ? body.subjectId : null);
     setPermissions(Array.isArray(body.permissions) ? body.permissions.filter((p) => typeof p === "string") : []);
   }, []);
+
+  const loadDefinition = useCallback(async () => {
+    const reply = await fetch(definitionUrl, {
+      cache: "no-store",
+      headers: tenantHeaders(),
+    }).catch(() => null);
+    if (!reply) {
+      setError(fillPhrase(phrases.workflowLoadFailed, { status: 0 }));
+      return;
+    }
+    if (reply.status === 404) {
+      setUnbound(true);
+      setDefinition(null);
+      return;
+    }
+    if (!reply.ok) {
+      setError(fillPhrase(phrases.workflowLoadFailed, { status: reply.status }));
+      return;
+    }
+    const body = (await reply.json()) as DefinitionReply;
+    setUnbound(false);
+    setDefinition(body);
+  }, [definitionUrl, tenantHeaders, phrases.workflowLoadFailed]);
 
   const loadStatus = useCallback(async () => {
     setError(null);
@@ -125,9 +166,21 @@ export function WorkflowStatusPanel({
   }, [byRecordUrl, tenantHeaders, phrases.workflowLoadFailed, tenantId]);
 
   useEffect(() => {
-    void loadMe();
-    void loadStatus();
-  }, [loadMe, loadStatus]);
+    let cancelled = false;
+    void (async () => {
+      // Yield so loader setState is not synchronous in this effect.
+      // 先让出事件循环，避免在 effect 内同步 setState。
+      await Promise.resolve();
+      if (!cancelled) {
+        await loadMe();
+        await loadDefinition();
+        await loadStatus();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadMe, loadDefinition, loadStatus]);
 
   async function readReason(reply: Response): Promise<string> {
     try {
@@ -141,11 +194,12 @@ export function WorkflowStatusPanel({
   }
 
   async function startWorkflow() {
-    if (!tenantId?.trim()) return;
+    const definitionKey = definition?.definitionKey?.trim();
+    if (!tenantId?.trim() || !definitionKey) return;
     setBusy(true);
     setError(null);
     try {
-      const reply = await fetch(`/api/platform/workflows/${encodeURIComponent(DEFINITION_KEY)}/instances`, {
+      const reply = await fetch(`/api/platform/workflows/${encodeURIComponent(definitionKey)}/instances`, {
         method: "POST",
         headers: { ...tenantHeaders(), "content-type": "application/json" },
         body: JSON.stringify({
@@ -211,36 +265,23 @@ export function WorkflowStatusPanel({
   if (!canRead && permissions.length > 0) {
     return null;
   }
+  // No machine is bound to this entity — hide the panel (do not offer a fake Start).
+  // 该实体未绑定机器时隐藏面板，避免误显示「启动」。
+  if (unbound) {
+    return null;
+  }
 
   const actions: { action: string; label: string; enabled: boolean }[] = [];
-  if (state === "OPEN") {
+  for (const legal of status?.legalActions ?? []) {
+    const action = typeof legal.action === "string" ? legal.action.trim() : "";
+    if (action === "") continue;
+    const required = typeof legal.requiredPermission === "string" ? legal.requiredPermission : "";
+    const permitted = required !== "" ? permissions.includes(required) : canWrite;
+    const enabled = permitted && !busy && !(Boolean(legal.consumeApproval) && isSelfRequester);
     actions.push({
-      action: "start_work",
-      label: phrases.workflowActionStartWork,
-      enabled: canWrite && !busy,
-    });
-  } else if (state === "IN_PROGRESS") {
-    actions.push({
-      action: "request_approval",
-      label: phrases.workflowActionRequestApproval,
-      enabled: canWrite && !busy,
-    });
-  } else if (state === "AWAITING_APPROVAL") {
-    actions.push({
-      action: "approve",
-      label: phrases.workflowActionApprove,
-      enabled: canApprove && !busy && !isSelfRequester,
-    });
-    actions.push({
-      action: "reject",
-      label: phrases.workflowActionReject,
-      enabled: canApprove && !busy && !isSelfRequester,
-    });
-  } else if (state === "APPROVED") {
-    actions.push({
-      action: "close",
-      label: phrases.workflowActionClose,
-      enabled: canWrite && !busy,
+      action,
+      label: actionLabel(action, phrases),
+      enabled,
     });
   }
 
@@ -254,7 +295,7 @@ export function WorkflowStatusPanel({
       {missing || !status?.instance ? (
         <div className="mt-3 space-y-2">
           <p className="text-sm text-muted">{phrases.workflowNoInstance}</p>
-          {canWrite ? (
+          {canWrite && definition?.definitionKey ? (
             <button
               type="button"
               className="rounded bg-accent px-3 py-1.5 text-sm text-white disabled:opacity-50"
@@ -276,7 +317,7 @@ export function WorkflowStatusPanel({
               {fillPhrase(phrases.workflowPendingRequester, { subjectId: pendingRequester })}
             </p>
           ) : null}
-          {state === "AWAITING_APPROVAL" ? (
+          {status?.pendingApproval ? (
             <p className="text-xs text-muted">
               {(status?.approvalCandidateSubjectIds?.length ?? 0) > 0
                 ? fillPhrase(phrases.workflowApprovalCandidates, {
@@ -342,4 +383,22 @@ export function WorkflowStatusPanel({
       )}
     </div>
   );
+}
+
+/** Keep historic repair-ticket phrases; unknown wires show the action token. 已知线名沿用原措辞，其它显示令牌。 */
+function actionLabel(action: string, phrases: PhraseBook): string {
+  switch (action) {
+    case "start_work":
+      return phrases.workflowActionStartWork;
+    case "request_approval":
+      return phrases.workflowActionRequestApproval;
+    case "approve":
+      return phrases.workflowActionApprove;
+    case "reject":
+      return phrases.workflowActionReject;
+    case "close":
+      return phrases.workflowActionClose;
+    default:
+      return action;
+  }
 }

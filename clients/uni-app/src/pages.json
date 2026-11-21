@@ -3,19 +3,43 @@
     {
       "path": "pages/index/index",
       "style": {
-        "navigationBarTitleText": "subjex"
+        "navigationBarTitleText": "首页"
       }
     },
     {
       "path": "pages/login/login",
       "style": {
-        "navigationBarTitleText": "登录 / Sign in"
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": {
+        "navigationBarTitleText": "我的资料"
       }
     },
     {
       "path": "pages/inbox/inbox",
       "style": {
-        "navigationBarTitleText": "站内信 / Inbox"
+        "navigationBarTitleText": "站内信"
+      }
+    },
+    {
+      "path": "pages/questionnaire/list",
+      "style": {
+        "navigationBarTitleText": "问卷"
+      }
+    },
+    {
+      "path": "pages/questionnaire/fill",
+      "style": {
+        "navigationBarTitleText": "填写问卷"
+      }
+    },
+    {
+      "path": "pages/files/files",
+      "style": {
+        "navigationBarTitleText": "我的文件"
       }
     }
   ],

@@ -1,6 +1,6 @@
 # Outbox event contract / 出箱事件契约
 
-Status: living doc (2026-10-16). Relates: `DeliveryPort`, `OutboxRelay`, `JdbcTaskMessagePort`, socket frame `SUBJEX-OUTBOX 2`, optional Kafka adapter.
+Status: living doc (2026-10-16). Relates: `DeliveryPort`, `OutboxRelay`, `JdbcTaskMessagePort`, socket frame `SUBJEX-OUTBOX 2`, optional Kafka adapter. External template notifications (WP5) are directed by ADR [`0017`](../adr/0017-notification-port.md) to **reuse this bus**, not to add a second outbox product. Payment status notices (WP6) are directed by ADR [`0018`](../adr/0018-payment-port.md) to reuse the same bus (`PaymentStatusChanged`); implemented in WP6-2 (`978bce2`) and relayed via `DeliveryPort` like `TaskRecorded` (the body is not parsed as `TaskRecordedNotice`).
 
 ## Lifecycle / 生命周期
 
@@ -37,16 +37,16 @@ Legacy read: `GET /admin/dead-letters` (same list).
 | --- | --- |
 | `event_id` | Stable id (= notice.eventId) |
 | `tenant_id` | Tenant |
-| `event_name` | Wire name; v1 only `TaskRecorded` |
+| `event_name` | Wire name; `TaskRecorded` or `PaymentStatusChanged` (relayed via `DeliveryPort`) or `NotificationRequested` (dispatched in-process by `NotificationDispatcher`, not via `OutboxRelay`) |
 | `event_body` | JSON string ≤ 4000 chars |
 | `event_state` | `PENDING` \| `PUBLISHED` \| `DEAD` |
 | `trace_id` | Trace id used to build W3C `traceparent` on the wire |
 | `attempt_count` | Delivery attempts recorded |
 | `failure_reason` | Last failure clip |
 
-### Body JSON (v1)
+### Body JSON
 
-Only event today: `TaskRecordedNotice` / name `TaskRecorded`:
+`TaskRecordedNotice` / name `TaskRecorded` (existing relay / socket / Kafka path):
 
 ```json
 {
@@ -54,6 +54,24 @@ Only event today: `TaskRecordedNotice` / name `TaskRecorded`:
   "tenantId": "<tenant>",
   "taskId": "<uuid>",
   "stepName": "<step>"
+}
+```
+
+`NotificationRequested` (written by `NotificationPort`; not produced by `TaskMessagePort.submit`). The body carries a template id and a parameter map, not hard-coded domain prose. `OutboxRelay` does **not** select this name. `NotificationDispatcher` (WP5-2) runs SMS/email/WeChat-template adapters in-process, records PUBLISHED / PENDING / DEAD with the same max-attempt rule, and writes `dead_letter` (`OUTBOX_EVENT`). Existing `POST /api/v1/dead-letters/{id}/replay` restores the row and dispatches once via the adapter (not `DeliveryPort`). Parameter maps that would exceed `event_body` VARCHAR(4000) fail closed; the column was not widened.
+
+```json
+{
+  "eventId": "<uuid>",
+  "tenantId": "<tenant>",
+  "templateId": "<template-id>",
+  "channel": "SMS | EMAIL | WECHAT_TEMPLATE",
+  "recipient": {
+    "realm": "OPERATOR | END_USER",
+    "subjectId": "<subject>",
+    "destination": "<optional phone/email/address>",
+    "recipientTenantId": "<must match tenantId when set>"
+  },
+  "parameters": { "orderId": "ORD-41" }
 }
 ```
 

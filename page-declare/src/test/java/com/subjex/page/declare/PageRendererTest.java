@@ -80,6 +80,28 @@ class PageRendererTest {
     }
 
     @Test
+    void rendersOrderApprovalFlowTenantScopedWithBlocks() throws IOException {
+        try (var in = PageRendererTest.class.getResourceAsStream("/flows/order-approval.flow.yaml")) {
+            if (in == null) {
+                throw new IOException("order-approval flow is not on the classpath");
+            }
+            RenderedFlow flow = renderer.render(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            assertEquals("order-approval", flow.flowKey());
+            assertEquals("order-approval", flow.formKey());
+            assertEquals("order-approval", flow.entityKey());
+            assertTrue(flow.tenantScoped());
+            assertEquals("/pages/order-approval", flow.list().path());
+            assertEquals("/api/v1/entities/order-approval/records", flow.list().apiPath());
+            assertEquals("records", flow.list().itemsKey());
+            assertEquals("orderId", flow.detail().idField());
+            assertEquals("/api/v1/forms/order-approval/submissions", flow.submit().apiPath());
+            assertEquals(List.of("ListTable"), flow.list().blocks());
+            assertEquals(List.of("DetailReadonly"), flow.detail().blocks());
+            assertEquals(List.of("FormFields", "SubmitBar"), flow.submit().blocks());
+        }
+    }
+
+    @Test
     void formKeyMayBeOmitted() {
         String yaml = """
                 flowKey: demo-item

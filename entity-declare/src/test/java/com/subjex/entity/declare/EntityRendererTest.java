@@ -241,7 +241,51 @@ class EntityRendererTest {
         assertTrue(ex.getMessage().contains("document"));
     }
 
+    @Test
+    void sensitivityDefaultsToNormalAndAcceptsSensitive() {
+        RenderedEntity defaults = new EntityRenderer().render("""
+                entityKey: demo-item
+                tableName: demo_item
+                version: 1
+                permission: registry.read
+                tenantScoped: true
+                fields:
+                  - name: itemId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                  - name: secretNote
+                    kind: text
+                    required: false
+                    maxLength: 200
+                    sensitivity: SENSITIVE
+                """);
+        assertEquals(FieldSensitivity.NORMAL, defaults.fields().get(0).sensitivity());
+        assertEquals(FieldSensitivity.SENSITIVE, defaults.fields().get(1).sensitivity());
+    }
+
+    @Test
+    void unknownSensitivityIsRejected() {
+        EntityDefinitionRejected ex = assertThrows(
+                EntityDefinitionRejected.class,
+                () -> new EntityRenderer().render("""
+                entityKey: demo-item
+                tableName: demo_item
+                version: 1
+                permission: registry.read
+                tenantScoped: true
+                fields:
+                  - name: itemId
+                    kind: text
+                    required: true
+                    maxLength: 64
+                    sensitivity: SECRET
+                """));
+        assertTrue(ex.getMessage().contains("SENSITIVE"));
+    }
+
     static String entityYaml() throws IOException {
+
         try (var in = EntityRendererTest.class.getResourceAsStream("/entities/service-note.entity.yaml")) {
             if (in == null) {
                 throw new IOException("entity definition is not on the classpath");

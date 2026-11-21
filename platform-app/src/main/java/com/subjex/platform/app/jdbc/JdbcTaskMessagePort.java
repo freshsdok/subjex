@@ -17,6 +17,8 @@ import com.subjex.platform.contract.task.DeliveryProgress;
 import com.subjex.platform.contract.task.DeliveryResult;
 import com.subjex.platform.contract.task.HumanConfirmation;
 import com.subjex.platform.contract.task.OriginKind;
+import com.subjex.platform.contract.notification.NotificationRequested;
+import com.subjex.platform.contract.payment.PaymentStatusChanged;
 import com.subjex.platform.contract.task.OutboxEvent;
 import com.subjex.platform.contract.task.OutboxState;
 import com.subjex.platform.contract.task.TaskCommand;
@@ -27,6 +29,7 @@ import com.subjex.platform.contract.task.TaskRecord;
 import com.subjex.platform.contract.task.TaskRecordedNotice;
 import com.subjex.platform.contract.task.TaskState;
 import com.subjex.platform.app.security.TenantDisabledException;
+import com.subjex.platform.app.security.TenantNotFoundException;
 import com.subjex.platform.contract.tenant.TenantState;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
@@ -53,6 +56,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * distributed lock. There is no entity model on this path.
  * 任务行和出箱行在同一个事务里用 SQL 写入。随后经所选 {@link DeliveryPort} 推送这条已落库的行。
  * {@link #relayPending(int)} 在分布式锁下重投 PENDING 行。这条路径上没有实体模型。
+ * <p>
+ * Auto-create of a missing tenant on submit is gated by {@code autoCreateTenantOnSubmit}
+ * ({@code platform.tenant.auto-create-on-submit}); the default is off (fail-closed).
+ * 首次提交时是否自动建缺失租户由该开关控制；默认关闭（失败关闭）。
  */
 public final class JdbcTaskMessagePort implements TaskMessagePort {
 
@@ -65,8 +72,10 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
     private final OpenTelemetry openTelemetry;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final boolean autoCreateTenantOnSubmit;
     private final String relayOwnerToken;
 
+    /** Fail-closed: do not auto-create a missing tenant on submit — 失败关闭：提交时不自动建缺失租户。 */
     public JdbcTaskMessagePort(
             JdbcTemplate jdbc,
             TransactionTemplate transaction,
@@ -77,6 +86,30 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
             OpenTelemetry openTelemetry,
             ObjectMapper objectMapper,
             Clock clock) {
+        this(
+                jdbc,
+                transaction,
+                idempotencyPort,
+                auditPort,
+                lock,
+                deliveryPort,
+                openTelemetry,
+                objectMapper,
+                clock,
+                false);
+    }
+
+    public JdbcTaskMessagePort(
+            JdbcTemplate jdbc,
+            TransactionTemplate transaction,
+            IdempotencyPort idempotencyPort,
+            AuditPort auditPort,
+            DistributedLockPort lock,
+            DeliveryPort deliveryPort,
+            OpenTelemetry openTelemetry,
+            ObjectMapper objectMapper,
+            Clock clock,
+            boolean autoCreateTenantOnSubmit) {
         this.jdbc = jdbc;
         this.transaction = transaction;
         this.idempotencyPort = idempotencyPort;
@@ -86,6 +119,7 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
         this.openTelemetry = openTelemetry;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.autoCreateTenantOnSubmit = autoCreateTenantOnSubmit;
         this.relayOwnerToken = UUID.randomUUID().toString();
     }
 
@@ -328,6 +362,12 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
             jdbc.update("DELETE FROM dead_letter WHERE dead_letter_id = ?", id);
         });
         OutboxEvent pending = loadOutbox(eventId);
+        if (NotificationRequested.EVENT_NAME.equals(pending.eventName())) {
+            // WP5-2: restore only. Do not publish via socket/Kafka DeliveryPort.
+            // NotificationDispatcher (or the dead-letter API) runs the channel adapter.
+            // WP5-2：只恢复为 PENDING，不经 DeliveryPort 发布；由通知调度器（或死信 API）跑渠道适配器。
+            return pending;
+        }
         DeliveryAttempt delivery = deliveryPort.deliver(pending, false);
         if (!"breaker-open".equals(delivery.result().failureReason())) {
             transaction.executeWithoutResult(status -> recordDelivery(eventId, delivery.result()));
@@ -383,6 +423,11 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
             }
             return;
         }
+        if (!autoCreateTenantOnSubmit) {
+            // WP1-3: production/default must not insert a tenant as a submit side effect.
+            // WP1-3：生产/默认不得把建户当成提交的副作用。
+            throw new TenantNotFoundException(tenantId);
+        }
         jdbc.update(
                 "INSERT INTO tenant (tenant_id, tenant_name, tenant_state) VALUES (?, ?, ?)",
                 tenantId,
@@ -430,17 +475,25 @@ public final class JdbcTaskMessagePort implements TaskMessagePort {
     }
 
     private List<OutboxEvent> listPending(int batchSize) {
+        // Relay TaskRecorded and PaymentStatusChanged via DeliveryPort (socket/kafka).
+        // NotificationRequested stays PENDING for the in-process channel dispatcher;
+        // do not burn attempts or publish template intents as task frames.
+        // 中继经 DeliveryPort 投递 TaskRecorded 与 PaymentStatusChanged。
+        // NotificationRequested 保持 PENDING，留给进程内渠道调度器；不得消耗尝试次数，也不得把模板意图当成任务帧发布。
         return jdbc.query(
                 """
                 SELECT event_id, tenant_id, event_name, event_body, event_state, trace_id,
                        attempt_count, failure_reason, occurred_at, published_at
                 FROM outbox_event
                 WHERE event_state = ?
+                  AND event_name IN (?, ?)
                 ORDER BY occurred_at ASC, event_id ASC
                 LIMIT ?
                 """,
                 (row, rowNumber) -> PlatformTables.mapOutbox(row),
                 OutboxState.PENDING.name(),
+                TaskRecordedNotice.EVENT_NAME,
+                PaymentStatusChanged.EVENT_NAME,
                 batchSize);
     }
 

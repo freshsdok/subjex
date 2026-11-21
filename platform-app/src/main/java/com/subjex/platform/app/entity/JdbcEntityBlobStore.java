@@ -1,6 +1,7 @@
 package com.subjex.platform.app.entity;
 
 import com.subjex.platform.app.jdbc.PlatformTables;
+import com.subjex.platform.app.storage.ObjectUploadLimits;
 import com.subjex.platform.contract.storage.ObjectStorage;
 import com.subjex.platform.contract.storage.StoredObject;
 import java.security.MessageDigest;
@@ -28,19 +29,28 @@ public final class JdbcEntityBlobStore implements EntityBlobStore {
     /** ObjectStorage tenant when metadata tenant_id is empty — 元数据空租户时的对象存储租户名。 */
     public static final String OBJECT_TENANT_PLATFORM = "_platform_";
 
-    /** Max attachment bytes per put (ES-2) — 单次 put 最大字节（ES-2）。 */
-    public static final int MAX_BYTES = 5 * 1024 * 1024;
+    /** Default max attachment bytes per put (WP3-3 / ADR 0015 D4, 50 MiB).
+     * Runtime cap is {@link ObjectUploadLimits} ({@code platform.storage.upload.max-bytes}).
+     * 默认单次 put 上限 50 MiB；运行时上限见配置。 */
+    public static final int MAX_BYTES = ObjectUploadLimits.DEFAULT_MAX_BYTES;
 
     private static final Pattern FIELD_NAME = Pattern.compile("[a-zA-Z][a-zA-Z0-9_]{0,127}");
 
     private final JdbcTemplate jdbc;
     private final ObjectStorage objects;
     private final Clock clock;
+    private final ObjectUploadLimits limits;
 
     public JdbcEntityBlobStore(JdbcTemplate jdbc, ObjectStorage objects, Clock clock) {
+        this(jdbc, objects, clock, ObjectUploadLimits.defaults());
+    }
+
+    public JdbcEntityBlobStore(
+            JdbcTemplate jdbc, ObjectStorage objects, Clock clock, ObjectUploadLimits limits) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.objects = Objects.requireNonNull(objects, "objects");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.limits = limits == null ? ObjectUploadLimits.defaults() : limits;
     }
 
     @Override
@@ -58,8 +68,9 @@ public final class JdbcEntityBlobStore implements EntityBlobStore {
             throw new IllegalArgumentException("fieldName must be an identifier");
         }
         byte[] bytes = content == null ? new byte[0] : content;
-        if (bytes.length > MAX_BYTES) {
-            throw new IllegalArgumentException("content exceeds maxBytes=" + MAX_BYTES);
+        int maxBytes = limits.maxBytes();
+        if (bytes.length > maxBytes) {
+            throw new IllegalArgumentException("content exceeds maxBytes=" + maxBytes);
         }
         String type = contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType.trim();
         if (type.length() > 128) {

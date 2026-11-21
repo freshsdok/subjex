@@ -10,7 +10,13 @@ import com.subjex.platform.app.idp.MeIdpLinkEndpoint;
 import com.subjex.platform.app.identity.OpIntrospectionEndpoint;
 import com.subjex.platform.app.identity.OpTokenEndpoint;
 import com.subjex.platform.app.identity.OpUserinfoEndpoint;
+import com.subjex.platform.app.identity.enduser.EndUserAuthEndpoint;
+import com.subjex.platform.app.identity.enduser.EndUserPhoneAuthEndpoint;
+import com.subjex.platform.app.identity.enduser.EndUserWeChatAuthEndpoint;
+import com.subjex.platform.app.storage.ObjectDownloadEndpoint;
+import com.subjex.platform.app.identity.enduser.JdbcEndUserTokenStore;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,17 +54,35 @@ public class PlatformSecurityConfiguration {
             JdbcOperatorTokenStore tokenStore,
             OpJwtService opJwtService,
             JdbcOperatorDirectory operatorDirectory,
+            ObjectProvider<JdbcEndUserTokenStore> endUserTokenStore,
             @Value("${platform.auth.http-basic-enabled:false}") boolean httpBasicEnabled)
             throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Without httpBasic/formLogin, Spring defaults to 403 for anonymous; keep 401 for API clients.
                 // 未开 httpBasic/formLogin 时 Spring 对匿名默认 403；API 客户端统一回 401。
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        .accessDeniedHandler((request, response, denied) -> {
+                            // End-user tokens on operator-permission routes — 终端令牌命中操作员权限路由。
+                            var authentication = org.springframework.security.core.context.SecurityContextHolder
+                                    .getContext()
+                                    .getAuthentication();
+                            if (authentication != null
+                                    && authentication.getPrincipal()
+                                            instanceof com.subjex.platform.app.identity.enduser.EndUserPrincipal) {
+                                EndUserRealmGateFilter.writeOperatorRequired(response);
+                                return;
+                            }
+                            response.sendError(HttpStatus.FORBIDDEN.value());
+                        }))
                 .authorizeHttpRequests(auth -> auth
                         // Health may appear on the business port only if management.server.port is unset; prometheus is on the management port (P2).
                         // 未设 management.server.port 时探针可能仍在业务口；prometheus 走管理端口（P2）。
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        // WP3-2: local-disk redeem; the HMAC signature is the credential (like an S3 presigned GET).
+                        // WP3-2：本地盘兑换；HMAC 签名即凭证（与 S3 预签名 GET 相同）。
+                        .requestMatchers(HttpMethod.GET, ObjectDownloadEndpoint.REDEEM_PATH).permitAll()
                         // Token issue / rotate / revoke — no prior auth (password or refresh in body).
                         // 签发 / 轮换 / 吊销 — 事先无需认证（口令或刷新令牌在正文里）。
                         .requestMatchers(HttpMethod.POST,
@@ -67,7 +91,12 @@ public class PlatformSecurityConfiguration {
                                 OperatorAuthEndpoint.PATH + "/logout",
                                 OperatorAuthEndpoint.PATH + "/mfa/verify",
                                 OperatorOidcEndpoint.PATH + "/start",
-                                OperatorOidcEndpoint.PATH + "/callback")
+                                OperatorOidcEndpoint.PATH + "/callback",
+                                EndUserAuthEndpoint.PATH + "/refresh",
+                                EndUserAuthEndpoint.PATH + "/logout",
+                                EndUserPhoneAuthEndpoint.PATH + "/request-code",
+                                EndUserPhoneAuthEndpoint.PATH + "/login",
+                                EndUserWeChatAuthEndpoint.PATH + "/login")
                                 .permitAll()
                         .requestMatchers(HttpMethod.GET, OperatorOidcEndpoint.PATH + "/status")
                                 .permitAll()
@@ -191,6 +220,18 @@ public class PlatformSecurityConfiguration {
                         // 搜索读路径 MVP（仅 entity_record；无写）。
                         .requestMatchers(HttpMethod.GET, "/api/v1/search", "/api/v1/search/**")
                                 .hasAuthority(OperatorPermission.PAGE_READ.permissionName())
+                        // Q6 questionnaire: public collect permitAll; operator read/write split.
+                        // Q6 问卷：公开采集放行；操作员读写分权。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/questionnaires/public/**")
+                                .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires/public/**")
+                                .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
+                                .hasAuthority(OperatorPermission.QUESTIONNAIRE_READ.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
+                                .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/questionnaires/**")
+                                .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
                         // IM-2 in-app mailbox: read vs system-send; tenant grant in InboxService.
                         // IM-2 站内信：读与系统发送分权；租户授权在 InboxService 内核对。
                         .requestMatchers(HttpMethod.POST, "/api/v1/inbox/system")
@@ -221,6 +262,8 @@ public class PlatformSecurityConfiguration {
                                 .authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/entities/**")
                                 .authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/audit/export")
+                                .hasAuthority(OperatorPermission.AUDIT_EXPORT.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/audit")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.GET,
@@ -258,7 +301,10 @@ public class PlatformSecurityConfiguration {
             http.httpBasic(AbstractHttpConfigurer::disable);
         }
         return http
-                .addFilterBefore(new BearerTokenAuthenticationFilter(tokenStore, opJwtService, operatorDirectory), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new BearerTokenAuthenticationFilter(
+                                tokenStore, opJwtService, operatorDirectory, endUserTokenStore.getIfAvailable()),
+                        UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new EndUserRealmGateFilter(), BearerTokenAuthenticationFilter.class)
                 .build();
     }
 

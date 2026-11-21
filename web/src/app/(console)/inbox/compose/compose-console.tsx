@@ -80,7 +80,18 @@ export function InboxComposeConsole({ phrases, initialTenantId, permissionNames,
   }, [tenantId, mode, tenantHeaders]);
 
   useEffect(() => {
-    void loadGroups();
+    let cancelled = false;
+    void (async () => {
+      // Yield so loader setState is not synchronous in this effect.
+      // 先让出事件循环，避免在 effect 内同步 setState。
+      await Promise.resolve();
+      if (!cancelled) {
+        await loadGroups();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadGroups]);
 
   async function uploadFiles(fileList: FileList | null) {

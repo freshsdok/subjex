@@ -1,0 +1,20 @@
+# APISIX instance sketch (not a full production config.yaml).
+# APISIX 实例示意（不是完整生产 config.yaml）。
+#
+# Enable HTTPS on 443, HTTP 80 redirect, and keep the Admin API off the public interface.
+# 443 终结 TLS，80 跳转 HTTPS，Admin API 不对公网开放。
+#
+# apisix:
+#   node_listen: 80
+#   ssl:
+#     enable: true
+#     listen: [{port: 443}]
+#   enable_admin: false   # or bind Admin to a private address only / 或只绑私网
+#   proxy_mode: http
+# nginx_config:
+#   http_configuration_snippet: |
+#     client_max_body_size 52m;  # hard cap at the process; routes may be lower / 进程硬顶，路由可更低
+# deployment:
+#   role: data_plane
+#   role_data_plane:
+#     config_provider: yaml   # load apisix.yaml / 加载同目录 apisix.yaml

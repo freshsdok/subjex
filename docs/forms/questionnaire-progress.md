@@ -16,21 +16,18 @@
 
 | Slice | Status | Notes |
 | --- | --- | --- |
-| Q0–Q4 | **done** (local) | ADR → CRUD → lifecycle → auth → anon token |
-| **Q5** | **done** (local) | Thin stats + CSV (production only); no BI / no HTTP |
-| Q6 | next | Console UI + Manifest + HTTP |
-| Q7 | later | uni-app fill |
+| Q0–Q5 | **done** (pushed `718000f`) | ADR → CRUD → lifecycle → auth → anon → stats/CSV |
+| Q6a/b | **done** (local `6a7d7bc`) | REST + console `/questionnaires` + Manifest |
+| **Q7** | **done** (local) | uni-app list hub + token fill (ANON_LINK); Manifest nav/page/button |
 
-## Q5 delivered
+## Q7 delivered
 
-1. Types: `QuestionnaireStats` / `QuestionnaireItemStats` + `QuestionnaireStatsSupport` (aggregate + CSV).  
-2. Port: `stats` / `exportCsv` on Memory + JDBC.  
-3. **Stats shape:** `responseCount` + per-item counts for SINGLE/MULTI/RATING only (options seeded at 0; TEXT skipped).  
-4. **CSV columns:** `response_id,revision,respondent_realm,respondent_subject_id,submitted_at` + one column per item id (definition order).  
-5. OPERATOR preview excluded. Tests: StatsSupport 1 + Memory 7 + JDBC 14.
-
-本地提交；未推送。Next = **Q6** console UI + Manifest + HTTP.
+1. **Pages:** `pages/questionnaire/list` (token entry + optional auth published list); `pages/questionnaire/fill?token=` (public load/submit).  
+2. **API client:** `clients/uni-app/src/api/questionnaire.ts` — `publicGetByToken` / `publicSubmit` / `listAuthenticated` + clientKey storage.  
+3. **Manifest:** uni-app `nav.questionnaires` (login-only), `page.questionnaires.fill`, `btn.questionnaires.submit` (entries 5→8).  
+4. **Out of thin slice:** AUTH_END_USER authenticated submit HTTP; rich multi-item authoring on mobile; CAPTCHA.
 
 ## Pointers
 
 - Form `/forms` unchanged
+- Console operator surface remains `web/` `/questionnaires`

@@ -1,0 +1,46 @@
+# Repair-ticket thin FSM — 报修工单薄状态机（WP4-1 / ADR 0016）
+# Wire names match the former RepairTicketWorkflowDefinitions graph exactly; do not rename.
+# Existing workflow_instance / history / approval rows stay valid (no rewrite).
+# 线名与原硬编码图完全一致，不得改名。既有实例、历史与审批行仍然有效（不改写）。
+#
+# WP4-2 hooks below are applied by the engine (auto-start, dual-approve, fail-closed org scope).
+# 下列钩子由引擎应用（自动启动、双人审批、失败关闭的组织范围）。
+definitionKey: repair-ticket
+entityKey: repair-ticket
+version: 1
+initialState: OPEN
+states:
+  - OPEN
+  - IN_PROGRESS
+  - AWAITING_APPROVAL
+  - APPROVED
+  - CLOSED
+autoStartOnUpsert: true
+orgScope:
+  field: organization
+  onActions: [approve, reject]
+dualApproval:
+  requestAction: request_approval
+  consumeActions: [approve, reject]
+transitions:
+  - from: OPEN
+    action: start_work
+    to: IN_PROGRESS
+    permission: workflow.write
+  - from: IN_PROGRESS
+    action: request_approval
+    to: AWAITING_APPROVAL
+    permission: workflow.write
+    capabilityId: ai.summarizePreview
+  - from: AWAITING_APPROVAL
+    action: approve
+    to: APPROVED
+    permission: workflow.approve
+  - from: AWAITING_APPROVAL
+    action: reject
+    to: OPEN
+    permission: workflow.approve
+  - from: APPROVED
+    action: close
+    to: CLOSED
+    permission: workflow.write

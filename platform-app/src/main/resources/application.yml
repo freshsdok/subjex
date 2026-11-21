@@ -4,10 +4,10 @@
 spring:
   servlet:
     multipart:
-      # SHARED-3: align with JdbcEntityBlobStore.MAX_BYTES (5 MiB)
-      # SHARED-3：与 JdbcEntityBlobStore.MAX_BYTES（5 MiB）对齐
-      max-file-size: 5MB
-      max-request-size: 6MB
+      # SHARED-3 / WP3-3: align with platform.storage.upload.max-bytes (default 50 MiB)
+      # SHARED-3 / WP3-3：与通用单文件上限对齐（默认 50 MiB）
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:${PLATFORM_STORAGE_UPLOAD_MAX_BYTES:50MB}}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:52MB}
   application:
     name: platform-app
   datasource:
@@ -57,6 +57,26 @@ platform:
     # 按登录名口令失败锁定。环境变量可覆盖阈值与时长。
     lockout-max-failures: ${PLATFORM_AUTH_LOCKOUT_MAX_FAILURES:5}
     lockout-duration: ${PLATFORM_AUTH_LOCKOUT_DURATION:PT15M}
+  # End-user opaque tokens (WP2-2 / ADR 0014). Same order of magnitude as operator tokens.
+  # 终端不透明令牌。量级与操作员令牌相同。独立配置，不覆盖 platform.auth.*。
+  end-user:
+    auth:
+      access-token-ttl: ${PLATFORM_END_USER_ACCESS_TOKEN_TTL:PT30M}
+      refresh-token-ttl: ${PLATFORM_END_USER_REFRESH_TOKEN_TTL:PT8H}
+      # Same lockout grade as operators, independent table and config (WP2-3).
+      # 锁定级别与操作员相同，独立表与配置。
+      lockout-max-failures: ${PLATFORM_END_USER_LOCKOUT_MAX_FAILURES:5}
+      lockout-duration: ${PLATFORM_END_USER_LOCKOUT_DURATION:PT15M}
+      verification-code:
+        ttl: ${PLATFORM_END_USER_VERIFICATION_CODE_TTL:PT5M}
+        # Never reveal codes outside the local profile — 非 local 不得在响应中出示验证码。
+        reveal-in-response: false
+      # End-user WeChat mini-program (WP2-4). Reuses WeChatIdpAdapter / code2session.
+      # 终端微信小程序。复用现有适配器。生产未配置则失败关闭，不得静默开户。
+      # Dev stub is local-only (application-local.yml). Never enable under prod/production.
+      # 开发桩仅限 local，生产禁止开启。
+      wechat:
+        dev-stub: false
   # AuthZ-1d: PolicyEngine implementation. cedar (default) | sql. Env PLATFORM_AUTHZ_ENGINE.
   # Cedar FFI required when cedar; set sql on arches without natives. Fail-closed if cedar selected but unavailable.
   # 策略引擎实现。默认 cedar；无原生库的环境设 sql。选 cedar 不可用则启动失败关闭。
@@ -73,8 +93,9 @@ platform:
         base-url: ${SUBJEX_AI_HTTP_BASE_URL:}
         api-key: ${SUBJEX_AI_HTTP_API_KEY:}
         model: ${SUBJEX_AI_HTTP_MODEL:}
-  # TOTP MFA (Slice D). required=false initially; set encryption-key in every shared environment.
-  # TOTP 多因素（切片 D）。默认不强制；共享环境必须配置 encryption-key。
+  # TOTP MFA (Slice D). Optional in this base file and under local; prod/production default to required=true.
+  # Set encryption-key in every shared environment.
+  # TOTP 多因素（切片 D）。本基础配置与 local 不强制；prod/production 默认 required=true。共享环境必须配置 encryption-key。
   mfa:
     required: false
     required-for-platform-operator: false
@@ -83,8 +104,6 @@ platform:
     encryption-key: ${PLATFORM_MFA_ENCRYPTION_KEY:}
     # Optional previous key during rotation overlap / 轮换重叠期可选旧密钥
     encryption-key-previous: ${PLATFORM_MFA_ENCRYPTION_KEY_PREVIOUS:}
-  # LOCAL ONLY: used only when SPRING_PROFILES_ACTIVE=local seeds the local operator.
-  # 仅限本地：只有 SPRING_PROFILES_ACTIVE=local 写入本地操作员时才用。
   # OIDC RP (Slice E). Off by default; deny unlinked IdP users (no auto-provision).
   # OIDC 依赖方（切片 E）。默认关闭；未绑定 IdP 用户拒绝（不自动建号）。
   # SSO skips local TOTP (trust IdP MFA); password path still uses Slice D.
@@ -107,9 +126,8 @@ platform:
       # Console Next route: /api/session/idp/wechat/callback (set full public URL).
       # 控制台 Next 回调：/api/session/idp/wechat/callback（填完整公网 URL）。
       redirect-uri: ${PLATFORM_IDP_WECHAT_REDIRECT_URI:}
-  local-operator:
-    name: ${PLATFORM_OPERATOR_NAME:platform-operator}
-    password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
+  # LOCAL ONLY seed credentials live in application-local.yml — not in this base file.
+  # 仅限本地的种子口令放在 application-local.yml，不放本基础配置，避免生产清单带上本机默认口令。
   # One-shot operator bootstrap (OFF by default). Enable only with --platform.operator.bootstrap=true.
   # 一次性操作员开通（默认关闭）。仅用 --platform.operator.bootstrap=true 显式打开。
   operator:
@@ -130,6 +148,11 @@ platform:
       platform-app:
         host: ${PLATFORM_APP_HOST:127.0.0.1}
         port: ${PLATFORM_APP_PORT:8080}
+  notification:
+    # Background dispatch of PENDING NotificationRequested (in-process adapters, not DeliveryPort).
+    # 后台调度 PENDING 的 NotificationRequested（进程内适配器，不经 DeliveryPort）。
+    dispatch-interval-ms: ${NOTIFICATION_DISPATCH_INTERVAL_MS:2000}
+    dispatch-batch-size: ${NOTIFICATION_DISPATCH_BATCH_SIZE:20}
   delivery:
     # Single-select transport: socket (demo, default) | kafka (optional module).
     # 传输单选：socket（演示，默认）| kafka（可选模块）。
@@ -170,11 +193,23 @@ platform:
   tracing:
     # Empty keeps the discarding exporter / 空则继续用丢弃导出器
     otlp-endpoint: ${PLATFORM_OTLP_ENDPOINT:${OTEL_EXPORTER_OTLP_ENDPOINT:}}
+  audit:
+    # WP9-1 NDJSON SIEM/file sink; off by default. type=stdout|file.
+    # WP9-1 NDJSON SIEM/文件投递；默认关闭。type 为 stdout 或 file。
+    sink:
+      enabled: ${PLATFORM_AUDIT_SINK_ENABLED:false}
+      type: ${PLATFORM_AUDIT_SINK_TYPE:stdout}
+      file: ${PLATFORM_AUDIT_SINK_FILE:}
   rate-limit:
     # process = per JVM (default); jdbc = shared rate_limit_window across platform-app replicas (Scale-4b)
     # process = 每进程（默认）；jdbc = 多副本共用 rate_limit_window（Scale-4b）
     backend: ${PLATFORM_RATE_LIMIT_BACKEND:process}
     permits: 60
+  # WP1-3: auto-create a missing tenant on first task submit is off by default (fail-closed).
+  # Only application-local.yml turns this on. Production profiles keep it false.
+  # WP1-3：首次提交自动建缺失租户默认关闭（失败关闭）。仅 application-local.yml 打开。生产 profile 保持关闭。
+  tenant:
+    auto-create-on-submit: false
   # Tenant hard caps (P5). Over → 429 + audit. No billing.
   # 租户硬顶（P5）。超限 → 429 + 审计。不计费。
   tenant-quota:
@@ -189,8 +224,11 @@ platform:
     auth-code-ttl: ${PLATFORM_OP_AUTH_CODE_TTL:PT5M}
     console-client-id: ${PLATFORM_OP_CONSOLE_CLIENT_ID:subjex-console}
   storage:
-    # local (default) | s3 (SHARED-2 S3-compatible). Alias env: PLATFORM_STORAGE_TYPE.
-    # local（默认）| s3（SHARED-2 S3 兼容）。环境变量 PLATFORM_STORAGE_TYPE。
+    # Base / no-profile default stays local so unit tests and a laptop without a profile
+    # keep working. Production profile overrides to s3 and refuses local-disk fallback.
+    # 基础/无 profile 默认仍为 local，避免测试与未开 profile 的本机启动失败。
+    # 生产 profile 覆盖为 s3，并拒绝回退到本地盘。
+    # local | s3 (SHARED-2 S3-compatible). Alias env: PLATFORM_STORAGE_TYPE.
     type: ${PLATFORM_STORAGE_TYPE:local}
     directory: ${PLATFORM_STORAGE_DIRECTORY:object-store}
     s3:
@@ -204,6 +242,24 @@ platform:
     # CHUNK-1: temp dir for resumable chunk sessions (local assemble → ObjectStorage.put)
     # CHUNK-1：分片会话临时目录（本地组装后 ObjectStorage.put）
     chunk-upload-directory: ${PLATFORM_STORAGE_CHUNK_UPLOAD_DIRECTORY:object-store-chunks}
+    # WP3-3 / ADR 0015 D4: generic single-file cap (assemble-then-put). Default 50 MiB.
+    # Multipart envelope slack is spring.servlet.multipart.max-request-size (default 52MB).
+    # WP3-3：通用单文件上限，默认 50 MiB。multipart 请求上限单独留出封装余量（默认 52MB）。
+    # Sessions stay process-local; multi-replica still needs sticky routing or a later session store.
+    # 分片会话仍是进程内的；多副本仍需粘性路由或后续会话存储。
+    upload:
+      max-bytes: ${PLATFORM_STORAGE_UPLOAD_MAX_BYTES:50MB}
+    # WP3-2 / ADR 0015 D3: short-lived signed download URLs. Default TTL PT15M.
+    # The hard cap is PT1H in code; ttl-max may only tighten it, never raise it.
+    # WP3-2：短时签名下载。默认 PT15M；硬上限 PT1H 由代码强制，ttl-max 只能收紧不能抬高。
+    download:
+      ttl: ${PLATFORM_STORAGE_DOWNLOAD_TTL:PT15M}
+      ttl-max: ${PLATFORM_STORAGE_DOWNLOAD_TTL_MAX:PT1H}
+      public-base-url: ${PLATFORM_STORAGE_DOWNLOAD_PUBLIC_BASE_URL:http://127.0.0.1:8080}
+      # HMAC key for local-disk signed URLs. Required when platform.storage.type=local.
+      # Leave empty under prod S3 (presigned GET). No weak production default.
+      # 本地盘 HMAC 密钥；type=local 时必填。生产 S3 预签名可留空；生产配置不给弱默认值。
+      signing-key: ${PLATFORM_STORAGE_DOWNLOAD_SIGNING_KEY:}
   # Internal (in-platform) git working tree for declaration promote (Z5). Non-bare; local commit only — not GitHub.
   # 声明晋升用的平台内 git 工作树（Z5）。非裸库；仅本地提交——不依赖 GitHub。
   declaration:

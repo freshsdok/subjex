@@ -17,9 +17,9 @@ docker build -f platform-app/Dockerfile -t subjex/platform-app:0.1.0-SNAPSHOT .
 docker build -f sample-consumer/Dockerfile -t subjex/sample-consumer:0.1.0-SNAPSHOT .
 ```
 
-platform-app in these manifests does not run the `local` profile, so no operator is seeded. Provision operator rows first (see `docs/operator-permissions.md`); sample-consumer signs in with `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD`.
+platform-app in these manifests sets `SPRING_PROFILES_ACTIVE=prod` and does not run the `local` profile, so no operator is seeded. Combining `prod`/`production` with `local` fails fast at startup (`ProductionProfileGuard`). Provision operator rows first (see `docs/operator-permissions.md`); sample-consumer signs in with `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD` (do not put `change-me` or the laptop `platform-operator` password into these manifests).
 
-清单里的 platform-app 不启用 `local` profile，因此不会写入操作员。请先开通操作员表行（见 `docs/operator-permissions.md`）；sample-consumer 用 `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD` 登录。
+清单里的 platform-app 设置 `SPRING_PROFILES_ACTIVE=prod`，不启用 `local` profile，因此不会写入操作员。将 `prod`/`production` 与 `local` 同时打开会在启动时失败（`ProductionProfileGuard`）。请先开通操作员表行（见 `docs/operator-permissions.md`）；sample-consumer 用 `PLATFORM_OPERATOR_NAME` / `PLATFORM_OPERATOR_PASSWORD` 登录（不要把 `change-me` 或本机 `platform-operator` 口令写进这些清单）。
 
 Outbox delivery (fail-closed): create Secret `outbox-delivery` (`hmac-secret`, `truststore-password` / `keystore-password`) and Secret `outbox-delivery-tls` (PKCS12 files mounted at `/var/run/outbox-tls`). `OUTBOX_TLS_ENABLED=true` is set in the manifests.
 出箱投递（失败关闭）：创建 Secret `outbox-delivery` 与挂载 PKCS12 的 `outbox-delivery-tls`。清单已设 `OUTBOX_TLS_ENABLED=true`。
@@ -37,7 +37,7 @@ Probes and Prometheus use `management.server.port` (not the business port). Samp
 
 ## Single-replica gate / 单副本门禁（P4 → Scale-4d）
 
-Default `platform-app.yaml` keeps **`replicas: 1`**. Do **not** advertise multi-replica unless both shared backends are `jdbc` (rate-limit + delivery circuit breaker). Optional illustrative patch: `platform-app-shared-backends.snippet.yaml`. Object storage remains local per pod without a shared volume. Details: [`docs/release/single-replica-gate.md`](../../docs/release/single-replica-gate.md).
+Default `platform-app.yaml` keeps **`replicas: 1`**. Do **not** advertise multi-replica unless both shared backends are `jdbc` (rate-limit + delivery circuit breaker). Optional illustrative patch: `platform-app-shared-backends.snippet.yaml`. Production object storage is S3-compatible (Secret placeholders in the manifest); local disk is not the multi-instance plan. Details: [`docs/release/single-replica-gate.md`](../../docs/release/single-replica-gate.md).
 
-默认清单保持单副本。未同时打开双 `jdbc` 后端时不要对外宣称多副本。可选示意补丁见 `platform-app-shared-backends.snippet.yaml`。无共享卷时对象存储仍按副本本地。详见单副本门禁文档。
+默认清单保持单副本。未同时打开双 `jdbc` 后端时不要对外宣称多副本。可选示意补丁见 `platform-app-shared-backends.snippet.yaml`。生产对象存储为 S3 兼容（清单用 Secret 占位）；本地盘不是多实例方案。详见单副本门禁文档。
 

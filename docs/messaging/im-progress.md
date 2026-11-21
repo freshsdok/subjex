@@ -1,5 +1,9 @@
 # In-app messaging progress / 站内信进度
 
+IM-8 (external WeChat/email push via outbox) is now tracked as **WP5** / ADR [`0017`](../adr/0017-notification-port.md). The WP5 package is **closed** (`1714208`): a domain-facing `NotificationPort` reuses `outbox_event` with mock/dev adapters. Automatic inbox→external fan-out remains out of that package. This note remains the IM-0…IM-A7 inventory and is not rewritten.
+
+IM-8（经出箱做微信/邮件外部推送）改由 WP5 / ADR 0017 跟踪。WP5 包已关闭（`1714208`）：面向域模块的 `NotificationPort` 复用 `outbox_event`，首期为模拟适配器。站内信自动向外扇出仍不在该包内。本页保留 IM-0…IM-A7 盘点，不改写历史。
+
 - ADR: [`docs/adr/0008-in-app-messaging.md`](../adr/0008-in-app-messaging.md) (**Accepted**, 2026-10-17 Asia/Shanghai)
 - Extension: [`docs/adr/0009-inbox-attachments-and-group-broadcast.md`](../adr/0009-inbox-attachments-and-group-broadcast.md) (**Accepted**, 2026-10-17 Asia/Shanghai — attachments + groups + mass send)
 - Stance: thin mailbox (SYSTEM + WORKFLOW + upcoming group/org broadcast); **not** chat; not Outbox-as-inbox; console operator first; uni-app end-user later (ADR 0007)

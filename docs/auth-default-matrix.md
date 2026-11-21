@@ -13,7 +13,7 @@ Canonical detail: [`SECURITY.md`](../SECURITY.md) · [`docs/auth-roadmap.md`](au
 | --- | --- | --- | --- |
 | Operator (human) | **Opaque Bearer** access + rotating refresh (`POST /api/v1/auth/login`) | **Yes** — preferred | Scripts, APIs, console proxy |
 | Operator (human) | **HTTP Basic** (`Authorization: Basic …`) | **Off** outside `local`; **on** under `SPRING_PROFILES_ACTIVE=local` or `PLATFORM_AUTH_HTTP_BASIC_ENABLED=true` | Local/script break-glass only; **no MFA prompt** |
-| Operator (human) | **TOTP MFA** after password | Optional (`platform.mfa.required` default false) | Login returns `mfaToken` → `/auth/mfa/verify` |
+| Operator (human) | **TOTP MFA** after password | **Required** under `prod`/`production` (`platform.mfa.required` default true); optional under `local` / no production profile | Login returns `mfaToken` → `/auth/mfa/verify`; unenrolled password login is 403 `mfa-enrollment-required` when required |
 | Operator (human) | **OIDC RP** (platform as client to external IdP) | Optional (`platform.oidc.*`) | SSO; IdP `sub` must be pre-linked; skips local TOTP |
 | Operator / app | **OIDC Provider JWT** (platform as OP: Auth Code+PKCE) | When OP clients configured | First-party / third-party apps; dual-accept with opaque |
 | Service account | **Client credentials** → OP JWT (`grant_type=client_credentials`) | When SA client registered | Machine-to-machine; tenant-bound scopes |

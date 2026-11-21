@@ -1,0 +1,15 @@
+# Alias of the production profile — 生产配置别名
+# SPRING_PROFILES_ACTIVE=production is treated like prod by ProductionProfileGuard
+# and uses the same MFA, tenant auto-create, and S3 storage defaults as application-prod.yml.
+# ProductionProfileGuard 将 production 与 prod 同等对待；MFA、自动建租户与 S3 存储默认与 application-prod.yml 一致。
+# Do not combine with local.
+# 不可与 local 同时启用。
+platform:
+  mfa:
+    required: true
+  tenant:
+    auto-create-on-submit: false
+  storage:
+    # Same as prod: S3-compatible; missing settings fail fast (no local-disk fallback).
+    # 与 prod 相同：S3 兼容；配置缺失则启动失败，不回退到本地盘。
+    type: s3

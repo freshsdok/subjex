@@ -93,8 +93,9 @@ public final class JdbcTenantAdmin {
     }
 
     /**
-     * Refuse writes when the tenant exists but is not ACTIVE (soft-disabled).
-     * 租户存在但非 ACTIVE（软禁用）时拒绝写入。
+     * Refuse writes when the tenant is missing or is not ACTIVE (soft-disabled).
+     * Missing tenants are fail-closed; task submit must not auto-create here.
+     * 租户缺失或非 ACTIVE（软禁用）时拒绝写入。缺失即失败关闭；此处不自动建户。
      */
     public void requireActiveForTaskWrite(String tenantId) {
         if (tenantId == null || tenantId.isBlank()) {
@@ -102,7 +103,7 @@ public final class JdbcTenantAdmin {
         }
         Optional<TenantRecord> found = find(tenantId);
         if (found.isEmpty()) {
-            return;
+            throw new TenantNotFoundException(tenantId.trim());
         }
         if (found.get().tenantState() != TenantState.ACTIVE) {
             throw new TenantDisabledException(tenantId.trim());

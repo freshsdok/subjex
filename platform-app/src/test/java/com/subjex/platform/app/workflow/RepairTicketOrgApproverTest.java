@@ -46,7 +46,7 @@ class RepairTicketOrgApproverTest {
     private HybridEntityStore hybrid;
     private RenderedEntity repairEntity;
     private JdbcOrganizationStore orgs;
-    private RepairTicketOrgApproverGate gate;
+    private WorkflowOrgApproverGate gate;
 
     private OperatorPrincipal writer;
     private OperatorPrincipal inScopeApprover;
@@ -63,8 +63,8 @@ class RepairTicketOrgApproverTest {
         EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
         repairEntity = catalog.find(RepairTicketWorkflowDefinitions.REPAIR_TICKET).orElseThrow();
         hybrid = new JdbcHybridEntityStore(jdbc, CLOCK, new ObjectMapper());
-        gate = new RepairTicketOrgApproverGate(
-                hybrid, catalog, new OrganizationScopeResolver(orgs), orgs);
+        gate = new WorkflowOrgApproverGate(
+                hybrid, catalog, new OrganizationScopeResolver(orgs), orgs, new WorkflowCatalog());
         JdbcWorkflowStore store = new JdbcWorkflowStore(jdbc, tx);
         OperatorTenantAccess tenantAccess = new JdbcOperatorTenantAccess(jdbc, tx);
         workflows = new WorkflowService(

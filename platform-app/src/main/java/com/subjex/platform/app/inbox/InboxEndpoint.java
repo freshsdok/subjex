@@ -219,7 +219,7 @@ public class InboxEndpoint {
                 body.fileName(),
                 body.contentType(),
                 body.totalBytes());
-        return UploadInitDocument.from(session);
+        return UploadInitDocument.from(session, inbox.maxUploadBytes());
     }
 
     /** Put chunk — 写入分片. */
@@ -399,13 +399,13 @@ public class InboxEndpoint {
 
     public record UploadInitDocument(
             String uploadId, long totalBytes, int chunkSize, int chunkCount, int maxBytes) {
-        static UploadInitDocument from(ChunkedBlobUploadSession session) {
+        static UploadInitDocument from(ChunkedBlobUploadSession session, int maxBytes) {
             return new UploadInitDocument(
                     session.uploadId(),
                     session.totalBytes(),
                     session.chunkSize(),
                     session.chunkCount(),
-                    InboxAttachmentBind.MAX_BYTES);
+                    maxBytes);
         }
     }
 

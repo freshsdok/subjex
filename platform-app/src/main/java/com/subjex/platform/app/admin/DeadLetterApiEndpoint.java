@@ -5,6 +5,8 @@ import com.subjex.platform.app.jdbc.JdbcAdminReader;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.contract.notification.NotificationDispatcher;
+import com.subjex.platform.contract.notification.NotificationRequested;
 import com.subjex.platform.contract.task.DeadLetter;
 import com.subjex.platform.contract.task.OutboxEvent;
 import com.subjex.platform.contract.task.TaskMessagePort;
@@ -22,7 +24,9 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * DeadLetterApiEndpoint — list / replay / discard outbox (and task) dead letters (DLQ polish).
  * JSON twin for console; admin.read. Replay only OUTBOX_EVENT origins.
- * 死信列表/重放/丢弃；仅出箱来源可重放。
+ * {@code NotificationRequested} letters are restored then dispatched via {@link NotificationDispatcher},
+ * not socket/Kafka {@code DeliveryPort}.
+ * 死信列表/重放/丢弃；仅出箱来源可重放。{@code NotificationRequested} 经通知调度器投递，不走 DeliveryPort。
  */
 @RestController
 public class DeadLetterApiEndpoint {
@@ -31,12 +35,17 @@ public class DeadLetterApiEndpoint {
 
     private final JdbcAdminReader adminReader;
     private final TaskMessagePort taskMessagePort;
+    private final NotificationDispatcher notificationDispatcher;
     private final OperatorActionAudit audit;
 
     public DeadLetterApiEndpoint(
-            JdbcAdminReader adminReader, TaskMessagePort taskMessagePort, OperatorActionAudit audit) {
+            JdbcAdminReader adminReader,
+            TaskMessagePort taskMessagePort,
+            NotificationDispatcher notificationDispatcher,
+            OperatorActionAudit audit) {
         this.adminReader = Objects.requireNonNull(adminReader, "adminReader");
         this.taskMessagePort = Objects.requireNonNull(taskMessagePort, "taskMessagePort");
+        this.notificationDispatcher = Objects.requireNonNull(notificationDispatcher, "notificationDispatcher");
         this.audit = Objects.requireNonNull(audit, "audit");
     }
 
@@ -51,6 +60,11 @@ public class DeadLetterApiEndpoint {
             @AuthenticationPrincipal OperatorPrincipal operator, @PathVariable String deadLetterId) {
         try {
             OutboxEvent event = taskMessagePort.replayDeadLetter(deadLetterId);
+            if (NotificationRequested.EVENT_NAME.equals(event.eventName())) {
+                // Restore already happened; run the channel adapter once (do not use DeliveryPort).
+                // 行已恢复为 PENDING；这里跑一次渠道适配器，不走 DeliveryPort。
+                event = notificationDispatcher.dispatchOne(event.eventId());
+            }
             audit.record(operator, "outbox.dead_letter.replay", deadLetterId, AuditOutcome.ALLOWED);
             return new ReplayDocument(
                     deadLetterId,

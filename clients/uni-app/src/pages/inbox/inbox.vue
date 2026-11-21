@@ -1,84 +1,91 @@
 <template>
   <view class="page">
     <view class="card">
-      <text class="title">站内信 / Inbox (IM-6 END_USER)</text>
-      <text class="muted">
-        GET /api/v1/me/inbox/entries — realm END_USER. Tenant via header.
-      </text>
-      <input class="input" v-model="tenantId" placeholder="tenantId (e.g. platform)" />
-      <view class="row">
-        <button size="mini" type="primary" :disabled="!signedIn || busy" @click="refresh">
-          刷新 / Refresh
+      <text class="title">站内信</text>
+      <text class="muted">这里会收到来自平台的通知和提醒。</text>
+      <view class="row" v-if="signedIn">
+        <button size="mini" type="primary" :disabled="busy" @click="refresh">
+          {{ loading ? "正在刷新…" : "刷新" }}
         </button>
-        <text class="badge">未读 / unread: {{ unread }}</text>
+        <text class="badge" v-if="!loading">未读 {{ unread }} 条</text>
       </view>
-      <text class="warn" v-if="!signedIn">请先登录 / Sign in first →</text>
-      <navigator v-if="!signedIn" url="/pages/login/login" class="link">登录 / Sign in</navigator>
-      <text class="muted" v-if="error">{{ error }}</text>
+      <navigator v-if="!signedIn" url="/pages/login/login" class="link">请先登录后再查看站内信</navigator>
+      <text class="warn" v-if="error">{{ error }}</text>
+    </view>
+
+    <view class="card" v-if="signedIn && loading">
+      <text class="muted">正在加载信件…</text>
+    </view>
+
+    <view class="card" v-if="signedIn && !loading && !entries.length && !error">
+      <text class="muted">暂时还没有站内信。</text>
     </view>
 
     <view v-for="item in entries" :key="item.entryId" class="card">
-      <text class="entry-title">{{ item.title || "(no title)" }}</text>
+      <text class="entry-title">{{ item.title || "未命名通知" }}</text>
       <text class="body">{{ item.body }}</text>
-      <text class="muted">{{ item.severity }} · {{ item.channel }} · {{ item.readAt ? "已读" : "未读" }}</text>
+      <text class="muted">{{ item.readAt ? "已读" : "未读" }}{{ item.createdAt ? " · " + item.createdAt : "" }}</text>
       <button
         v-if="!item.readAt"
         size="mini"
         :disabled="busy"
         @click="onMark(item.entryId)"
       >
-        标为已读 / Mark read
+        标为已读
       </button>
     </view>
 
-    <view class="card" v-if="signedIn && !entries.length && !error">
-      <text class="muted">暂无终端信件 / No END_USER messages yet.</text>
-    </view>
-
-    <navigator url="/pages/index/index" class="link bottom">← 首页 / Home</navigator>
+    <navigator url="/pages/index/index" class="link bottom">返回首页</navigator>
   </view>
 </template>
 
 <script setup lang="ts">
 /**
- * END_USER inbox list + mark-read (IM-6).
- * 终端收件列表与已读。
+ * End-user inbox list + mark-read (WP7-3) — 终端站内信列表与已读。
  */
 import { ref, onMounted } from "vue";
 import { isSignedIn } from "../../api/auth";
-import { listMyInbox, markRead, unreadCount } from "../../api/inbox";
-import type { InboxEntry } from "../../api/inbox";
+import { listMyInbox, markRead, unreadCount, type InboxEntry } from "../../api/inbox";
+import { messageForHttpError, toastHttpError } from "../../api/platform";
+import { readTenantId } from "../../api/tenant";
 
-const tenantId = ref("platform");
 const entries = ref<InboxEntry[]>([]);
 const unread = ref(0);
 const error = ref("");
 const busy = ref(false);
+const loading = ref(false);
 const signedIn = ref(isSignedIn());
 
 async function refresh() {
   if (!signedIn.value) return;
+  if (!readTenantId()) {
+    error.value = "还没有选择组织，请先登录";
+    return;
+  }
   busy.value = true;
+  loading.value = true;
   error.value = "";
   try {
-    const tid = tenantId.value.trim() || "platform";
-    unread.value = await unreadCount(tid);
-    entries.value = await listMyInbox({ tenantId: tid });
+    unread.value = await unreadCount();
+    entries.value = await listMyInbox({});
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
     entries.value = [];
+    error.value = messageForHttpError(e);
+    toastHttpError(e);
   } finally {
     busy.value = false;
+    loading.value = false;
   }
 }
 
 async function onMark(entryId: string) {
   busy.value = true;
   try {
-    await markRead(tenantId.value.trim() || "platform", entryId);
+    await markRead(undefined, entryId);
     await refresh();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    error.value = messageForHttpError(e);
+    toastHttpError(e);
   } finally {
     busy.value = false;
   }
@@ -99,10 +106,9 @@ onMounted(() => {
 .title { font-size: 32rpx; font-weight: 600; }
 .entry-title { font-size: 28rpx; font-weight: 600; }
 .body { font-size: 26rpx; color: #333; }
-.muted { font-size: 22rpx; color: #888; }
+.muted { font-size: 24rpx; color: #666; }
 .warn { color: #b45309; font-size: 24rpx; }
-.input { border: 1px solid #ddd; border-radius: 8rpx; padding: 12rpx; font-size: 26rpx; }
-.row { display: flex; align-items: center; gap: 16rpx; }
+.row { display: flex; align-items: center; gap: 16rpx; flex-wrap: wrap; }
 .badge { font-size: 24rpx; }
 .link { color: #2563eb; font-size: 28rpx; }
 .bottom { margin: 12rpx 24rpx 40rpx; }

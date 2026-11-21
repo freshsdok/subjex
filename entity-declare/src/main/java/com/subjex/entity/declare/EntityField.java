@@ -13,6 +13,9 @@ import java.util.List;
  * {@code maxLength} 属于 text / enum / subjectRef / organizationRef / entityRef。
  * integer / boolean / date 不使用 maxLength。enum 必须带 enumValues；entityRef 可带 refEntityKey。
  * {@code promote}（HY-2）：仅 hybrid；为 true 时值落在 {@code entity_record} 类型列而非仅 attrs。
+ * {@code sensitivity} (WP8-2): {@code NORMAL} (default) or {@code SENSITIVE}. Absent means NORMAL;
+ * existing declarations are not silently reclassified as SENSITIVE.
+ * {@code sensitivity}（WP8-2）：{@code NORMAL}（默认）或 {@code SENSITIVE}。缺省即 NORMAL，不把既有声明悄悄改标为敏感。
  */
 public record EntityField(
         String name,
@@ -21,17 +24,33 @@ public record EntityField(
         Integer maxLength,
         List<String> enumValues,
         String refEntityKey,
-        boolean promote) {
+        boolean promote,
+        FieldSensitivity sensitivity) {
 
     public EntityField {
         enumValues = enumValues == null ? List.of() : List.copyOf(enumValues);
+        sensitivity = sensitivity == null ? FieldSensitivity.NORMAL : sensitivity;
     }
 
     /**
-     * Convenience for kinds without enum/ref/promote metadata — 无 enum/ref/promote 元数据时的便捷构造。
+     * Convenience for kinds without enum/ref/promote/sensitivity metadata — 无 enum/ref/promote/敏感级别元数据时的便捷构造。
      */
     public EntityField(String name, EntityFieldKind kind, boolean required, Integer maxLength) {
-        this(name, kind, required, maxLength, List.of(), null, false);
+        this(name, kind, required, maxLength, List.of(), null, false, FieldSensitivity.NORMAL);
+    }
+
+    /**
+     * Canonical fields without an explicit sensitivity (defaults to NORMAL) — 未写敏感级别时默认为 NORMAL。
+     */
+    public EntityField(
+            String name,
+            EntityFieldKind kind,
+            boolean required,
+            Integer maxLength,
+            List<String> enumValues,
+            String refEntityKey,
+            boolean promote) {
+        this(name, kind, required, maxLength, enumValues, refEntityKey, promote, FieldSensitivity.NORMAL);
     }
 
     /**

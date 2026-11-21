@@ -97,7 +97,18 @@ export function OrgTreePanel({
   }, [tenantId]);
 
   useEffect(() => {
-    void loadMatrix();
+    let cancelled = false;
+    void (async () => {
+      // Yield so loader setState is not synchronous in this effect.
+      // 先让出事件循环，避免在 effect 内同步 setState。
+      await Promise.resolve();
+      if (!cancelled) {
+        await loadMatrix();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadMatrix]);
 
   const [vizMode, setVizMode] = useState<"tree" | "canvas">("tree");
@@ -153,8 +164,6 @@ export function OrgTreePanel({
 
 
   const listRef = useRef<HTMLDivElement>(null);
-  const skipExpandSync = useRef(false);
-  const prevForestKey = useRef("");
 
   const forestKey = useMemo(
     () =>
@@ -165,9 +174,11 @@ export function OrgTreePanel({
     [organizations],
   );
 
-  useEffect(() => {
-    const first = prevForestKey.current === "";
-    prevForestKey.current = forestKey;
+  const [forestSeen, setForestSeen] = useState(forestKey);
+  // Adjust during render when the org forest identity changes — 组织森林身份变化时在渲染中同步。
+  if (forestKey !== forestSeen) {
+    const first = forestSeen === "";
+    setForestSeen(forestKey);
     setExpanded(defaultExpandedIds(forest));
     setMoveReview(null);
     setMoveStep("idle");
@@ -179,29 +190,25 @@ export function OrgTreePanel({
     if (first) {
       setSelectedId(null);
       setQuery("");
-      return;
+    } else {
+      setSelectedId((prev) => (prev && findOrgNode(forest, prev) ? prev : null));
     }
-    setSelectedId((prev) => {
-      if (prev && findOrgNode(forest, prev)) return prev;
-      return null;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh keeps selection when possible
-  }, [forestKey]);
+  }
 
   const hits = useMemo(() => searchMatchingIds(forest, query), [forest, query]);
 
-  useEffect(() => {
-    if (skipExpandSync.current) {
-      skipExpandSync.current = false;
-      return;
+  const searchSyncKey = `${forestKey}::${query}`;
+  const [searchSynced, setSearchSynced] = useState(searchSyncKey);
+  if (searchSyncKey !== searchSynced) {
+    setSearchSynced(searchSyncKey);
+    if (query.trim()) {
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        for (const id of expandIdsForSearch(forest, query)) next.add(id);
+        return next;
+      });
     }
-    if (!query.trim()) return;
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      for (const id of expandIdsForSearch(forest, query)) next.add(id);
-      return next;
-    });
-  }, [query, forest]);
+  }
 
   useEffect(() => {
     if (vizMode !== "tree" || !query.trim() || hits.size === 0) return;
@@ -211,7 +218,6 @@ export function OrgTreePanel({
   }, [query, hits, vizMode]);
 
   function toggleExpand(id: string) {
-    skipExpandSync.current = true;
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -530,8 +536,8 @@ export function OrgTreePanel({
     } = {
       organizationName: selected.organizationName,
       organizationState: nextState,
+      ...(selected.parentOrganizationId ? { parentOrganizationId: selected.parentOrganizationId } : {}),
     };
-    if (selected.parentOrganizationId) body.parentOrganizationId = selected.parentOrganizationId;
     const reply = await fetch(
       `/api/platform/organizations/${encodeURIComponent(selected.organizationId)}?tenantId=${encodeURIComponent(tid)}`,
       {
@@ -541,7 +547,7 @@ export function OrgTreePanel({
       },
     ).catch(() => null);
     if (reply?.status === 401) {
-      window.location.href = "/login";
+      window.location.assign("/login");
       return;
     }
     if (!reply?.ok) {

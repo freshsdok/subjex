@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 
-/** Max upload size — 与 JdbcEntityBlobStore.MAX_BYTES 对齐（5 MiB）。 */
-export const BLOB_MAX_BYTES = 5 * 1024 * 1024;
+/** Max upload size — 与 platform.storage.upload.max-bytes 默认（50 MiB / WP3-3）对齐。 */
+export const BLOB_MAX_BYTES = 50 * 1024 * 1024;
 
 /** Use chunked upload above this size (CHUNK-1) — 超过此大小走分片上传。 */
 export const BLOB_CHUNK_THRESHOLD = 256 * 1024;
@@ -75,7 +75,18 @@ export function EntityBlobPanel({
   }, [basePath, phrases.blobLoadFailed, tenantHeaders]);
 
   useEffect(() => {
-    void loadList();
+    let cancelled = false;
+    void (async () => {
+      // Yield so loader setState is not synchronous in this effect.
+      // 先让出事件循环，避免在 effect 内同步 setState。
+      await Promise.resolve();
+      if (!cancelled) {
+        await loadList();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadList]);
 
   async function uploadMultipart(name: string, chosen: File): Promise<Response | null> {

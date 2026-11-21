@@ -40,7 +40,7 @@ Opaque Bearer + rotating refresh (Slice C), TOTP MFA (Slice D), and OIDC RP + Id
 ### 1.3 Tenant model
 
 - Table `tenant (tenant_id, tenant_name, tenant_state)` from Flyway `V1`.
-- Business tenants still **auto-created** on first granted task submission (`JdbcTaskMessagePort`) when missing; **SUSPENDED** tenants refuse new task writes (403).
+- Business tenants are **not** auto-created on submit by default or under `prod`/`production` (WP1-3, `platform.tenant.auto-create-on-submit=false`); missing tenant → 403 `tenant-not-found`. The `local` profile may keep the laptop escape hatch. **SUSPENDED** tenants still refuse new task writes (403).
 - Reserved tenant `platform` seeded in `V2`; immutable via tenant.manage API.
 - Explicit CRUD twin: `GET/POST /api/v1/tenants`, `PATCH .../{id}`, `POST .../{id}/disable|enable`.
 - Operator–tenant grants already gate tenant-scoped paths; missing grant → 403.
@@ -48,7 +48,8 @@ Opaque Bearer + rotating refresh (Slice C), TOTP MFA (Slice D), and OIDC RP + Id
 ### 1.4 Explicit non-goals of this roadmap
 
 - Replacing named permissions with a free-form ACL UI.
-- Customer/end-user IAM inside business tenants.
+- Customer/end-user IAM inside business tenants — **non-goal of this operator roadmap**. First-class end-user identity is [ADR 0014](adr/0014-end-user-identity.md) / WP2 (`docs/identity/wp2-end-user-progress.md`).
+  业务租户内的终端 IAM **不是本操作员路线图的目标**；一等终端身份见 ADR 0014 / WP2。
 - Mutual TLS for outbox (already listed separately in `SECURITY.md`).
 - Making entry-gateway an IdP or session store.
 
@@ -95,7 +96,7 @@ Each slice: small PR-sized change, local git commit, update `web/PROGRESS.md` (a
 | --- | --- |
 | Permission | Reuse `admin.read` for list; add `tenant.manage` (or reuse `operator.manage` — **prefer new `tenant.manage`** held by `platform-operator`) for writes |
 | API | `GET /api/v1/tenants` (paged later; v1: ordered list + search query); `POST /api/v1/tenants` `{ tenantId, tenantName }`; `POST /api/v1/tenants/{id}/disable\|enable` (sets `tenant_state`); optional `PATCH` name |
-| Rules | Deny mutate reserved `platform`; disable does not delete rows or grants; task submit to DISABLED tenant → 403; auto-create only if tenant missing **and** operator grant allows (unchanged fail-closed) |
+| Rules | Deny mutate reserved `platform`; disable does not delete rows or grants; task submit to DISABLED/SUSPENDED tenant → 403; auto-create on submit is **off** by default and in production (WP1-3); `local` may enable the flag; missing tenant + flag off → 403 `tenant-not-found` |
 | Console | `/tenants` page under `(console)`; nav gated on `admin.read` / `tenant.manage`; list + create + disable/enable with review → confirm |
 | OpenAPI | Regenerate `web/openapi.json` + `gen:api` |
 
@@ -136,7 +137,7 @@ Each slice: small PR-sized change, local git commit, update `web/PROGRESS.md` (a
 | Storage | `operator_mfa_totp` (subject_id, secret_encrypted, confirmed_at); `operator_mfa_recovery` (code_hash, used_at) |
 | Enroll | `POST /api/v1/auth/mfa/totp/start` → secret + otpauth URI; `POST .../confirm` with code; show one-time recovery codes |
 | Login | After password OK: if MFA enrolled → `mfaToken` (short-lived) instead of tokens; `POST /api/v1/auth/mfa/verify` `{ mfaToken, code }` → access/refresh |
-| Policy | Config `platform.mfa.required=false` initially; optional force for role `platform-operator` via config |
+| Policy | Base/`local` keep `platform.mfa.required=false`; **WP1-2** defaults `true` under `prod`/`production`. Optional extra force for role `platform-operator` via `required-for-platform-operator` |
 | Console | Enroll/disable under `/operators` (self); login second step |
 | Audit | `operator.mfa.enroll`, `operator.mfa.disable`, failed verify |
 
@@ -197,12 +198,12 @@ Settled by industry norms + existing docs (no user input required to start A–C
 
 - OIDC for SSO; TOTP for local MFA; opaque Bearer access + rotating refresh; fail-closed grants unchanged; reserved tenant `platform` immutable; console never holds plaintext password.
 - New permission `tenant.manage` for tenant writes (keeps `admin.read` read-only).
-- Auto-create-on-task-submit can remain for backward compatibility once grants exist; explicit create is additive.
+- Auto-create-on-task-submit ~~can remain for backward compatibility once grants exist~~ — **WP1-3:** off by default and in production; `local` may keep it; explicit create is the production path.
 
 Ask the user only if they disagree with these defaults:
 
 1. **OIDC first-login policy:** deny unlinked IdP users (recommended) vs auto-provision read-only operator.
-2. **MFA enforcement:** optional for all vs required for `platform-operator` when `platform.mfa.required=true`.
+2. **MFA enforcement:** ~~optional for all vs required for `platform-operator` when `platform.mfa.required=true`~~ — **decided (WP1-2):** required by default under `prod`/`production`; `local` stays optional.
 3. **Basic cutoff:** ~~keep Basic indefinitely vs default-off outside `local`~~ — **decided & implemented (Basic-1):** default-off outside `local`; opt-in via env for scripts.
 
 ---

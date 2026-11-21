@@ -1,0 +1,32 @@
+# Order approval flow — 订单审批流程（WP4-3）
+# Minimal generic list/detail/submit so the existing console can resolve the panel by entityKey.
+# This is not a BPM designer and not a commerce or medical module.
+# 最小通用列表/详情/提交页，让现有控制台按 entityKey 显示工作流面板。不是 BPM 设计器，也不是商务或医疗模块。
+flowKey: order-approval
+titleEn: Order approval
+titleZh: 订单审批
+formKey: order-approval
+entityKey: order-approval
+version: 1
+permission: page.read
+tenantScoped: true
+list:
+  path: /pages/order-approval
+  apiPath: /api/v1/entities/order-approval/records
+  itemsKey: records
+  blocks:
+    - ListTable
+detail:
+  path: /pages/order-approval/{id}
+  apiPath: /api/v1/entities/order-approval/records
+  itemsKey: records
+  idField: orderId
+  blocks:
+    - DetailReadonly
+submit:
+  path: /pages/order-approval/new
+  apiPath: /api/v1/forms/order-approval/submissions
+  redirectTo: /pages/order-approval
+  blocks:
+    - FormFields
+    - SubmitBar

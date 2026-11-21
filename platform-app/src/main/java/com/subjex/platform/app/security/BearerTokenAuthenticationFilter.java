@@ -3,6 +3,8 @@ package com.subjex.platform.app.security;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.subjex.platform.app.identity.OpJwtService;
 import com.subjex.platform.app.identity.ScopePermissionBridge;
+import com.subjex.platform.app.identity.enduser.EndUserPrincipal;
+import com.subjex.platform.app.identity.enduser.JdbcEndUserTokenStore;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,9 +21,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * BearerTokenAuthenticationFilter — opaque platform tokens, then OP JWT (human or SA) (ID-1/ID-2).
  * <p>
- * Order: opaque {@link JdbcOperatorTokenStore}; else RS256 access JWT — human via
+ * Order: {@code eu.at.} end-user opaque tokens (never the operator store); else operator opaque
+ * {@link JdbcOperatorTokenStore}; else RS256 access JWT — human via
  * {@code preferred_username}, service account via {@code client_id}+{@code scope}+{@code tenant_id}.
- * 先不透明令牌；再 OP JWT：人工走 preferred_username，服务账号走 client_id/scope/tenant_id。
+ * 先按前缀分流终端令牌（绝不走操作员仓库）；再操作员不透明令牌；再 OP JWT。
  */
 public final class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
 
@@ -30,16 +33,26 @@ public final class BearerTokenAuthenticationFilter extends OncePerRequestFilter 
     private final JdbcOperatorTokenStore tokenStore;
     private final OpJwtService jwtService;
     private final JdbcOperatorDirectory directory;
+    private final JdbcEndUserTokenStore endUserTokenStore;
 
     public BearerTokenAuthenticationFilter(JdbcOperatorTokenStore tokenStore) {
-        this(tokenStore, null, null);
+        this(tokenStore, null, null, null);
     }
 
     public BearerTokenAuthenticationFilter(
             JdbcOperatorTokenStore tokenStore, OpJwtService jwtService, JdbcOperatorDirectory directory) {
+        this(tokenStore, jwtService, directory, null);
+    }
+
+    public BearerTokenAuthenticationFilter(
+            JdbcOperatorTokenStore tokenStore,
+            OpJwtService jwtService,
+            JdbcOperatorDirectory directory,
+            JdbcEndUserTokenStore endUserTokenStore) {
         this.tokenStore = tokenStore;
         this.jwtService = jwtService;
         this.directory = directory;
+        this.endUserTokenStore = endUserTokenStore;
     }
 
     @Override
@@ -49,14 +62,26 @@ public final class BearerTokenAuthenticationFilter extends OncePerRequestFilter 
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
             String raw = header.substring(BEARER_PREFIX.length()).trim();
-            Optional<OperatorPrincipal> principal = tokenStore.resolveAccessToken(raw);
-            if (principal.isEmpty()) {
-                principal = resolveJwt(raw);
-            }
-            if (principal.isPresent()) {
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        principal.get(), null, principal.get().getAuthorities());
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+            if (raw.startsWith("eu.")) {
+                // End-user tokens never resolve through the operator store — 终端令牌绝不走操作员仓库。
+                if (endUserTokenStore != null) {
+                    Optional<EndUserPrincipal> endUser = endUserTokenStore.resolveAccessToken(raw);
+                    if (endUser.isPresent()) {
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(endUser.get(), null, java.util.List.of());
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
+                }
+            } else {
+                Optional<OperatorPrincipal> principal = tokenStore.resolveAccessToken(raw);
+                if (principal.isEmpty()) {
+                    principal = resolveJwt(raw);
+                }
+                if (principal.isPresent()) {
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            principal.get(), null, principal.get().getAuthorities());
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             }
         }
         filterChain.doFilter(request, response);

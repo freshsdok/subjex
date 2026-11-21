@@ -127,7 +127,18 @@ export function OrgConsole({ phrases, canWrite, tenantOptions, initialTenantId }
   }, [tenantId, router]);
 
   useEffect(() => {
-    void loadLists();
+    let cancelled = false;
+    void (async () => {
+      // Yield so loader setState is not synchronous in this effect.
+      // 先让出事件循环，避免在 effect 内同步 setState。
+      await Promise.resolve();
+      if (!cancelled) {
+        await loadLists();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadLists]);
 
   const useTenantSelect = tenantOptions.length > 0;

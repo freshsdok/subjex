@@ -36,6 +36,10 @@ class FormCatalogTest {
         assertEquals("entity.record.upsert", catalog.require("repair-ticket").domainAction().key());
         assertEquals("repair-ticket", catalog.require("repair-ticket").entityKey());
         assertEquals(true, catalog.require("repair-ticket").tenantScoped());
+        assertTrue(forms.stream().anyMatch(form -> "order-approval".equals(form.formKey())));
+        assertEquals("entity.record.upsert", catalog.require("order-approval").domainAction().key());
+        assertEquals("order-approval", catalog.require("order-approval").entityKey());
+        assertEquals(true, catalog.require("order-approval").tenantScoped());
         assertEquals("page.read", catalog.require("service-note").permission());
         assertEquals(2, catalog.require("config-override").version());
         assertEquals("registry.write", catalog.require("endpoint-publication").permission());

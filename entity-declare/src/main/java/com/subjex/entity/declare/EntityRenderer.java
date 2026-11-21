@@ -25,7 +25,7 @@ public final class EntityRenderer {
     private static final Set<String> ENTITY_KEYS =
             Set.of("entityKey", "tableName", "version", "permission", "tenantScoped", "storageMode", "fields");
     private static final Set<String> FIELD_KEYS =
-            Set.of("name", "kind", "required", "maxLength", "enumValues", "refEntityKey", "promote");
+            Set.of("name", "kind", "required", "maxLength", "enumValues", "refEntityKey", "promote", "sensitivity");
 
     /**
      * Render one entity document — 渲染一份实体文档。
@@ -124,7 +124,8 @@ public final class EntityRenderer {
             throw new EntityDefinitionRejected("refEntityKey must be lowercase words separated by hyphens");
         }
         boolean promote = optionalBoolean(field, "promote");
-        return new EntityField(name, kind, required, maxLength, enumValues, refEntityKey, promote);
+        FieldSensitivity sensitivity = FieldSensitivity.parse(optionalText(field, "sensitivity"));
+        return new EntityField(name, kind, required, maxLength, enumValues, refEntityKey, promote, sensitivity);
     }
 
     static String typeName(String entityKey) {

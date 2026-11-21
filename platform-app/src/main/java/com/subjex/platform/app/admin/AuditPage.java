@@ -69,7 +69,11 @@ public class AuditPage {
             Map.entry("tenant.quota.override", new String[] {"租户配额覆盖", "tenant quota override"}),
             Map.entry("tenant.export", new String[] {"租户导出", "tenant export"}),
             Map.entry("tenant.erase.challenge", new String[] {"租户擦除挑战", "tenant erase challenge"}),
-            Map.entry("tenant.erase", new String[] {"租户硬删除", "tenant hard erase"}));
+            Map.entry("tenant.erase", new String[] {"租户硬删除", "tenant hard erase"}),
+            Map.entry("object.upload", new String[] {"对象上传", "object upload"}),
+            Map.entry("object.download.issue", new String[] {"签发签名下载", "issue signed download"}),
+            Map.entry("object.grant.create", new String[] {"创建对象授权", "create object grant"}),
+            Map.entry("object.grant.revoke", new String[] {"撤销对象授权", "revoke object grant"}));
 
     /** Plain words for outcomes — 结果的白话。 */
     static final Map<String, String[]> OUTCOME_WORDS = Map.of(

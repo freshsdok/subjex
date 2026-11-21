@@ -1,0 +1,15 @@
+# Shared reverse-proxy headers for platform-app / 反代 platform-app 的共用头
+# Install next to the included path, or copy to /etc/nginx/conf.d/subjex-proxy.inc
+# 安装到 include 路径，或复制到 /etc/nginx/conf.d/subjex-proxy.inc
+proxy_pass http://platform_app;
+proxy_http_version 1.1;
+proxy_set_header Host              $host;
+proxy_set_header X-Real-IP         $remote_addr;
+proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Host  $host;
+# Forward correlation / W3C trace (ADR 0004 / 0021) / 转发关联与 W3C 跟踪头
+proxy_set_header X-Correlation-Id  $http_x_correlation_id;
+proxy_set_header X-Request-Id      $http_x_request_id;
+proxy_set_header traceparent       $http_traceparent;
+proxy_set_header tracestate        $http_tracestate;

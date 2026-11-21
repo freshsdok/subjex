@@ -34,9 +34,12 @@ public interface TaskMessagePort {
     int relayPending(int batchSize);
 
     /**
-     * Replay an OUTBOX_EVENT dead letter: reset event to PENDING and remove the letter, then deliver once.
+     * Replay an OUTBOX_EVENT dead letter: reset event to PENDING and remove the letter, then deliver once
+     * when the event is {@code TaskRecorded}. {@code NotificationRequested} is restored only (WP5-2
+     * channel dispatcher / {@code NotificationDispatcher#replayDeadLetter} performs the adapter send).
      * TASK-origin letters are not supported here (use task retry).
-     * 重放出箱死信：事件重回 PENDING 并删死信行，再投递一次。任务来源不支持（用任务重试）。
+     * 重放出箱死信：事件重回 PENDING 并删死信行；{@code TaskRecorded} 再经 DeliveryPort 投递一次。
+     * {@code NotificationRequested} 只恢复，由通知调度器跑渠道适配器。任务来源不支持（用任务重试）。
      */
     OutboxEvent replayDeadLetter(String deadLetterId);
 

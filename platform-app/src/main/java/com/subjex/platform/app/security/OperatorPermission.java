@@ -17,6 +17,8 @@ public enum OperatorPermission {
 
     /** Read admin JSON and audit entries — 读管理台 JSON 与审计。 */
     ADMIN_READ("admin.read"),
+    /** Export audit records as NDJSON (WP9-1) — 以 NDJSON 导出审计记录。 */
+    AUDIT_EXPORT("audit.export"),
     /** Open the read-only operator pages — 打开只读操作页。 */
     PAGE_READ("page.read"),
     /** Read config entries — 读配置条目。 */
@@ -58,7 +60,15 @@ public enum OperatorPermission {
     /** Send ORG_BROADCAST / GROUP_SEND within tenant grant — 租户内组织或站内信组群发。 */
     INBOX_BROADCAST("inbox.broadcast"),
     /** Create and manage inbox mailing groups — 管理站内信收件组。 */
-    INBOX_GROUP_ADMIN("inbox.group.admin");
+    INBOX_GROUP_ADMIN("inbox.group.admin"),
+    /** Read questionnaire definitions, responses, stats, CSV — 读问卷定义/答卷/汇总/CSV。 */
+    QUESTIONNAIRE_READ("questionnaire.read"),
+    /** Create and edit questionnaires, publish/close, tokens — 创建编辑问卷、发布关闭、令牌。 */
+    QUESTIONNAIRE_WRITE("questionnaire.write"),
+    /** Request a personal-data export on behalf of a subject — 代主体申请个人数据导出。 */
+    EXPORT_REQUEST("export.request"),
+    /** Approve or reject a personal-data export request — 批准或驳回个人数据导出申请。 */
+    EXPORT_APPROVE("export.approve");
 
     private final String permissionName;
 

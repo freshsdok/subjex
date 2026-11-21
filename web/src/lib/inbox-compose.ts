@@ -8,7 +8,9 @@ export type InboxComposeMode = "system" | "group" | "org";
 
 /** ADR 0009 / platform caps — 与平台合同上限对齐. */
 export const INBOX_ATTACH_MAX_FILES = 5;
-export const INBOX_ATTACH_MAX_BYTES = 5 * 1024 * 1024;
+/** Aligns with platform.storage.upload.max-bytes default (WP3-3, 50 MiB).
+ *  与通用单文件默认上限 50 MiB 对齐。 */
+export const INBOX_ATTACH_MAX_BYTES = 50 * 1024 * 1024;
 
 /** MIME allowlist (matches InboxAttachmentContentTypes) — MIME 白名单. */
 export const INBOX_ATTACH_ALLOWED_TYPES = [

@@ -14,6 +14,10 @@ import org.springframework.stereotype.Component;
  * which calls the single configured {@code DeliveryPort} (socket demo or optional Kafka adapter).
  * 提交后仍同步试一次。本工人负责仍停在 PENDING 的行。选行与尝试次数记在 {@link TaskMessagePort#relayPending(int)}，
  * 经配置的唯一 {@code DeliveryPort}（套接字演示或可选 Kafka 适配器）投递。
+ * <p>
+ * WP5-2 hook: {@code NotificationRequested} rows stay PENDING and are not selected by
+ * {@code relayPending}; a later channel dispatcher will take them.
+ * WP5-2 挂钩：{@code NotificationRequested} 行保持 PENDING，不由 {@code relayPending} 选取，留给后续渠道调度器。
  */
 @Component
 public final class OutboxRelay {

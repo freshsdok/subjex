@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.platform.app.security.H2PlatformTables;
+import com.subjex.platform.app.storage.ObjectUploadLimits;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -78,9 +79,23 @@ class EntityBlobStoreTest {
     }
 
     @Test
+    void defaultMaxBytesIsAtLeastFiftyMebibytes() {
+        assertTrue(ObjectUploadLimits.DEFAULT_MAX_BYTES >= 50 * 1024 * 1024);
+        assertEquals(ObjectUploadLimits.DEFAULT_MAX_BYTES, JdbcEntityBlobStore.MAX_BYTES);
+        assertEquals(50 * 1024 * 1024, ObjectUploadLimits.parseMaxBytes("50MB", 1));
+    }
+
+    @Test
     void rejectsOversizedContent() {
-        EntityBlobStore store = newStore(H2PlatformTables.Mode.POSTGRESQL);
-        byte[] huge = new byte[JdbcEntityBlobStore.MAX_BYTES + 1];
+        // Use a lowered cap so this test does not allocate 50 MiB.
+        // 使用下调上限，避免本测试分配 50 MiB。
+        ObjectUploadLimits limits = new ObjectUploadLimits(1024);
+        EntityBlobStore store = new JdbcEntityBlobStore(
+                new JdbcTemplate(H2PlatformTables.migrated(H2PlatformTables.Mode.POSTGRESQL)),
+                new LocalDirectoryObjectStorage(objectRoot),
+                FIXED,
+                limits);
+        byte[] huge = new byte[limits.maxBytes() + 1];
         assertThrows(
                 IllegalArgumentException.class,
                 () -> store.put("t1", "e1", "r1", "file", huge, "application/octet-stream"));

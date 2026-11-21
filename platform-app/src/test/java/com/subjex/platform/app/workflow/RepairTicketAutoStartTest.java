@@ -83,6 +83,7 @@ class RepairTicketAutoStartTest {
                 hybrid,
                 PolicyEngineFactory.create("sql", new DenyWhenTenantMissing(), tenantAccess),
                 workflows,
+                new WorkflowCatalog(),
                 tx);
         // page.read only — auto-start must not require workflow.write
         // 仅 page.read — 自动起实例不得再要 workflow.write

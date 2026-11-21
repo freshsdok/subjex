@@ -70,8 +70,8 @@ class RepairTicketWorkflowInboxHookTest {
         EntityCatalog catalog = EntityCatalog.load(EntityCatalog.class.getClassLoader());
         repairEntity = catalog.find(RepairTicketWorkflowDefinitions.REPAIR_TICKET).orElseThrow();
         hybrid = new JdbcHybridEntityStore(jdbc, CLOCK, new ObjectMapper());
-        RepairTicketOrgApproverGate gate = new RepairTicketOrgApproverGate(
-                hybrid, catalog, new OrganizationScopeResolver(orgs), orgs);
+        WorkflowOrgApproverGate gate = new WorkflowOrgApproverGate(
+                hybrid, catalog, new OrganizationScopeResolver(orgs), orgs, new WorkflowCatalog());
         inbox = new JdbcInboxPort(jdbc, tx);
         JdbcWorkflowStore store = new JdbcWorkflowStore(jdbc, tx);
         OperatorTenantAccess tenantAccess = new JdbcOperatorTenantAccess(jdbc, tx);

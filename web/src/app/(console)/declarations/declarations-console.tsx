@@ -203,6 +203,17 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
   const [migrateErrorStatus, setMigrateErrorStatus] = useState(0);
   const [migrateSql, setMigrateSql] = useState("");
   const [migrateRevision, setMigrateRevision] = useState<string>("");
+  const [migrateSynced, setMigrateSynced] = useState<{ key: string | null; revision: number | null }>({
+    key: selectedKey,
+    revision: loadedRevision,
+  });
+  // Adjust during render when the open declaration changes — 打开的声明变化时在渲染中同步。
+  if (selectedKey !== migrateSynced.key || loadedRevision !== migrateSynced.revision) {
+    setMigrateSynced({ key: selectedKey, revision: loadedRevision });
+    if (loadedRevision != null) {
+      setMigrateRevision(String(loadedRevision));
+    }
+  }
   const [migrateStep, setMigrateStep] = useState<MigrateStep>({ phase: "idle" });
   const [migrateProblem, setMigrateProblem] = useState<string | null>(null);
   const [migrateNotice, setMigrateNotice] = useState<string | null>(null);
@@ -292,14 +303,19 @@ export function DeclarationsConsole({ phrases, language, canWrite, canPromote, c
   }, [tenantId, kind, router]);
 
   useEffect(() => {
-    void loadList();
+    let cancelled = false;
+    void (async () => {
+      // Yield so loader setState is not synchronous in this effect.
+      // 先让出事件循环，避免在 effect 内同步 setState。
+      await Promise.resolve();
+      if (!cancelled) {
+        await loadList();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadList]);
-
-  useEffect(() => {
-    if (loadedRevision != null) {
-      setMigrateRevision(String(loadedRevision));
-    }
-  }, [loadedRevision, selectedKey]);
 
   const draftByKey = useMemo(() => {
     const map = new Map<string, RevisionRow>();

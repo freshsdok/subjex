@@ -11,6 +11,9 @@ import com.subjex.platform.app.declaration.DeclarationRollbackUnavailable;
 import com.subjex.platform.app.declaration.DeclarationOverlayConflict;
 import com.subjex.platform.app.form.FormProblemDocument;
 import com.subjex.platform.app.form.FormValidationException;
+import com.subjex.platform.app.storage.ObjectDownloadDeniedException;
+import com.subjex.platform.app.storage.ObjectUploadRejectedException;
+import com.subjex.platform.app.storage.ObjectDownloadInvalidException;
 import com.subjex.platform.app.security.AccessDecision;
 import com.subjex.platform.app.security.AccessDecisionDeniedException;
 import com.subjex.platform.app.security.AccessResource;
@@ -19,8 +22,12 @@ import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.OperatorTenantNotGrantedException;
 import com.subjex.platform.app.security.TenantDisabledException;
+import com.subjex.platform.app.security.TenantNotFoundException;
+import com.subjex.platform.app.identity.enduser.EndUserPhoneAuthService;
+import com.subjex.platform.app.identity.enduser.EndUserTenantAccessDeniedException;
 import com.subjex.platform.app.task.IdempotencyConflict;
 import com.subjex.platform.app.task.RateLimitExceeded;
+import com.subjex.platform.contract.questionnaire.QuestionnaireRateLimited;
 import com.subjex.platform.app.tenant.TenantQuotaExceeded;
 import com.subjex.platform.app.workflow.IllegalWorkflowTransitionException;
 import com.subjex.platform.app.workflow.WorkflowAlreadyStartedException;
@@ -29,6 +36,13 @@ import com.subjex.platform.app.workflow.WorkflowNotFoundException;
 import com.subjex.platform.app.workflow.WorkflowNeedsSecondApprover;
 import com.subjex.platform.app.task.SubmitLockHeld;
 import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.contract.consent.ConsentCrossTenantDeniedException;
+import com.subjex.platform.contract.consent.ConsentRequiredException;
+import com.subjex.platform.contract.exporthook.ExportArtifactUnavailableException;
+import com.subjex.platform.contract.exporthook.ExportCrossTenantDeniedException;
+import com.subjex.platform.contract.exporthook.ExportExpiredException;
+import com.subjex.platform.contract.exporthook.ExportNotApprovedException;
+import com.subjex.platform.contract.exporthook.ExportSelfApprovalException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +76,73 @@ public class PlatformExceptionAdvice {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
-    @ExceptionHandler(RateLimitExceeded.class)
+    @ExceptionHandler(TenantNotFoundException.class)
+    ResponseEntity<Map<String, String>> unknownTenant(TenantNotFoundException ex) {
+        // WP1-3: missing catalog row on submit — 403 with a stable reason, no auto-create.
+        // WP1-3：提交时目录无此租户——403 且带稳定原因，不自动建户。
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", ex.reason()));
+    }
+
+    @ExceptionHandler(EndUserPhoneAuthService.EndUserAuthenticationRequiredException.class)
+    ResponseEntity<Map<String, String>> endUserAuthenticationRequired() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", EndUserPhoneAuthService.EndUserAuthenticationRequiredException.REASON));
+    }
+
+    @ExceptionHandler(EndUserTenantAccessDeniedException.class)
+    ResponseEntity<Map<String, String>> endUserTenantDenied() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", EndUserTenantAccessDeniedException.REASON));
+    }
+
+    @ExceptionHandler(ConsentRequiredException.class)
+    ResponseEntity<Map<String, String>> consentRequired() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ConsentRequiredException.REASON));
+    }
+
+    @ExceptionHandler(ConsentCrossTenantDeniedException.class)
+    ResponseEntity<Map<String, String>> consentCrossTenant() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ConsentCrossTenantDeniedException.REASON));
+    }
+
+    @ExceptionHandler(ExportNotApprovedException.class)
+    ResponseEntity<Map<String, String>> exportNotApproved() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ExportNotApprovedException.REASON));
+    }
+
+    @ExceptionHandler(ExportSelfApprovalException.class)
+    ResponseEntity<Map<String, String>> exportSelfApproval() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ExportSelfApprovalException.REASON));
+    }
+
+    @ExceptionHandler(ExportCrossTenantDeniedException.class)
+    ResponseEntity<Map<String, String>> exportCrossTenant() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ExportCrossTenantDeniedException.REASON));
+    }
+
+    @ExceptionHandler(ExportExpiredException.class)
+    ResponseEntity<Map<String, String>> exportExpired() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ExportExpiredException.REASON));
+    }
+
+    @ExceptionHandler(ExportArtifactUnavailableException.class)
+    ResponseEntity<Map<String, String>> exportArtifactUnavailable() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ExportArtifactUnavailableException.REASON));
+    }
+
+    @ExceptionHandler(ObjectUploadRejectedException.class)
+    ResponseEntity<Map<String, String>> objectUploadRejected(ObjectUploadRejectedException ex) {
+        return ResponseEntity.status(ex.status()).body(Map.of("reason", ex.reason()));
+    }
+
+    @ExceptionHandler({RateLimitExceeded.class, QuestionnaireRateLimited.class})
     ResponseEntity<Void> rateLimited() {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
     }
@@ -175,6 +255,20 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler(WorkflowApproverOutOfScope.class)
     ResponseEntity<Map<String, String>> workflowApproverOutOfScope(WorkflowApproverOutOfScope ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ObjectDownloadDeniedException.class)
+    ResponseEntity<Map<String, String>> objectDownloadDenied() {
+        // Generic denial — do not reveal whether the object exists.
+        // 通用拒绝，不向未授权调用方泄露对象是否存在。
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ObjectDownloadDeniedException.REASON));
+    }
+
+    @ExceptionHandler(ObjectDownloadInvalidException.class)
+    ResponseEntity<Map<String, String>> objectDownloadInvalid() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ObjectDownloadInvalidException.REASON));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

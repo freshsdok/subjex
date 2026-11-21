@@ -63,6 +63,8 @@ class OperatorBootstrapTest {
         bootstrap.upsert("ops-reader", "long-enough", "platform-reader");
 
         OperatorPrincipal reader = (OperatorPrincipal) directory.loadUserByUsername("ops-reader");
+        // V47 intentionally seeds questionnaire.read (read-only) to platform-reader; write stays operator-only.
+        // V47 有意把只读的 questionnaire.read 授予 platform-reader；写权限仍仅操作员。
         assertEquals(
                 Set.of(
                         "admin.read",
@@ -70,6 +72,7 @@ class OperatorBootstrapTest {
                         "config.read",
                         "declaration.read",
                         "org.read",
+                        "questionnaire.read",
                         "registry.read",
                         "workflow.read",
                         "inbox.read"),

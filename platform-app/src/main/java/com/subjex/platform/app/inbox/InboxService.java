@@ -19,6 +19,7 @@ import com.subjex.platform.contract.inbox.InboxSendRequest;
 import com.subjex.platform.contract.inbox.InboxSendResult;
 import com.subjex.platform.contract.inbox.InboxSeverity;
 import com.subjex.platform.contract.storage.ObjectStorage;
+import com.subjex.platform.app.storage.ObjectUploadLimits;
 import com.subjex.platform.contract.storage.StoredObject;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import java.security.MessageDigest;
@@ -57,6 +58,8 @@ public final class InboxService {
     private final InboxAttachmentStagingStore staging;
     private final InboxFanoutWorker fanoutWorker;
 
+    private final ObjectUploadLimits uploadLimits;
+
     public InboxService(
             InboxPort inbox,
             InboxGroupPort groups,
@@ -68,6 +71,32 @@ public final class InboxService {
             ChunkedBlobUploadStore chunkedUploads,
             InboxAttachmentStagingStore staging,
             InboxFanoutWorker fanoutWorker) {
+        this(
+                inbox,
+                groups,
+                orgBroadcast,
+                tenantAccess,
+                tenantGuard,
+                clock,
+                objects,
+                chunkedUploads,
+                staging,
+                fanoutWorker,
+                ObjectUploadLimits.defaults());
+    }
+
+    public InboxService(
+            InboxPort inbox,
+            InboxGroupPort groups,
+            InboxOrgBroadcastExpander orgBroadcast,
+            OperatorTenantAccess tenantAccess,
+            TenantGuard tenantGuard,
+            Clock clock,
+            ObjectStorage objects,
+            ChunkedBlobUploadStore chunkedUploads,
+            InboxAttachmentStagingStore staging,
+            InboxFanoutWorker fanoutWorker,
+            ObjectUploadLimits uploadLimits) {
         this.inbox = Objects.requireNonNull(inbox, "inbox");
         this.groups = Objects.requireNonNull(groups, "groups");
         this.orgBroadcast = Objects.requireNonNull(orgBroadcast, "orgBroadcast");
@@ -78,6 +107,12 @@ public final class InboxService {
         this.chunkedUploads = Objects.requireNonNull(chunkedUploads, "chunkedUploads");
         this.staging = Objects.requireNonNull(staging, "staging");
         this.fanoutWorker = Objects.requireNonNull(fanoutWorker, "fanoutWorker");
+        this.uploadLimits = uploadLimits == null ? ObjectUploadLimits.defaults() : uploadLimits;
+    }
+
+    /** Configured single-file cap (WP3-3) — 配置的单文件上限。 */
+    public int maxUploadBytes() {
+        return uploadLimits.maxBytes();
     }
 
     /** List own OPERATOR entries — 列本人操作员收件. */
@@ -374,8 +409,8 @@ public final class InboxService {
         if (body == null || body.length == 0) {
             throw new IllegalArgumentException("empty attachment body");
         }
-        if (body.length > InboxAttachmentBind.MAX_BYTES) {
-            throw new IllegalArgumentException("content exceeds maxBytes=" + InboxAttachmentBind.MAX_BYTES);
+        if (body.length > uploadLimits.maxBytes()) {
+            throw new IllegalArgumentException("content exceeds maxBytes=" + uploadLimits.maxBytes());
         }
         String type = InboxAttachmentContentTypes.requireAllowed(contentType);
         String name = requireFileName(fileName);
@@ -400,7 +435,7 @@ public final class InboxService {
                 fieldToken,
                 type,
                 totalBytes,
-                InboxAttachmentBind.MAX_BYTES);
+                uploadLimits.maxBytes());
     }
 
     /** Put one chunk — 写入一分片. */
@@ -429,8 +464,8 @@ public final class InboxService {
             if (assembled.length == 0) {
                 throw new IllegalArgumentException("empty attachment body");
             }
-            if (assembled.length > InboxAttachmentBind.MAX_BYTES) {
-                throw new IllegalArgumentException("content exceeds maxBytes=" + InboxAttachmentBind.MAX_BYTES);
+            if (assembled.length > uploadLimits.maxBytes()) {
+                throw new IllegalArgumentException("content exceeds maxBytes=" + uploadLimits.maxBytes());
             }
             String stagingKey = storageKeyForNewStaging();
             String checksum = sha256Hex(assembled);

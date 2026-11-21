@@ -1,0 +1,38 @@
+# Order-approval thin FSM — 订单审批薄状态机（WP4-3 / ADR 0016）
+# Official domain-agnostic example: submit, approve, reject, complete.
+# Graph differs from repair-ticket (no start_work / request_approval / close).
+# Hooks reuse the existing engine; no kernel special-case and no copied FSM Java.
+# 正式的领域无关示例：提交、审批、驳回、结束。图与报修工单不同。钩子复用现有引擎，内核不为该键写特例，也不复制报修状态机代码。
+definitionKey: order-approval
+entityKey: order-approval
+version: 1
+initialState: SUBMITTED
+states:
+  - SUBMITTED
+  - AWAITING_APPROVAL
+  - APPROVED
+  - COMPLETED
+autoStartOnUpsert: true
+orgScope:
+  field: organization
+  onActions: [approve, reject]
+dualApproval:
+  requestAction: submit
+  consumeActions: [approve, reject]
+transitions:
+  - from: SUBMITTED
+    action: submit
+    to: AWAITING_APPROVAL
+    permission: workflow.write
+  - from: AWAITING_APPROVAL
+    action: approve
+    to: APPROVED
+    permission: workflow.approve
+  - from: AWAITING_APPROVAL
+    action: reject
+    to: SUBMITTED
+    permission: workflow.approve
+  - from: APPROVED
+    action: complete
+    to: COMPLETED
+    permission: workflow.write

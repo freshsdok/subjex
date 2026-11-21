@@ -28,9 +28,9 @@ public final class RepairTicketWorkflowInboxHook {
 
     private final InboxPort inbox;
     /** Null when org gate unavailable (legacy tests) — 无组织门闩时为空（旧测）。 */
-    private final RepairTicketOrgApproverGate orgApproverGate;
+    private final WorkflowOrgApproverGate orgApproverGate;
 
-    public RepairTicketWorkflowInboxHook(InboxPort inbox, RepairTicketOrgApproverGate orgApproverGate) {
+    public RepairTicketWorkflowInboxHook(InboxPort inbox, WorkflowOrgApproverGate orgApproverGate) {
         this.inbox = Objects.requireNonNull(inbox, "inbox");
         this.orgApproverGate = orgApproverGate;
     }
@@ -57,12 +57,15 @@ public final class RepairTicketWorkflowInboxHook {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(actorSubjectId, "actorSubjectId");
         Objects.requireNonNull(at, "at");
+        // IM-3 remains repair-ticket-only: do not silently fan out for other machines (WP4-2).
+        // IM-3 仍仅报修工单：不为其它机器静默扩散（留给后续消息切片）。
         if (!RepairTicketWorkflowDefinitions.REPAIR_TICKET.equals(instance.definitionKey())) {
             return;
         }
-        switch (action) {
-            case REQUEST_APPROVAL -> notifyApprovalRequested(instance, actorSubjectId, declarationVersion, at);
-            case APPROVE -> notifyDecision(
+        if (WorkflowAction.REQUEST_APPROVAL.equals(action)) {
+            notifyApprovalRequested(instance, actorSubjectId, declarationVersion, at);
+        } else if (WorkflowAction.APPROVE.equals(action)) {
+            notifyDecision(
                     instance,
                     actorSubjectId,
                     approval,
@@ -71,7 +74,8 @@ public final class RepairTicketWorkflowInboxHook {
                     "报修单已批准",
                     "工单 " + instance.recordId() + " 已批准。",
                     InboxSeverity.INFO);
-            case REJECT -> notifyDecision(
+        } else if (WorkflowAction.REJECT.equals(action)) {
+            notifyDecision(
                     instance,
                     actorSubjectId,
                     approval,
@@ -80,7 +84,8 @@ public final class RepairTicketWorkflowInboxHook {
                     "报修单已驳回",
                     "工单 " + instance.recordId() + " 已驳回，请处理。",
                     InboxSeverity.INFO);
-            case CLOSE -> notifyDecision(
+        } else if (WorkflowAction.CLOSE.equals(action)) {
+            notifyDecision(
                     instance,
                     actorSubjectId,
                     null,
@@ -89,10 +94,8 @@ public final class RepairTicketWorkflowInboxHook {
                     "报修单已关闭",
                     "工单 " + instance.recordId() + " 已关闭。",
                     InboxSeverity.INFO);
-            default -> {
-                // START_WORK and other edges: no curated notice — 其它边不发精选通知
-            }
         }
+        // START_WORK and other edges: no curated notice — 其它边不发精选通知
     }
 
     private void notifyApprovalRequested(

@@ -9,7 +9,35 @@ platform:
     hmac-secret: ${OUTBOX_HMAC_SECRET:change-me-outbox-hmac-secret-local!!}
     tls:
       enabled: false
-  # LOCAL ONLY — MFA secret encryption key for laptop enroll/verify.
-  # 仅限本地 — 本机登记/校验 MFA 的密钥加密口令。
+  # LOCAL ONLY — MFA stays optional on a laptop; encryption key for enroll/verify.
+  # 仅限本地 — 本机不强制 MFA；加密口令仅用于登记/校验。
   mfa:
+    required: false
     encryption-key: ${PLATFORM_MFA_ENCRYPTION_KEY:change-me-mfa-encryption-key-local!!!!}
+  # LOCAL ONLY laptop escape hatch — first granted task submit may create a missing tenant.
+  # 仅限本机逃生：获准的首次任务提交可为缺失租户建行。生产必须保持关闭。
+  tenant:
+    auto-create-on-submit: true
+  # LOCAL ONLY — directory storage for laptop/dev. Not a multi-instance plan.
+  # 仅限本机：本地目录存储。不是多实例方案。
+  storage:
+    type: local
+    download:
+      # LOCAL ONLY HMAC for app-issued local-disk download URLs. Override in any shared environment.
+      # 仅限本机的本地盘下载 HMAC。任何共享环境请覆盖。
+      signing-key: ${PLATFORM_STORAGE_DOWNLOAD_SIGNING_KEY:change-me-storage-download-hmac-local!!}
+  # LOCAL ONLY seed — never copy these defaults into prod / k8s / non-dev runbooks.
+  # 仅限本地的种子口令——不要把这些默认值抄进生产、k8s 或非开发运行手册。
+  local-operator:
+    name: ${PLATFORM_OPERATOR_NAME:platform-operator}
+    password: ${PLATFORM_OPERATOR_PASSWORD:change-me}
+
+  # LOCAL ONLY — memory verification codes may be returned so a laptop can complete phone login.
+  # 仅限本机：内存验证码可出现在响应中，便于完成本机手机号登录。切勿抄进生产。
+  end-user:
+    auth:
+      verification-code:
+        reveal-in-response: true
+      wechat:
+        dev-stub: true
+

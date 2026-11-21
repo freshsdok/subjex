@@ -1,0 +1,27 @@
+# Production profile — 生产配置
+# Activate with SPRING_PROFILES_ACTIVE=prod (or the alias production).
+# Must not be combined with local; ProductionProfileGuard fails fast if both are active,
+# so LocalOperatorSeeder cannot run under production configuration.
+# 用 SPRING_PROFILES_ACTIVE=prod（或别名 production）启用。
+# 不可与 local 同时打开；同时启用时 ProductionProfileGuard 会启动失败，避免写入本地种子账号。
+#
+# WP1-2: operator MFA is required by default under this profile. HTTP Basic stays off
+# (base application.yml). WP1-3: auto-create tenant on submit stays off.
+# WP1-4: object storage defaults to S3-compatible (MinIO or any S3 API); local disk is refused.
+# Missing endpoint/bucket/credentials fail fast — never fall back to object-store/.
+# WP1-2：本 profile 默认强制操作员 MFA。HTTP Basic 保持关闭（见基础 application.yml）。
+# WP1-3：提交时自动建租户保持关闭。
+# WP1-4：对象存储默认 S3 兼容（MinIO 等）；拒绝本地盘。缺 endpoint/bucket/凭证则启动失败，不回退到本地目录。
+platform:
+  mfa:
+    # Password login fail-closes with 403 reason=mfa-enrollment-required until TOTP is enrolled.
+    # 口令登录在未登记 TOTP 前失败关闭（403 reason=mfa-enrollment-required）。
+    required: true
+  tenant:
+    # Missing tenant on task submit is 403 reason=tenant-not-found; create via /api/v1/tenants only.
+    # 提交时租户不存在则 403 reason=tenant-not-found；只能经 /api/v1/tenants 显式创建。
+    auto-create-on-submit: false
+  storage:
+    # S3-compatible default. Supply PLATFORM_STORAGE_S3_ENDPOINT / BUCKET / ACCESS_KEY / SECRET_KEY.
+    # 默认 S3 兼容。须提供 endpoint、bucket 与访问密钥（见环境变量）。
+    type: s3

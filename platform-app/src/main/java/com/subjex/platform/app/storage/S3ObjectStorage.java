@@ -4,6 +4,7 @@ import com.subjex.platform.contract.storage.ObjectStorage;
 import com.subjex.platform.contract.storage.StoredObject;
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -25,20 +26,26 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
  * S3ObjectStorage — S3 兼容对象存储（SHARED-2）：AWS / MinIO 等实现 {@link ObjectStorage}。
  * <p>
  * Object keys are {@code {tenantId}/{objectKey}} inside one bucket. Content-Type carries media type.
- * Path-style + custom endpoint support MinIO. Does not create the bucket.
- * 对象键为桶内 {@code {tenantId}/{objectKey}}；媒体类型走 Content-Type。支持 path-style 与自定义 endpoint（MinIO）。不自动建桶。
+ * Path-style + custom endpoint support MinIO. Does not create the bucket. WP3-2 adds presigned GET via {@link S3GetObjectPresigner}.
+ * 对象键为桶内 {@code {tenantId}/{objectKey}}；媒体类型走 Content-Type。支持 path-style 与自定义 endpoint（MinIO）。不自动建桶。WP3-2 经 {@link S3GetObjectPresigner} 签发预签名 GET。
  */
 public final class S3ObjectStorage implements ObjectStorage {
 
     private final S3Client client;
     private final String bucket;
+    private final S3GetObjectPresigner presigner;
 
     public S3ObjectStorage(S3Client client, String bucket) {
+        this(client, bucket, null);
+    }
+
+    public S3ObjectStorage(S3Client client, String bucket, S3GetObjectPresigner presigner) {
         this.client = Objects.requireNonNull(client, "client");
         if (bucket == null || bucket.isBlank()) {
             throw new IllegalArgumentException("platform.storage.s3.bucket is required");
         }
         this.bucket = bucket.trim();
+        this.presigner = presigner;
     }
 
     /**
@@ -70,6 +77,53 @@ public final class S3ObjectStorage implements ObjectStorage {
             builder.credentialsProvider(DefaultCredentialsProvider.create());
         }
         return builder.build();
+    }
+
+    /**
+     * Build an S3 GET presigner with the same endpoint / credentials as {@link #createClient}.
+     * 按与 {@link #createClient} 相同的 endpoint / 凭证构建 GET 预签名器。
+     */
+    public static S3GetObjectPresigner createPresigner(
+            String endpoint,
+            String region,
+            String accessKey,
+            String secretKey,
+            boolean pathStyleAccess) {
+        String regionName = region == null || region.isBlank() ? "us-east-1" : region.trim();
+        var builder = software.amazon.awssdk.services.s3.presigner.S3Presigner.builder()
+                .region(Region.of(regionName));
+        if (endpoint != null && !endpoint.isBlank()) {
+            builder.endpointOverride(URI.create(endpoint.trim()));
+        }
+        if (pathStyleAccess) {
+            builder.serviceConfiguration(
+                    S3Configuration.builder().pathStyleAccessEnabled(true).build());
+        }
+        if (accessKey != null
+                && !accessKey.isBlank()
+                && secretKey != null
+                && !secretKey.isBlank()) {
+            builder.credentialsProvider(StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(accessKey.trim(), secretKey.trim())));
+        } else {
+            builder.credentialsProvider(DefaultCredentialsProvider.create());
+        }
+        return new AwsS3GetPresigner(builder.build());
+    }
+
+    /**
+     * Presign a GET for {@code {tenantId}/{objectKey}} lasting {@code ttl}. Requires a configured presigner.
+     * 为 {@code {tenantId}/{objectKey}} 签发持续 {@code ttl} 的预签名 GET；未配置预签名器则失败关闭。
+     */
+    public URI presignGet(String tenantId, String objectKey, Duration ttl) {
+        if (presigner == null) {
+            throw new IllegalStateException("S3 presigner is not configured");
+        }
+        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
+            throw new IllegalArgumentException("presign TTL must be positive");
+        }
+        String key = s3Key(tenantId, objectKey);
+        return presigner.presignGet(bucket, key, ttl);
     }
 
     @Override

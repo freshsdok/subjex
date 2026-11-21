@@ -82,6 +82,7 @@ export default async function FormsPage({
       <PageHeading title={phrases.formsTitle} hint={phrases.formsHint} />
       <FormPicker forms={index} selectedFormKey={preferred} language={language} phrases={phrases} />
       <PublicationForm
+        key={body.formKey ?? preferred}
         formKey={body.formKey ?? preferred}
         formTitle={formTitle ?? ""}
         fields={(body.fields ?? [])

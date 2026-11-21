@@ -5,6 +5,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -30,8 +31,14 @@ public class LocalOperatorConfiguration {
     @Bean
     ApplicationRunner localOperatorSeed(
             LocalOperatorSeeder seeder,
+            Environment environment,
             @Value("${platform.local-operator.name}") String loginName,
             @Value("${platform.local-operator.password}") String password) {
-        return args -> seeder.seed(loginName, password);
+        return args -> {
+            // Fail-fast if production and local were both activated (do not seed then continue).
+            // 若生产与 local 同时激活则立即失败（不要先种入再继续）。
+            ProductionProfileGuard.assertCompatible(environment.getActiveProfiles());
+            seeder.seed(loginName, password);
+        };
     }
 }

@@ -6,9 +6,9 @@
 #   PLATFORM_RATE_LIMIT_BACKEND=jdbc
 #   PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc
 #
-# Object storage: LocalDirectoryObjectStorage is per-pod disk. Mount a shared PVC at
-# platform.storage.directory (default object-store) or do not claim shared blobs.
-# 对象存储：本地目录按副本隔离。多副本须共享卷挂到 platform.storage.directory，或不要宣称共享对象。
+# Object storage: production already defaults to S3-compatible (see platform-app.yaml Secret
+# placeholders). Local disk / a PVC at object-store is not a multi-instance plan.
+# 对象存储：生产已默认 S3 兼容（见 platform-app.yaml 的 Secret 占位）。本地盘或 object-store PVC 不是多实例方案。
 #
 # entry-gateway rate-limit stays per process (gateway has no JDBC backend).
 # 入口网关限流仍按进程（网关无 jdbc 后端）。
@@ -34,10 +34,5 @@ spec:
             # 可选：固定熔断目的键（默认 outbox）
             - name: PLATFORM_DELIVERY_CIRCUIT_BREAKER_DESTINATION_KEY
               value: outbox
-          # volumeMounts:
-          #   - name: object-store
-          #     mountPath: /app/object-store
-      # volumes:
-      #   - name: object-store
-      #     persistentVolumeClaim:
-      #       claimName: platform-object-store
+            # Object storage env is already on platform-app.yaml (S3 Secret placeholders).
+            # 对象存储环境变量已在 platform-app.yaml（S3 Secret 占位）。

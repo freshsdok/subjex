@@ -1,0 +1,23 @@
+# Order approval entity — 订单审批实体（WP4-3 / ADR 0016）
+# Minimal generic hybrid sample: order id, title, optional organization for fail-closed org scope.
+# Not a commerce module and not a medical domain. FSM status lives in workflow_instance, not here.
+# 最小通用 hybrid 样例：单号、标题、可选组织（供失败关闭的组织范围）。不是商务模块，也不是医疗域。状态机在 workflow_instance。
+entityKey: order-approval
+tableName: order_approval
+version: 1
+permission: page.read
+tenantScoped: true
+storageMode: hybrid
+fields:
+  - name: orderId
+    kind: text
+    required: true
+    maxLength: 64
+  - name: title
+    kind: text
+    required: true
+    maxLength: 200
+  - name: organization
+    kind: organizationRef
+    required: false
+    maxLength: 64

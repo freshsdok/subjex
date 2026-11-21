@@ -55,6 +55,10 @@ entries:
     kind: menu
     href: /forms
     permission: page.read
+  - id: nav.questionnaires
+    kind: menu
+    href: /questionnaires
+    permission: questionnaire.read
   - id: nav.pages
     kind: menu
     href: /pages
@@ -193,6 +197,13 @@ entries:
     kind: page
     route: /forms
     permission: page.read
+  - id: page.questionnaires
+    kind: page
+    route: /questionnaires
+    permission: questionnaire.read
+  - id: btn.questionnaires.write
+    kind: button
+    permission: questionnaire.write
   - id: page.pages
     kind: page
     route: /pages

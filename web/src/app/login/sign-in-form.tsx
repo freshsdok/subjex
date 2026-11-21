@@ -49,44 +49,39 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [signingIn, setSigningIn] = useState(false);
-  const [failure, setFailure] = useState<SignInFailure | null>(null);
+  const oidcQuery = searchParams.get("oidc");
+  const oidcFailure = oidcQuery && oidcFailureByQuery[oidcQuery] ? oidcFailureByQuery[oidcQuery] : null;
+  const [localFailure, setLocalFailure] = useState<SignInFailure | null | "cleared">(null);
+  const failure = localFailure === "cleared" ? null : (localFailure ?? oidcFailure);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [oidcEnabled, setOidcEnabled] = useState(false);
   const [wechatEnabled, setWechatEnabled] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
 
   useEffect(() => {
-    const oidc = searchParams.get("oidc");
-    if (oidc && oidcFailureByQuery[oidc]) {
-      setFailure(oidcFailureByQuery[oidc]);
-    }
     let cancelled = false;
-    fetch("/api/session/idp/providers", { cache: "no-store" })
-      .then(async (reply) => {
-        if (!reply.ok) return;
-        const body = (await reply.json()) as {
-          providers?: Array<{ id?: string; enabled?: boolean }>;
-        };
-        if (cancelled) return;
-        for (const p of body.providers ?? []) {
-          if (p.id === "generic-oidc" && p.enabled) setOidcEnabled(true);
-          if (p.id === "wechat" && p.enabled) setWechatEnabled(true);
-        }
-      })
-      .catch(() => {
-        // Probe failure: hide SSO; password path remains.
-        // 探测失败：隐藏 SSO，仍可用口令。
-      });
+    void (async () => {
+      const reply = await fetch("/api/session/idp/providers", { cache: "no-store" }).catch(() => null);
+      if (cancelled || !reply?.ok) return;
+      const body = (await reply.json()) as {
+        providers?: Array<{ id?: string; enabled?: boolean }>;
+      };
+      if (cancelled) return;
+      for (const p of body.providers ?? []) {
+        if (p.id === "generic-oidc" && p.enabled) setOidcEnabled(true);
+        if (p.id === "wechat" && p.enabled) setWechatEnabled(true);
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, []);
 
   async function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formFields = new FormData(event.currentTarget);
     setSigningIn(true);
-    setFailure(null);
+    setLocalFailure("cleared");
     try {
       const reply = await fetch("/api/session", {
         method: "POST",
@@ -111,9 +106,9 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
         return;
       }
       const failureReply = (await reply.json().catch(() => ({}))) as { reason?: string };
-      setFailure(failureByReason[failureReply.reason ?? ""] ?? "platformError");
+      setLocalFailure(failureByReason[failureReply.reason ?? ""] ?? "platformError");
     } catch {
-      setFailure("platformUnreachable");
+      setLocalFailure("platformUnreachable");
     } finally {
       setSigningIn(false);
     }
@@ -125,7 +120,7 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
     const formFields = new FormData(event.currentTarget);
     const code = String(formFields.get("mfaCode") ?? "").trim();
     setSigningIn(true);
-    setFailure(null);
+    setLocalFailure("cleared");
     try {
       const reply = await fetch("/api/session/mfa", {
         method: "POST",
@@ -138,9 +133,9 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
         return;
       }
       const failureReply = (await reply.json().catch(() => ({}))) as { reason?: string };
-      setFailure(failureByReason[failureReply.reason ?? ""] ?? "platformError");
+      setLocalFailure(failureByReason[failureReply.reason ?? ""] ?? "platformError");
     } catch {
-      setFailure("platformUnreachable");
+      setLocalFailure("platformUnreachable");
     } finally {
       setSigningIn(false);
     }
@@ -177,7 +172,7 @@ export function SignInForm({ phrases }: { phrases: PhraseBook }) {
           className="text-sm text-muted underline"
           onClick={() => {
             setMfaToken(null);
-            setFailure(null);
+            setLocalFailure("cleared");
           }}
         >
           {phrases.mfaBackToPassword}

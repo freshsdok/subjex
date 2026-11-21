@@ -1,0 +1,161 @@
+# Subjex public edge (APISIX declarative / standalone) — same responsibilities as the Nginx recipe.
+# Subjex 对公边缘（APISIX 声明式 / standalone）：职责与 Nginx 配方相同。
+# Placeholders for domains and certificates. Not a live inventory.
+# 域与证书均为占位，不是现网清单。
+# Do not publish management ports. Do not grow entry-gateway into this role.
+# 不要发布管理端口。不要把 entry-gateway 做成这一角色。
+#
+# Load with APISIX standalone config_provider, or adapt into etcd/Admin API routes.
+# 用 APISIX standalone 加载，或改写为 etcd / Admin API 路由。
+
+routes:
+  # Block actuator on the public edge / 对公边缘拦截 actuator
+  - id: block-actuator
+    uri: /actuator*
+    priority: 20
+    plugins:
+      request-termination:
+        status_code: 404
+        body: "not found"
+    # No upstream — terminated at the edge / 无上游，在边缘终止
+
+  # OTP request-code: tightest class (5/min/IP) / 验证码申请：最严一档
+  - id: auth-otp-request-code
+    uri: /api/v1/end-user/auth/phone/request-code
+    methods: ["POST"]
+    priority: 15
+    plugins:
+      limit-req:
+        rate: 0.083
+        burst: 2
+        key: remote_addr
+        rejected_code: 429
+      proxy-rewrite:
+        headers:
+          set:
+            X-Forwarded-Proto: "https"
+    upstream_id: platform-app
+
+  # End-user auth including WeChat / 终端登录（含微信）
+  - id: auth-end-user
+    uris:
+      - /api/v1/end-user/auth/*
+    priority: 10
+    plugins:
+      limit-req:
+        rate: 0.5
+        burst: 10
+        key: remote_addr
+        rejected_code: 429
+    upstream_id: platform-app
+
+  # Operator auth / 操作员认证
+  - id: auth-operator
+    uris:
+      - /api/v1/auth/*
+    priority: 10
+    plugins:
+      limit-req:
+        rate: 0.333
+        burst: 5
+        key: remote_addr
+        rejected_code: 429
+    upstream_id: platform-app
+
+  # Uploads: 52MB envelope (50 MiB cap + slack) / 上传：52MB 封装上限
+  - id: upload-end-user-objects
+    uri: /api/v1/end-user/objects*
+    priority: 8
+    plugins:
+      limit-req:
+        rate: 2
+        burst: 20
+        key: remote_addr
+        rejected_code: 429
+      client-control:
+        max_body_size: 54525952
+    upstream_id: platform-app
+
+  - id: upload-entities
+    uri: /api/v1/entities/*
+    priority: 8
+    plugins:
+      limit-req:
+        rate: 2
+        burst: 20
+        key: remote_addr
+        rejected_code: 429
+      client-control:
+        max_body_size: 54525952
+    upstream_id: platform-app
+
+  # General API / 通用 API
+  - id: api-general
+    uri: /api/v1/*
+    priority: 1
+    plugins:
+      limit-req:
+        rate: 2
+        burst: 40
+        key: remote_addr
+        rejected_code: 429
+    upstream_id: platform-app
+
+# Optional console hostname is a separate APISIX route/host (console.example.com) — see README.
+# 可选控制台主机名用另一条带 host 的路由，见 README。
+
+upstreams:
+  - id: platform-app
+    type: roundrobin
+    nodes:
+      "platform-app:8080": 1
+
+ssl:
+  - id: api-example
+    # Certificate placeholders — replace before use / 证书占位，使用前替换
+    snis: ["api.example.com"]
+    cert: |-
+      -----BEGIN CERTIFICATE-----
+      PLACEHOLDER_API_CERT
+      -----END CERTIFICATE-----
+    key: |-
+      -----BEGIN PRIVATE KEY-----
+      PLACEHOLDER_API_KEY
+      -----END PRIVATE KEY-----
+  - id: console-example
+    snis: ["console.example.com"]
+    cert: |-
+      -----BEGIN CERTIFICATE-----
+      PLACEHOLDER_CONSOLE_CERT
+      -----END CERTIFICATE-----
+    key: |-
+      -----BEGIN PRIVATE KEY-----
+      PLACEHOLDER_CONSOLE_KEY
+      -----END PRIVATE KEY-----
+
+# Global plugins: HSTS + forwarded headers + trace propagation.
+# 全局插件：HSTS、转发头、跟踪头透传。
+global_rules:
+  - id: edge-headers
+    plugins:
+      response-rewrite:
+        headers:
+          set:
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+      proxy-rewrite:
+        headers:
+          set:
+            X-Forwarded-Proto: "https"
+          pass:
+            - X-Real-IP
+            - X-Forwarded-For
+            - X-Forwarded-Host
+            - X-Correlation-Id
+            - X-Request-Id
+            - traceparent
+            - tracestate
+# real-ip plugin: honor X-Forwarded-For only from a trusted hop in front of this edge (placeholder CIDR).
+# real-ip 插件：仅从边缘前一跳可信 CIDR 采信 X-Forwarded-For。
+#   real-ip:
+#     source: "X-Forwarded-For"
+#     trusted_addresses: ["10.0.0.0/8"]
