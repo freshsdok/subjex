@@ -49,6 +49,9 @@ public class EndUserPhoneAuthEndpoint {
         } catch (VerificationCodeSenderUnconfiguredException ex) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("reason", VerificationCodeSenderUnconfiguredException.REASON));
+        } catch (VerificationCodeSendFailedException ex) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("reason", VerificationCodeSendFailedException.REASON));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("reason", ex.getMessage()));
         }

@@ -71,6 +71,18 @@ platform:
         ttl: ${PLATFORM_END_USER_VERIFICATION_CODE_TTL:PT5M}
         # Never reveal codes outside the local profile — 非 local 不得在响应中出示验证码。
         reveal-in-response: false
+        # Explicit sender: empty default is fail-closed in production and the dev sender otherwise.
+        # http is the vendor-shaped template and is used only when selected and base-url + api-key are complete.
+        # Never set sender=dev under prod/production. Incomplete http fails closed; it does not fall back to dev.
+        # 发送器须显式选择。默认空：生产失败关闭，非生产用开发发送器。
+        # http 是厂商形模板，仅在选中且端点与密钥配齐时启用。生产禁止 sender=dev。http 缺配失败关闭，不回退到开发发送器。
+        sender: ${PLATFORM_END_USER_VERIFICATION_CODE_SENDER:}
+        http:
+          # Placeholders only — do not invent a live vendor or merchant account here.
+          # 仅为占位，不要在此编造真实厂商或商户账号。
+          base-url: ${PLATFORM_END_USER_VERIFICATION_CODE_HTTP_BASE_URL:}
+          api-key: ${PLATFORM_END_USER_VERIFICATION_CODE_HTTP_API_KEY:}
+          from: ${PLATFORM_END_USER_VERIFICATION_CODE_HTTP_FROM:}
       # End-user WeChat mini-program (WP2-4). Reuses WeChatIdpAdapter / code2session.
       # 终端微信小程序。复用现有适配器。生产未配置则失败关闭，不得静默开户。
       # Dev stub is local-only (application-local.yml). Never enable under prod/production.

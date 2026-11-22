@@ -11,12 +11,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
 import com.subjex.platform.app.security.TenantNotFoundException;
+import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.contract.tenant.TenantMissingException;
+import java.util.List;
+import java.util.Map;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -89,6 +93,105 @@ class EndUserPhoneAuthTest {
                 () -> port.issue(PHONE_A, VerificationCodePort.PURPOSE_LOGIN));
         assertTrue(port.peekForDev(PHONE_A, VerificationCodePort.PURPOSE_LOGIN).isEmpty());
         assertFalse(port.verifyAndConsume(PHONE_A, VerificationCodePort.PURPOSE_LOGIN, "123456"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void requestCodeAuditsDevSendWithoutWritingTheCode(H2PlatformTables.Mode mode) throws Exception {
+        Harness h = Harness.open(mode);
+        try {
+            MvcResult requested = h.mvc.perform(post(EndUserPhoneAuthEndpoint.PATH + "/request-code")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"phone\":\"" + PHONE_A + "\",\"purpose\":\"phone-login\"}"))
+                    .andExpect(status().isOk())
+                    .andReturn();
+            String code = JSON.readTree(requested.getResponse().getContentAsString()).get("devCode").asText();
+            List<Map<String, Object>> rows = h.sendAuditRows();
+            assertEquals(1, rows.size());
+            Map<String, Object> row = rows.get(0);
+            assertEquals(EndUserPhoneAuthService.SEND_AUDIT_TENANT, row.get("tenant_id"));
+            assertEquals(EndUserPhoneAuthService.SEND_AUDIT_ACTOR, row.get("actor_identity_id"));
+            assertEquals(AuditOutcome.ALLOWED.name(), row.get("outcome"));
+            String target = String.valueOf(row.get("action_target"));
+            assertEquals("phone-login:" + EndUserPhoneAuthService.maskDestination(PHONE_A), target);
+            assertFalse(target.contains(code));
+            assertFalse(target.contains(PHONE_A));
+            assertFalse(h.jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM audit_entry WHERE action_target LIKE ? OR action_name LIKE ?",
+                    Integer.class,
+                    "%" + code + "%",
+                    "%" + code + "%") > 0);
+        } finally {
+            h.closeQuietly();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void unconfiguredSenderReturns503AndAuditsRefused(H2PlatformTables.Mode mode) throws Exception {
+        Harness h = Harness.open(mode, CODE_TTL, Duration.ofMinutes(15), new FailClosedVerificationCodeSender(), false);
+        try {
+            h.mvc.perform(post(EndUserPhoneAuthEndpoint.PATH + "/request-code")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"phone\":\"" + PHONE_A + "\",\"purpose\":\"phone-login\"}"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.reason").value(VerificationCodeSenderUnconfiguredException.REASON));
+            List<Map<String, Object>> rows = h.sendAuditRows();
+            assertEquals(1, rows.size());
+            assertEquals(AuditOutcome.REFUSED.name(), rows.get(0).get("outcome"));
+            assertEquals(
+                    "phone-login:" + EndUserPhoneAuthService.maskDestination(PHONE_A),
+                    rows.get(0).get("action_target"));
+            assertTrue(h.codes.peekForDev(PHONE_A, VerificationCodePort.PURPOSE_LOGIN).isEmpty());
+        } finally {
+            h.closeQuietly();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void testDoubleSenderFailureReturns503AndAuditsFailedWithoutTheCode(H2PlatformTables.Mode mode) throws Exception {
+        RecordingVerificationCodeSender sender = new RecordingVerificationCodeSender();
+        sender.failNext = true;
+        Harness h = Harness.open(mode, CODE_TTL, Duration.ofMinutes(15), sender, false);
+        try {
+            h.mvc.perform(post(EndUserPhoneAuthEndpoint.PATH + "/request-code")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"phone\":\"" + PHONE_A + "\",\"purpose\":\"phone-bind\"}"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.reason").value(VerificationCodeSendFailedException.REASON));
+            assertEquals(1, sender.attempts);
+            List<Map<String, Object>> rows = h.sendAuditRows();
+            assertEquals(1, rows.size());
+            assertEquals(AuditOutcome.FAILED.name(), rows.get(0).get("outcome"));
+            String target = String.valueOf(rows.get(0).get("action_target"));
+            assertEquals("phone-bind:" + EndUserPhoneAuthService.maskDestination(PHONE_A), target);
+            assertNull(sender.lastCodeInExceptionMessage);
+        } finally {
+            h.closeQuietly();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void testDoubleSenderDeliversWithoutAVendorNetwork(H2PlatformTables.Mode mode) throws Exception {
+        RecordingVerificationCodeSender sender = new RecordingVerificationCodeSender();
+        Harness h = Harness.open(mode, CODE_TTL, Duration.ofMinutes(15), sender, true);
+        try {
+            MvcResult requested = h.mvc.perform(post(EndUserPhoneAuthEndpoint.PATH + "/request-code")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"phone\":\"" + PHONE_A + "\",\"purpose\":\"phone-login\"}"))
+                    .andExpect(status().isOk())
+                    .andReturn();
+            String code = JSON.readTree(requested.getResponse().getContentAsString()).get("devCode").asText();
+            assertEquals(1, sender.attempts);
+            assertEquals(PHONE_A, sender.lastDestination);
+            assertEquals(VerificationCodePort.PURPOSE_LOGIN, sender.lastPurpose);
+            assertEquals(code, sender.lastCode);
+            assertEquals(AuditOutcome.ALLOWED.name(), h.sendAuditRows().get(0).get("outcome"));
+        } finally {
+            h.closeQuietly();
+        }
     }
 
     @ParameterizedTest
@@ -373,6 +476,15 @@ class EndUserPhoneAuthTest {
         }
 
         static Harness open(H2PlatformTables.Mode mode, Duration codeTtl, Duration lockoutDuration) {
+            return open(mode, codeTtl, lockoutDuration, new DevVerificationCodeSender(), true);
+        }
+
+        static Harness open(
+                H2PlatformTables.Mode mode,
+                Duration codeTtl,
+                Duration lockoutDuration,
+                VerificationCodeSender sender,
+                boolean revealInResponse) {
             DataSource ds = H2PlatformTables.migrated(mode);
             JdbcTemplate jdbc = new JdbcTemplate(ds);
             jdbc.update(
@@ -389,14 +501,30 @@ class EndUserPhoneAuthTest {
             JdbcEndUserTokenStore tokens =
                     new JdbcEndUserTokenStore(jdbc, tx, accounts, clock, ACCESS_TTL, REFRESH_TTL);
             MemoryVerificationCodePort codes =
-                    new MemoryVerificationCodePort(clock, codeTtl, true, new DevVerificationCodeSender());
+                    new MemoryVerificationCodePort(clock, codeTtl, revealInResponse, sender);
             JdbcEndUserLoginLockout lockout = new JdbcEndUserLoginLockout(jdbc, tx, clock, 5, lockoutDuration);
-            EndUserPhoneAuthService phoneAuth =
-                    new EndUserPhoneAuthService(accounts, tokens, codes, lockout, jdbc);
+            EndUserPhoneAuthService phoneAuth = new EndUserPhoneAuthService(
+                    accounts, tokens, codes, lockout, jdbc, new JdbcAuditPort(jdbc), clock);
             MockMvc mvc = MockMvcBuilders.standaloneSetup(new EndUserPhoneAuthEndpoint(phoneAuth))
                     .setMessageConverters(new JacksonJsonHttpMessageConverter())
                     .build();
             return new Harness(clock, jdbc, accounts, tokens, codes, lockout, phoneAuth, mvc);
+        }
+
+        List<Map<String, Object>> sendAuditRows() {
+            return jdbc.queryForList(
+                    """
+                    SELECT tenant_id, actor_identity_id, action_name, action_target, outcome
+                    FROM audit_entry
+                    WHERE action_name = ?
+                    ORDER BY occurred_at
+                    """,
+                    EndUserPhoneAuthService.SEND_ACTION);
+        }
+
+        void closeQuietly() {
+            // DataSource is closed with the JVM; kept for try/finally symmetry in new tests.
+            // 数据源随 JVM 关闭；此处仅为新测试的 try/finally 对称。
         }
 
         String requestLoginCode(String phone) {
@@ -457,6 +585,40 @@ class EndUserPhoneAuthTest {
         @Override
         public Instant instant() {
             return now.get();
+        }
+    }
+
+    /**
+     * Test double: records send attempts and never opens a network.
+     * 测试替身：记录发送尝试，绝不打开网络。
+     */
+    private static final class RecordingVerificationCodeSender implements VerificationCodeSender {
+        int attempts;
+        String lastDestination;
+        String lastPurpose;
+        String lastCode;
+        boolean failNext;
+        String lastCodeInExceptionMessage;
+
+        @Override
+        public boolean configured() {
+            return true;
+        }
+
+        @Override
+        public void send(String destination, String purpose, String code) {
+            attempts++;
+            lastDestination = destination;
+            lastPurpose = purpose;
+            lastCode = code;
+            if (failNext) {
+                VerificationCodeSendFailedException ex = new VerificationCodeSendFailedException();
+                lastCodeInExceptionMessage =
+                        (ex.getMessage() != null && code != null && ex.getMessage().contains(code))
+                                ? ex.getMessage()
+                                : null;
+                throw ex;
+            }
         }
     }
 }

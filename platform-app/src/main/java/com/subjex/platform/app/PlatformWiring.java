@@ -123,18 +123,19 @@ import com.subjex.platform.app.identity.enduser.EndUserShellService;
 import com.subjex.platform.app.identity.enduser.EndUserObjectService;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserAccountStore;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserTokenStore;
-import com.subjex.platform.app.identity.enduser.DevVerificationCodeSender;
 import com.subjex.platform.app.identity.enduser.EndUserPhoneAuthService;
 import com.subjex.platform.app.identity.enduser.AdapterEndUserWeChatAssertion;
 import com.subjex.platform.app.identity.enduser.DevEndUserWeChatAssertion;
 import com.subjex.platform.app.identity.enduser.EndUserWeChatAssertion;
 import com.subjex.platform.app.identity.enduser.EndUserWeChatAuthService;
 import com.subjex.platform.app.identity.enduser.FailClosedEndUserWeChatAssertion;
-import com.subjex.platform.app.identity.enduser.FailClosedVerificationCodeSender;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserLoginLockout;
+import com.subjex.platform.app.identity.enduser.JdkVerificationCodeHttpClient;
 import com.subjex.platform.app.identity.enduser.MemoryVerificationCodePort;
+import com.subjex.platform.app.identity.enduser.VerificationCodeHttpClient;
 import com.subjex.platform.app.identity.enduser.VerificationCodePort;
 import com.subjex.platform.app.identity.enduser.VerificationCodeSender;
+import com.subjex.platform.app.identity.enduser.VerificationCodeSenderFactory;
 import com.subjex.platform.app.security.ProductionProfileGuard;
 import com.subjex.platform.app.security.JdbcOperatorLoginLockout;
 import com.subjex.platform.app.security.JdbcOperatorMfaStore;
@@ -586,22 +587,38 @@ public class PlatformWiring {
     }
 
     /**
-     * End-user phone verification codes + lockout (WP2-3). Production without a real sender is fail-closed.
-     * 终端手机验证码与锁定。生产未配置真实发送器则失败关闭，不在日志中打印验证码。
+     * JDK transport for the vendor-shaped SMS OTP template. Selection still requires explicit config.
+     * 厂商形短信验证码模板的 JDK 传输。是否启用仍须显式配置，仅存在本 Bean 不会外呼。
+     */
+    @Bean
+    VerificationCodeHttpClient endUserVerificationCodeHttpClient() {
+        return new JdkVerificationCodeHttpClient();
+    }
+
+    /**
+     * End-user phone verification-code sender (WP2-3). Production stays fail-closed unless
+     * {@code sender=http} is explicit and complete. {@code sender=dev} is refused in production.
+     * Incomplete vendor config never falls back to the dev sender. Codes are never logged.
+     * 终端手机验证码发送器。生产默认失败关闭；仅在显式且配齐 {@code sender=http} 时启用模板。
+     * 生产禁止 {@code sender=dev}。厂商配置不完整绝不回退到开发发送器。验证码不写入日志。
      */
     @Bean
     VerificationCodeSender endUserVerificationCodeSender(
             Environment environment,
-            @Value("${platform.end-user.auth.verification-code.reveal-in-response:false}") boolean revealInResponse) {
-        boolean production = ProductionProfileGuard.isProductionProfile(environment.getActiveProfiles());
-        if (production && revealInResponse) {
-            throw new IllegalStateException(
-                    "platform.end-user.auth.verification-code.reveal-in-response must stay false under prod/production");
-        }
-        if (production) {
-            return new FailClosedVerificationCodeSender();
-        }
-        return new DevVerificationCodeSender();
+            VerificationCodeHttpClient endUserVerificationCodeHttpClient,
+            @Value("${platform.end-user.auth.verification-code.reveal-in-response:false}") boolean revealInResponse,
+            @Value("${platform.end-user.auth.verification-code.sender:}") String sender,
+            @Value("${platform.end-user.auth.verification-code.http.base-url:}") String httpBaseUrl,
+            @Value("${platform.end-user.auth.verification-code.http.api-key:}") String httpApiKey,
+            @Value("${platform.end-user.auth.verification-code.http.from:}") String httpFrom) {
+        return VerificationCodeSenderFactory.create(
+                environment.getActiveProfiles(),
+                revealInResponse,
+                sender,
+                httpBaseUrl,
+                httpApiKey,
+                httpFrom,
+                endUserVerificationCodeHttpClient);
     }
 
     @Bean
@@ -630,13 +647,17 @@ public class PlatformWiring {
             JdbcEndUserTokenStore endUserTokenStore,
             VerificationCodePort endUserVerificationCodePort,
             JdbcEndUserLoginLockout endUserLoginLockout,
-            JdbcTemplate jdbc) {
+            JdbcTemplate jdbc,
+            AuditPort auditPort,
+            Clock clock) {
         return new EndUserPhoneAuthService(
                 endUserAccountStore,
                 endUserTokenStore,
                 endUserVerificationCodePort,
                 endUserLoginLockout,
-                jdbc);
+                jdbc,
+                auditPort,
+                clock);
     }
 
     /**

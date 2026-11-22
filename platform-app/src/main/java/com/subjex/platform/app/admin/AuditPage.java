@@ -73,7 +73,8 @@ public class AuditPage {
             Map.entry("object.upload", new String[] {"对象上传", "object upload"}),
             Map.entry("object.download.issue", new String[] {"签发签名下载", "issue signed download"}),
             Map.entry("object.grant.create", new String[] {"创建对象授权", "create object grant"}),
-            Map.entry("object.grant.revoke", new String[] {"撤销对象授权", "revoke object grant"}));
+            Map.entry("object.grant.revoke", new String[] {"撤销对象授权", "revoke object grant"}),
+            Map.entry("end-user.verification-code.send", new String[] {"发送验证码", "send verification code"}));
 
     /** Plain words for outcomes — 结果的白话。 */
     static final Map<String, String[]> OUTCOME_WORDS = Map.of(

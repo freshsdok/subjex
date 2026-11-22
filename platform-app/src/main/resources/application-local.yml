@@ -38,6 +38,9 @@ platform:
     auth:
       verification-code:
         reveal-in-response: true
+        # Laptop/dev no-op sender; forbidden under prod/production.
+        # 本机/开发空发送器；生产禁止此值。
+        sender: dev
       wechat:
         dev-stub: true
 

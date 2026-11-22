@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.idp.IdpProvidersEndpoint;
 import com.subjex.platform.app.idp.MeIdpLinkEndpoint;
 import com.subjex.platform.app.inbox.EndUserInboxEndpoint;
@@ -385,7 +386,9 @@ class EndUserCrossRealmIsolationTest {
                     endUserTokenStore,
                     endUserVerificationCodePort,
                     endUserLoginLockout,
-                    jdbc);
+                    jdbc,
+                    new JdbcAuditPort(jdbc),
+                    Clock.systemUTC());
         }
 
         @Bean

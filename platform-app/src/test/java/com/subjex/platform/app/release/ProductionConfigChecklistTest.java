@@ -42,6 +42,15 @@ class ProductionConfigChecklistTest {
         // 单副本生产不会被静默改成 JDBC 后端。
         assertEquals("process", property("platform.rate-limit.backend", "prod"));
         assertEquals("process", property("platform.delivery.circuit-breaker.backend", "prod"));
+        // SMS OTP sender stays fail-closed in production; codes are never revealed.
+        // 生产短信验证码发送器保持失败关闭；绝不在响应中出示验证码。
+        assertEquals("false", property("platform.end-user.auth.verification-code.reveal-in-response"));
+        assertEquals("false", property("platform.end-user.auth.verification-code.reveal-in-response", "prod"));
+        assertEquals("false", property("platform.end-user.auth.verification-code.reveal-in-response", "production"));
+        assertEquals("", property("platform.end-user.auth.verification-code.sender"));
+        assertEquals("", property("platform.end-user.auth.verification-code.sender", "prod"));
+        assertEquals("", property("platform.end-user.auth.verification-code.sender", "production"));
+        assertEquals("", property("platform.end-user.auth.verification-code.http.api-key", "prod"));
     }
 
     @Test
@@ -53,6 +62,8 @@ class ProductionConfigChecklistTest {
         assertEquals("local", property("platform.storage.type"));
         assertEquals("local", property("platform.storage.type", "local"));
         assertEquals("true", property("platform.auth.http-basic-enabled", "local"));
+        assertEquals("true", property("platform.end-user.auth.verification-code.reveal-in-response", "local"));
+        assertEquals("dev", property("platform.end-user.auth.verification-code.sender", "local"));
     }
 
     @Test
@@ -76,6 +87,12 @@ class ProductionConfigChecklistTest {
                 "default manifest must not silently set PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc");
         assertFalse(yaml.contains("platform-operator"), "non-dev manifest must not seed platform-operator");
         assertFalse(env.containsValue("change-me"), "non-dev manifest must not ship change-me values");
+        assertFalse(
+                "dev".equals(env.get("PLATFORM_END_USER_VERIFICATION_CODE_SENDER")),
+                "default manifest must not enable the dev verification-code sender");
+        assertFalse(
+                env.containsKey("PLATFORM_END_USER_VERIFICATION_CODE_HTTP_API_KEY"),
+                "default manifest must not ship an SMS OTP API key");
     }
 
     private static String property(String key, String... profiles) throws IOException {

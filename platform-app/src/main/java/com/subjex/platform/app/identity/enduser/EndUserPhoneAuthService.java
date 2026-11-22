@@ -2,11 +2,16 @@ package com.subjex.platform.app.identity.enduser;
 
 import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.app.security.TenantNotFoundException;
+import com.subjex.platform.contract.audit.AuditEntry;
+import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.contract.tenant.TenantMissingException;
+import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -19,23 +24,45 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 public final class EndUserPhoneAuthService {
 
+    /**
+     * Audit action for a verification-code send attempt — 验证码发送尝试的审计动作。
+     */
+    public static final String SEND_ACTION = "end-user.verification-code.send";
+
+    /**
+     * Platform-level auth audit home (request-code has no business tenant).
+     * 平台级认证审计归属（请求验证码时尚无业务租户）。不是业务写入默认落到 {@code platform}。
+     */
+    public static final String SEND_AUDIT_TENANT = EndUserAccountStore.RESERVED_TENANT;
+
+    /**
+     * Actor for unauthenticated send attempts — 未认证发送尝试的操作者。
+     */
+    public static final String SEND_AUDIT_ACTOR = "end-user-unauthenticated";
+
     private final EndUserAccountStore accounts;
     private final JdbcEndUserTokenStore tokens;
     private final VerificationCodePort codes;
     private final JdbcEndUserLoginLockout lockout;
     private final JdbcTemplate jdbc;
+    private final AuditPort audit;
+    private final Clock clock;
 
     public EndUserPhoneAuthService(
             EndUserAccountStore accounts,
             JdbcEndUserTokenStore tokens,
             VerificationCodePort codes,
             JdbcEndUserLoginLockout lockout,
-            JdbcTemplate jdbc) {
+            JdbcTemplate jdbc,
+            AuditPort audit,
+            Clock clock) {
         this.accounts = Objects.requireNonNull(accounts, "accounts");
         this.tokens = Objects.requireNonNull(tokens, "tokens");
         this.codes = Objects.requireNonNull(codes, "codes");
         this.lockout = Objects.requireNonNull(lockout, "lockout");
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
+        this.audit = Objects.requireNonNull(audit, "audit");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     public VerificationCodePort.IssuedCode requestCode(String phone, String purpose) {
@@ -45,7 +72,43 @@ public final class EndUserPhoneAuthService {
         if (VerificationCodePort.PURPOSE_LOGIN.equals(usedFor)) {
             lockout.assertNotLocked(number);
         }
-        return codes.issue(number, usedFor);
+        try {
+            VerificationCodePort.IssuedCode issued = codes.issue(number, usedFor);
+            recordSendAttempt(usedFor, number, AuditOutcome.ALLOWED);
+            return issued;
+        } catch (VerificationCodeSenderUnconfiguredException ex) {
+            recordSendAttempt(usedFor, number, AuditOutcome.REFUSED);
+            throw ex;
+        } catch (VerificationCodeSendFailedException ex) {
+            recordSendAttempt(usedFor, number, AuditOutcome.FAILED);
+            throw ex;
+        }
+    }
+
+    /**
+     * Mask a destination so audit rows never store the full phone or the code.
+     * 遮蔽目的地，使审计行不存放完整手机号或验证码。
+     */
+    static String maskDestination(String destination) {
+        if (destination == null || destination.isBlank()) {
+            return "****";
+        }
+        String value = destination.trim();
+        if (value.length() <= 4) {
+            return "****";
+        }
+        return "*".repeat(value.length() - 4) + value.substring(value.length() - 4);
+    }
+
+    private void recordSendAttempt(String purpose, String destination, AuditOutcome outcome) {
+        audit.record(new AuditEntry(
+                UUID.randomUUID().toString(),
+                SEND_AUDIT_TENANT,
+                SEND_AUDIT_ACTOR,
+                SEND_ACTION,
+                purpose + ":" + maskDestination(destination),
+                outcome,
+                clock.instant()));
     }
 
     /**
