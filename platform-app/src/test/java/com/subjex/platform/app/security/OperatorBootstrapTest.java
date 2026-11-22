@@ -78,6 +78,7 @@ class OperatorBootstrapTest {
                         "payment.read",
                         "questionnaire.read",
                         "registry.read",
+                        "resource-event.read",
                         "workflow.read",
                         "inbox.read"),
                 reader.permissionNames());

@@ -38,6 +38,7 @@ export const consoleSections: ConsoleSection[] = [
   { href: "/load", labelKey: "navLoad", requiredPermission: "admin.read" },
   { href: "/end-users", labelKey: "navEndUsers", requiredPermission: "end-user.read" },
   { href: "/rate-limits", labelKey: "navRateLimits", requiredPermission: "admin.read" },
+  { href: "/shares", labelKey: "navShares", requiredPermission: "resource-event.read" },
   { href: "/consents", labelKey: "navConsents", requiredPermission: "consent.read" },
   {
     href: "/exports",

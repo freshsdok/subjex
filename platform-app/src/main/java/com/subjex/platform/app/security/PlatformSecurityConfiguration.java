@@ -172,6 +172,12 @@ public class PlatformSecurityConfiguration {
                         // 操作员终端用户名册（只读已有身份行）。只读，end-user.read。
                         .requestMatchers(HttpMethod.GET, "/api/v1/end-users", "/api/v1/end-users/**")
                                 .hasAuthority(OperatorPermission.END_USER_READ.permissionName())
+                        // Share/open ingest is posted by the end-user shell (actor optional). Summary is resource-event.read.
+                        // 终端壳上报分享/打开（分享人可选）。汇总需要 resource-event.read。
+                        .requestMatchers(HttpMethod.POST, "/api/v1/resource-events")
+                                .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/resource-events", "/api/v1/resource-events/**")
+                                .hasAuthority(OperatorPermission.RESOURCE_EVENT_READ.permissionName())
                         // ID-2 service-account client registry — 服务账号客户端登记。
                         .requestMatchers(OauthClientAdminEndpoint.PATH, OauthClientAdminEndpoint.PATH + "/**")
                                 .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())

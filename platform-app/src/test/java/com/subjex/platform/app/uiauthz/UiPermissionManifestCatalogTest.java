@@ -26,7 +26,7 @@ class UiPermissionManifestCatalogTest {
         assertEquals(UiPermissionManifestDefaults.EFFECT_GREY, manifest.defaults().lockedMenuEffect());
         assertEquals(
                 UiPermissionManifestDefaults.EFFECT_DISABLE, manifest.defaults().missingButtonEffect());
-        assertEquals(29, manifest.menus().size());
+        assertEquals(30, manifest.menus().size());
         assertTrue(catalog.knows("console"));
         assertTrue(catalog.knows("uni-app"));
         assertEquals(2, catalog.list().size());
@@ -53,30 +53,31 @@ class UiPermissionManifestCatalogTest {
         assertMenu(menus.get(9), "nav.load", "/load", "admin.read", List.of());
         assertMenu(menus.get(10), "nav.end-users", "/end-users", "end-user.read", List.of());
         assertMenu(menus.get(11), "nav.rate-limits", "/rate-limits", "admin.read", List.of());
-        assertMenu(menus.get(12), "nav.consents", "/consents", "consent.read", List.of());
+        assertMenu(menus.get(12), "nav.shares", "/shares", "resource-event.read", List.of());
+        assertMenu(menus.get(13), "nav.consents", "/consents", "consent.read", List.of());
         assertMenu(
-                menus.get(13),
+                menus.get(14),
                 "nav.exports",
                 "/exports",
                 "export.request",
                 List.of("export.request", "export.approve"));
-        assertMenu(menus.get(14), "nav.payments", "/payments", "payment.read", List.of());
-        assertMenu(menus.get(15), "nav.notification-sends", "/notification-sends", "notification.read", List.of());
-        assertMenu(menus.get(16), "nav.dead-letters", "/dead-letters", "admin.read", List.of());
-        assertMenu(menus.get(17), "nav.deploy", "/deploy", "page.read", List.of());
-        assertMenu(menus.get(18), "nav.forms", "/forms", "page.read", List.of());
-        assertMenu(menus.get(19), "nav.questionnaires", "/questionnaires", "questionnaire.read", List.of());
-        assertMenu(menus.get(20), "nav.pages", "/pages", "page.read", List.of());
-        assertMenu(menus.get(21), "nav.search", "/search", "page.read", List.of());
-        assertMenu(menus.get(22), "nav.declarations", "/declarations", "declaration.read", List.of());
-        assertMenu(menus.get(23), "nav.codegen", "/codegen", "page.read", List.of());
-        assertMenu(menus.get(24), "nav.operators", "/operators", null, List.of());
-        assertMenu(menus.get(25), "nav.tenants", "/tenants", "admin.read", List.of());
-        assertMenu(menus.get(26), "nav.org", "/org", "org.read", List.of());
-        assertMenu(menus.get(27), "nav.capabilities", "/capabilities", "page.read", List.of());
-        assertMenu(menus.get(28), "nav.ui-authz", "/ui-authz", "declaration.read", List.of());
+        assertMenu(menus.get(15), "nav.payments", "/payments", "payment.read", List.of());
+        assertMenu(menus.get(16), "nav.notification-sends", "/notification-sends", "notification.read", List.of());
+        assertMenu(menus.get(17), "nav.dead-letters", "/dead-letters", "admin.read", List.of());
+        assertMenu(menus.get(18), "nav.deploy", "/deploy", "page.read", List.of());
+        assertMenu(menus.get(19), "nav.forms", "/forms", "page.read", List.of());
+        assertMenu(menus.get(20), "nav.questionnaires", "/questionnaires", "questionnaire.read", List.of());
+        assertMenu(menus.get(21), "nav.pages", "/pages", "page.read", List.of());
+        assertMenu(menus.get(22), "nav.search", "/search", "page.read", List.of());
+        assertMenu(menus.get(23), "nav.declarations", "/declarations", "declaration.read", List.of());
+        assertMenu(menus.get(24), "nav.codegen", "/codegen", "page.read", List.of());
+        assertMenu(menus.get(25), "nav.operators", "/operators", null, List.of());
+        assertMenu(menus.get(26), "nav.tenants", "/tenants", "admin.read", List.of());
+        assertMenu(menus.get(27), "nav.org", "/org", "org.read", List.of());
+        assertMenu(menus.get(28), "nav.capabilities", "/capabilities", "page.read", List.of());
+        assertMenu(menus.get(29), "nav.ui-authz", "/ui-authz", "declaration.read", List.of());
         assertTrue(menus.get(0).loginOnly());
-        assertTrue(menus.get(24).loginOnly());
+        assertTrue(menus.get(25).loginOnly());
     }
 
     @Test

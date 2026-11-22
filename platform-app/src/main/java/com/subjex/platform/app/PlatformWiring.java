@@ -122,6 +122,8 @@ import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.JdbcOperatorTokenStore;
 import com.subjex.platform.app.identity.enduser.EndUserAccountStore;
 import com.subjex.platform.app.identity.enduser.EndUserDirectoryService;
+import com.subjex.platform.app.resourceevent.JdbcResourceEventStore;
+import com.subjex.platform.app.resourceevent.ResourceEventService;
 import com.subjex.platform.app.identity.enduser.EndUserShellService;
 import com.subjex.platform.app.identity.enduser.EndUserObjectService;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserAccountStore;
@@ -445,6 +447,26 @@ public class PlatformWiring {
     EndUserDirectoryService endUserDirectoryService(
             JdbcTemplate jdbc, OperatorTenantAccess operatorTenantAccess) {
         return new EndUserDirectoryService(jdbc, operatorTenantAccess);
+    }
+
+    /**
+     * Generic share/open event store and operator summary (not a marketing suite).
+     * 通用分享/打开事件存储与操作员汇总（不是营销套件）。
+     */
+    @Bean
+    JdbcResourceEventStore jdbcResourceEventStore(JdbcTemplate jdbc) {
+        return new JdbcResourceEventStore(jdbc);
+    }
+
+    @Bean
+    ResourceEventService resourceEventService(
+            JdbcTemplate jdbc,
+            JdbcResourceEventStore jdbcResourceEventStore,
+            OperatorTenantAccess operatorTenantAccess,
+            RateLimitPort rateLimitPort,
+            Clock clock) {
+        return new ResourceEventService(
+                jdbc, jdbcResourceEventStore, operatorTenantAccess, rateLimitPort, clock);
     }
 
     /**

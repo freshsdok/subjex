@@ -61,9 +61,9 @@ class UiPermissionDraftApiSecurityTest {
                         .with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.client").value("console"))
-                // Classpath console-ui.yaml baseline: 71 entries after the rate-limit observation menu and page.
-                // classpath 控制台基线在限额与熔断观察菜单与页面入册后为 71 条。
-                .andExpect(jsonPath("$.entries.length()").value(71));
+                // Classpath console-ui.yaml baseline: 73 entries after the shares observation menu and page.
+                // classpath 控制台基线在分享与打开观察菜单与页面入册后为 73 条。
+                .andExpect(jsonPath("$.entries.length()").value(73));
         mockMvc.perform(put(UiPermissionDraftEndpoint.PATH)
                         .queryParam("client", "console")
                         .with(httpBasic(VIEWER, VIEWER_PASSWORD))

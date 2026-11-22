@@ -71,6 +71,8 @@ public enum OperatorPermission {
     NOTIFICATION_READ("notification.read"),
     /** Read existing end-user directory rows in a granted tenant (no disable/unlink) — 在已授权租户内查阅已有终端用户名册（不能停用或解绑）。 */
     END_USER_READ("end-user.read"),
+    /** Read recorded share and open events in a granted tenant (no marketing suite) — 在已授权租户内查阅已记录的分享与打开（不是营销套件）。 */
+    RESOURCE_EVENT_READ("resource-event.read"),
     /** Create and edit questionnaires, publish/close, tokens — 创建编辑问卷、发布关闭、令牌。 */
     QUESTIONNAIRE_WRITE("questionnaire.write"),
     /** Request a personal-data export on behalf of a subject — 代主体申请个人数据导出。 */

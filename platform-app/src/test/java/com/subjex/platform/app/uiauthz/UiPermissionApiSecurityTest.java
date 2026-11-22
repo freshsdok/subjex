@@ -70,9 +70,9 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.client").value("console"))
                 .andExpect(jsonPath("$.defaults.lockedMenuEffect").value("grey"))
                 .andExpect(jsonPath("$.defaults.missingButtonEffect").value("disable"))
-                // Classpath console-ui.yaml: 71 entries after the rate-limit observation menu and page.
-                // classpath 控制台 Manifest 在限额与熔断观察菜单与页面入册后为 71 条。
-                .andExpect(jsonPath("$.entries.length()").value(71))
+                // Classpath console-ui.yaml: 73 entries after the shares observation menu and page.
+                // classpath 控制台 Manifest 在分享与打开观察菜单与页面入册后为 73 条。
+                .andExpect(jsonPath("$.entries.length()").value(73))
                 .andExpect(jsonPath("$.entries[0].id").value("nav.overview"))
                 .andExpect(jsonPath("$.entries[0].kind").value("menu"))
                 .andExpect(jsonPath("$.entries[0].href").value("/"))
@@ -83,26 +83,27 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.entries[9].id").value("nav.load"))
                 .andExpect(jsonPath("$.entries[10].id").value("nav.end-users"))
                 .andExpect(jsonPath("$.entries[11].id").value("nav.rate-limits"))
-                .andExpect(jsonPath("$.entries[12].id").value("nav.consents"))
-                .andExpect(jsonPath("$.entries[13].id").value("nav.exports"))
-                .andExpect(jsonPath("$.entries[14].id").value("nav.payments"))
-                .andExpect(jsonPath("$.entries[14].href").value("/payments"))
-                .andExpect(jsonPath("$.entries[15].id").value("nav.notification-sends"))
-                .andExpect(jsonPath("$.entries[15].href").value("/notification-sends"))
-                .andExpect(jsonPath("$.entries[26].id").value("nav.org"))
-                .andExpect(jsonPath("$.entries[26].permission").value("org.read"))
-                .andExpect(jsonPath("$.entries[26].allowed").value(true))
-                .andExpect(jsonPath("$.entries[29].id").value("btn.inbox.compose.send"))
-                .andExpect(jsonPath("$.entries[29].kind").value("button"))
-                .andExpect(jsonPath("$.entries[29].allowed").value(true))
-                .andExpect(jsonPath("$.entries[30].id").value("btn.org.write"))
+                .andExpect(jsonPath("$.entries[12].id").value("nav.shares"))
+                .andExpect(jsonPath("$.entries[13].id").value("nav.consents"))
+                .andExpect(jsonPath("$.entries[14].id").value("nav.exports"))
+                .andExpect(jsonPath("$.entries[15].id").value("nav.payments"))
+                .andExpect(jsonPath("$.entries[15].href").value("/payments"))
+                .andExpect(jsonPath("$.entries[16].id").value("nav.notification-sends"))
+                .andExpect(jsonPath("$.entries[16].href").value("/notification-sends"))
+                .andExpect(jsonPath("$.entries[27].id").value("nav.org"))
+                .andExpect(jsonPath("$.entries[27].permission").value("org.read"))
+                .andExpect(jsonPath("$.entries[27].allowed").value(true))
+                .andExpect(jsonPath("$.entries[30].id").value("btn.inbox.compose.send"))
+                .andExpect(jsonPath("$.entries[30].kind").value("button"))
                 .andExpect(jsonPath("$.entries[30].allowed").value(true))
-                .andExpect(jsonPath("$.entries[31].id").value("btn.flags.write"))
+                .andExpect(jsonPath("$.entries[31].id").value("btn.org.write"))
                 .andExpect(jsonPath("$.entries[31].allowed").value(true))
-                .andExpect(jsonPath("$.entries[36].id").value("btn.tenants.manage"))
-                .andExpect(jsonPath("$.entries[37].id").value("page.flags"))
-                .andExpect(jsonPath("$.entries[37].kind").value("page"))
-                .andExpect(jsonPath("$.entries[40].id").value("page.tenants"));
+                .andExpect(jsonPath("$.entries[32].id").value("btn.flags.write"))
+                .andExpect(jsonPath("$.entries[32].allowed").value(true))
+                .andExpect(jsonPath("$.entries[37].id").value("btn.tenants.manage"))
+                .andExpect(jsonPath("$.entries[38].id").value("page.flags"))
+                .andExpect(jsonPath("$.entries[38].kind").value("page"))
+                .andExpect(jsonPath("$.entries[41].id").value("page.tenants"));
     }
 
     @Test

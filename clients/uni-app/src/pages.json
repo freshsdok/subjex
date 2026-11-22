@@ -39,7 +39,8 @@
     {
       "path": "pages/questionnaire/fill",
       "style": {
-        "navigationBarTitleText": "填写问卷"
+        "navigationBarTitleText": "填写问卷",
+        "enableShareAppMessage": true
       }
     },
     {

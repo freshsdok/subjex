@@ -59,6 +59,10 @@ entries:
     kind: menu
     href: /rate-limits
     permission: admin.read
+  - id: nav.shares
+    kind: menu
+    href: /shares
+    permission: resource-event.read
   - id: nav.consents
     kind: menu
     href: /consents
@@ -236,6 +240,10 @@ entries:
     kind: page
     route: /rate-limits
     permission: admin.read
+  - id: page.shares
+    kind: page
+    route: /shares
+    permission: resource-event.read
   - id: page.consents
     kind: page
     route: /consents
