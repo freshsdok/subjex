@@ -41,6 +41,13 @@ RUN mvn -B -q -DskipTests -pl sample-consumer -am package \
 # (Go stdlib HIGH CVEs). Noble Temurin has no pebble; ENTRYPOINT is java -jar only.
 # 钉死 noble：浮动 :21-jre 已到 Ubuntu 26.04 且带 pebble（Go stdlib 高危）。noble 无 pebble。
 FROM eclipse-temurin:21.0.12.1_1-jre-noble
+# CVE-2026-109518: pin apt / libapt-pkg6.0t64 to 2.8.4ubuntu0.1 on noble (HIGH).
+# 钉死 noble 上的 apt 修复版本，清除 CVE-2026-109518。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        apt=2.8.4ubuntu0.1 \
+        libapt-pkg6.0t64=2.8.4ubuntu0.1 \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 10001 subjex \
     && useradd --system --uid 10001 --gid subjex --home-dir /app --shell /usr/sbin/nologin subjex \
     && mkdir -p /app \

@@ -47,6 +47,9 @@
         <postgresql.version>42.7.14</postgresql.version>
         <!-- SHARED-2: AWS SDK v2 for S3-compatible ObjectStorage / S3 兼容对象存储。 -->
         <aws.sdk.version>2.31.78</aws.sdk.version>
+        <!-- Trivy CVE-2026-102554: cedar-java 4.10.0 pulls Guava 33.5.0-jre; artifact is 33.7.2-jre (no plain 33.7.2).
+             覆盖 cedar-java 引入的 Guava；Maven 坐标为 33.7.2-jre，不存在无后缀的 33.7.2。 -->
+        <guava.version>33.7.2-jre</guava.version>
     </properties>
 
     <dependencyManagement>
@@ -127,6 +130,11 @@
                 <version>${aws.sdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

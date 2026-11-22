@@ -30,10 +30,10 @@ public class EndUserExportEndpoint {
     private final ExportRequestService exports;
     private final ExportGenerationService generation;
 
-    public EndUserExportEndpoint(ExportRequestService exports) {
-        this(exports, null);
-    }
-
+    /**
+     * Single constructor so Spring can wire the bean; {@code generation} may be null in unit tests that only cover request/approval.
+     * 只保留一个构造器，避免 Spring 因重载而找不到默认构造并拒绝启动；单元测试若只覆盖申请/批准，可将 generation 传 null。
+     */
     public EndUserExportEndpoint(ExportRequestService exports, ExportGenerationService generation) {
         this.exports = Objects.requireNonNull(exports, "exports");
         this.generation = generation;

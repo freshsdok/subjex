@@ -120,7 +120,7 @@ class ExportApprovalTest {
                 clock);
         objects = new JdbcObjectGrantStore(jdbc, clock);
         mvc = MockMvcBuilders.standaloneSetup(
-                        new EndUserExportEndpoint(service), new OperatorExportEndpoint(service))
+                        new EndUserExportEndpoint(service, null), new OperatorExportEndpoint(service, null))
                 .setControllerAdvice(new PlatformExceptionAdvice(null))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter())
                 .build();
