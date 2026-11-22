@@ -1,12 +1,13 @@
 # WP9 observability and edge recipe progress / 可观测性与边缘配方进度
 
-- Date: 2026-11-20 (Asia/Shanghai)
+- Date: 2026-11-22 (Asia/Shanghai) — WP9-2 dashboards landed as repo files; earlier WP9-0 / WP9-1 dates stay 2026-11-20.
 - ADR: [`docs/adr/0021-observability-and-edge-recipe.md`](../adr/0021-observability-and-edge-recipe.md)
 - Predecessor: ADR [`0004`](../adr/0004-observability-audit-trace.md) (audit query + correlation / traceparent), [`docs/observability/obs-progress.md`](obs-progress.md) (OBS-1 / thin OBS-2), WP1 probes and single-replica gate under [`docs/release/`](../release/).
 - Baseline tip when this note was opened: `2be7e94` (WP8 consent/export package closed; formal acceptance `2569f52`)
 - Locked canvas: 「Subjex 底座工作需求」WP9 section (read this slice, used verbatim). WP9 is **non-blocking** (P2): it may run in parallel with domain work and does not block a first public launch.
 - 本切片提交：`eb60b4e`（`eb60b4ed215070a086ba6f231d587a775d860c73`；WP9-0 盘点、ADR 0021 与边缘配方）。不改 Java，不把 `entry-gateway` 改成网关产品，不启动 WP9-1。未改 uni-app / `web/`。
-- WP9-1 提交：`4a9797d`（`4a9797dd9ec1ce2493623de90cff70ac9d4a0a4e`；审计 NDJSON 导出与可选写路径 SIEM sink）。画布验收「审计可导出」已满足。未改 `entry-gateway`，不启动 WP9-2/3。
+- WP9-1 提交：`4a9797d`（`4a9797dd9ec1ce2493623de90cff70ac9d4a0a4e`；审计 NDJSON 导出与可选写路径 SIEM sink）。画布验收「审计可导出」已满足。未改 `entry-gateway`，当时不启动 WP9-2/3。
+- WP9-2 进度：见下文「WP9-2 [done]」。本机不是生产集群；未在真实环境落地 Grafana、Prometheus、边缘 TLS 或多副本。
 
 Canvas WP9 verbatim / 画布 WP9 原文：
 
@@ -35,7 +36,7 @@ Canvas WP9 verbatim / 画布 WP9 原文：
 | --- | --- | --- |
 | Dependencies | `platform-app/pom.xml` (`spring-boot-starter-actuator`, `micrometer-registry-prometheus`) | In-process registry exists. |
 | Scrape endpoint | `/actuator/prometheus` on the **management** port only | `docs/release/probes-and-network.md`, `SECURITY.md`. |
-| Dashboards | — | **Not** in-platform. ADR 0004 and `docs/observability/obs-progress.md` deferred Micrometer dashboards / Grafana. Canvas WP9 says metrics panels may come later. |
+| Dashboards (WP9-2) | [`deploy/observability/`](../../deploy/observability/README.md) | **Repo-owned files, not an in-platform product.** Versioned Grafana JSON (`grafana/subjex-platform-overview.json`) plus a Prometheus scrape example for management ports 8089 / 8090 / 8091. Import into operator-owned Grafana OSS; a Grafana Cloud account is not required. Grounded in stock Micrometer / Spring Boot metrics already scraped at `/actuator/prometheus`, plus pointers to existing health, audit, NDJSON, and dead-letter views. Checking the files in is **not** a live Grafana or Prometheus deploy. |
 
 ### Tracing / OpenTelemetry
 
@@ -124,8 +125,30 @@ Canvas item 1 and the remaining acceptance “审计可导出” are implemented
 - Schema and SIEM shipping notes (Vector / Fluent Bit, generic wording): [`audit-ndjson-schema.md`](audit-ndjson-schema.md), [`deploy/edge/README.md`](../../deploy/edge/README.md).
 - Tests: `AuditExportTest` 3/3 (own-tenant window, missing permission / foreign tenant / `platform` / window cap, sink on/off and no secret fields). Regression: `AuditQueryApiTest` 4, `ObjectAccessAuditTest` 5, `RepairTicketWorkflowAuditTest` 2, `OperatorPermissionMigrationTest` 2, `EndUserCrossRealmIsolationTest` 34 — **50/50**. No other permission-set assertion was updated. The known `OperatorBootstrapTest.readerRoleGetsOnlyReadPermissions` was not fixed.
 
+## WP9-2 [done] — observability dashboards / 可观测看板
+
+Date: 2026-11-22 (Asia/Shanghai). Canvas item “指标面板可后补” is now a repo-owned pack operators can actually import. No new observability product, no Grafana Cloud account, no extra production Actuator endpoints, no `entry-gateway` product change, no multi-replica or live edge landing.
+
+画布「指标面板可后补」现已落成仓库内、运维可实际导入的套件。没有新的可观测产品，不要求 Grafana Cloud 账号，不增加生产 Actuator 暴露，不把 `entry-gateway` 改成网关产品，不启动多副本，也不宣称已在真实环境落地边缘 TLS。
+
+This machine is **not** a production cluster. The files below are versioned recipes and a dashboard definition. They were not applied to a live Prometheus or Grafana, and they do not terminate TLS on a public edge.
+
+本机**不是**生产集群。下面只是版本化的配方与看板定义，并未应用到一套正在运行的 Prometheus 或 Grafana，也没有在对公边缘终结 TLS。
+
+Files / 文件:
+
+- [`deploy/observability/README.md`](../../deploy/observability/README.md) — scrape, import, and operator views already in the product (health, `/audit`, NDJSON export/sink, dead letters, correlated logs)
+- [`deploy/observability/prometheus-scrape.example.yml`](../../deploy/observability/prometheus-scrape.example.yml) — example jobs `platform-app` / `entry-gateway` / `sample-consumer` on `/actuator/prometheus`
+- [`deploy/observability/grafana/subjex-platform-overview.json`](../../deploy/observability/grafana/subjex-platform-overview.json) — uid `subjex-platform-overview`; panels use stock series (`up`, `process_*`, `http_server_requests_seconds_*`, `jvm_*`, `hikaricp_*`, `logback_events_total`, `tomcat_threads_*`)
+
+No new Java meters were added: ADR 0021 D1 asked to keep the existing Prometheus / health / audit baseline, and those series are already emitted by Spring Boot 4 / Micrometer 1.16. Tests parse the dashboard JSON and check the expected metric names and honesty wording; they do not start Grafana or scrape a cluster.
+
+未新增 Java 指标：ADR 0021 D1 要求保持现有 Prometheus / 健康检查 / 审计基线，这些序列已由 Spring Boot 4 / Micrometer 1.16 发出。测试解析看板 JSON 并核对预期指标名与诚实表述；不启动 Grafana，也不抓取集群。
+
 ### Next / 下一步
 
-**WP9-2** — optional metrics dashboards (canvas: 指标面板可后补). Do **not** start WP9-2 in this slice.
+**WP9-3** — optional multi-replica recipe (canvas: 多副本部署配方可后补). Default manifests stay at `replicas: 1`. Advertising `replicas > 1` still requires both shared JDBC backends (`platform.rate-limit.backend=jdbc` and `platform.delivery.circuit-breaker.backend=jdbc`) per [`docs/release/single-replica-gate.md`](../release/single-replica-gate.md). Do **not** start WP9-3 in this slice.
 
-**WP9-3** remains the optional multi-replica recipe (still after dashboards, and not this slice).
+**Edge landing** remains later and separate: `deploy/edge/` is still a configuration sample (placeholder certs and hostnames). A later slice may tighten those recipes; it must not pretend a production TLS or rate-limit deploy happened.
+
+边缘落地仍单独往后排：`deploy/edge/` 仍是配置样例（证书与域名为占位）。后续切片可以收紧配方，但不得假装已在生产落地 TLS 或对外限流。

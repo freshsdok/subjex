@@ -32,11 +32,14 @@ Wave after Identity MVP (ID-0..4). Prefer solid **OBS-1** + thin **OBS-2**.
 
 ## Deferred / 延后
 
-- Full Micrometer metrics / Grafana dashboards
-- Audit export / SIEM sink
 - SA actor login join (CC actor is synthetic `sa:` identity id; filter by `actor` login won't match)
 - Distributed sampling policies beyond always-on
 - Gateway-side span enrichment beyond header propagation
+
+## Later (WP9) / 后续（WP9）
+
+- Audit export / SIEM sink: **done in WP9-1** (`POST /api/v1/audit/export`, optional `NdjsonAuditSink`). See [`audit-ndjson-schema.md`](audit-ndjson-schema.md) and [`wp9-observability-edge-progress.md`](wp9-observability-edge-progress.md).
+- Grafana dashboards: **done in WP9-2** as repo-owned files under [`deploy/observability/`](../../deploy/observability/README.md). Not an in-platform Grafana product; not Grafana Cloud; not a live deploy.
 
 ## ADR
 

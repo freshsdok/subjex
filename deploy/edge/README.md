@@ -62,8 +62,12 @@ Use standalone YAML (`config_provider: yaml`) as sketched in `apisix/config-note
 ## What this is not / 本配方不做
 
 - It is not a Kubernetes Ingress manifest (see `deploy/k8s/` for in-cluster probes and NetworkPolicy).
-- It does not implement audit export / SIEM (WP9-1).
-- It does not add Grafana dashboards or a multi-replica recipe (WP9-2 / WP9-3).
+- Audit export / SIEM is application-level (WP9-1), documented below; this edge does not terminate that path.
+  审计导出 / SIEM 在应用侧（WP9-1），见下文；本边缘不承接这条投递路径。
+- Grafana dashboards and the Prometheus scrape example live under [`deploy/observability/`](../observability/README.md) (WP9-2). This edge folder does not deploy them, and checking them in is not a live Grafana or TLS landing.
+  Grafana 看板与 Prometheus 抓取样例在 [`deploy/observability/`](../observability/README.md)（WP9-2）。本边缘目录不部署它们，写入仓库也不等于已在真实环境落地 Grafana 或 TLS。
+- It does not add a multi-replica recipe (WP9-3; still later). Default k8s manifests stay at `replicas: 1`.
+  本配方不含多副本方案（WP9-3 仍往后排）。默认 k8s 清单仍是 `replicas: 1`。
 - It does not change `entry-gateway`. That process remains an optional in-cluster HTTP forwarder without public TLS. A first launch may omit it and let this edge proxy `platform-app` directly.
   不修改 `entry-gateway`。它仍是可选的集群内 HTTP 转发器，不对公终结 TLS。首次上线可以省略它，由本边缘直接反代 `platform-app`。
 
