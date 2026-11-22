@@ -43,6 +43,8 @@ import com.subjex.platform.contract.exporthook.ExportCrossTenantDeniedException;
 import com.subjex.platform.contract.exporthook.ExportExpiredException;
 import com.subjex.platform.contract.exporthook.ExportNotApprovedException;
 import com.subjex.platform.contract.exporthook.ExportSelfApprovalException;
+import com.subjex.platform.contract.payment.PaymentCrossTenantDeniedException;
+import com.subjex.platform.contract.payment.PaymentNotFoundException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.List;
 import java.util.Map;
@@ -135,6 +137,16 @@ public class PlatformExceptionAdvice {
     ResponseEntity<Map<String, String>> exportArtifactUnavailable() {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("reason", ExportArtifactUnavailableException.REASON));
+    }
+
+    @ExceptionHandler(PaymentNotFoundException.class)
+    ResponseEntity<Map<String, String>> paymentMissing() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("reason", "payment-not-found"));
+    }
+
+    @ExceptionHandler(PaymentCrossTenantDeniedException.class)
+    ResponseEntity<Map<String, String>> paymentCrossTenant() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", "payment-cross-tenant-denied"));
     }
 
     @ExceptionHandler(ObjectUploadRejectedException.class)

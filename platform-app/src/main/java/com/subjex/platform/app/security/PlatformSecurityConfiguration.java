@@ -232,6 +232,10 @@ public class PlatformSecurityConfiguration {
                         // 操作员只读目的同意列表（控制台）。不提供授予/撤回路由。
                         .requestMatchers(HttpMethod.GET, "/api/v1/consents", "/api/v1/consents/**")
                                 .hasAuthority(OperatorPermission.CONSENT_READ.permissionName())
+                        // Operator read-only payment/refund status (console). No create/refund/callback routes exist.
+                        // 操作员只读支付与退款状态（控制台）。不提供创单/退款/回调路由。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/payments", "/api/v1/payments/**")
+                                .hasAuthority(OperatorPermission.PAYMENT_READ.permissionName())
                         .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
                                 .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/questionnaires/**")

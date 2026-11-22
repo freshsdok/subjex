@@ -73,6 +73,7 @@ class OperatorBootstrapTest {
                         "consent.read",
                         "declaration.read",
                         "org.read",
+                        "payment.read",
                         "questionnaire.read",
                         "registry.read",
                         "workflow.read",

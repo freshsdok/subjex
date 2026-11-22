@@ -11,7 +11,6 @@ import com.subjex.platform.contract.inbox.InboxGroupPort;
 import com.subjex.platform.contract.inbox.InboxPort;
 import com.subjex.platform.contract.notification.NotificationPort;
 import com.subjex.platform.contract.consent.ConsentPort;
-import com.subjex.platform.contract.payment.PaymentPort;
 import com.subjex.platform.contract.payment.PaymentProviderIds;
 import com.subjex.platform.contract.payment.PaymentProviderAdapter;
 import com.subjex.platform.contract.notification.NotificationChannel;
@@ -94,6 +93,7 @@ import com.subjex.platform.app.exporthook.ExportGenerationService;
 import com.subjex.platform.app.exporthook.ExportExpiryService;
 import com.subjex.platform.app.exporthook.JdbcExportRequestStore;
 import com.subjex.platform.app.payment.JdbcPaymentPort;
+import com.subjex.platform.app.payment.OperatorPaymentService;
 import com.subjex.platform.app.payment.RecordingPaymentSink;
 import com.subjex.platform.app.payment.MockPaymentAdapter;
 import com.subjex.platform.app.payment.FailClosedPaymentAdapter;
@@ -899,7 +899,7 @@ public class PlatformWiring {
      * {@code WECHAT_PAY} / {@code ALIPAY} 只是预留标识，后续厂商 Bean 可按 SPI 接入。
      */
     @Bean
-    PaymentPort paymentPort(
+    JdbcPaymentPort paymentPort(
             JdbcTemplate jdbc,
             TransactionTemplate transactionTemplate,
             Clock clock,
@@ -916,6 +916,18 @@ public class PlatformWiring {
                         ? new FailClosedPaymentAdapter(PaymentProviderIds.MOCK)
                         : new MockPaymentAdapter(paymentAdapterSink));
         return new JdbcPaymentPort(jdbc, transactionTemplate, clock, objectMapper, map.values());
+    }
+
+    /**
+     * Operator read-only payment and refund query for the console list. No create, callback, or refund.
+     * 操作员只读支付与退款查询，供控制台列表使用；不能创单、办理回调或退款。
+     */
+    @Bean
+    OperatorPaymentService operatorPaymentService(
+            JdbcPaymentPort paymentPort,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine) {
+        return new OperatorPaymentService(paymentPort, operatorTenantAccess, policyEngine);
     }
 
     @Bean

@@ -31,6 +31,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -193,6 +194,47 @@ public final class JdbcPaymentPort implements PaymentPort {
             throw new PaymentCrossTenantDeniedException(tenant, found.tenantId);
         }
         return toDocument(found, loadRefunds(tenant, id));
+    }
+
+    /** Default page size for operator lists — 操作员列表默认条数. */
+    public static final int DEFAULT_LIST_LIMIT = 100;
+
+    /** Hard cap on operator list size — 操作员列表条数上限. */
+    public static final int MAX_LIST_LIMIT = 200;
+
+    /**
+     * List payment documents in an active business tenant, newest first.
+     * Optional status and payer filters. Not on {@link PaymentPort}: operator visibility only.
+     * 在已激活的业务租户内列出支付单，按时间从新到旧；可按状态或付款人筛选。
+     * 不属于 {@link PaymentPort}，仅供操作员查看，不办理结账或退款。
+     */
+    public List<PaymentDocument> listOrders(
+            String tenantId, PaymentStatus status, String payerSubjectId, Integer limit) {
+        String tenant = requireActiveBusinessTenant(tenantId);
+        int cap = normalizeListLimit(limit);
+        String payer = payerSubjectId == null || payerSubjectId.isBlank() ? null : payerSubjectId.trim();
+        StringBuilder sql = new StringBuilder("SELECT * FROM payment WHERE tenant_id = ?");
+        List<Object> args = new ArrayList<>();
+        args.add(tenant);
+        if (status != null) {
+            sql.append(" AND payment_status = ?");
+            args.add(status.name());
+        }
+        if (payer != null) {
+            sql.append(" AND payer_subject_id = ?");
+            args.add(payer);
+        }
+        sql.append(" ORDER BY created_at DESC, payment_id DESC LIMIT ?");
+        args.add(cap);
+        List<PaymentRow> rows = jdbc.query(sql.toString(), (row, n) -> mapRow(row), args.toArray());
+        return rows.stream().map(row -> toDocument(row, loadRefunds(tenant, row.paymentId))).toList();
+    }
+
+    private static int normalizeListLimit(Integer limit) {
+        if (limit == null || limit <= 0) {
+            return DEFAULT_LIST_LIMIT;
+        }
+        return Math.min(limit, MAX_LIST_LIMIT);
     }
 
     @Override
