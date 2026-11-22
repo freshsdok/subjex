@@ -51,6 +51,10 @@ entries:
     kind: menu
     href: /load
     permission: admin.read
+  - id: nav.end-users
+    kind: menu
+    href: /end-users
+    permission: end-user.read
   - id: nav.consents
     kind: menu
     href: /consents
@@ -220,6 +224,10 @@ entries:
     kind: page
     route: /load
     permission: admin.read
+  - id: page.end-users
+    kind: page
+    route: /end-users
+    permission: end-user.read
   - id: page.consents
     kind: page
     route: /consents

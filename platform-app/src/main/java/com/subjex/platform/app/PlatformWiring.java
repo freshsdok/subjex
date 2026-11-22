@@ -121,6 +121,7 @@ import com.subjex.platform.app.security.JdbcTenantAdmin;
 import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.JdbcOperatorTokenStore;
 import com.subjex.platform.app.identity.enduser.EndUserAccountStore;
+import com.subjex.platform.app.identity.enduser.EndUserDirectoryService;
 import com.subjex.platform.app.identity.enduser.EndUserShellService;
 import com.subjex.platform.app.identity.enduser.EndUserObjectService;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserAccountStore;
@@ -433,6 +434,16 @@ public class PlatformWiring {
             Clock clock) {
         return new SessionListService(
                 jdbc, operatorTokenStore, endUserTokenStore, operatorTenantAccess, operatorActionAudit, clock);
+    }
+
+    /**
+     * Operator directory of existing end users in a granted tenant (read-only).
+     * 操作员查阅已授权租户内已有终端用户（只读）。
+     */
+    @Bean
+    EndUserDirectoryService endUserDirectoryService(
+            JdbcTemplate jdbc, OperatorTenantAccess operatorTenantAccess) {
+        return new EndUserDirectoryService(jdbc, operatorTenantAccess);
     }
 
     /**

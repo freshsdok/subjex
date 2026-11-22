@@ -28,6 +28,7 @@ export const OPERATOR_PERMISSION_CATALOG = [
   "inbox.send.system",
   "inbox.broadcast",
   "inbox.group.admin",
+  "end-user.read",
 ] as const;
 
 export type OperatorPermissionName = (typeof OPERATOR_PERMISSION_CATALOG)[number];

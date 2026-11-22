@@ -164,6 +164,10 @@ public class PlatformSecurityConfiguration {
                         // 控制台负载快照（已有 Micrometer 指标）。只读，admin.read。
                         .requestMatchers(HttpMethod.GET, "/api/v1/load")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
+                        // Operator end-user directory (existing identity rows only). List-only, end-user.read.
+                        // 操作员终端用户名册（只读已有身份行）。只读，end-user.read。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/end-users", "/api/v1/end-users/**")
+                                .hasAuthority(OperatorPermission.END_USER_READ.permissionName())
                         // ID-2 service-account client registry — 服务账号客户端登记。
                         .requestMatchers(OauthClientAdminEndpoint.PATH, OauthClientAdminEndpoint.PATH + "/**")
                                 .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
