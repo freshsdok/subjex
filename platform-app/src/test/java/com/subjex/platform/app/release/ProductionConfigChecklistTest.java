@@ -51,6 +51,14 @@ class ProductionConfigChecklistTest {
         assertEquals("", property("platform.end-user.auth.verification-code.sender", "prod"));
         assertEquals("", property("platform.end-user.auth.verification-code.sender", "production"));
         assertEquals("", property("platform.end-user.auth.verification-code.http.api-key", "prod"));
+        // Notification adapters stay fail-closed in production (empty selector).
+        // 生产通知渠道保持失败关闭（选择键为空）。
+        assertEquals("", property("platform.notification.sms.adapter"));
+        assertEquals("", property("platform.notification.sms.adapter", "prod"));
+        assertEquals("", property("platform.notification.sms.adapter", "production"));
+        assertEquals("", property("platform.notification.email.adapter", "prod"));
+        assertEquals("", property("platform.notification.wechat-template.adapter", "prod"));
+        assertEquals("", property("platform.notification.sms.http.api-key", "prod"));
     }
 
     @Test
@@ -64,6 +72,9 @@ class ProductionConfigChecklistTest {
         assertEquals("true", property("platform.auth.http-basic-enabled", "local"));
         assertEquals("true", property("platform.end-user.auth.verification-code.reveal-in-response", "local"));
         assertEquals("dev", property("platform.end-user.auth.verification-code.sender", "local"));
+        assertEquals("mock", property("platform.notification.sms.adapter", "local"));
+        assertEquals("mock", property("platform.notification.email.adapter", "local"));
+        assertEquals("mock", property("platform.notification.wechat-template.adapter", "local"));
     }
 
     @Test
@@ -93,6 +104,18 @@ class ProductionConfigChecklistTest {
         assertFalse(
                 env.containsKey("PLATFORM_END_USER_VERIFICATION_CODE_HTTP_API_KEY"),
                 "default manifest must not ship an SMS OTP API key");
+        assertFalse(
+                "mock".equals(env.get("PLATFORM_NOTIFICATION_SMS_ADAPTER")),
+                "default manifest must not enable the mock notification SMS adapter");
+        assertFalse(
+                env.containsKey("PLATFORM_NOTIFICATION_SMS_HTTP_API_KEY"),
+                "default manifest must not ship a notification SMS API key");
+        assertFalse(
+                env.containsKey("PLATFORM_NOTIFICATION_EMAIL_HTTP_API_KEY"),
+                "default manifest must not ship a notification email API key");
+        assertFalse(
+                env.containsKey("PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_HTTP_API_KEY"),
+                "default manifest must not ship a notification WeChat API key");
     }
 
     private static String property(String key, String... profiles) throws IOException {

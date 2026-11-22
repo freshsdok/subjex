@@ -14,7 +14,6 @@ import com.subjex.platform.contract.consent.ConsentPort;
 import com.subjex.platform.contract.payment.PaymentProviderIds;
 import com.subjex.platform.contract.payment.PaymentProviderAdapter;
 import com.subjex.platform.contract.notification.NotificationChannel;
-import com.subjex.platform.contract.notification.NotificationChannelAdapter;
 import com.subjex.platform.contract.notification.NotificationDispatcher;
 import com.subjex.platform.contract.delivery.DeliveryTransport;
 import com.subjex.platform.contract.delivery.OutboxTls;
@@ -99,9 +98,11 @@ import com.subjex.platform.app.payment.OperatorPaymentService;
 import com.subjex.platform.app.payment.RecordingPaymentSink;
 import com.subjex.platform.app.payment.MockPaymentAdapter;
 import com.subjex.platform.app.payment.FailClosedPaymentAdapter;
-import com.subjex.platform.app.notification.FailClosedNotificationAdapter;
 import com.subjex.platform.app.notification.JdbcNotificationDispatcher;
-import com.subjex.platform.app.notification.MockNotificationAdapter;
+import com.subjex.platform.app.notification.JdkNotificationHttpClient;
+import com.subjex.platform.app.notification.NotificationChannelAdapterFactory;
+import com.subjex.platform.app.notification.NotificationChannelSettings;
+import com.subjex.platform.app.notification.NotificationHttpClient;
 import com.subjex.platform.app.notification.RecordingNotificationSink;
 import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
 import com.subjex.platform.app.questionnaire.QuestionnaireService;
@@ -977,9 +978,20 @@ public class PlatformWiring {
     }
 
     /**
-     * Channel adapters: mock/dev by default, fail-closed under prod when no vendor bean is registered.
-     * A later {@link NotificationChannelAdapter} bean for a channel replaces the default (SPI).
-     * 默认开发用模拟适配器；生产且未注册厂商 Bean 时失败关闭。之后注册的渠道适配器 Bean 会替换默认实现（SPI）。
+     * JDK transport for the vendor-shaped notification template. Selection still requires explicit config.
+     * 厂商形通知模板的 JDK 传输。是否启用仍须显式配置，仅存在本 Bean 不会外呼。
+     */
+    @Bean
+    NotificationHttpClient notificationHttpClient() {
+        return new JdkNotificationHttpClient();
+    }
+
+    /**
+     * Channel adapters from explicit per-channel config. Production stays fail-closed unless
+     * {@code adapter=http} is complete. {@code adapter=mock} is refused in production.
+     * Incomplete vendor config never falls back to the mock adapter. Bodies and keys are never logged.
+     * 按各渠道显式配置选择适配器。生产默认失败关闭；仅在配齐 {@code adapter=http} 时启用模板。
+     * 生产禁止 {@code adapter=mock}。厂商配置不完整绝不回退到模拟适配器。请求体与密钥不写入日志。
      */
     @Bean
     NotificationDispatcher notificationDispatcher(
@@ -989,28 +1001,44 @@ public class PlatformWiring {
             ObjectMapper objectMapper,
             Clock clock,
             Environment environment,
-            ObjectProvider<NotificationChannelAdapter> providedAdapters,
-            RecordingNotificationSink notificationDispatchSink) {
-        boolean production = ProductionProfileGuard.isProductionProfile(environment.getActiveProfiles());
-        java.util.EnumMap<NotificationChannel, NotificationChannelAdapter> map =
+            NotificationHttpClient notificationHttpClient,
+            RecordingNotificationSink notificationDispatchSink,
+            AuditPort auditPort,
+            @Value("${platform.notification.sms.adapter:}") String smsAdapter,
+            @Value("${platform.notification.sms.http.base-url:}") String smsBaseUrl,
+            @Value("${platform.notification.sms.http.api-key:}") String smsApiKey,
+            @Value("${platform.notification.sms.http.from:}") String smsFrom,
+            @Value("${platform.notification.email.adapter:}") String emailAdapter,
+            @Value("${platform.notification.email.http.base-url:}") String emailBaseUrl,
+            @Value("${platform.notification.email.http.api-key:}") String emailApiKey,
+            @Value("${platform.notification.email.http.from:}") String emailFrom,
+            @Value("${platform.notification.wechat-template.adapter:}") String wechatAdapter,
+            @Value("${platform.notification.wechat-template.http.base-url:}") String wechatBaseUrl,
+            @Value("${platform.notification.wechat-template.http.api-key:}") String wechatApiKey,
+            @Value("${platform.notification.wechat-template.http.from:}") String wechatFrom) {
+        java.util.EnumMap<NotificationChannel, NotificationChannelSettings> settings =
                 new java.util.EnumMap<>(NotificationChannel.class);
-        providedAdapters.orderedStream().forEach(adapter -> map.putIfAbsent(adapter.channel(), adapter));
-        for (NotificationChannel channel : NotificationChannel.values()) {
-            if (!map.containsKey(channel)) {
-                map.put(
-                        channel,
-                        production
-                                ? new FailClosedNotificationAdapter(channel)
-                                : new MockNotificationAdapter(channel, notificationDispatchSink));
-            }
-        }
+        settings.put(
+                NotificationChannel.SMS,
+                new NotificationChannelSettings(smsAdapter, smsBaseUrl, smsApiKey, smsFrom));
+        settings.put(
+                NotificationChannel.EMAIL,
+                new NotificationChannelSettings(emailAdapter, emailBaseUrl, emailApiKey, emailFrom));
+        settings.put(
+                NotificationChannel.WECHAT_TEMPLATE,
+                new NotificationChannelSettings(wechatAdapter, wechatBaseUrl, wechatApiKey, wechatFrom));
         return new JdbcNotificationDispatcher(
                 jdbc,
                 transactionTemplate,
                 lock,
                 objectMapper,
                 clock,
-                java.util.List.copyOf(map.values()));
+                NotificationChannelAdapterFactory.createAll(
+                        environment.getActiveProfiles(),
+                        settings,
+                        notificationHttpClient,
+                        notificationDispatchSink),
+                auditPort);
     }
 
 

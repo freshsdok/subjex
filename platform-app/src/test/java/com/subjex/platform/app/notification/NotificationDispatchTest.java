@@ -1,11 +1,13 @@
 package com.subjex.platform.app.notification;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
+import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.app.jdbc.JdbcIdempotencyPort;
 import com.subjex.platform.app.jdbc.JdbcTaskMessagePort;
 import com.subjex.platform.app.lock.SingleProcessLock;
@@ -172,6 +174,94 @@ class NotificationDispatchTest {
         assertTrue(fx.failureOf(receipt.notificationId()).contains("SMS"));
         assertEquals(1, fx.deadLetterCount(receipt.notificationId()));
         assertTrue(fx.sink.sent().isEmpty());
+        List<Map<String, Object>> audits = fx.sendAuditRows();
+        assertEquals(TaskLifecycle.DEFAULT_MAX_ATTEMPT, audits.size());
+        for (Map<String, Object> row : audits) {
+            assertEquals(AuditOutcome.REFUSED.name(), row.get("outcome"));
+            assertEquals(
+                    "SMS:order.approved:subject:" + JdbcNotificationDispatcher.maskDestination("end-user-ada"),
+                    row.get("action_target"));
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void dispatchAuditsMockSendWithoutLeakingDestinationOrParameters(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        String phone = "13800138000";
+        NotificationReceipt receipt = fx.port.enqueue(new NotificationCommand(
+                TENANT_A,
+                "order.approved",
+                NotificationChannel.SMS,
+                NotificationRecipient.ofDestination(phone, TENANT_A),
+                Map.of("orderId", "SECRET-ORD")));
+        assertEquals(1, fx.dispatcher.dispatchPending(10));
+        assertEquals(OutboxState.PUBLISHED.name(), fx.stateOf(receipt.notificationId()));
+        List<Map<String, Object>> audits = fx.sendAuditRows();
+        assertEquals(1, audits.size());
+        Map<String, Object> row = audits.get(0);
+        assertEquals(TENANT_A, row.get("tenant_id"));
+        assertEquals(JdbcNotificationDispatcher.SEND_AUDIT_ACTOR, row.get("actor_identity_id"));
+        assertEquals(AuditOutcome.ALLOWED.name(), row.get("outcome"));
+        assertEquals(
+                "SMS:order.approved:" + JdbcNotificationDispatcher.maskDestination(phone),
+                row.get("action_target"));
+        assertFalse(fx.auditLeaks("SECRET-ORD"));
+        assertFalse(fx.auditLeaks(phone));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void httpTestDoubleDeliversAndAuditsWithoutAVendorNetwork(H2PlatformTables.Mode mode) {
+        RecordingHttpClient client = new RecordingHttpClient();
+        NotificationChannelAdapter sms = NotificationChannelAdapterFactory.create(
+                NotificationChannel.SMS,
+                new String[] {},
+                new NotificationChannelSettings(
+                        "http", "https://notify.example.invalid/v1/sms", "test-api-key", "Subjex"),
+                client,
+                null);
+        Fixture fx = Fixture.open(mode, List.of(sms));
+        String phone = "13800138000";
+        NotificationReceipt receipt = fx.port.enqueue(new NotificationCommand(
+                TENANT_A,
+                "order.approved",
+                NotificationChannel.SMS,
+                NotificationRecipient.ofDestination(phone, TENANT_A),
+                Map.of("orderId", "SECRET-ORD")));
+        assertEquals(1, fx.dispatcher.dispatchPending(10));
+        assertEquals(OutboxState.PUBLISHED.name(), fx.stateOf(receipt.notificationId()));
+        assertEquals(1, client.posts);
+        assertEquals("https://notify.example.invalid/v1/sms", client.endpoint);
+        assertEquals("test-api-key", client.apiKey);
+        assertTrue(client.jsonBody.contains(phone));
+        assertTrue(client.jsonBody.contains("SECRET-ORD"));
+        Map<String, Object> row = fx.sendAuditRows().get(0);
+        assertEquals(AuditOutcome.ALLOWED.name(), row.get("outcome"));
+        assertEquals(
+                "SMS:order.approved:" + JdbcNotificationDispatcher.maskDestination(phone),
+                row.get("action_target"));
+        assertFalse(fx.auditLeaks("SECRET-ORD"));
+        assertFalse(fx.auditLeaks(phone));
+        assertFalse(fx.auditLeaks("test-api-key"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void incompleteHttpAdapterFailsClosedAndDoesNotUseMock(H2PlatformTables.Mode mode) {
+        NotificationChannelAdapter sms = NotificationChannelAdapterFactory.create(
+                NotificationChannel.SMS,
+                new String[] {"local"},
+                new NotificationChannelSettings("http", "https://notify.example.invalid/v1/sms", "", ""),
+                new RecordingHttpClient(),
+                new RecordingNotificationSink());
+        assertTrue(sms instanceof FailClosedNotificationAdapter);
+        Fixture fx = Fixture.open(mode, List.of(sms));
+        NotificationReceipt receipt = fx.port.enqueue(command(NotificationChannel.SMS, "order.approved", "ORD-41"));
+        fx.dispatcher.dispatchPending(10);
+        assertEquals(OutboxState.PENDING.name(), fx.stateOf(receipt.notificationId()));
+        assertEquals(AuditOutcome.REFUSED.name(), fx.sendAuditRows().get(0).get("outcome"));
+        assertTrue(fx.sink.sent().isEmpty());
     }
 
     private static NotificationCommand command(NotificationChannel channel, String templateId, String orderId) {
@@ -242,7 +332,8 @@ class NotificationDispatchTest {
                     new SingleProcessLock(CLOCK),
                     MAPPER,
                     CLOCK,
-                    resolved);
+                    resolved,
+                    new JdbcAuditPort(jdbc));
             return new Fixture(
                     source, jdbc, new JdbcNotificationPort(jdbc, MAPPER, CLOCK), dispatcher, sink);
         }
@@ -304,6 +395,30 @@ class NotificationDispatchTest {
                     "SELECT failure_reason FROM outbox_event WHERE event_id = ?", String.class, eventId);
         }
 
+        private List<Map<String, Object>> sendAuditRows() {
+            return jdbc.queryForList(
+                    """
+                    SELECT tenant_id, actor_identity_id, action_name, action_target, outcome
+                    FROM audit_entry
+                    WHERE action_name = ?
+                    ORDER BY occurred_at
+                    """,
+                    JdbcNotificationDispatcher.SEND_ACTION);
+        }
+
+        private boolean auditLeaks(String secret) {
+            Integer n = jdbc.queryForObject(
+                    """
+                    SELECT COUNT(*) FROM audit_entry
+                    WHERE action_target LIKE ? OR actor_identity_id LIKE ? OR action_name LIKE ?
+                    """,
+                    Integer.class,
+                    "%" + secret + "%",
+                    "%" + secret + "%",
+                    "%" + secret + "%");
+            return n != null && n > 0;
+        }
+
         private int deadLetterCount(String eventId) {
             Integer n = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM dead_letter WHERE origin_id = ? AND discarded_at IS NULL",
@@ -331,6 +446,29 @@ class NotificationDispatchTest {
 
         private int inboxRows() {
             return count("inbox_message") + count("inbox_entry") + count("inbox_fanout_job");
+        }
+    }
+
+    /**
+     * Test double: records HTTP posts and never opens a network.
+     * 测试替身：记录 HTTP 投递，绝不打开网络。
+     */
+    private static final class RecordingHttpClient implements NotificationHttpClient {
+        int posts;
+        String endpoint;
+        String apiKey;
+        String jsonBody;
+        RuntimeException failWith;
+
+        @Override
+        public void post(String endpoint, String apiKey, String jsonBody) {
+            posts++;
+            this.endpoint = endpoint;
+            this.apiKey = apiKey;
+            this.jsonBody = jsonBody;
+            if (failWith != null) {
+                throw failWith;
+            }
         }
     }
 }

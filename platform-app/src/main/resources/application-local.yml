@@ -44,3 +44,13 @@ platform:
       wechat:
         dev-stub: true
 
+  # LOCAL ONLY — mock channel adapters; no vendor network. Forbidden under prod/production.
+  # 仅限本机：模拟通知渠道，不外呼。生产禁止此值。
+  notification:
+    sms:
+      adapter: mock
+    email:
+      adapter: mock
+    wechat-template:
+      adapter: mock
+

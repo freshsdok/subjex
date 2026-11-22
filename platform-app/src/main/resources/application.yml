@@ -165,6 +165,32 @@ platform:
     # 后台调度 PENDING 的 NotificationRequested（进程内适配器，不经 DeliveryPort）。
     dispatch-interval-ms: ${NOTIFICATION_DISPATCH_INTERVAL_MS:2000}
     dispatch-batch-size: ${NOTIFICATION_DISPATCH_BATCH_SIZE:20}
+    # Explicit per-channel adapter: fail-closed | mock | http. Empty default is fail-closed in
+    # production and the mock adapter otherwise. http is the vendor-shaped template and is used
+    # only when selected and base-url + api-key are complete. Never set adapter=mock under
+    # prod/production. Incomplete http fails closed; it does not fall back to mock.
+    # 各渠道适配器须显式选择。默认空：生产失败关闭，非生产用模拟适配器。
+    # http 是厂商形模板，仅在选中且端点与密钥配齐时启用。生产禁止 adapter=mock。http 缺配失败关闭，不回退到模拟适配器。
+    sms:
+      adapter: ${PLATFORM_NOTIFICATION_SMS_ADAPTER:}
+      http:
+        # Placeholders only — do not invent a live vendor account here.
+        # 仅为占位，不要在此编造真实厂商账号。
+        base-url: ${PLATFORM_NOTIFICATION_SMS_HTTP_BASE_URL:}
+        api-key: ${PLATFORM_NOTIFICATION_SMS_HTTP_API_KEY:}
+        from: ${PLATFORM_NOTIFICATION_SMS_HTTP_FROM:}
+    email:
+      adapter: ${PLATFORM_NOTIFICATION_EMAIL_ADAPTER:}
+      http:
+        base-url: ${PLATFORM_NOTIFICATION_EMAIL_HTTP_BASE_URL:}
+        api-key: ${PLATFORM_NOTIFICATION_EMAIL_HTTP_API_KEY:}
+        from: ${PLATFORM_NOTIFICATION_EMAIL_HTTP_FROM:}
+    wechat-template:
+      adapter: ${PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_ADAPTER:}
+      http:
+        base-url: ${PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_HTTP_BASE_URL:}
+        api-key: ${PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_HTTP_API_KEY:}
+        from: ${PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_HTTP_FROM:}
   delivery:
     # Single-select transport: socket (demo, default) | kafka (optional module).
     # 传输单选：socket（演示，默认）| kafka（可选模块）。

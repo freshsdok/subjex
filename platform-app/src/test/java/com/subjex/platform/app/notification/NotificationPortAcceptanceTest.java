@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.lock.SingleProcessLock;
+import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.contract.inbox.InboxRecipientRealm;
 import com.subjex.platform.contract.notification.NotificationChannel;
@@ -20,6 +21,8 @@ import com.subjex.platform.contract.notification.NotificationRecipient;
 import com.subjex.platform.contract.notification.NotificationRequested;
 import com.subjex.platform.contract.task.OutboxState;
 import com.subjex.platform.contract.task.TaskLifecycle;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -159,12 +162,24 @@ class NotificationPortAcceptanceTest {
         }
         Path migrations = repoRoot().resolve("platform-app/src/main/resources/db/migration");
         try (Stream<Path> walk = Files.walk(migrations)) {
-            List<Path> notificationMigrations = walk.filter(path -> {
+            List<Path> notificationOutboxMigrations = walk.filter(path -> {
                         String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-                        return name.endsWith(".sql") && name.contains("notification");
+                        if (!name.endsWith(".sql")) {
+                            return false;
+                        }
+                        try {
+                            String sql = Files.readString(path, StandardCharsets.UTF_8)
+                                    .toLowerCase(Locale.ROOT);
+                            // Permission grants (for example V59 notification.read) are not a second outbox.
+                            // 权限授予（例如 V59 的 notification.read）不是第二条出箱。
+                            return sql.contains("create table")
+                                    && (sql.contains("notification_outbox") || sql.contains("notification_event"));
+                        } catch (IOException ex) {
+                            throw new UncheckedIOException(ex);
+                        }
                     })
                     .toList();
-            assertThat(notificationMigrations)
+            assertThat(notificationOutboxMigrations)
                     .as("WP5 must reuse outbox_event, not add a notification-specific outbox migration")
                     .isEmpty();
         }
@@ -232,7 +247,8 @@ class NotificationPortAcceptanceTest {
                     List.of(
                             new MockNotificationAdapter(NotificationChannel.SMS, sink),
                             new MockNotificationAdapter(NotificationChannel.EMAIL, sink),
-                            new MockNotificationAdapter(NotificationChannel.WECHAT_TEMPLATE, sink)));
+                            new MockNotificationAdapter(NotificationChannel.WECHAT_TEMPLATE, sink)),
+                    new JdbcAuditPort(jdbc));
             return new Fixture(jdbc, new JdbcNotificationPort(jdbc, MAPPER, CLOCK), dispatcher, sink);
         }
 

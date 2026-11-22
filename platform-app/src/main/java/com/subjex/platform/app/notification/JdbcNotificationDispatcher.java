@@ -4,6 +4,9 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import com.subjex.platform.app.jdbc.PlatformTables;
 import com.subjex.platform.app.security.TenantDisabledException;
+import com.subjex.platform.contract.audit.AuditEntry;
+import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.contract.lock.DistributedLockPort;
 import com.subjex.platform.contract.notification.NotificationChannel;
 import com.subjex.platform.contract.notification.NotificationChannelAdapter;
@@ -45,7 +48,18 @@ public final class JdbcNotificationDispatcher implements NotificationDispatcher 
     private final DistributedLockPort lock;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    /**
+     * Audit action for a channel delivery attempt — 渠道投递尝试的审计动作。
+     */
+    public static final String SEND_ACTION = "notification.channel.send";
+
+    /**
+     * System actor for in-process dispatch — 进程内调度的系统操作者。
+     */
+    public static final String SEND_AUDIT_ACTOR = "notification-dispatcher";
+
     private final Map<NotificationChannel, NotificationChannelAdapter> adapters;
+    private final AuditPort audit;
     private final String ownerToken;
 
     public JdbcNotificationDispatcher(
@@ -54,13 +68,15 @@ public final class JdbcNotificationDispatcher implements NotificationDispatcher 
             DistributedLockPort lock,
             ObjectMapper objectMapper,
             Clock clock,
-            List<NotificationChannelAdapter> adapters) {
+            List<NotificationChannelAdapter> adapters,
+            AuditPort audit) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.transaction = Objects.requireNonNull(transaction, "transaction");
         this.lock = Objects.requireNonNull(lock, "lock");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.adapters = indexAdapters(adapters);
+        this.audit = Objects.requireNonNull(audit, "audit");
         this.ownerToken = UUID.randomUUID().toString();
     }
 
@@ -160,43 +176,130 @@ public final class JdbcNotificationDispatcher implements NotificationDispatcher 
      * 调用一次适配器，并在已有出箱行上记录成功或重试/死信结果。
      */
     private OutboxState dispatchRow(OutboxEvent stored) {
-        String failure = validateAndSend(stored);
-        boolean delivered = failure == null;
-        transaction.executeWithoutResult(status -> recordAttempt(stored.eventId(), delivered, failure));
+        SendAttempt attempt = validateAndSend(stored);
+        transaction.executeWithoutResult(status -> {
+            recordAttempt(stored.eventId(), attempt.delivered(), attempt.failureReason());
+            recordSendAttempt(stored, attempt);
+        });
         return loadOutbox(stored.eventId()).eventState();
     }
 
     /**
-     * @return {@code null} on success, otherwise a failure reason that should be recorded
-     *         成功返回 {@code null}，否则返回应落库的失败原因
+     * @return a send attempt with a {@code null} failure reason on success
+     *         成功时失败原因为 {@code null} 的投递尝试
      */
-    private String validateAndSend(OutboxEvent stored) {
+    private SendAttempt validateAndSend(OutboxEvent stored) {
         NotificationRequested request;
         try {
             request = readBody(stored.eventBody());
         } catch (RuntimeException ex) {
-            return clip(ex.getMessage() == null ? "invalid notification event_body" : ex.getMessage());
+            return SendAttempt.failed(
+                    clip(ex.getMessage() == null ? "invalid notification event_body" : ex.getMessage()),
+                    AuditOutcome.FAILED,
+                    null);
         }
         if (!stored.tenantId().equals(request.tenantId())) {
-            return "cross-tenant notification denied";
+            return SendAttempt.failed("cross-tenant notification denied", AuditOutcome.REFUSED, request);
         }
         try {
             requireActiveBusinessTenant(stored.tenantId());
         } catch (RuntimeException ex) {
-            return clip(ex.getMessage() == null ? "tenant is not ACTIVE" : ex.getMessage());
+            return SendAttempt.failed(
+                    clip(ex.getMessage() == null ? "tenant is not ACTIVE" : ex.getMessage()),
+                    AuditOutcome.REFUSED,
+                    request);
         }
         NotificationRecipient recipient = request.recipient();
         if (recipient != null
                 && recipient.recipientTenantId() != null
                 && !stored.tenantId().equals(recipient.recipientTenantId())) {
-            return "cross-tenant notification denied";
+            return SendAttempt.failed("cross-tenant notification denied", AuditOutcome.REFUSED, request);
         }
         NotificationChannelAdapter adapter = adapters.get(request.channel());
         try {
             adapter.send(request);
-            return null;
+            return SendAttempt.ok(request);
+        } catch (NotificationAdapterUnconfiguredException ex) {
+            return SendAttempt.failed(clip(ex.getMessage()), AuditOutcome.REFUSED, request);
+        } catch (NotificationChannelSendFailedException ex) {
+            return SendAttempt.failed(NotificationChannelSendFailedException.REASON, AuditOutcome.FAILED, request);
         } catch (RuntimeException ex) {
-            return clip(ex.getMessage() == null ? "notification adapter failed" : ex.getMessage());
+            return SendAttempt.failed(
+                    clip(ex.getMessage() == null ? "notification adapter failed" : ex.getMessage()),
+                    AuditOutcome.FAILED,
+                    request);
+        }
+    }
+
+    private void recordSendAttempt(OutboxEvent stored, SendAttempt attempt) {
+        audit.record(new AuditEntry(
+                UUID.randomUUID().toString(),
+                stored.tenantId(),
+                SEND_AUDIT_ACTOR,
+                SEND_ACTION,
+                actionTarget(attempt.request()),
+                attempt.outcome(),
+                clock.instant()));
+    }
+
+    /**
+     * Channel, template, and masked recipient only — never the body, parameters, or full destination.
+     * 只含渠道、模板与遮蔽后的收件人，不含请求体、参数或完整目的地。
+     */
+    static String actionTarget(NotificationRequested request) {
+        if (request == null) {
+            return "unparsed";
+        }
+        return request.channel().name()
+                + ":"
+                + request.templateId()
+                + ":"
+                + maskRecipient(request.recipient());
+    }
+
+    /**
+     * Mask a destination like the OTP slice; emails keep only the domain.
+     * 与验证码切片一样遮蔽目的地；邮件只保留域名。
+     */
+    static String maskDestination(String destination) {
+        if (destination == null || destination.isBlank()) {
+            return "****";
+        }
+        String value = destination.trim();
+        int at = value.indexOf('@');
+        if (at >= 0 && at < value.length() - 1) {
+            return "****@" + value.substring(at + 1);
+        }
+        if (value.length() <= 4) {
+            return "****";
+        }
+        return "*".repeat(value.length() - 4) + value.substring(value.length() - 4);
+    }
+
+    static String maskRecipient(NotificationRecipient recipient) {
+        if (recipient == null) {
+            return "****";
+        }
+        if (recipient.destination() != null) {
+            return maskDestination(recipient.destination());
+        }
+        if (recipient.subjectId() != null) {
+            return "subject:" + maskDestination(recipient.subjectId());
+        }
+        return "****";
+    }
+
+    private record SendAttempt(String failureReason, AuditOutcome outcome, NotificationRequested request) {
+        static SendAttempt ok(NotificationRequested request) {
+            return new SendAttempt(null, AuditOutcome.ALLOWED, request);
+        }
+
+        static SendAttempt failed(String reason, AuditOutcome outcome, NotificationRequested request) {
+            return new SendAttempt(reason, outcome, request);
+        }
+
+        boolean delivered() {
+            return failureReason == null;
         }
     }
 
