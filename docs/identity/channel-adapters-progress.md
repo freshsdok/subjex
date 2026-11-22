@@ -5,7 +5,7 @@
 - 依据：约定「把模拟实现换成可插拔的真实渠道—短信验证码供应商（现在只有开发用和默认拒绝两种发送器）；通知渠道（短信、微信或邮件，走现有出箱投递和重试）；支付与退款渠道（可配置、默认为失败闭环，等商户号到位再打开）。这三项都可以先把配置、密钥、审计和失败行为做完整，账号后补。」
 - 范围：平台内核渠道适配器（SPI/端口、失败关闭默认、配置与密钥占位、发送/扣费审计）。不接入真实厂商账号或商户号，测试不呼叫真实厂商网络。不改医院/预约/医疗/签证/保险，不做完整结账页。`NamingGuardArchTest` 保持不动。
 
-本笔记盘点验证码、通知、支付三类适配器的接线，并记下已落地切片。支付适配器不在通知这一刀提交中开工。
+本笔记盘点验证码、通知、支付三类适配器的接线，并记下已落地的三刀。约定清单第 4 项在本地闭合后，不要在本提交里开始 WP9-2/WP9-3 或边缘落地。
 
 硬规则：默认失败关闭；缺配或不完整的厂商配置不得在生产静默回退到「看起来已经发出或已扣费」的模拟实现；是否启用真实外呼必须显式配置；只保留一种厂商形模板，不当成厂商市场。仅存在客户端类不会启用真实厂商。
 
@@ -33,9 +33,9 @@
 
 本刀不另建投递管道，继续走现有出箱、重试与死信。
 
-### 支付与退款 / Payments（后续切片，本刀不动）
+### 支付与退款 / Payments（本刀开工时现状）
 
-| 项 | 现状 |
+| 项 | 本刀开工时现状 |
 | --- | --- |
 | SPI | `PaymentProviderAdapter`。`PaymentProviderIds.MOCK` 是现用标识；`WECHAT_PAY` / `ALIPAY` **仅预留名称**，无 SDK、无产品形态。 |
 | 实现 | `MockPaymentAdapter`（`RecordingPaymentSink`）与 `FailClosedPaymentAdapter`（抛 `PaymentAdapterUnconfiguredException`，绝不把支付写成成功）。 |
@@ -57,11 +57,19 @@
 3. 投递尝试审计：`notification.channel.send`，记在发信业务租户上，操作者为 `notification-dispatcher`。`action_target` 为 `渠道:模板:` + 遮蔽后的目的地或 `subject:` + 遮蔽主体（手机只留末 4 位，邮件只留域名），**不含请求体、模板参数、完整手机号或 API 密钥**。结果：投递成功 `ALLOWED` / 未配置或校验拒绝 `REFUSED` / 投递或解析失败 `FAILED`。HTTP 投递失败原因稳定为 `notification-channel-send-failed`；异常消息不得带出请求体或密钥。出箱重试与死信路径不变；每一次尝试都写审计。
 4. 测试：工厂选择（生产默认三渠道失败关闭、禁止 mock、http 缺配不回退、配齐才选模板）；HTTP 模板经测试替身投递（不联网），失败不泄漏请求体/密钥；目的地遮蔽；`NotificationDispatchTest` 覆盖未配置进入死信 + 拒绝审计、模拟成功审计不含完整目的地或参数、HTTP 替身成功投递与审计、local 下不完整 http 失败关闭且不走模拟槽。`ProductionConfigChecklistTest` 锁定生产保持空 adapter / 不写密钥，local 为 `mock`，默认 k8s 清单不启用模拟适配器、不写入 API 密钥。
 
-## 下一刀 / Next slice
+### 第 3 刀：支付与退款 / Payment and refund adapters（本刀）
 
-支付与退款渠道：在现有 `PaymentProviderAdapter`、支付单据与操作员只读查询之上，补齐显式提供商选择、商户号/密钥占位、失败关闭默认与扣费/退款尝试审计。默认失败关闭，等商户号到位再打开。不要在本刀提交里开始这项。不做完整结账 UI。测试不呼叫真实支付网络。
+1. 显式按供应商标识选择：`platform.payment.{mock,wechat-pay,alipay}.adapter`（`fail-closed` / `mock` / `http`）。基础配置默认为空：生产三标识均失败关闭。非生产仅对 `MOCK` 使用模拟适配器；预留的 `WECHAT_PAY` / `ALIPAY` 即使在本机也不会挂模拟适配器（避免「看起来已经按微信支付/支付宝扣费」）。`application-local.yml` 仅显式 `payment.mock.adapter: mock`。生产禁止 `adapter=mock`（或 `dev`），启动失败。去掉 `ObjectProvider` 静默替换，仅存在客户端类不会启用真实厂商。
+2. 一种厂商形模板服务全部已知标识：`HttpPaymentAdapter` + `PaymentHttpClient`（通用 HTTP POST JSON）。这不是微信支付或支付宝 SDK，只是把预留名称接到同一模板上。密钥/商户占位：`http.base-url` / `http.api-key` / `http.merchant-id`。仅当该标识 `adapter=http` 且端点、密钥与商户号配齐（非空、非 `change-me`、合法 http(s) URL）时才选中模板。缺配、占位或没有传输实现 → 失败关闭，**绝不**回退到模拟适配器。仅存在 `JdkPaymentHttpClient` 不会启用外呼。
+3. 扣费/退款尝试审计：`payment.charge` 与 `payment.refund`，记在发单业务租户上，操作者为 `payment-port`。`action_target` 为 `供应商:charge|refund:` + 遮蔽后的支付单标识（只留末 4 位），**不含请求体、完整支付单号、通知标识、商户号或 API 密钥**。成功 `ALLOWED` 与入账同一事务；未配置或跨租户 `REFUSED`、HTTP 投递失败 `FAILED` 在支付事务回滚之后另写，避免审计一起被回滚。HTTP 失败原因稳定为 `payment-adapter-send-failed`。创单仍允许在适配器未配置时落下 PENDING 单据（现有行为）；真正入账/退款必须已配置。支付单据、退款台账、出箱 `PaymentStatusChanged`、操作员只读查询与不得自行批准的既有规则保持不变。不做结账 UI 或终端支付页。
+4. 测试：工厂选择（生产默认三标识失败关闭、禁止 mock、http 缺配不回退、配齐才选模板；本机空配置不会把预留标识挂成模拟）；HTTP 模板经测试替身扣费/退款（不联网），失败不泄漏请求体/密钥/商户号；目的地遮蔽；`PaymentCallbackRefundTest` 覆盖未配置回调失败关闭 + 拒绝审计、模拟成功扣费/退款审计不含完整标识、HTTP 替身成功扣费与退款、local 下不完整 http 失败关闭且单据保持 PENDING。`ProductionConfigChecklistTest` 锁定生产保持空 adapter / 不写密钥与商户号，local 仅 `mock.adapter=mock`，默认 k8s 清单不启用模拟适配器、不写入 API 密钥或商户号。
+
+## 关包 / Close-out
+
+约定清单第 4 项（把模拟实现换成可插拔的真实渠道：短信验证码、通知渠道、支付与退款）在本地已闭合。默认失败关闭，账号/商户号后补；测试不呼叫真实厂商或支付网络。未推送。不要在本提交里开始 WP9-2/WP9-3 或边缘落地。
 
 ## SHA
 
 - 第 1 刀（短信验证码）：`5453143ad35baee081ebb7c7dadc1091e176b722`
-- 第 2 刀（通知渠道）：见本提交
+- 第 2 刀（通知渠道）：`42872c24276e20a42997ec90d8c0ec9e22db3fb9`
+- 第 3 刀（支付与退款）：见本提交

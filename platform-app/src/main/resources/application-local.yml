@@ -54,3 +54,10 @@ platform:
     wechat-template:
       adapter: mock
 
+  # LOCAL ONLY — mock provider for MOCK; reserved WECHAT_PAY / ALIPAY stay fail-closed.
+  # Forbidden under prod/production. No vendor network.
+  # 仅限本机：MOCK 使用模拟适配器；预留的微信支付/支付宝标识保持失败关闭。生产禁止此值。不外呼。
+  payment:
+    mock:
+      adapter: mock
+

@@ -75,7 +75,9 @@ public class AuditPage {
             Map.entry("object.grant.create", new String[] {"创建对象授权", "create object grant"}),
             Map.entry("object.grant.revoke", new String[] {"撤销对象授权", "revoke object grant"}),
             Map.entry("end-user.verification-code.send", new String[] {"发送验证码", "send verification code"}),
-            Map.entry("notification.channel.send", new String[] {"发送通知", "send notification"}));
+            Map.entry("notification.channel.send", new String[] {"发送通知", "send notification"}),
+            Map.entry("payment.charge", new String[] {"支付入账", "payment charge"}),
+            Map.entry("payment.refund", new String[] {"支付退款", "payment refund"}));
 
     /** Plain words for outcomes — 结果的白话。 */
     static final Map<String, String[]> OUTCOME_WORDS = Map.of(

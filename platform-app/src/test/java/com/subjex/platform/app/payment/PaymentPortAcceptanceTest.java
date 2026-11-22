@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.contract.payment.CreatePaymentCommand;
 import com.subjex.platform.contract.payment.PaymentAmount;
@@ -265,7 +266,12 @@ class PaymentPortAcceptanceTest {
             seedTenant(jdbc, TENANT_B);
             TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(source));
             PaymentPort port = new JdbcPaymentPort(
-                    jdbc, tx, CLOCK, MAPPER, List.of(new MockPaymentAdapter(new RecordingPaymentSink())));
+                    jdbc,
+                    tx,
+                    CLOCK,
+                    MAPPER,
+                    List.of(new MockPaymentAdapter(new RecordingPaymentSink())),
+                    new JdbcAuditPort(jdbc));
             return new Fixture(jdbc, port);
         }
 

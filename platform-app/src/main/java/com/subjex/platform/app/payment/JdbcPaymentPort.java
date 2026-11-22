@@ -2,9 +2,13 @@ package com.subjex.platform.app.payment;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
+import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.jdbc.PlatformTables;
 import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.app.security.TenantNotFoundException;
+import com.subjex.platform.contract.audit.AuditEntry;
+import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.contract.payment.CreatePaymentCommand;
 import com.subjex.platform.contract.payment.PaymentAdapterUnconfiguredException;
 import com.subjex.platform.contract.payment.PaymentAmount;
@@ -77,11 +81,27 @@ public final class JdbcPaymentPort implements PaymentPort {
      */
     public static final int MAX_EVENT_BODY_CHARS = 4000;
 
+    /**
+     * Audit action for a charge (payment-result) attempt — 扣费（支付结果）尝试的审计动作。
+     */
+    public static final String CHARGE_ACTION = "payment.charge";
+
+    /**
+     * Audit action for a refund attempt — 退款尝试的审计动作。
+     */
+    public static final String REFUND_ACTION = "payment.refund";
+
+    /**
+     * System actor for in-process payment port calls — 进程内支付端口调用的系统操作者。
+     */
+    public static final String AUDIT_ACTOR = "payment-port";
+
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
     private final ObjectMapper objectMapper;
     private final Map<String, PaymentProviderAdapter> adapters;
+    private final AuditPort audit;
 
     /**
      * Test helper: default mock adapter so create/query tests can stay adapter-agnostic.
@@ -93,7 +113,8 @@ public final class JdbcPaymentPort implements PaymentPort {
                 transactionTemplate,
                 clock,
                 new ObjectMapper(),
-                List.of(new MockPaymentAdapter(new RecordingPaymentSink())));
+                List.of(new MockPaymentAdapter(new RecordingPaymentSink())),
+                new JdbcAuditPort(jdbc));
     }
 
     public JdbcPaymentPort(
@@ -101,7 +122,8 @@ public final class JdbcPaymentPort implements PaymentPort {
             TransactionTemplate transactionTemplate,
             Clock clock,
             ObjectMapper objectMapper,
-            Collection<PaymentProviderAdapter> adapters) {
+            Collection<PaymentProviderAdapter> adapters,
+            AuditPort audit) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -112,6 +134,7 @@ public final class JdbcPaymentPort implements PaymentPort {
             map.putIfAbsent(adapter.providerId(), adapter);
         }
         this.adapters = Map.copyOf(map);
+        this.audit = Objects.requireNonNull(audit, "audit");
     }
 
     @Override
@@ -254,7 +277,8 @@ public final class JdbcPaymentPort implements PaymentPort {
         String paymentId = callback.paymentId();
         String notificationId = callback.providerNotificationId();
         String fingerprint = callbackFingerprint(callback);
-        return transactionTemplate.execute(status -> {
+        try {
+            return transactionTemplate.execute(status -> {
             PaymentRow found = lockPayment(paymentId);
             if (found == null) {
                 throw new PaymentNotFoundException(tenantId, paymentId);
@@ -315,8 +339,20 @@ public final class JdbcPaymentPort implements PaymentPort {
                     found.providerId,
                     callback.providerReference(),
                     ts);
-            return loadDocument(tenantId, paymentId);
+            PaymentDocument applied = loadDocument(tenantId, paymentId);
+            recordAttempt(tenantId, found.providerId, paymentId, CHARGE_ACTION, AuditOutcome.ALLOWED);
+            return applied;
         });
+        } catch (PaymentAdapterUnconfiguredException ex) {
+            recordAttempt(tenantId, providerIdOf(paymentId), paymentId, CHARGE_ACTION, AuditOutcome.REFUSED);
+            throw ex;
+        } catch (PaymentAdapterSendFailedException ex) {
+            recordAttempt(tenantId, providerIdOf(paymentId), paymentId, CHARGE_ACTION, AuditOutcome.FAILED);
+            throw ex;
+        } catch (PaymentCrossTenantDeniedException ex) {
+            recordAttempt(tenantId, providerIdOf(paymentId), paymentId, CHARGE_ACTION, AuditOutcome.REFUSED);
+            throw ex;
+        }
     }
 
     @Override
@@ -332,7 +368,8 @@ public final class JdbcPaymentPort implements PaymentPort {
         }
         String paymentId = command.paymentId();
         String refundFingerprint = refundFingerprint(command);
-        return transactionTemplate.execute(status -> {
+        try {
+            return transactionTemplate.execute(status -> {
             PaymentRow found = lockPayment(paymentId);
             if (found == null) {
                 throw new PaymentNotFoundException(tenantId, paymentId);
@@ -414,8 +451,20 @@ public final class JdbcPaymentPort implements PaymentPort {
                     found.providerId,
                     found.providerReference,
                     ts);
-            return loadDocument(tenantId, paymentId);
+            PaymentDocument applied = loadDocument(tenantId, paymentId);
+            recordAttempt(tenantId, found.providerId, paymentId, REFUND_ACTION, AuditOutcome.ALLOWED);
+            return applied;
         });
+        } catch (PaymentAdapterUnconfiguredException ex) {
+            recordAttempt(tenantId, providerIdOf(paymentId), paymentId, REFUND_ACTION, AuditOutcome.REFUSED);
+            throw ex;
+        } catch (PaymentAdapterSendFailedException ex) {
+            recordAttempt(tenantId, providerIdOf(paymentId), paymentId, REFUND_ACTION, AuditOutcome.FAILED);
+            throw ex;
+        } catch (PaymentCrossTenantDeniedException ex) {
+            recordAttempt(tenantId, providerIdOf(paymentId), paymentId, REFUND_ACTION, AuditOutcome.REFUSED);
+            throw ex;
+        }
     }
 
     /**
@@ -444,6 +493,53 @@ public final class JdbcPaymentPort implements PaymentPort {
             throw new TenantDisabledException(id);
         }
         return id;
+    }
+
+    /**
+     * Charge or refund attempt target: provider, action, and a masked payment id. No keys or full identifiers.
+     * 扣费/退款尝试对象：供应商、动作与遮蔽后的支付单标识。不含密钥或完整标识。
+     */
+    static String actionTarget(String providerId, String action, String paymentId) {
+        String provider = providerId == null || providerId.isBlank() ? "unknown" : providerId.trim();
+        String kind = CHARGE_ACTION.equals(action) ? "charge" : "refund";
+        return provider + ":" + kind + ":" + maskIdentifier(paymentId);
+    }
+
+    /**
+     * Mask an identifier like the OTP slice (keep the last 4 characters).
+     * 与验证码切片一样遮蔽标识（只留末 4 位）。
+     */
+    static String maskIdentifier(String value) {
+        if (value == null || value.isBlank()) {
+            return "****";
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() <= 4) {
+            return "****";
+        }
+        return "*".repeat(trimmed.length() - 4) + trimmed.substring(trimmed.length() - 4);
+    }
+
+    private void recordAttempt(
+            String tenantId, String providerId, String paymentId, String action, AuditOutcome outcome) {
+        audit.record(new AuditEntry(
+                UUID.randomUUID().toString(),
+                tenantId,
+                AUDIT_ACTOR,
+                action,
+                actionTarget(providerId, action, paymentId),
+                outcome,
+                clock.instant()));
+    }
+
+    private String providerIdOf(String paymentId) {
+        List<PaymentRow> rows = jdbc.query(
+                "SELECT * FROM payment WHERE payment_id = ?", (row, n) -> mapRow(row), paymentId);
+        if (rows.isEmpty()) {
+            return "unknown";
+        }
+        String id = rows.get(0).providerId;
+        return id == null || id.isBlank() ? "unknown" : id;
     }
 
     private PaymentProviderAdapter requireConfiguredAdapter(String providerId) {

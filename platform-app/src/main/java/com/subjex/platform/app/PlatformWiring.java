@@ -12,7 +12,6 @@ import com.subjex.platform.contract.inbox.InboxPort;
 import com.subjex.platform.contract.notification.NotificationPort;
 import com.subjex.platform.contract.consent.ConsentPort;
 import com.subjex.platform.contract.payment.PaymentProviderIds;
-import com.subjex.platform.contract.payment.PaymentProviderAdapter;
 import com.subjex.platform.contract.notification.NotificationChannel;
 import com.subjex.platform.contract.notification.NotificationDispatcher;
 import com.subjex.platform.contract.delivery.DeliveryTransport;
@@ -96,8 +95,10 @@ import com.subjex.platform.app.exporthook.JdbcExportRequestStore;
 import com.subjex.platform.app.payment.JdbcPaymentPort;
 import com.subjex.platform.app.payment.OperatorPaymentService;
 import com.subjex.platform.app.payment.RecordingPaymentSink;
-import com.subjex.platform.app.payment.MockPaymentAdapter;
-import com.subjex.platform.app.payment.FailClosedPaymentAdapter;
+import com.subjex.platform.app.payment.JdkPaymentHttpClient;
+import com.subjex.platform.app.payment.PaymentHttpClient;
+import com.subjex.platform.app.payment.PaymentProviderAdapterFactory;
+import com.subjex.platform.app.payment.PaymentProviderSettings;
 import com.subjex.platform.app.notification.JdbcNotificationDispatcher;
 import com.subjex.platform.app.notification.JdkNotificationHttpClient;
 import com.subjex.platform.app.notification.NotificationChannelAdapterFactory;
@@ -935,10 +936,22 @@ public class PlatformWiring {
     }
 
     /**
-     * Payment adapters: mock/dev by default for {@code MOCK}; production fails closed when no vendor bean is registered.
-     * {@code WECHAT_PAY} / {@code ALIPAY} stay reserved identifiers; a later vendor bean can drop in (SPI).
-     * 默认开发为 {@code MOCK} 挂模拟适配器；生产且未注册厂商 Bean 时失败关闭。
-     * {@code WECHAT_PAY} / {@code ALIPAY} 只是预留标识，后续厂商 Bean 可按 SPI 接入。
+     * JDK transport for the vendor-shaped payment template. Selection still requires explicit config.
+     * 厂商形支付模板的 JDK 传输。是否启用仍须显式配置，仅存在本 Bean 不会外呼。
+     */
+    @Bean
+    PaymentHttpClient paymentHttpClient() {
+        return new JdkPaymentHttpClient();
+    }
+
+    /**
+     * Payment adapters from explicit per-provider config. Production stays fail-closed unless
+     * {@code adapter=http} is complete. {@code adapter=mock} is refused in production.
+     * Incomplete merchant config never falls back to the mock adapter. Bodies and keys are never logged.
+     * Reserved {@code WECHAT_PAY} / {@code ALIPAY} names use the same HTTP template, not a vendor SDK.
+     * 按各供应商显式配置选择适配器。生产默认失败关闭；仅在配齐 {@code adapter=http} 时启用模板。
+     * 生产禁止 {@code adapter=mock}。商户配置不完整绝不回退到模拟适配器。请求体与密钥不写入日志。
+     * 预留的微信支付/支付宝标识走同一 HTTP 模板，不是厂商 SDK。
      */
     @Bean
     JdbcPaymentPort paymentPort(
@@ -947,17 +960,37 @@ public class PlatformWiring {
             Clock clock,
             ObjectMapper objectMapper,
             Environment environment,
-            ObjectProvider<PaymentProviderAdapter> providedAdapters,
-            RecordingPaymentSink paymentAdapterSink) {
-        boolean production = ProductionProfileGuard.isProductionProfile(environment.getActiveProfiles());
-        java.util.LinkedHashMap<String, PaymentProviderAdapter> map = new java.util.LinkedHashMap<>();
-        providedAdapters.orderedStream().forEach(adapter -> map.putIfAbsent(adapter.providerId(), adapter));
-        map.putIfAbsent(
-                PaymentProviderIds.MOCK,
-                production
-                        ? new FailClosedPaymentAdapter(PaymentProviderIds.MOCK)
-                        : new MockPaymentAdapter(paymentAdapterSink));
-        return new JdbcPaymentPort(jdbc, transactionTemplate, clock, objectMapper, map.values());
+            PaymentHttpClient paymentHttpClient,
+            RecordingPaymentSink paymentAdapterSink,
+            AuditPort auditPort,
+            @Value("${platform.payment.mock.adapter:}") String mockAdapter,
+            @Value("${platform.payment.wechat-pay.adapter:}") String wechatAdapter,
+            @Value("${platform.payment.wechat-pay.http.base-url:}") String wechatBaseUrl,
+            @Value("${platform.payment.wechat-pay.http.api-key:}") String wechatApiKey,
+            @Value("${platform.payment.wechat-pay.http.merchant-id:}") String wechatMerchantId,
+            @Value("${platform.payment.alipay.adapter:}") String alipayAdapter,
+            @Value("${platform.payment.alipay.http.base-url:}") String alipayBaseUrl,
+            @Value("${platform.payment.alipay.http.api-key:}") String alipayApiKey,
+            @Value("${platform.payment.alipay.http.merchant-id:}") String alipayMerchantId) {
+        java.util.LinkedHashMap<String, PaymentProviderSettings> settings = new java.util.LinkedHashMap<>();
+        settings.put(PaymentProviderIds.MOCK, new PaymentProviderSettings(mockAdapter, "", "", ""));
+        settings.put(
+                PaymentProviderIds.WECHAT_PAY,
+                new PaymentProviderSettings(wechatAdapter, wechatBaseUrl, wechatApiKey, wechatMerchantId));
+        settings.put(
+                PaymentProviderIds.ALIPAY,
+                new PaymentProviderSettings(alipayAdapter, alipayBaseUrl, alipayApiKey, alipayMerchantId));
+        return new JdbcPaymentPort(
+                jdbc,
+                transactionTemplate,
+                clock,
+                objectMapper,
+                PaymentProviderAdapterFactory.createAll(
+                        environment.getActiveProfiles(),
+                        settings,
+                        paymentHttpClient,
+                        paymentAdapterSink),
+                auditPort);
     }
 
     /**

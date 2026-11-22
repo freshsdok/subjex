@@ -59,6 +59,15 @@ class ProductionConfigChecklistTest {
         assertEquals("", property("platform.notification.email.adapter", "prod"));
         assertEquals("", property("platform.notification.wechat-template.adapter", "prod"));
         assertEquals("", property("platform.notification.sms.http.api-key", "prod"));
+        // Payment adapters stay fail-closed in production (empty selector).
+        // 生产支付适配器保持失败关闭（选择键为空）。
+        assertEquals("", property("platform.payment.mock.adapter"));
+        assertEquals("", property("platform.payment.mock.adapter", "prod"));
+        assertEquals("", property("platform.payment.mock.adapter", "production"));
+        assertEquals("", property("platform.payment.wechat-pay.adapter", "prod"));
+        assertEquals("", property("platform.payment.alipay.adapter", "prod"));
+        assertEquals("", property("platform.payment.wechat-pay.http.api-key", "prod"));
+        assertEquals("", property("platform.payment.alipay.http.merchant-id", "prod"));
     }
 
     @Test
@@ -75,6 +84,9 @@ class ProductionConfigChecklistTest {
         assertEquals("mock", property("platform.notification.sms.adapter", "local"));
         assertEquals("mock", property("platform.notification.email.adapter", "local"));
         assertEquals("mock", property("platform.notification.wechat-template.adapter", "local"));
+        assertEquals("mock", property("platform.payment.mock.adapter", "local"));
+        assertEquals("", property("platform.payment.wechat-pay.adapter", "local"));
+        assertEquals("", property("platform.payment.alipay.adapter", "local"));
     }
 
     @Test
@@ -116,6 +128,21 @@ class ProductionConfigChecklistTest {
         assertFalse(
                 env.containsKey("PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_HTTP_API_KEY"),
                 "default manifest must not ship a notification WeChat API key");
+        assertFalse(
+                "mock".equals(env.get("PLATFORM_PAYMENT_MOCK_ADAPTER")),
+                "default manifest must not enable the mock payment adapter");
+        assertFalse(
+                env.containsKey("PLATFORM_PAYMENT_WECHAT_PAY_HTTP_API_KEY"),
+                "default manifest must not ship a WeChat Pay API key");
+        assertFalse(
+                env.containsKey("PLATFORM_PAYMENT_ALIPAY_HTTP_API_KEY"),
+                "default manifest must not ship an Alipay API key");
+        assertFalse(
+                env.containsKey("PLATFORM_PAYMENT_WECHAT_PAY_HTTP_MERCHANT_ID"),
+                "default manifest must not ship a WeChat Pay merchant id");
+        assertFalse(
+                env.containsKey("PLATFORM_PAYMENT_ALIPAY_HTTP_MERCHANT_ID"),
+                "default manifest must not ship an Alipay merchant id");
     }
 
     private static String property(String key, String... profiles) throws IOException {

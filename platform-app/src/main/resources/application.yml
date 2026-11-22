@@ -191,6 +191,31 @@ platform:
         base-url: ${PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_HTTP_BASE_URL:}
         api-key: ${PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_HTTP_API_KEY:}
         from: ${PLATFORM_NOTIFICATION_WECHAT_TEMPLATE_HTTP_FROM:}
+  payment:
+    # Explicit adapter per known provider: fail-closed | mock | http. Empty default is fail-closed
+    # in production. Non-production uses mock only for MOCK. http is the vendor-shaped template
+    # and is used only when selected and base-url + api-key + merchant-id are complete.
+    # Never set adapter=mock under prod/production. Incomplete http fails closed; it does not
+    # fall back to mock. WECHAT_PAY / ALIPAY are reserved names on this template, not an SDK.
+    # 各已知供应商须显式选择适配器。默认空：生产失败关闭；非生产仅对 MOCK 使用模拟。
+    # http 是厂商形模板，仅在选中且端点、密钥与商户号配齐时启用。生产禁止 adapter=mock。
+    # http 缺配失败关闭，不回退到模拟。WECHAT_PAY / ALIPAY 只是挂在此模板上的预留名，不是 SDK。
+    mock:
+      adapter: ${PLATFORM_PAYMENT_MOCK_ADAPTER:}
+    wechat-pay:
+      adapter: ${PLATFORM_PAYMENT_WECHAT_PAY_ADAPTER:}
+      http:
+        # Placeholders only — do not invent a live merchant account here.
+        # 仅为占位，不要在此编造真实商户号。
+        base-url: ${PLATFORM_PAYMENT_WECHAT_PAY_HTTP_BASE_URL:}
+        api-key: ${PLATFORM_PAYMENT_WECHAT_PAY_HTTP_API_KEY:}
+        merchant-id: ${PLATFORM_PAYMENT_WECHAT_PAY_HTTP_MERCHANT_ID:}
+    alipay:
+      adapter: ${PLATFORM_PAYMENT_ALIPAY_ADAPTER:}
+      http:
+        base-url: ${PLATFORM_PAYMENT_ALIPAY_HTTP_BASE_URL:}
+        api-key: ${PLATFORM_PAYMENT_ALIPAY_HTTP_API_KEY:}
+        merchant-id: ${PLATFORM_PAYMENT_ALIPAY_HTTP_MERCHANT_ID:}
   delivery:
     # Single-select transport: socket (demo, default) | kafka (optional module).
     # 传输单选：socket（演示，默认）| kafka（可选模块）。

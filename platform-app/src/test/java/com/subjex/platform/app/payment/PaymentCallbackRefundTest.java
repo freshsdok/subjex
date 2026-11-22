@@ -1,6 +1,8 @@
 package com.subjex.platform.app.payment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,6 +13,7 @@ import com.subjex.platform.app.jdbc.JdbcIdempotencyPort;
 import com.subjex.platform.app.jdbc.JdbcTaskMessagePort;
 import com.subjex.platform.app.lock.SingleProcessLock;
 import com.subjex.platform.app.security.H2PlatformTables;
+import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.contract.delivery.DeliveryAttempt;
 import com.subjex.platform.contract.delivery.DeliveryPort;
 import com.subjex.platform.contract.payment.CreatePaymentCommand;
@@ -188,6 +191,96 @@ class PaymentCallbackRefundTest {
         assertEquals(0, fx.outboxCount());
         assertEquals(0, fx.voucherFacts(created.paymentId(), JdbcPaymentPort.FACT_PAYMENT_SUCCEEDED));
         assertEquals(1, fx.voucherFacts(created.paymentId(), JdbcPaymentPort.FACT_ORDER_CREATED));
+        List<Map<String, Object>> audits = fx.auditRows(JdbcPaymentPort.CHARGE_ACTION);
+        assertEquals(1, audits.size());
+        assertEquals(AuditOutcome.REFUSED.name(), audits.get(0).get("outcome"));
+        assertFalse(fx.auditLeaks(created.paymentId()));
+        assertFalse(fx.auditLeaks("notify-prod"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void chargeAndRefundAuditDoNotLeakIdentifiers(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        PaymentDocument created = fx.port.createOrder(order(TENANT_A, 40L, "CNY", "ORD-40"));
+        fx.port.applyPaymentResult(success(TENANT_A, created.paymentId(), "notify-secret"));
+        fx.port.refund(refund(TENANT_A, created.paymentId(), 10L, "CNY", "refund-secret"));
+        Map<String, Object> charge = fx.auditRows(JdbcPaymentPort.CHARGE_ACTION).get(0);
+        Map<String, Object> refunded = fx.auditRows(JdbcPaymentPort.REFUND_ACTION).get(0);
+        assertEquals(TENANT_A, charge.get("tenant_id"));
+        assertEquals(JdbcPaymentPort.AUDIT_ACTOR, charge.get("actor_identity_id"));
+        assertEquals(AuditOutcome.ALLOWED.name(), charge.get("outcome"));
+        assertEquals(
+                JdbcPaymentPort.actionTarget(PaymentProviderIds.MOCK, JdbcPaymentPort.CHARGE_ACTION, created.paymentId()),
+                charge.get("action_target"));
+        assertEquals(AuditOutcome.ALLOWED.name(), refunded.get("outcome"));
+        assertEquals(
+                JdbcPaymentPort.actionTarget(PaymentProviderIds.MOCK, JdbcPaymentPort.REFUND_ACTION, created.paymentId()),
+                refunded.get("action_target"));
+        assertFalse(fx.auditLeaks(created.paymentId()));
+        assertFalse(fx.auditLeaks("notify-secret"));
+        assertFalse(fx.auditLeaks("refund-secret"));
+        assertFalse(fx.auditLeaks("prov-ref-1"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void httpTestDoubleChargesAndRefundsWithoutAPaymentNetwork(H2PlatformTables.Mode mode) {
+        RecordingHttpClient client = new RecordingHttpClient();
+        var adapter = PaymentProviderAdapterFactory.create(
+                PaymentProviderIds.WECHAT_PAY,
+                new String[] {},
+                new PaymentProviderSettings(
+                        "http",
+                        "https://pay.example.invalid/v1/charges",
+                        "test-api-key",
+                        "mch-test-1"),
+                client,
+                null);
+        Fixture fx = Fixture.openWithAdapters(mode, List.of(adapter));
+        PaymentDocument created = fx.port.createOrder(
+                orderWithProvider(TENANT_A, 40L, "CNY", "ORD-40", PaymentProviderIds.WECHAT_PAY));
+        fx.port.applyPaymentResult(success(TENANT_A, created.paymentId(), "notify-secret"));
+        assertEquals(PaymentStatus.SUCCEEDED, fx.port.queryOrder(TENANT_A, created.paymentId()).status());
+        assertEquals(1, client.posts);
+        assertEquals("https://pay.example.invalid/v1/charges", client.endpoint);
+        assertEquals("test-api-key", client.apiKey);
+        assertTrue(client.jsonBody.contains("\"action\":\"payment-result\""));
+        assertTrue(client.jsonBody.contains(created.paymentId()));
+        fx.port.refund(refund(TENANT_A, created.paymentId(), 10L, "CNY", "refund-secret"));
+        assertEquals(2, client.posts);
+        assertTrue(client.jsonBody.contains("\"action\":\"refund\""));
+        assertEquals(AuditOutcome.ALLOWED.name(), fx.auditRows(JdbcPaymentPort.CHARGE_ACTION).get(0).get("outcome"));
+        assertEquals(AuditOutcome.ALLOWED.name(), fx.auditRows(JdbcPaymentPort.REFUND_ACTION).get(0).get("outcome"));
+        assertEquals(
+                "WECHAT_PAY:charge:" + JdbcPaymentPort.maskIdentifier(created.paymentId()),
+                fx.auditRows(JdbcPaymentPort.CHARGE_ACTION).get(0).get("action_target"));
+        assertFalse(fx.auditLeaks(created.paymentId()));
+        assertFalse(fx.auditLeaks("test-api-key"));
+        assertFalse(fx.auditLeaks("mch-test-1"));
+        assertFalse(fx.auditLeaks("notify-secret"));
+        assertFalse(fx.auditLeaks("refund-secret"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void incompleteHttpAdapterFailsClosedAndDoesNotUseMock(H2PlatformTables.Mode mode) {
+        var adapter = PaymentProviderAdapterFactory.create(
+                PaymentProviderIds.WECHAT_PAY,
+                new String[] {"local"},
+                new PaymentProviderSettings("http", "https://pay.example.invalid/v1/charges", "", "mch-test-1"),
+                new RecordingHttpClient(),
+                new RecordingPaymentSink());
+        assertInstanceOf(FailClosedPaymentAdapter.class, adapter);
+        Fixture fx = Fixture.openWithAdapters(mode, List.of(adapter));
+        PaymentDocument created = fx.port.createOrder(
+                orderWithProvider(TENANT_A, 25L, "EUR", "ORD-25", PaymentProviderIds.WECHAT_PAY));
+        assertThrows(
+                PaymentAdapterUnconfiguredException.class,
+                () -> fx.port.applyPaymentResult(success(TENANT_A, created.paymentId(), "notify-prod")));
+        assertEquals(PaymentStatus.PENDING, fx.port.queryOrder(TENANT_A, created.paymentId()).status());
+        assertEquals(0, fx.outboxCount());
+        assertEquals(AuditOutcome.REFUSED.name(), fx.auditRows(JdbcPaymentPort.CHARGE_ACTION).get(0).get("outcome"));
     }
 
     private static void assertStatusChanged(
@@ -212,8 +305,13 @@ class PaymentCallbackRefundTest {
     }
 
     private static CreatePaymentCommand order(String tenantId, long amountMinor, String currency, String reference) {
+        return orderWithProvider(tenantId, amountMinor, currency, reference, PaymentProviderIds.MOCK);
+    }
+
+    private static CreatePaymentCommand orderWithProvider(
+            String tenantId, long amountMinor, String currency, String reference, String providerId) {
         return new CreatePaymentCommand(
-                tenantId, new PaymentAmount(amountMinor, currency), reference, "payer-ada", "END_USER", null, PaymentProviderIds.MOCK);
+                tenantId, new PaymentAmount(amountMinor, currency), reference, "payer-ada", "END_USER", null, providerId);
     }
 
     private static PaymentResultCallback success(String tenantId, String paymentId, String notificationId) {
@@ -266,7 +364,7 @@ class PaymentCallbackRefundTest {
             seedTenant(jdbc, TENANT_A);
             seedTenant(jdbc, TENANT_B);
             TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(source));
-            PaymentPort port = new JdbcPaymentPort(jdbc, tx, CLOCK, MAPPER, adapters);
+            PaymentPort port = new JdbcPaymentPort(jdbc, tx, CLOCK, MAPPER, adapters, new JdbcAuditPort(jdbc));
             return new Fixture(source, jdbc, port, tx);
         }
 
@@ -303,6 +401,30 @@ class PaymentCallbackRefundTest {
             return n == null ? 0 : n;
         }
 
+        private List<Map<String, Object>> auditRows(String action) {
+            return jdbc.queryForList(
+                    """
+                    SELECT tenant_id, actor_identity_id, action_name, action_target, outcome
+                    FROM audit_entry
+                    WHERE action_name = ?
+                    ORDER BY occurred_at
+                    """,
+                    action);
+        }
+
+        private boolean auditLeaks(String secret) {
+            Integer n = jdbc.queryForObject(
+                    """
+                    SELECT COUNT(*) FROM audit_entry
+                    WHERE action_target LIKE ? OR actor_identity_id LIKE ? OR action_name LIKE ?
+                    """,
+                    Integer.class,
+                    "%" + secret + "%",
+                    "%" + secret + "%",
+                    "%" + secret + "%");
+            return n != null && n > 0;
+        }
+
         private int relay(RecordingDeliveryPort delivery, int batch) {
             JdbcTaskMessagePort tasks = new JdbcTaskMessagePort(
                     jdbc,
@@ -315,6 +437,29 @@ class PaymentCallbackRefundTest {
                     MAPPER,
                     CLOCK);
             return tasks.relayPending(batch);
+        }
+    }
+
+    /**
+     * Test double: records HTTP posts and never opens a network.
+     * 测试替身：记录 HTTP 投递，绝不打开网络。
+     */
+    private static final class RecordingHttpClient implements PaymentHttpClient {
+        int posts;
+        String endpoint;
+        String apiKey;
+        String jsonBody;
+        RuntimeException failWith;
+
+        @Override
+        public void post(String endpoint, String apiKey, String jsonBody) {
+            posts++;
+            this.endpoint = endpoint;
+            this.apiKey = apiKey;
+            this.jsonBody = jsonBody;
+            if (failWith != null) {
+                throw failWith;
+            }
         }
     }
 }
