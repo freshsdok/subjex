@@ -60,6 +60,7 @@ import {
   logoutAndClear,
   requestPhoneCode,
 } from "../../api/auth";
+import { discoverTenantFromApiHost } from "../../api/platform";
 import { openShellPage } from "../../api/shell-path";
 import {
   applyTenantFromQuery,
@@ -201,6 +202,18 @@ async function onLogout() {
   }
 }
 
+async function fillTenantFromApiHost() {
+  if (tenantId.value.trim()) return;
+  const discovered = await discoverTenantFromApiHost();
+  if (!discovered) return;
+  try {
+    tenantId.value = writeTenantId(discovered);
+    tenantHint.value = "已根据当前访问地址填入所在组织";
+  } catch (e) {
+    tenantHint.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
 onLoad((query) => {
   const bag = (query || {}) as Record<string, unknown>;
   const fromQuery = applyTenantFromQuery(bag);
@@ -209,12 +222,14 @@ onLoad((query) => {
   const rawRedirect = bag.redirect;
   redirect.value = typeof rawRedirect === "string" ? rawRedirect : "";
   syncTenantHint();
+  void fillTenantFromApiHost();
 });
 
 onMounted(() => {
   signedIn.value = isSignedIn();
   if (!tenantId.value) tenantId.value = readTenantId() || "";
   syncTenantHint();
+  void fillTenantFromApiHost();
 });
 </script>
 

@@ -99,3 +99,29 @@ TN-0…TN-3 done. Next wave: **thin workflow** — see [`docs/workflow/wf-progre
 ## Progress pointer
 
 Release checklist P5 remains valid; this wave **extends** it rather than replacing it. Isolation suite is the standing gate for `/api/v1` filter exemption.
+
+## Tenant custom hosts (ops first cut) — 2026-11-23 CST
+
+Independent tenant hostnames for Host-header routing. This is a vertical first cut:
+schema + resolve + operator manage + tests. It does **not** provision public DNS or TLS,
+and it does not move the operator console onto tenant domains.
+
+租户独立主机名（按 Host 头解析）的首个完整切口：表结构 + 解析 + 操作台管理 + 测试。
+**不**办理公网 DNS 或证书，也不把操作台改到租户域名上。
+
+### Bindings / 绑定
+
+- Flyway **V60** `tenant_host` (`host_name` unique, lowercase, no port/scheme/path).
+- APIs: `GET/POST /api/v1/tenants/{id}/hosts` and `DELETE .../hosts/{hostName}`. List is `admin.read`; writes are `tenant.manage`.
+- Reserved tenant `platform` cannot have bindings. `localhost`, loopback IPs, and `platform.hosts.reserved` (`PLATFORM_RESERVED_HOSTS`) cannot be bound.
+- Invalid names (one label, path, scheme, wildcard, IP literal) are rejected.
+
+### Resolution / 解析
+
+- `TenantHostResolutionFilter` reads the request **`Host` header only**. It does **not** honor `X-Forwarded-Host` or `Forwarded` — platform-app has no trusted-proxy list for those (entry-gateway only has one for `X-Forwarded-For`).
+- The Nginx recipe already forwards the original public name with `proxy_set_header Host $host`. Production must add those public API/console names to `PLATFORM_RESERVED_HOSTS`, and the edge TLS `server_name` (and certificates) must actually accept tenant hostnames; this repository still uses placeholders only.
+- Bound + active Host → injects `X-Tenant-Id` so existing APIs and the end-user shell can identify the tenant without a manual header. Bound Host + a *different* `X-Tenant-Id` → **409** (fail closed). Bound Host + disabled/missing tenant → **403**.
+- Several distinct `Host` values → **409**. Unknown hosts do **not** invent a tenant; header-based calls on an unbound name keep working as before. Platform/loopback hosts also stay header-based.
+- Public discovery: `GET /api/v1/public/host-tenant` (permitAll) returns whether *this* request Host is bound. No query-parameter override (that would be spoofable). If the H5 page and the API use *different* hostnames, the API will not see the page hostname (browsers cannot set `Host`); keep using the existing tenant field in that setup.
+
+硬删除会一并清掉该租户的主机绑定，导出 ZIP 含 `hosts.json`。

@@ -14,10 +14,14 @@ import com.subjex.platform.app.identity.enduser.EndUserAuthEndpoint;
 import com.subjex.platform.app.identity.enduser.EndUserPhoneAuthEndpoint;
 import com.subjex.platform.app.identity.enduser.EndUserWeChatAuthEndpoint;
 import com.subjex.platform.app.storage.ObjectDownloadEndpoint;
+import com.subjex.platform.app.tenant.PublicTenantHostEndpoint;
+import com.subjex.platform.app.tenant.TenantHostResolutionFilter;
+import com.subjex.platform.app.tenant.TenantHostService;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserTokenStore;
 import com.subjex.platform.contract.tenant.TenantGuard;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -83,6 +87,10 @@ public class PlatformSecurityConfiguration {
                         // WP3-2: local-disk redeem; the HMAC signature is the credential (like an S3 presigned GET).
                         // WP3-2：本地盘兑换；HMAC 签名即凭证（与 S3 预签名 GET 相同）。
                         .requestMatchers(HttpMethod.GET, ObjectDownloadEndpoint.REDEEM_PATH).permitAll()
+                        // Public Host → tenant discovery for the end-user shell (Host header only).
+                        // 终端壳按 Host 发现租户（只认 Host 头）。
+                        .requestMatchers(HttpMethod.GET, PublicTenantHostEndpoint.PATH)
+                                .permitAll()
                         // Token issue / rotate / revoke — no prior auth (password or refresh in body).
                         // 签发 / 轮换 / 吊销 — 事先无需认证（口令或刷新令牌在正文里）。
                         .requestMatchers(HttpMethod.POST,
@@ -336,6 +344,18 @@ public class PlatformSecurityConfiguration {
     @Bean
     PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
+
+
+    /**
+     * Resolve a bound tenant Host into {@code X-Tenant-Id} before controllers read the header.
+     * 在控制器读取请求头之前，把已绑定的租户 Host 填进 {@code X-Tenant-Id}。
+     */
+    @Bean
+    @Order(-95)
+    @ConditionalOnBean(TenantHostService.class)
+    TenantHostResolutionFilter tenantHostResolutionFilter(TenantHostService tenantHostService) {
+        return new TenantHostResolutionFilter(tenantHostService);
     }
 
     @Bean

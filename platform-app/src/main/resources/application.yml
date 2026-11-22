@@ -278,6 +278,13 @@ platform:
   tenant-quota:
     daily-submit-limit: ${PLATFORM_TENANT_DAILY_SUBMIT_LIMIT:10000}
     storage-row-limit: ${PLATFORM_TENANT_STORAGE_ROW_LIMIT:100000}
+  # Public hostnames of the operator console and the platform API. They never identify a business tenant.
+  # Loopback is always reserved, even if this list is replaced. This cut does not read X-Forwarded-Host.
+  # Add production names via PLATFORM_RESERVED_HOSTS (comma-separated). This does not provision DNS or TLS.
+  # 操作台与平台接口的公开主机名，不会被当成业务租户域名。回环地址始终保留。本切口不采信 X-Forwarded-Host。
+  # 生产主机名用 PLATFORM_RESERVED_HOSTS（逗号分隔）追加。这里不办理 DNS，也不签发证书。
+  hosts:
+    reserved: ${PLATFORM_RESERVED_HOSTS:localhost,127.0.0.1,::1}
   op:
     # ID-1 thin OIDC OP issuer (discovery / JWT iss).
     # ID-1 轻量 OIDC 签发方（发现文档 / JWT iss）。

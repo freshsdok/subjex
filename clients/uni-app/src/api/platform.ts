@@ -12,7 +12,7 @@
 
 import { readBearer } from "./auth-token";
 import { loginPageUrl } from "./shell-path";
-import { TENANT_HEADER, readTenantId } from "./tenant";
+import { TENANT_HEADER, normalizeBusinessTenantId, readTenantId } from "./tenant";
 
 const DEFAULT_BASE = "http://127.0.0.1:8080";
 
@@ -217,6 +217,29 @@ export async function platformFetch<T = unknown>(options: PlatformRequestOptions
  * Authenticated JSON call: attach stored Bearer + tenant, require sign-in.
  * 已登录 JSON 调用：带上令牌和租户；未登录则去登录页。
  */
+
+/**
+ * If this API request Host is a bound tenant domain, return that tenant id.
+ * Does nothing useful when the API base is a reserved platform host (including 127.0.0.1):
+ * the page hostname cannot be sent as Host to a different API origin.
+ * 若本次 API 请求的 Host 是已绑定的租户域名，则返回该租户。
+ * 当 API 根地址是平台保留主机（包括 127.0.0.1）时不会发现租户：浏览器不能向另一个源改写 Host。
+ */
+export async function discoverTenantFromApiHost(): Promise<string | null> {
+  try {
+    const body = await platformFetch<{ bound?: boolean; tenantId?: string }>({
+      path: "/api/v1/public/host-tenant",
+      skipAuthRetry: true,
+    });
+    if (body && body.bound === true) {
+      return normalizeBusinessTenantId(body.tenantId);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export async function authedFetch<T = unknown>(
   options: Omit<PlatformRequestOptions, "bearer">
 ): Promise<T> {

@@ -5,6 +5,10 @@
 # 安装到 include 路径，或复制到 /etc/nginx/conf.d/subjex-proxy.inc
 proxy_pass http://platform_app;
 proxy_http_version 1.1;
+# Tenant custom hosts: keep the original public hostname in Host. This cut in
+# platform-app does not read X-Forwarded-Host. This include does not provision DNS or TLS.
+# 租户独立域名：请把原来的公开主机名放在 Host 里。平台本切口不采信 X-Forwarded-Host。
+# 本文件不办理 DNS，也不签发证书。
 proxy_set_header Host              $host;
 proxy_set_header X-Real-IP         $remote_addr;
 proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;

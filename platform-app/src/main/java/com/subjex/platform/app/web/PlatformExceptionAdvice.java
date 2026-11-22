@@ -28,6 +28,9 @@ import com.subjex.platform.app.identity.enduser.EndUserTenantAccessDeniedExcepti
 import com.subjex.platform.app.task.IdempotencyConflict;
 import com.subjex.platform.app.task.RateLimitExceeded;
 import com.subjex.platform.contract.questionnaire.QuestionnaireRateLimited;
+import com.subjex.platform.app.tenant.TenantHostAlreadyBoundException;
+import com.subjex.platform.app.tenant.TenantHostAmbiguousException;
+import com.subjex.platform.app.tenant.TenantHostClosedException;
 import com.subjex.platform.app.tenant.TenantQuotaExceeded;
 import com.subjex.platform.app.workflow.IllegalWorkflowTransitionException;
 import com.subjex.platform.app.workflow.WorkflowAlreadyStartedException;
@@ -270,6 +273,25 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler(UiPermissionRejected.class)
     ResponseEntity<Map<String, String>> uiPermissionRejected(UiPermissionRejected ex) {
         return ResponseEntity.badRequest().body(Map.of("reason", ex.getMessage()));
+    }
+
+
+    @ExceptionHandler(TenantHostAmbiguousException.class)
+    ResponseEntity<Map<String, String>> tenantHostAmbiguous(TenantHostAmbiguousException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", ex.getMessage() == null ? "ambiguous Host" : ex.getMessage()));
+    }
+
+    @ExceptionHandler(TenantHostAlreadyBoundException.class)
+    ResponseEntity<Map<String, String>> tenantHostAlreadyBound(TenantHostAlreadyBoundException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", ex.getMessage() == null ? "host already bound" : ex.getMessage()));
+    }
+
+    @ExceptionHandler(TenantHostClosedException.class)
+    ResponseEntity<Map<String, String>> tenantHostClosed(TenantHostClosedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", ex.getMessage() == null ? "host tenant is not available" : ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

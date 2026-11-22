@@ -142,6 +142,7 @@ import com.subjex.platform.app.security.ProductionProfileGuard;
 import com.subjex.platform.app.security.JdbcOperatorLoginLockout;
 import com.subjex.platform.app.security.JdbcOperatorMfaStore;
 import com.subjex.platform.app.security.AesGcmSecretCipher;
+import com.subjex.platform.app.tenant.TenantHostService;
 import com.subjex.platform.app.tenant.TenantLifecycleService;
 import com.subjex.platform.app.workflow.JdbcWorkflowStore;
 import com.subjex.platform.app.workflow.WorkflowCatalog;
@@ -932,6 +933,20 @@ public class PlatformWiring {
                 operatorActionAudit,
                 objectMapper,
                 clock);
+    }
+
+    /**
+     * Custom tenant hostnames (Host routing). Reserved list is the platform/console API names.
+     * 租户自定义主机名（按 Host 路由）。保留名单是平台/控制台接口用的名字。
+     */
+    @Bean
+    TenantHostService tenantHostService(
+            JdbcTemplate jdbc,
+            JdbcTenantAdmin jdbcTenantAdmin,
+            OperatorActionAudit operatorActionAudit,
+            Clock clock,
+            @Value("${platform.hosts.reserved:localhost,127.0.0.1,::1}") String reservedHosts) {
+        return new TenantHostService(jdbc, jdbcTenantAdmin, operatorActionAudit, clock, reservedHosts);
     }
 
 

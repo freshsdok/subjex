@@ -175,6 +175,14 @@ public final class TenantLifecycleService {
                     tenantId);
             putJson(zip, "outbox.json", outbox);
 
+            List<Map<String, Object>> hosts = queryMaps(
+                    """
+                    SELECT host_name, tenant_id, created_at, created_by_identity_id
+                    FROM tenant_host WHERE tenant_id = ? ORDER BY host_name
+                    """,
+                    tenantId);
+            putJson(zip, "hosts.json", hosts);
+
             List<Map<String, Object>> entities = queryMaps(
                     """
                     SELECT tenant_id, entity_key, record_id, record_state, attrs, created_at, updated_at
@@ -225,8 +233,9 @@ public final class TenantLifecycleService {
         int tenantOrg = jdbc.update("DELETE FROM tenant_organization WHERE tenant_id = ?", tenantId);
         int grants = jdbc.update("DELETE FROM operator_tenant_grant WHERE tenant_id = ?", tenantId);
         int challenges = jdbc.update("DELETE FROM tenant_erase_challenge WHERE tenant_id = ?", tenantId);
+        int hosts = jdbc.update("DELETE FROM tenant_host WHERE tenant_id = ?", tenantId);
         return new EraseCounts(
-                tasks, forms, outbox, entities, blobs, quota, oauth, drafts, promote, migration, approval, tenantOrg, grants, challenges);
+                tasks, forms, outbox, entities, blobs, quota, oauth, drafts, promote, migration, approval, tenantOrg, grants, challenges, hosts);
     }
 
     private void consumeChallenge(String tenantId, String challengeId, String rawToken) {
@@ -346,7 +355,8 @@ public final class TenantLifecycleService {
             int declarationApprovals,
             int tenantOrganizations,
             int operatorGrants,
-            int eraseChallenges) {
+            int eraseChallenges,
+            int tenantHosts) {
         public int totalRows() {
             return tasks
                     + forms
@@ -361,7 +371,8 @@ public final class TenantLifecycleService {
                     + declarationApprovals
                     + tenantOrganizations
                     + operatorGrants
-                    + eraseChallenges;
+                    + eraseChallenges
+                    + tenantHosts;
         }
     }
 

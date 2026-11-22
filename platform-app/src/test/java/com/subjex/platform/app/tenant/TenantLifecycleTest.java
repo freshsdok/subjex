@@ -78,6 +78,7 @@ class TenantLifecycleTest {
             boolean sawEntities = false;
             boolean sawBlobMeta = false;
             boolean sawBlobBytes = false;
+            boolean sawHosts = false;
             ZipEntry entry;
             while ((entry = in.getNextEntry()) != null) {
                 String name = entry.getName();
@@ -102,12 +103,17 @@ class TenantLifecycleTest {
                     sawBlobBytes = true;
                     assertThat(new String(body, StandardCharsets.UTF_8)).isEqualTo("hello-blob");
                 }
+                if ("hosts.json".equals(name)) {
+                    sawHosts = true;
+                    assertThat(new String(body, StandardCharsets.UTF_8)).contains("life.example.com");
+                }
             }
             assertThat(sawManifest).isTrue();
             assertThat(sawTasks).isTrue();
             assertThat(sawEntities).isTrue();
             assertThat(sawBlobMeta).isTrue();
             assertThat(sawBlobBytes).isTrue();
+            assertThat(sawHosts).isTrue();
         }
         Integer exports = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM audit_entry WHERE action_name = ? AND outcome = ?",
@@ -130,6 +136,7 @@ class TenantLifecycleTest {
         assertThat(result.counts().entityBlobs()).isEqualTo(1);
         assertThat(result.counts().tasks()).isEqualTo(1);
         assertThat(result.counts().forms()).isEqualTo(1);
+        assertThat(result.counts().tenantHosts()).isEqualTo(1);
         assertThat(result.objectStorageDeletes()).isEqualTo(1);
 
         assertThat(jdbc.queryForObject(
@@ -143,6 +150,9 @@ class TenantLifecycleTest {
                 .isZero();
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM form_submission WHERE tenant_id = ?", Integer.class, TENANT))
+                .isZero();
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM tenant_host WHERE tenant_id = ?", Integer.class, TENANT))
                 .isZero();
         assertThat(storage.find(TENANT, "blob-life-1")).isEmpty();
         assertThat(jdbc.queryForObject(
@@ -165,6 +175,14 @@ class TenantLifecycleTest {
     }
 
     private void seedTenantData() {
+        jdbc.update(
+                """
+                INSERT INTO tenant_host (host_name, tenant_id, created_at, created_by_identity_id)
+                VALUES ('life.example.com', ?, ?, ?)
+                """,
+                TENANT,
+                java.sql.Timestamp.from(CLOCK.instant()),
+                LocalOperatorSeeder.IDENTITY_ID);
         jdbc.update(
                 """
                 INSERT INTO platform_task

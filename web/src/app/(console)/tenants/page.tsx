@@ -11,6 +11,7 @@ import {
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { CreateTenantForm } from "./create-tenant-form";
 import { TenantAdminActions } from "./tenant-admin-actions";
+import { TenantHostsPanel } from "./tenant-hosts-panel";
 import { TenantOpsPanel } from "./tenant-ops-panel";
 
 type TenantsDocument = {
@@ -94,6 +95,7 @@ export default async function TenantsPage() {
                       ) : null}
                       {id && !reserved ? (
                         <div className={canManage ? "mt-2" : ""}>
+                          <TenantHostsPanel tenantId={id} phrases={phrases} canManage={canManage} />
                           <TenantOpsPanel
                             tenantId={id}
                             tenantName={row.tenantName ?? id}
