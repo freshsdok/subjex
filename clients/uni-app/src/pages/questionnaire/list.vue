@@ -26,7 +26,6 @@
       <button size="mini" :disabled="!tokenId.trim()" @click="openFill">用填写码打开</button>
     </view>
 
-    <navigator url="/pages/index/index" class="link bottom">返回首页</navigator>
   </view>
 </template>
 

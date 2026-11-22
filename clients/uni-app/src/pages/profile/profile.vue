@@ -50,7 +50,6 @@
       <button size="mini" :disabled="busy" @click="onLogout">退出登录</button>
     </view>
 
-    <navigator url="/pages/index/index" class="link bottom">返回首页</navigator>
   </view>
 </template>
 

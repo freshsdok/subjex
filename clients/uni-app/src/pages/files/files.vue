@@ -24,7 +24,6 @@
       <button size="mini" :disabled="busy" @click="onOpen(item.objectKey)">打开</button>
     </view>
 
-    <navigator url="/pages/index/index" class="link bottom">返回首页</navigator>
   </view>
 </template>
 

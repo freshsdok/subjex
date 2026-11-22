@@ -72,7 +72,7 @@
       <text class="ok" v-if="submitResult">{{ submitResult }}</text>
     </view>
 
-    <navigator url="/pages/questionnaire/list" class="link bottom">返回问卷列表</navigator>
+    <navigator open-type="switchTab" url="/pages/questionnaire/list" class="link bottom">返回问卷列表</navigator>
   </view>
 </template>
 

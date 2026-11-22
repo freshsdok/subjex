@@ -87,7 +87,7 @@
       </view>
     </view>
 
-    <navigator url="/pages/index/index" class="link bottom">返回首页</navigator>
+    <navigator open-type="switchTab" url="/pages/index/index" class="link bottom">返回首页</navigator>
   </view>
 </template>
 

@@ -7,18 +7,6 @@
       }
     },
     {
-      "path": "pages/login/login",
-      "style": {
-        "navigationBarTitleText": "登录"
-      }
-    },
-    {
-      "path": "pages/profile/profile",
-      "style": {
-        "navigationBarTitleText": "我的资料"
-      }
-    },
-    {
       "path": "pages/inbox/inbox",
       "style": {
         "navigationBarTitleText": "站内信"
@@ -31,15 +19,27 @@
       }
     },
     {
-      "path": "pages/questionnaire/fill",
-      "style": {
-        "navigationBarTitleText": "填写问卷"
-      }
-    },
-    {
       "path": "pages/files/files",
       "style": {
         "navigationBarTitleText": "我的文件"
+      }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": {
+        "navigationBarTitleText": "我的资料"
+      }
+    },
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/questionnaire/fill",
+      "style": {
+        "navigationBarTitleText": "填写问卷"
       }
     },
     {
@@ -60,5 +60,43 @@
     "navigationBarTitleText": "subjex",
     "navigationBarBackgroundColor": "#F8F8F8",
     "backgroundColor": "#F8F8F8"
+  },
+  "tabBar": {
+    "color": "#6b7280",
+    "selectedColor": "#2563eb",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "static/tab/home.png",
+        "selectedIconPath": "static/tab/home-active.png"
+      },
+      {
+        "pagePath": "pages/inbox/inbox",
+        "text": "站内信",
+        "iconPath": "static/tab/inbox.png",
+        "selectedIconPath": "static/tab/inbox-active.png"
+      },
+      {
+        "pagePath": "pages/questionnaire/list",
+        "text": "问卷",
+        "iconPath": "static/tab/questionnaire.png",
+        "selectedIconPath": "static/tab/questionnaire-active.png"
+      },
+      {
+        "pagePath": "pages/files/files",
+        "text": "文件",
+        "iconPath": "static/tab/files.png",
+        "selectedIconPath": "static/tab/files-active.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "static/tab/profile.png",
+        "selectedIconPath": "static/tab/profile-active.png"
+      }
+    ]
   }
 }

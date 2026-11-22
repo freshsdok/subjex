@@ -34,7 +34,7 @@
       <!-- #endif -->
 
       <text class="muted" v-if="status">{{ status }}</text>
-      <navigator url="/pages/index/index" class="link">返回首页</navigator>
+      <navigator open-type="switchTab" url="/pages/index/index" class="link">返回首页</navigator>
     </view>
 
     <view class="card" v-if="signedIn">
@@ -60,7 +60,7 @@ import {
   logoutAndClear,
   requestPhoneCode,
 } from "../../api/auth";
-import { postLoginUrl } from "../../api/shell-path";
+import { openShellPage } from "../../api/shell-path";
 import {
   applyTenantFromQuery,
   isReservedTenant,
@@ -111,7 +111,7 @@ function rememberTenant(): string {
 }
 
 function goAfterLogin() {
-  uni.reLaunch({ url: postLoginUrl(redirect.value) });
+  openShellPage(redirect.value);
 }
 
 async function onRequestLoginCode() {

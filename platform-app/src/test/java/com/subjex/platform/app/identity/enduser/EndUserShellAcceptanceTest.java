@@ -73,6 +73,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -348,6 +349,34 @@ class EndUserShellAcceptanceTest {
             assertThat(yaml).as("Manifest menu href for " + page).contains("href: " + page);
             assertThat(home).as("home fallback nav for " + page).contains(page);
         }
+
+        JsonNode tabList = new ObjectMapper().readTree(pagesJson).path("tabBar").path("list");
+        assertThat(tabList.size()).as("WeChat tabBar allows at most 5 items").isEqualTo(5);
+        List<String> tabPaths = new ArrayList<>();
+        Path staticRoot = root.resolve("clients/uni-app/src");
+        for (JsonNode item : tabList) {
+            String pagePath = item.path("pagePath").asText();
+            assertThat(pagePath).isNotBlank();
+            tabPaths.add("/" + pagePath);
+            assertThat(staticRoot.resolve(item.path("iconPath").asText()))
+                    .as("tab icon for " + pagePath)
+                    .exists()
+                    .isRegularFile();
+            assertThat(staticRoot.resolve(item.path("selectedIconPath").asText()))
+                    .as("selected tab icon for " + pagePath)
+                    .exists()
+                    .isRegularFile();
+        }
+        assertThat(tabPaths)
+                .containsExactly(
+                        "/pages/index/index",
+                        "/pages/inbox/inbox",
+                        "/pages/questionnaire/list",
+                        "/pages/files/files",
+                        "/pages/profile/profile");
+        // Tab pages must be listed first so H5 and the WeChat mini-program can switchTab.
+        // 标签页必须排在 pages 前列，H5 与微信小程序才能用 switchTab。
+        assertThat(pages.subList(0, tabPaths.size())).containsExactlyElementsOf(tabPaths);
     }
 
     private String sendEndUserMail(String tenantId, String subjectId, String title, String body) {
