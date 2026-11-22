@@ -15,11 +15,11 @@
 | --- | --- | --- | --- |
 | 入队 | `NotificationPort.enqueue` → 在已有 `outbox_event` 写入 `NotificationRequested`（模板标识 + 参数 + 渠道 + 收件人） | 端口内租户失败关闭；保留租户 `platform` 拒绝 | 无 HTTP 入队接口（有意为之：由域模块调用） |
 | 调度 / 重试 / 死信 | `NotificationDispatcher.dispatchPending` / `dispatchOne` / `replayDeadLetter`；`NotificationDispatchWorker` | 模拟适配器记录到内存 `NotificationDispatchRecord`；生产未配置则失败关闭并进死信 | 内存记录**不是**持久台账，不能当查询源 |
-| 持久投递轨迹 | `outbox_event`（`event_name = NotificationRequested`，含 `event_state`、`attempt_count`、`failure_reason`、`published_at`）；失败后 `dead_letter` | — | 操作员**没有**按租户列出全部投递记录的接口 |
+| 持久投递轨迹 | `outbox_event`（`event_name = NotificationRequested`，含 `event_state`、`attempt_count`、`failure_reason`、`published_at`）；失败后 `dead_letter` | `notification.read`（第 3 刀） | 操作员只读 HTTP 已落地：`GET /api/v1/notification-sends`、`GET /api/v1/notification-sends/{eventId}`（投影出箱行，可关联未丢弃死信）。控制台发送记录页尚未开始 |
 | 死信列表与重放 | `GET /api/v1/dead-letters`，`POST .../{id}/replay`（`DeadLetterApiEndpoint`） | `admin.read`；`NotificationRequested` 经调度器重放，不走 `DeliveryPort` | 控制台已有死信页；只覆盖失败后的信，不是完整发送记录 |
 | 渠道适配器 | `MockNotificationAdapter` / `FailClosedNotificationAdapter`；标识含短信、邮件、微信模板 | 无商业 SDK | 本项不接入真实厂商 |
 
-结论：没有操作员「发送记录」列表/详情 HTTP，也没有 `notification.read`。完整投递查询应投影已有 `outbox_event`（及关联死信），不要另起投递表，也不要把内存模拟记录当成真相源。
+结论（开工时）：当时没有操作员「发送记录」列表/详情 HTTP，也没有 `notification.read`。第 3 刀已补只读列表与详情：投影已有 `outbox_event`（及未丢弃死信），不另起投递表，也不把内存模拟记录当成真相源。控制台发送记录页仍未做。
 
 ### WP6 支付端口（复用，不重设计）
 
@@ -49,14 +49,20 @@
 
 1. 控制台新增「支付与退款状态」页（`/payments`）及详情页（`/payments/{paymentId}`）：按租户列出状态、金额、已退金额、付款人和时间，可按状态与付款人筛选；点进一条查看退款明细。金额按币种小数位展示，不用原始最小单位。
 2. 页面只读，没有收款、确认到账或办理退款的按钮。进入走 Manifest `nav.payments` / `page.payments`（`payment.read`）。复用 `GET /api/v1/payments` 与 `GET /api/v1/payments/{paymentId}`。
-3. 通知发送记录查询 API 与页面：**仍未做**。
+3. 通知发送记录查询 API 与页面：当时尚未开始。
+
+### 本切片已落地（第 3 刀）
+
+1. 新增操作员只读查询：`GET /api/v1/notification-sends`（当前业务租户内列表，可按状态、渠道、收件人和时间窗筛选，按时间从新到旧），`GET /api/v1/notification-sends/{eventId}`（投影已有 `NotificationRequested` 出箱行；如有未丢弃死信则带上 `deadLetterId`）。无发送、重试或重放路由；重放仍走已有死信接口与控制台死信页。
+2. 新增权限 `notification.read`，授予 `platform-operator` 与 `platform-reader`。须有租户授权；保留租户 `platform`、缺租户、跨租户一律拒绝。非 `NotificationRequested` 出箱行按不存在处理（404），避免泄露其它事件。
+3. 控制台「通知发送记录」页：**仍未做**（下一刀）。
 
 ## 界面计划 / UI plan
 
 ### 控制台（操作员，`web/`）
 
 - **支付与退款状态（第 2 刀，已落地）**：在当前业务租户内列出单据；展示状态、金额与币种、已退金额、付款人、时间；可按状态与付款人筛选；点进一条看退款明细。只读。不能代为收款、退款或发起支付。菜单与页面门禁为 `payment.read`。
-- **通知发送记录（下一刀）**：按租户列出 `NotificationRequested` 出箱行（模板、渠道、状态、尝试次数、时间）；失败的可看到已有死信关联，重放仍走现有死信页，不在查询页另做发送按钮。需新增只读查询 API 与 `notification.read`（或经评估复用现有只读权）。文案面向非开发人员，不把出箱内部名直接当作页面标题。
+- **通知发送记录（下一刀，API 已落地）**：按租户列出 `NotificationRequested` 出箱行（模板、渠道、状态、尝试次数、时间）；失败的可看到已有死信关联，重放仍走现有死信页，不在查询页另做发送按钮。只读查询 API 与 `notification.read` 已在第 3 刀落地（`GET /api/v1/notification-sends`）。控制台页待做。文案面向非开发人员，不把出箱内部名直接当作页面标题。
 
 ### uni-app（终端用户）
 

@@ -236,6 +236,10 @@ public class PlatformSecurityConfiguration {
                         // 操作员只读支付与退款状态（控制台）。不提供创单/退款/回调路由。
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments", "/api/v1/payments/**")
                                 .hasAuthority(OperatorPermission.PAYMENT_READ.permissionName())
+                        // Operator read-only notification send log (console). No send/retry/replay routes exist.
+                        // 操作员只读通知发送记录（控制台）。不提供发送/重试/重放路由。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/notification-sends", "/api/v1/notification-sends/**")
+                                .hasAuthority(OperatorPermission.NOTIFICATION_READ.permissionName())
                         .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
                                 .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/questionnaires/**")

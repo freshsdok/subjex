@@ -82,6 +82,8 @@ import com.subjex.platform.app.inbox.InboxOrgBroadcastExpander;
 import com.subjex.platform.app.inbox.JdbcInboxGroupPort;
 import com.subjex.platform.app.inbox.JdbcInboxPort;
 import com.subjex.platform.app.notification.JdbcNotificationPort;
+import com.subjex.platform.app.notification.JdbcNotificationSendQuery;
+import com.subjex.platform.app.notification.OperatorNotificationService;
 import com.subjex.platform.app.consent.JdbcConsentPort;
 import com.subjex.platform.app.consent.OperatorConsentService;
 import com.subjex.platform.app.exporthook.ExportApprovalGate;
@@ -885,6 +887,24 @@ public class PlatformWiring {
     @Bean
     NotificationPort notificationPort(JdbcTemplate jdbc, ObjectMapper objectMapper, Clock clock) {
         return new JdbcNotificationPort(jdbc, objectMapper, clock);
+    }
+
+    /**
+     * Operator read-only notification send-log query for the console list. No send, retry, or replay.
+     * 操作员只读通知发送记录查询，供控制台列表使用；不能发送、重试或重放。
+     */
+    @Bean
+    JdbcNotificationSendQuery jdbcNotificationSendQuery(JdbcTemplate jdbc, ObjectMapper objectMapper) {
+        return new JdbcNotificationSendQuery(jdbc, objectMapper);
+    }
+
+    @Bean
+    OperatorNotificationService operatorNotificationService(
+            JdbcNotificationSendQuery jdbcNotificationSendQuery,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine) {
+        return new OperatorNotificationService(
+                jdbcNotificationSendQuery, operatorTenantAccess, policyEngine);
     }
 
     @Bean

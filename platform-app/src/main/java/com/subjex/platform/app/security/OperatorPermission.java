@@ -67,6 +67,8 @@ public enum OperatorPermission {
     CONSENT_READ("consent.read"),
     /** Read payment and refund status in a granted tenant (no create/refund) — 在已授权租户内阅读支付与退款状态（不能创单或退款）。 */
     PAYMENT_READ("payment.read"),
+    /** Read notification send records in a granted tenant (no send/retry/replay) — 在已授权租户内阅读通知发送记录（不能发送、重试或重放）。 */
+    NOTIFICATION_READ("notification.read"),
     /** Create and edit questionnaires, publish/close, tokens — 创建编辑问卷、发布关闭、令牌。 */
     QUESTIONNAIRE_WRITE("questionnaire.write"),
     /** Request a personal-data export on behalf of a subject — 代主体申请个人数据导出。 */

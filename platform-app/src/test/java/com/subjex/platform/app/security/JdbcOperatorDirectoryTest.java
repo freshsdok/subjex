@@ -56,8 +56,9 @@ class JdbcOperatorDirectoryTest {
         OperatorPrincipal viewer = (OperatorPrincipal) directory.loadUserByUsername("platform-viewer");
         // V47 intentionally seeds questionnaire.read (read-only) to platform-reader; write stays operator-only.
         // V47 有意把只读的 questionnaire.read 授予 platform-reader；写权限仍仅操作员。
-        assertEquals(Set.of("admin.read", "page.read", "config.read", "consent.read", "declaration.read", "inbox.read", "org.read",
-                "questionnaire.read", "registry.read", "workflow.read"), viewer.permissionNames());
+        assertEquals(Set.of("admin.read", "page.read", "config.read", "consent.read", "declaration.read", "inbox.read",
+                "notification.read", "org.read", "payment.read", "questionnaire.read", "registry.read", "workflow.read"),
+                viewer.permissionNames());
     }
 
     @Test

@@ -101,6 +101,11 @@ Residual gaps (honest, not in this package) / 仍存缺口（本包不解决）�
 
 Next package would be **WP6 (payment port)**, not started here.
 
+## Operator send-log query (after WP5 close) / 操作员发送记录查询（关包后）
+
+Operator read-only HTTP for `NotificationRequested` outbox rows landed later as a console-query slice; see [`operator-query-ui-progress.md`](../payment/operator-query-ui-progress.md) (第 3 刀). Permission `notification.read`. No send, retry, or replay on that API.
+操作员只读查询 `NotificationRequested` 出箱行的 HTTP 接口在关包后作为控制台查询切片落地；见上述进度笔记第 3 刀。权限为 `notification.read`。该接口不提供发送、重试或重放。
+
 ## Slice status / 切片状态
 
 - **WP5-0** — ✅ done.

@@ -43,6 +43,8 @@ import com.subjex.platform.contract.exporthook.ExportCrossTenantDeniedException;
 import com.subjex.platform.contract.exporthook.ExportExpiredException;
 import com.subjex.platform.contract.exporthook.ExportNotApprovedException;
 import com.subjex.platform.contract.exporthook.ExportSelfApprovalException;
+import com.subjex.platform.app.notification.NotificationSendCrossTenantDeniedException;
+import com.subjex.platform.app.notification.NotificationSendNotFoundException;
 import com.subjex.platform.contract.payment.PaymentCrossTenantDeniedException;
 import com.subjex.platform.contract.payment.PaymentNotFoundException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
@@ -147,6 +149,17 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler(PaymentCrossTenantDeniedException.class)
     ResponseEntity<Map<String, String>> paymentCrossTenant() {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", "payment-cross-tenant-denied"));
+    }
+
+    @ExceptionHandler(NotificationSendNotFoundException.class)
+    ResponseEntity<Map<String, String>> notificationSendMissing() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("reason", NotificationSendNotFoundException.REASON));
+    }
+
+    @ExceptionHandler(NotificationSendCrossTenantDeniedException.class)
+    ResponseEntity<Map<String, String>> notificationSendCrossTenant() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("reason", NotificationSendCrossTenantDeniedException.REASON));
     }
 
     @ExceptionHandler(ObjectUploadRejectedException.class)

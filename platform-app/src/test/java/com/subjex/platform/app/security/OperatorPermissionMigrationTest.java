@@ -23,8 +23,8 @@ class OperatorPermissionMigrationTest {
         List<String> permissions = jdbc.queryForList(
                 "SELECT permission_name FROM platform_permission ORDER BY permission_name", String.class);
         assertEquals(OperatorPermission.allPermissionNamesSorted(), permissions);
-        assertEquals(List.of("admin.read", "config.read", "consent.read", "declaration.read", "inbox.read", "org.read", "page.read",
-                "payment.read", "questionnaire.read", "registry.read", "workflow.read"),
+        assertEquals(List.of("admin.read", "config.read", "consent.read", "declaration.read", "inbox.read", "notification.read",
+                "org.read", "page.read", "payment.read", "questionnaire.read", "registry.read", "workflow.read"),
                 jdbc.queryForList(
                 "SELECT permission_name FROM role_permission WHERE role_name = 'platform-reader' ORDER BY permission_name",
                 String.class));
