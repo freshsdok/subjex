@@ -112,7 +112,7 @@ public class EndUserConsentEndpoint {
             String consentVersionId,
             String eventId,
             Instant grantedAt) {
-        static CurrentDocument from(ConsentRecord record) {
+        public static CurrentDocument from(ConsentRecord record) {
             return new CurrentDocument(
                     record.tenantId(),
                     record.subjectId(),
@@ -133,7 +133,7 @@ public class EndUserConsentEndpoint {
             String eventKind,
             String actorIdentityId,
             Instant occurredAt) {
-        static HistoryDocument from(ConsentEvent event) {
+        public static HistoryDocument from(ConsentEvent event) {
             return new HistoryDocument(
                     event.eventId(),
                     event.tenantId(),

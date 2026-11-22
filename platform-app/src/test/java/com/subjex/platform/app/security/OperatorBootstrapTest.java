@@ -70,6 +70,7 @@ class OperatorBootstrapTest {
                         "admin.read",
                         "page.read",
                         "config.read",
+                        "consent.read",
                         "declaration.read",
                         "org.read",
                         "questionnaire.read",

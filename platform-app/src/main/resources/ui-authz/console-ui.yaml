@@ -43,6 +43,10 @@ entries:
     kind: menu
     href: /audit
     permission: admin.read
+  - id: nav.consents
+    kind: menu
+    href: /consents
+    permission: consent.read
   - id: nav.dead-letters
     kind: menu
     href: /dead-letters
@@ -175,6 +179,10 @@ entries:
     kind: page
     route: /audit
     permission: admin.read
+  - id: page.consents
+    kind: page
+    route: /consents
+    permission: consent.read
   - id: page.dead-letters
     kind: page
     route: /dead-letters

@@ -34,6 +34,7 @@ export const consoleSections: ConsoleSection[] = [
   },
   { href: "/inbox/groups", labelKey: "navInboxGroups", requiredPermission: "inbox.group.admin" },
   { href: "/audit", labelKey: "navAudit", requiredPermission: "admin.read" },
+  { href: "/consents", labelKey: "navConsents", requiredPermission: "consent.read" },
   { href: "/dead-letters", labelKey: "navDeadLetters", requiredPermission: "admin.read" },
   { href: "/deploy", labelKey: "navDeploy", requiredPermission: "page.read" },
   { href: "/forms", labelKey: "navForms", requiredPermission: "page.read" },

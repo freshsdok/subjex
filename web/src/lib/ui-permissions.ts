@@ -61,6 +61,7 @@ export const CONSOLE_MENU_LABEL_BY_ID: Readonly<Record<string, keyof PhraseBook>
   "nav.inbox.compose": "navInboxCompose",
   "nav.inbox.groups": "navInboxGroups",
   "nav.audit": "navAudit",
+  "nav.consents": "navConsents",
   "nav.dead-letters": "navDeadLetters",
   "nav.deploy": "navDeploy",
   "nav.forms": "navForms",
@@ -171,6 +172,7 @@ export const PAGE_INBOX_COMPOSE = "page.inbox.compose";
 export const PAGE_INBOX_GROUPS = "page.inbox.groups";
 export const PAGE_CONFIG = "page.config";
 export const PAGE_AUDIT = "page.audit";
+export const PAGE_CONSENTS = "page.consents";
 export const PAGE_DEAD_LETTERS = "page.dead-letters";
 export const PAGE_SERVICES = "page.services";
 export const PAGE_DEPLOY = "page.deploy";

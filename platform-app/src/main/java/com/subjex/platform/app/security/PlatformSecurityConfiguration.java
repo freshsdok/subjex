@@ -228,6 +228,10 @@ public class PlatformSecurityConfiguration {
                                 .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
                                 .hasAuthority(OperatorPermission.QUESTIONNAIRE_READ.permissionName())
+                        // Operator read-only purpose-consent list (console). No grant/withdraw routes exist.
+                        // 操作员只读目的同意列表（控制台）。不提供授予/撤回路由。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/consents", "/api/v1/consents/**")
+                                .hasAuthority(OperatorPermission.CONSENT_READ.permissionName())
                         .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
                                 .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/questionnaires/**")

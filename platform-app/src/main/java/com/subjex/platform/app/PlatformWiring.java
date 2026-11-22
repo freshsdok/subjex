@@ -84,6 +84,7 @@ import com.subjex.platform.app.inbox.JdbcInboxGroupPort;
 import com.subjex.platform.app.inbox.JdbcInboxPort;
 import com.subjex.platform.app.notification.JdbcNotificationPort;
 import com.subjex.platform.app.consent.JdbcConsentPort;
+import com.subjex.platform.app.consent.OperatorConsentService;
 import com.subjex.platform.app.exporthook.ExportApprovalGate;
 import com.subjex.platform.app.exporthook.ExportRequestService;
 import com.subjex.platform.contract.exporthook.SubjectRecordExporter;
@@ -463,6 +464,18 @@ public class PlatformWiring {
             Clock clock,
             AuditPort auditPort) {
         return new JdbcConsentPort(jdbc, transactionTemplate, clock, auditPort);
+    }
+
+    /**
+     * Operator read-only consent query for the console list. No grant or withdraw.
+     * 操作员只读同意查询，供控制台列表使用；不能授予或撤回。
+     */
+    @Bean
+    OperatorConsentService operatorConsentService(
+            ConsentPort consentPort,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine) {
+        return new OperatorConsentService(consentPort, operatorTenantAccess, policyEngine);
     }
 
     /**

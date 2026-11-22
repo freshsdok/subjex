@@ -63,6 +63,8 @@ public enum OperatorPermission {
     INBOX_GROUP_ADMIN("inbox.group.admin"),
     /** Read questionnaire definitions, responses, stats, CSV — 读问卷定义/答卷/汇总/CSV。 */
     QUESTIONNAIRE_READ("questionnaire.read"),
+    /** Read purpose-consent records in a granted tenant (no grant/withdraw) — 在已授权租户内阅读目的同意记录（不能代为授予或撤回）。 */
+    CONSENT_READ("consent.read"),
     /** Create and edit questionnaires, publish/close, tokens — 创建编辑问卷、发布关闭、令牌。 */
     QUESTIONNAIRE_WRITE("questionnaire.write"),
     /** Request a personal-data export on behalf of a subject — 代主体申请个人数据导出。 */

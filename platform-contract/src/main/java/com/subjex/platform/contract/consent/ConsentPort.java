@@ -1,5 +1,6 @@
 package com.subjex.platform.contract.consent;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,6 +58,38 @@ public interface ConsentPort {
      * 追加式历史，从旧到新。{@code purposeKey} 为空则返回该主体全部目的。
      */
     List<ConsentEvent> history(String tenantId, String subjectId, String purposeKey);
+
+    /** Default cap for tenant-wide operator search — 租户范围检索的默认条数上限. */
+    int DEFAULT_SEARCH_LIMIT = 200;
+
+    /** Hard cap for tenant-wide operator search — 租户范围检索的硬上限. */
+    int MAX_SEARCH_LIMIT = 500;
+
+    /**
+     * Search current grants in the tenant. Blank filters are ignored. Newest grant first, capped.
+     * Subject need not be pre-validated; unknown subjects simply return no rows.
+     * 按租户检索当前授予；空白条件忽略；按授予时间从新到旧并截断。
+     * 不必先校验主体是否存在，未知主体返回空列表。
+     */
+    List<ConsentRecord> searchCurrent(
+            String tenantId,
+            String subjectId,
+            String purposeKey,
+            Instant grantedFrom,
+            Instant grantedTo,
+            int limit);
+
+    /**
+     * Search append-only history in the tenant. Blank filters are ignored. Newest event first, capped.
+     * 按租户检索追加式历史；空白条件忽略；按发生时间从新到旧并截断。
+     */
+    List<ConsentEvent> searchHistory(
+            String tenantId,
+            String subjectId,
+            String purposeKey,
+            Instant from,
+            Instant to,
+            int limit);
 
     /**
      * Fail-closed check: a current grant must exist; when {@code requiredVersion} is given it must match exactly.

@@ -14,6 +14,7 @@ import com.subjex.platform.contract.consent.ConsentRecord;
 import com.subjex.platform.contract.consent.ConsentRequiredException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -245,6 +246,61 @@ public final class JdbcConsentPort implements ConsentPort {
     }
 
     @Override
+    public List<ConsentRecord> searchCurrent(
+            String tenantId,
+            String subjectId,
+            String purposeKey,
+            Instant grantedFrom,
+            Instant grantedTo,
+            int limit) {
+        String tid = requireActiveBusinessTenant(tenantId);
+        int cap = clampLimit(limit);
+        StringBuilder sql = new StringBuilder(
+                """
+                SELECT tenant_id, subject_id, purpose_key, consent_version_id, event_id, granted_at
+                FROM consent_current
+                WHERE tenant_id = ?
+                """);
+        ArrayList<Object> args = new ArrayList<>();
+        args.add(tid);
+        appendOptionalId(sql, args, "subject_id", subjectId);
+        appendOptionalKey(sql, args, "purpose_key", purposeKey);
+        appendOptionalTime(sql, args, "granted_at", ">=", grantedFrom);
+        appendOptionalTime(sql, args, "granted_at", "<=", grantedTo);
+        sql.append(" ORDER BY granted_at DESC, subject_id ASC, purpose_key ASC LIMIT ?");
+        args.add(cap);
+        return jdbc.query(sql.toString(), CURRENT_ROW, args.toArray());
+    }
+
+    @Override
+    public List<ConsentEvent> searchHistory(
+            String tenantId,
+            String subjectId,
+            String purposeKey,
+            Instant from,
+            Instant to,
+            int limit) {
+        String tid = requireActiveBusinessTenant(tenantId);
+        int cap = clampLimit(limit);
+        StringBuilder sql = new StringBuilder(
+                """
+                SELECT event_id, tenant_id, subject_id, purpose_key, consent_version_id,
+                       event_kind, actor_identity_id, occurred_at
+                FROM consent_event
+                WHERE tenant_id = ?
+                """);
+        ArrayList<Object> args = new ArrayList<>();
+        args.add(tid);
+        appendOptionalId(sql, args, "subject_id", subjectId);
+        appendOptionalKey(sql, args, "purpose_key", purposeKey);
+        appendOptionalTime(sql, args, "occurred_at", ">=", from);
+        appendOptionalTime(sql, args, "occurred_at", "<=", to);
+        sql.append(" ORDER BY occurred_at DESC, event_id DESC LIMIT ?");
+        args.add(cap);
+        return jdbc.query(sql.toString(), EVENT_ROW, args.toArray());
+    }
+
+    @Override
     public void require(String tenantId, String subjectId, String purposeKey, String requiredVersion) {
         Optional<ConsentRecord> current;
         try {
@@ -322,6 +378,38 @@ public final class JdbcConsentPort implements ConsentPort {
             throw new ConsentCrossTenantDeniedException();
         }
         return sid;
+    }
+
+    private void appendOptionalId(StringBuilder sql, ArrayList<Object> args, String column, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        sql.append(" AND ").append(column).append(" = ?");
+        args.add(value.trim());
+    }
+
+    private void appendOptionalKey(StringBuilder sql, ArrayList<Object> args, String column, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        sql.append(" AND ").append(column).append(" = ?");
+        args.add(requireKey(value, column));
+    }
+
+    private static void appendOptionalTime(
+            StringBuilder sql, ArrayList<Object> args, String column, String operator, Instant bound) {
+        if (bound == null) {
+            return;
+        }
+        sql.append(" AND ").append(column).append(" ").append(operator).append(" ?");
+        args.add(PlatformTables.timestamp(bound));
+    }
+
+    private static int clampLimit(int limit) {
+        if (limit <= 0) {
+            return ConsentPort.DEFAULT_SEARCH_LIMIT;
+        }
+        return Math.min(limit, ConsentPort.MAX_SEARCH_LIMIT);
     }
 
     static String requireKey(String value, String label) {
