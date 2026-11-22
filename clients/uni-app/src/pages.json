@@ -41,6 +41,12 @@
       "style": {
         "navigationBarTitleText": "我的文件"
       }
+    },
+    {
+      "path": "pages/consent/consent",
+      "style": {
+        "navigationBarTitleText": "我的同意"
+      }
     }
   ],
   "globalStyle": {

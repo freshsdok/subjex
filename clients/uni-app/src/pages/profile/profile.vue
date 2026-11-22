@@ -21,6 +21,7 @@
     </view>
 
     <view class="card" v-if="signedIn">
+      <navigator url="/pages/consent/consent" class="link">管理我的同意</navigator>
       <button size="mini" :disabled="busy" @click="onLogout">退出登录</button>
     </view>
 

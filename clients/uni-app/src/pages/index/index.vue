@@ -2,7 +2,7 @@
   <view class="page">
     <view class="card">
       <text class="title">欢迎</text>
-      <text class="muted">请从下面进入资料、站内信、问卷和文件。</text>
+      <text class="muted">请从下面进入资料、站内信、问卷、文件和同意记录。</text>
     </view>
 
     <view class="card">
@@ -107,6 +107,7 @@ const FALLBACK_NAV: NavItem[] = [
     hint: "",
   },
   { id: "nav.files", href: "/pages/files/files", label: SHELL_MENU_LABEL_BY_ID["nav.files"], allowed: true, hint: "" },
+  { id: "nav.consents", href: "/pages/consent/consent", label: SHELL_MENU_LABEL_BY_ID["nav.consents"], allowed: true, hint: "" },
 ];
 
 const navItems = computed<NavItem[]>(() => {
