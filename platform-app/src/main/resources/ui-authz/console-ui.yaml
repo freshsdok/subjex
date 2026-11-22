@@ -60,6 +60,12 @@ entries:
     kind: menu
     href: /payments
     permission: payment.read
+  # Operator read-only notification send records (no send/retry/replay actions)
+  # 操作员只读通知发送记录（无发送、重试或重放动作）
+  - id: nav.notification-sends
+    kind: menu
+    href: /notification-sends
+    permission: notification.read
   - id: nav.dead-letters
     kind: menu
     href: /dead-letters
@@ -207,6 +213,10 @@ entries:
     kind: page
     route: /payments
     permission: payment.read
+  - id: page.notification-sends
+    kind: page
+    route: /notification-sends
+    permission: notification.read
   - id: page.dead-letters
     kind: page
     route: /dead-letters

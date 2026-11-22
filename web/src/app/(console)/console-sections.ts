@@ -42,6 +42,7 @@ export const consoleSections: ConsoleSection[] = [
     requiredAnyOf: ["export.request", "export.approve"],
   },
   { href: "/payments", labelKey: "navPayments", requiredPermission: "payment.read" },
+  { href: "/notification-sends", labelKey: "navNotificationSends", requiredPermission: "notification.read" },
   { href: "/dead-letters", labelKey: "navDeadLetters", requiredPermission: "admin.read" },
   { href: "/deploy", labelKey: "navDeploy", requiredPermission: "page.read" },
   { href: "/forms", labelKey: "navForms", requiredPermission: "page.read" },
