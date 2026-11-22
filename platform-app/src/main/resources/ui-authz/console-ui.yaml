@@ -47,6 +47,10 @@ entries:
     kind: menu
     href: /sessions
     permission: admin.read
+  - id: nav.load
+    kind: menu
+    href: /load
+    permission: admin.read
   - id: nav.consents
     kind: menu
     href: /consents
@@ -212,6 +216,10 @@ entries:
   - id: btn.sessions.revoke
     kind: button
     permission: operator.manage
+  - id: page.load
+    kind: page
+    route: /load
+    permission: admin.read
   - id: page.consents
     kind: page
     route: /consents

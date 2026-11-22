@@ -188,6 +188,7 @@ import com.subjex.platform.contract.audit.AuditSink;
 import com.subjex.platform.app.admin.SinkingAuditPort;
 import com.subjex.platform.app.admin.NdjsonAuditSink;
 import com.subjex.platform.app.admin.AuditExportService;
+import com.subjex.platform.app.admin.LoadDashboardService;
 import com.subjex.platform.app.admin.SessionListService;
 import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.app.flags.FeatureFlagService;
@@ -211,6 +212,7 @@ import com.subjex.platform.contract.storage.ObjectStorage;
 import com.subjex.platform.contract.task.TaskMessagePort;
 import com.subjex.platform.contract.tenant.DenyWhenTenantMissing;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.OpenTelemetry;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -220,6 +222,7 @@ import javax.net.ssl.SSLContext;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.availability.ApplicationAvailability;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -429,6 +432,16 @@ public class PlatformWiring {
             Clock clock) {
         return new SessionListService(
                 jdbc, operatorTokenStore, endUserTokenStore, operatorTenantAccess, operatorActionAudit, clock);
+    }
+
+    /**
+     * In-console load snapshot from already-produced Micrometer meters (no Grafana product) —
+     * 控制台负载快照来自已有 Micrometer 指标（不是 Grafana 产品）。
+     */
+    @Bean
+    LoadDashboardService loadDashboardService(
+            MeterRegistry meterRegistry, ApplicationAvailability applicationAvailability, Clock clock) {
+        return new LoadDashboardService(meterRegistry, applicationAvailability, clock);
     }
 
     /**

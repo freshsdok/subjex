@@ -152,6 +152,10 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
                         .requestMatchers(HttpMethod.GET, "/api/v1/sessions", "/api/v1/sessions/**")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
+                        // In-console load snapshot (existing Micrometer meters). List-only, admin.read.
+                        // 控制台负载快照（已有 Micrometer 指标）。只读，admin.read。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/load")
+                                .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         // ID-2 service-account client registry — 服务账号客户端登记。
                         .requestMatchers(OauthClientAdminEndpoint.PATH, OauthClientAdminEndpoint.PATH + "/**")
                                 .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
