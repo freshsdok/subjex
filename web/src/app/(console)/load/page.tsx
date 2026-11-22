@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
@@ -269,7 +270,12 @@ export default async function LoadPage() {
         </LoadCard>
       </div>
 
-      <p className="mt-6 text-xs text-muted">{phrases.loadRateLimitNote}</p>
+      <p className="mt-6 text-xs text-muted">
+        {phrases.loadRateLimitNote}{" "}
+        <Link href="/rate-limits" className="underline">
+          {phrases.navRateLimits}
+        </Link>
+      </p>
     </section>
   );
 }

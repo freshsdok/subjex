@@ -112,6 +112,41 @@ public final class JdbcDeliveryCircuitBreakerPort implements DeliveryCircuitBrea
         return loadOpenedAt() != null;
     }
 
+    /**
+     * Read current row without inserting one (a missing row is closed / unused).
+     * 只读当前行，不因观察而插入（没有行表示尚未用过，视为闭合）。
+     */
+    @Override
+    public BreakerSnapshot snapshot() {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                """
+                SELECT consecutive_failures, opened_at
+                FROM delivery_circuit_breaker
+                WHERE destination_key = ?
+                """,
+                destinationKey);
+        if (rows.isEmpty()) {
+            return new BreakerSnapshot(BreakerSnapshot.CLOSED, 0, failureThreshold, openCooldown, null, null);
+        }
+        int failures = ((Number) rows.get(0).get("consecutive_failures")).intValue();
+        Instant openedAt = toInstant(rows.get(0).get("opened_at"));
+        if (openedAt == null) {
+            return new BreakerSnapshot(BreakerSnapshot.CLOSED, failures, failureThreshold, openCooldown, null, null);
+        }
+        Instant ends = openedAt.plus(openCooldown);
+        boolean stillOpen = clock.instant().isBefore(ends);
+        String state = stillOpen ? BreakerSnapshot.OPEN : BreakerSnapshot.HALF_OPEN;
+        return new BreakerSnapshot(state, failures, failureThreshold, openCooldown, openedAt, ends);
+    }
+
+    public String destinationKey() {
+        return destinationKey;
+    }
+
+    public Duration openCooldown() {
+        return openCooldown;
+    }
+
     private void ensureRow() {
         try {
             jdbc.update(
@@ -132,7 +167,10 @@ public final class JdbcDeliveryCircuitBreakerPort implements DeliveryCircuitBrea
         if (rows.isEmpty()) {
             return null;
         }
-        Object raw = rows.get(0).get("opened_at");
+        return toInstant(rows.get(0).get("opened_at"));
+    }
+
+    private static Instant toInstant(Object raw) {
         if (raw == null) {
             return null;
         }

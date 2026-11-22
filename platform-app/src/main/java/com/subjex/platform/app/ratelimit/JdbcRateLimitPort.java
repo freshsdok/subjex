@@ -4,7 +4,10 @@ import com.subjex.platform.app.jdbc.PlatformTables;
 import com.subjex.platform.contract.ratelimit.RateLimitPort;
 import java.time.Clock;
 import java.time.Duration;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,7 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 指向同一库的每个 platform-app 进程按租户/动作共用一份额度。
  * 默认装配仍是进程内实现；用 {@code platform.rate-limit.backend=jdbc} 选用本实现。
  */
-public final class JdbcRateLimitPort implements RateLimitPort {
+public final class JdbcRateLimitPort implements RateLimitPort, RateLimitWindowView {
 
     private final JdbcTemplate jdbc;
     private final int permits;
@@ -90,5 +93,47 @@ public final class JdbcRateLimitPort implements RateLimitPort {
                 PlatformTables.timestamp(now),
                 key,
                 PlatformTables.timestamp(activeAfter));
+    }
+
+    @Override
+    public int permits() {
+        return permits;
+    }
+
+    @Override
+    public Duration window() {
+        return window;
+    }
+
+    @Override
+    public List<WindowRow> activeWindows(Instant now) {
+        Instant at = now == null ? clock.instant() : now;
+        Instant activeAfter = at.minus(window);
+        List<WindowRow> rows = new ArrayList<>();
+        jdbc.query(
+                """
+                SELECT bucket_key, window_started_at, permit_count
+                FROM rate_limit_window
+                WHERE window_started_at > ?
+                ORDER BY bucket_key
+                """,
+                rs -> {
+                    Instant started = toInstant(rs.getTimestamp("window_started_at"));
+                    rows.add(WindowRow.fromBucket(
+                            rs.getString("bucket_key"),
+                            started,
+                            rs.getInt("permit_count"),
+                            permits,
+                            window));
+                },
+                PlatformTables.timestamp(activeAfter));
+        return List.copyOf(rows);
+    }
+
+    private static Instant toInstant(Timestamp raw) {
+        if (raw == null) {
+            throw new IllegalStateException("rate_limit_window.window_started_at is required");
+        }
+        return raw.toInstant();
     }
 }

@@ -64,6 +64,7 @@ export const CONSOLE_MENU_LABEL_BY_ID: Readonly<Record<string, keyof PhraseBook>
   "nav.sessions": "navSessions",
   "nav.load": "navLoad",
   "nav.end-users": "navEndUsers",
+  "nav.rate-limits": "navRateLimits",
   "nav.consents": "navConsents",
   "nav.exports": "navExports",
   "nav.payments": "navPayments",
@@ -184,6 +185,7 @@ export const PAGE_AUDIT = "page.audit";
 export const PAGE_SESSIONS = "page.sessions";
 export const PAGE_LOAD = "page.load";
 export const PAGE_END_USERS = "page.end-users";
+export const PAGE_RATE_LIMITS = "page.rate-limits";
 export const PAGE_CONSENTS = "page.consents";
 export const PAGE_EXPORTS = "page.exports";
 export const PAGE_PAYMENTS = "page.payments";

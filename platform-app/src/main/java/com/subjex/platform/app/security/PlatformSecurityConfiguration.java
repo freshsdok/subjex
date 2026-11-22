@@ -164,6 +164,10 @@ public class PlatformSecurityConfiguration {
                         // 控制台负载快照（已有 Micrometer 指标）。只读，admin.read。
                         .requestMatchers(HttpMethod.GET, "/api/v1/load")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
+                        // Current rate-limit windows and delivery-breaker state. List-only, admin.read.
+                        // 当前限额时间窗与投递熔断开合。只读，admin.read。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rate-limits", "/api/v1/rate-limits/**")
+                                .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         // Operator end-user directory (existing identity rows only). List-only, end-user.read.
                         // 操作员终端用户名册（只读已有身份行）。只读，end-user.read。
                         .requestMatchers(HttpMethod.GET, "/api/v1/end-users", "/api/v1/end-users/**")

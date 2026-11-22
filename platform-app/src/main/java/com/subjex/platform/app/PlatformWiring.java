@@ -191,6 +191,7 @@ import com.subjex.platform.app.admin.SinkingAuditPort;
 import com.subjex.platform.app.admin.NdjsonAuditSink;
 import com.subjex.platform.app.admin.AuditExportService;
 import com.subjex.platform.app.admin.LoadDashboardService;
+import com.subjex.platform.app.admin.RateLimitCircuitObservationService;
 import com.subjex.platform.app.admin.SessionListService;
 import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.app.flags.FeatureFlagService;
@@ -454,6 +455,27 @@ public class PlatformWiring {
     LoadDashboardService loadDashboardService(
             MeterRegistry meterRegistry, ApplicationAvailability applicationAvailability, Clock clock) {
         return new LoadDashboardService(meterRegistry, applicationAvailability, clock);
+    }
+
+    /**
+     * Operator observation of current rate-limit windows and delivery-breaker state (existing beans).
+     * 操作员观察当前限额时间窗与投递熔断开合（挂在已有实现上）。
+     */
+    @Bean
+    RateLimitCircuitObservationService rateLimitCircuitObservationService(
+            RateLimitPort rateLimitPort,
+            DeliveryCircuitBreakerPort deliveryCircuitBreakerPort,
+            @Value("${platform.rate-limit.backend:process}") String rateLimitBackend,
+            @Value("${platform.delivery.circuit-breaker.backend:process}") String circuitBackend,
+            @Value("${platform.delivery.circuit-breaker.destination-key:outbox}") String destinationKey,
+            Clock clock) {
+        return new RateLimitCircuitObservationService(
+                rateLimitPort,
+                deliveryCircuitBreakerPort,
+                rateLimitBackend,
+                circuitBackend,
+                destinationKey,
+                clock);
     }
 
     /**

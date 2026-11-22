@@ -75,4 +75,13 @@ public final class DeliveryCircuitBreaker implements DeliveryCircuitBreakerPort 
     public synchronized boolean isTripped() {
         return open;
     }
+
+    @Override
+    public synchronized BreakerSnapshot snapshot() {
+        Instant ends = openedAt == null ? null : openedAt.plus(openCooldown);
+        String state = !open
+                ? BreakerSnapshot.CLOSED
+                : allowCall() ? BreakerSnapshot.HALF_OPEN : BreakerSnapshot.OPEN;
+        return new BreakerSnapshot(state, consecutiveFailures, failureThreshold, openCooldown, openedAt, ends);
+    }
 }

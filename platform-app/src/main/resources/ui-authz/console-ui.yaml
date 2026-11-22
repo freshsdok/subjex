@@ -55,6 +55,10 @@ entries:
     kind: menu
     href: /end-users
     permission: end-user.read
+  - id: nav.rate-limits
+    kind: menu
+    href: /rate-limits
+    permission: admin.read
   - id: nav.consents
     kind: menu
     href: /consents
@@ -228,6 +232,10 @@ entries:
     kind: page
     route: /end-users
     permission: end-user.read
+  - id: page.rate-limits
+    kind: page
+    route: /rate-limits
+    permission: admin.read
   - id: page.consents
     kind: page
     route: /consents

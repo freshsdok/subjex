@@ -1,5 +1,6 @@
 package com.subjex.platform.contract.delivery;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,9 +42,12 @@ class DeliveryCircuitBreakerTest {
 
         clock.advance(Duration.ofSeconds(1));
         assertTrue(breaker.allowCall());
+        assertEquals("half-open", breaker.snapshot().state());
+        assertEquals(Duration.ofSeconds(10), breaker.snapshot().openCooldown());
         breaker.recordSuccess();
         assertFalse(breaker.isTripped());
         assertTrue(breaker.allowCall());
+        assertEquals("closed", breaker.snapshot().state());
     }
 
     @Test
