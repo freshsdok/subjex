@@ -37,7 +37,7 @@ Probes and Prometheus use `management.server.port` (not the business port). Samp
 
 ## Single-replica gate / 单副本门禁（P4 → Scale-4d）
 
-Default `platform-app.yaml` keeps **`replicas: 1`**. Do **not** advertise multi-replica unless both shared backends are `jdbc` (rate-limit + delivery circuit breaker). Optional illustrative patch: `platform-app-shared-backends.snippet.yaml`. Production object storage is S3-compatible (Secret placeholders in the manifest); local disk is not the multi-instance plan. Details: [`docs/release/single-replica-gate.md`](../../docs/release/single-replica-gate.md).
+Default `platform-app.yaml` keeps **`replicas: 1`**. That published default does not change. Do **not** advertise multi-replica unless both shared backends are `jdbc` (rate-limit + delivery circuit breaker). The optional honest patch is `platform-app-shared-backends.snippet.yaml` (`replicas: 2` **and** both env vars). A patch that only raises the replica count is dishonest and is rejected by `MultiReplicaRecipeHonestyTest`. These files are not applied by CI; checking them in is not a live deploy. Production object storage is S3-compatible (Secret placeholders in the manifest); local disk is not the multi-instance plan. Compose: [`deploy/compose/docker-compose.shared-backends.yml`](../compose/docker-compose.shared-backends.yml). Details: [`docs/release/single-replica-gate.md`](../../docs/release/single-replica-gate.md).
 
-默认清单保持单副本。未同时打开双 `jdbc` 后端时不要对外宣称多副本。可选示意补丁见 `platform-app-shared-backends.snippet.yaml`。生产对象存储为 S3 兼容（清单用 Secret 占位）；本地盘不是多实例方案。详见单副本门禁文档。
+默认清单保持单副本，已发布的默认值不变。未同时打开双 `jdbc` 后端时不要对外宣称多副本。可选的诚实补丁是 `platform-app-shared-backends.snippet.yaml`（`replicas: 2` **且**两个环境变量都在）。只提高副本数的补丁不诚实，会被门禁测试拒绝。CI 不应用这些文件；写入仓库不是一次真实部署。生产对象存储为 S3 兼容（清单用 Secret 占位）；本地盘不是多实例方案。Compose 覆盖见上文。详见单副本门禁文档。
 

@@ -56,7 +56,7 @@ Default manifests stay at **`replicas: 1`**. Runtime defaults stay `platform.rat
 
 - [ ] `platform.rate-limit.backend=jdbc` (env `PLATFORM_RATE_LIMIT_BACKEND=jdbc`)
 - [ ] `platform.delivery.circuit-breaker.backend=jdbc` (env `PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc`)
-- [ ] Both are set together. Optional patch: [`deploy/k8s/platform-app-shared-backends.snippet.yaml`](../../deploy/k8s/platform-app-shared-backends.snippet.yaml). Details: [`single-replica-gate.md`](single-replica-gate.md).
+- [ ] Both are set together. Optional k8s patch: [`deploy/k8s/platform-app-shared-backends.snippet.yaml`](../../deploy/k8s/platform-app-shared-backends.snippet.yaml). Optional Compose override: [`deploy/compose/docker-compose.shared-backends.yml`](../../deploy/compose/docker-compose.shared-backends.yml). A recipe that only raises the replica count is dishonest (`MultiReplicaRecipeHonestyTest`). Details: [`single-replica-gate.md`](single-replica-gate.md).
 - [ ] Object storage is already S3-compatible under prod (section 5); do not treat local disk or a per-pod PVC as the multi-instance plan.
 - [ ] `entry-gateway` rate limits remain per gateway process (no JDBC backend). Do not claim shared gateway buckets.
 

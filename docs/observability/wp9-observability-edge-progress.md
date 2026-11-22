@@ -1,6 +1,6 @@
 # WP9 observability and edge recipe progress / 可观测性与边缘配方进度
 
-- Date: 2026-11-22 (Asia/Shanghai) — WP9-2 dashboards landed as repo files; earlier WP9-0 / WP9-1 dates stay 2026-11-20.
+- Date: 2026-11-22 (Asia/Shanghai) — WP9-3 optional multi-replica recipes landed as repo files; WP9-2 the same day; earlier WP9-0 / WP9-1 dates stay 2026-11-20.
 - ADR: [`docs/adr/0021-observability-and-edge-recipe.md`](../adr/0021-observability-and-edge-recipe.md)
 - Predecessor: ADR [`0004`](../adr/0004-observability-audit-trace.md) (audit query + correlation / traceparent), [`docs/observability/obs-progress.md`](obs-progress.md) (OBS-1 / thin OBS-2), WP1 probes and single-replica gate under [`docs/release/`](../release/).
 - Baseline tip when this note was opened: `2be7e94` (WP8 consent/export package closed; formal acceptance `2569f52`)
@@ -8,6 +8,7 @@
 - 本切片提交：`eb60b4e`（`eb60b4ed215070a086ba6f231d587a775d860c73`；WP9-0 盘点、ADR 0021 与边缘配方）。不改 Java，不把 `entry-gateway` 改成网关产品，不启动 WP9-1。未改 uni-app / `web/`。
 - WP9-1 提交：`4a9797d`（`4a9797dd9ec1ce2493623de90cff70ac9d4a0a4e`；审计 NDJSON 导出与可选写路径 SIEM sink）。画布验收「审计可导出」已满足。未改 `entry-gateway`，当时不启动 WP9-2/3。
 - WP9-2 进度：见下文「WP9-2 [done]」。本机不是生产集群；未在真实环境落地 Grafana、Prometheus、边缘 TLS 或多副本。
+- WP9-3 进度：见下文「WP9-3 [done]」。默认清单仍是 `replicas: 1`。可选配方已收紧并加诚实门禁；未向任何集群应用清单，也不是一次生产发布。
 
 Canvas WP9 verbatim / 画布 WP9 原文：
 
@@ -80,7 +81,9 @@ Canvas WP9 verbatim / 画布 WP9 原文：
 | `deploy/k8s/entry-gateway.yaml` | Optional HTTP entry forwarder (8088 / 8090). |
 | `deploy/k8s/sample-consumer.yaml` | Outbox consumer. |
 | `deploy/k8s/networkpolicy-sample.yaml` | Business HTTP only from entry-gateway; probes/metrics only from cluster CIDR; no Ingress on management ports. |
-| `deploy/k8s/platform-app-shared-backends.snippet.yaml` | Illustrative multi-replica patch; not the default. See `docs/release/single-replica-gate.md`. |
+| `deploy/k8s/platform-app-shared-backends.snippet.yaml` | **WP9-3:** optional honest multi-replica patch (`replicas: 2` **and** both `jdbc` env vars). Not the default, not applied by CI. See `docs/release/single-replica-gate.md`. |
+| `deploy/compose/docker-compose.yml` | Default local stack: **one** `platform-app`. Do not `--scale` this file alone. |
+| `deploy/compose/docker-compose.shared-backends.yml` | **WP9-3:** optional honest Compose override (both `jdbc` backends + intended `deploy.replicas: 2`). Not a production deploy. |
 
 ### `entry-gateway`
 
@@ -145,10 +148,28 @@ No new Java meters were added: ADR 0021 D1 asked to keep the existing Prometheus
 
 未新增 Java 指标：ADR 0021 D1 要求保持现有 Prometheus / 健康检查 / 审计基线，这些序列已由 Spring Boot 4 / Micrometer 1.16 发出。测试解析看板 JSON 并核对预期指标名与诚实表述；不启动 Grafana，也不抓取集群。
 
+## WP9-3 [done] — optional multi-replica recipe / 可选多副本配方
+
+Date: 2026-11-22 (Asia/Shanghai). Canvas item “多副本部署配方可后补” is now a tightened, test-gated optional recipe. The **published default stays `replicas: 1`**. Advertising `platform-app` `replicas > 1` is honest only when both shared JDBC backends are `jdbc`. This machine is **not** a production cluster: the files were not applied with `kubectl` or `docker compose`, and checking them in is not a live multi-replica deploy.
+
+画布「多副本部署配方可后补」现已收成带测试门禁的可选配方。**已发布的默认仍是 `replicas: 1`**。对外宣称 `platform-app` 多副本，仅在两个共享 JDBC 后端都为 `jdbc` 时才诚实。本机**不是**生产集群：这些文件没有用 `kubectl` 或 `docker compose` 应用，写入仓库也不等于已在真实环境多副本上线。
+
+Files / 文件:
+
+- [`deploy/k8s/platform-app.yaml`](../../deploy/k8s/platform-app.yaml) — default `replicas: 1`, no silent JDBC-backend env (unchanged)
+- [`deploy/k8s/platform-app-shared-backends.snippet.yaml`](../../deploy/k8s/platform-app-shared-backends.snippet.yaml) — optional patch: `replicas: 2` **and** `PLATFORM_RATE_LIMIT_BACKEND=jdbc` plus `PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc`
+- [`deploy/compose/docker-compose.yml`](../../deploy/compose/docker-compose.yml) — default still one `platform-app`; do not `--scale` this file alone
+- [`deploy/compose/docker-compose.shared-backends.yml`](../../deploy/compose/docker-compose.shared-backends.yml) — optional override with both jdbc backends and intended `deploy.replicas: 2` (pass `--scale platform-app=2` on non-Swarm Compose)
+- [`docs/release/single-replica-gate.md`](../release/single-replica-gate.md)
+
+Still not claimed: full HA, HPA, shared `entry-gateway` rate limits, or shared blobs on local disk. Compose remains a laptop recipe (`local` profile, per-container object directory).
+
+仍不宣称：完整 HA、HPA、入口转发器限流跨副本共享，或本地盘上的共享对象。Compose 仍是笔记本配方（`local` profile，对象目录按容器）。
+
+Tests: `MultiReplicaRecipeHonestyTest` (default stays single-replica; official optional recipes include both jdbc backends; constructed dishonest recipes — N>1 with missing, `process`, or only-one backend — are rejected). The test parses files only. Regression: `ProductionConfigChecklistTest` still pins the default manifest at `replicas: 1` with no silent JDBC env.
+
 ### Next / 下一步
 
-**WP9-3** — optional multi-replica recipe (canvas: 多副本部署配方可后补). Default manifests stay at `replicas: 1`. Advertising `replicas > 1` still requires both shared JDBC backends (`platform.rate-limit.backend=jdbc` and `platform.delivery.circuit-breaker.backend=jdbc`) per [`docs/release/single-replica-gate.md`](../release/single-replica-gate.md). Do **not** start WP9-3 in this slice.
+**Edge TLS and public rate-limit recipe tightening** — `deploy/edge/` is still a configuration sample (placeholder certificates and hostnames; Nginx / APISIX have not been landed on a real environment). A later slice may tighten those recipes. It must **not** pretend a production TLS or rate-limit deploy happened, and it must not start that work in this slice.
 
-**Edge landing** remains later and separate: `deploy/edge/` is still a configuration sample (placeholder certs and hostnames). A later slice may tighten those recipes; it must not pretend a production TLS or rate-limit deploy happened.
-
-边缘落地仍单独往后排：`deploy/edge/` 仍是配置样例（证书与域名为占位）。后续切片可以收紧配方，但不得假装已在生产落地 TLS 或对外限流。
+边缘 TLS 与对外限流配方收紧仍往后排：`deploy/edge/` 仍是配置样例（证书与域名为占位；Nginx / APISIX 尚未在真实环境落地）。后续切片可以收紧配方，但不得假装已在生产落地 TLS 或对外限流，本切片也不启动该项。

@@ -1,0 +1,42 @@
+# OPTIONAL — not the default stack, not applied by CI, not a production deploy.
+# 可选——不是默认编排，CI 不应用，也不是一次生产发布。
+#
+# This machine is not a production cluster. Checking this file in does not run
+# or land a live multi-replica deploy.
+# 本机不是生产集群。把本文件写入仓库，并不等于已在真实环境跑起或多副本上线。
+#
+# Honesty gate (WP9-3 / Scale-4d): platform-app replicas>1 is honest only when
+# BOTH shared JDBC backends are jdbc. A recipe that scales without both backends
+# is dishonest and is rejected by MultiReplicaRecipeHonestyTest.
+# 诚实门禁：platform-app 多副本仅在两个共享 JDBC 后端都为 jdbc 时才成立。
+# 只扩容却不配齐后端的配方不诚实，会被测试拒绝。
+#
+#   PLATFORM_RATE_LIMIT_BACKEND=jdbc
+#   PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc
+#
+# Start from the repository root (keep the default compose file first):
+# 从仓库根目录启动（必须先写默认编排文件）：
+#   docker compose -f deploy/compose/docker-compose.yml \
+#     -f deploy/compose/docker-compose.shared-backends.yml \
+#     up --build --scale platform-app=2
+#
+# `deploy.replicas` records the intended count for the honesty gate. Non-Swarm
+# `docker compose up` may ignore it, so pass `--scale platform-app=2` as above.
+# `deploy.replicas` 供门禁记录意图；非 Swarm 的 `docker compose up` 可能忽略它，
+# 因此仍要带上 `--scale platform-app=2`。
+#
+# Still a laptop recipe — not claimed:
+# - The base file keeps profile `local`. Object storage stays per-container disk
+#   (`PLATFORM_STORAGE_DIRECTORY=/tmp/objects`) unless you add a shared volume;
+#   do not advertise shared blobs on local disk.
+# - `entry-gateway` client rate-limit stays per process (no JDBC backend).
+# 仍是笔记本配方，不宣称：本地盘对象存储不共享；入口转发器限流仍按进程。
+# See docs/release/single-replica-gate.md.
+
+services:
+  platform-app:
+    environment:
+      PLATFORM_RATE_LIMIT_BACKEND: jdbc
+      PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND: jdbc
+    deploy:
+      replicas: 2

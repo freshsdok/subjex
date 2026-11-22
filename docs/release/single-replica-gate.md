@@ -38,11 +38,12 @@ Object storage: production defaults to S3-compatible (`platform.storage.type=s3`
 
 ## Manifests / 清单
 
-- Default: [`deploy/k8s/platform-app.yaml`](../../deploy/k8s/platform-app.yaml) keeps **`replicas: 1`**.
-- Optional opt-in snippet (not applied by CI): [`deploy/k8s/platform-app-shared-backends.snippet.yaml`](../../deploy/k8s/platform-app-shared-backends.snippet.yaml) — shows `replicas: 2` **plus** both `jdbc` env vars and the object-storage warning.
-- Compose: one `platform-app` by default; `--scale platform-app=2` without both `jdbc` backends remains a known limit, not a claim. See [`deploy/compose/README.md`](../../deploy/compose/README.md).
+- Default: [`deploy/k8s/platform-app.yaml`](../../deploy/k8s/platform-app.yaml) keeps **`replicas: 1`**. The published default does not change.
+- Optional opt-in k8s snippet (not applied by CI, not a live deploy): [`deploy/k8s/platform-app-shared-backends.snippet.yaml`](../../deploy/k8s/platform-app-shared-backends.snippet.yaml) — `replicas: 2` **plus** both `jdbc` env vars and the object-storage warning.
+- Optional Compose override (not the default stack, not a live deploy): [`deploy/compose/docker-compose.shared-backends.yml`](../../deploy/compose/docker-compose.shared-backends.yml) — both `jdbc` env vars plus intended `deploy.replicas: 2`. Start it with `--scale platform-app=2` as documented in [`deploy/compose/README.md`](../../deploy/compose/README.md). Scaling the default compose file alone is dishonest.
+- Gate: `MultiReplicaRecipeHonestyTest` rejects a k8s or Compose recipe that advertises `platform-app` `replicas > 1` (or Compose `scale` / `deploy.replicas`) without both backends set to `jdbc`. It parses files only; it does not apply manifests or start Compose.
 
-默认清单保持单副本；可选片段仅在显式打开双 `jdbc` 后端时才谈多副本。Compose 默认仍一个副本。
+默认清单保持单副本，已发布的默认值不变；可选配方必须同时打开双 `jdbc` 后端才谈多副本。Compose 默认仍一个副本。门禁测试只解析文件，不应用清单。
 
 ---
 

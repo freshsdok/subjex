@@ -16,8 +16,15 @@ docker compose -f deploy/compose/docker-compose.yml --profile console up --build
 
 - Gateway: `http://127.0.0.1:8088` (single upstream by default)
 - Console (profile `console`): `http://127.0.0.1:3000` with `SUBJEX_API_BASE=http://platform-app:8080`
-- Multi-replica: `--scale platform-app=2` is honest only when both `PLATFORM_RATE_LIMIT_BACKEND=jdbc` and `PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc` (defaults are `process`). Object store stays per-container disk without a shared volume. See [`docs/release/single-replica-gate.md`](../../docs/release/single-replica-gate.md).
-- 多副本：仅当两个后端都为 `jdbc` 时方可对外宣称；默认 `process`。无共享卷时对象存储仍按容器本地。见单副本门禁文档。
+- Multi-replica (WP9-3, optional): do **not** `--scale platform-app=2` on the default file alone. Use the override that sets both shared JDBC backends, then scale:
+  多副本（WP9-3，可选）：不要只在默认文件上 `--scale platform-app=2`。请使用已配齐两个共享 JDBC 后端的覆盖文件，再扩容：
+  ```bash
+  docker compose -f deploy/compose/docker-compose.yml \
+    -f deploy/compose/docker-compose.shared-backends.yml \
+    up --build --scale platform-app=2
+  ```
+  The override is [`docker-compose.shared-backends.yml`](docker-compose.shared-backends.yml). Defaults stay one `platform-app` and `process` backends. Object store stays per-container disk without a shared volume — do not advertise shared blobs. `entry-gateway` rate limits stay per process. Checking the override in is **not** a production deploy. See [`docs/release/single-replica-gate.md`](../../docs/release/single-replica-gate.md).
+  覆盖文件见上。默认仍是一个 `platform-app` 与 `process` 后端。无共享卷时对象存储仍按容器本地，不要宣称共享对象。入口转发器限流仍按进程。写入覆盖文件不等于生产发布。详见单副本门禁文档。
 - Redis: `127.0.0.1:16379` (console sessions when `SESSION_REDIS_URL=redis://127.0.0.1:16379`)
 - Postgres: `127.0.0.1:15432` (user/password/db: `subjex`)
 - Platform is not published on the host; use the gateway (avoids port clash when scaled). Host `npm run dev` against this stack: `SUBJEX_API_BASE=http://127.0.0.1:8088`.

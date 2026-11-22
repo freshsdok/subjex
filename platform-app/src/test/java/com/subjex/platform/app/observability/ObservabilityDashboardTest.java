@@ -116,16 +116,15 @@ class ObservabilityDashboardTest {
     }
 
     @Test
-    void progressNoteRecordsWp92AndLeavesWp93ForLater() throws Exception {
+    void progressNoteRecordsWp92Dashboards() throws Exception {
         Path note = repoRoot().resolve("docs/observability/wp9-observability-edge-progress.md");
         String text = Files.readString(note);
         assertTrue(text.contains("WP9-2 [done]"));
         assertTrue(text.contains("deploy/observability"));
         assertTrue(text.contains("subjex-platform-overview.json"));
-        assertTrue(text.contains("WP9-3"));
-        assertTrue(text.contains("Do **not** start WP9-3 in this slice")
-                || text.contains("不启动 WP9-3")
-                || text.contains("Do **not** start WP9-3"));
+        assertTrue(text.contains("WP9-3 [done]"));
+        assertTrue(text.contains("replicas: 1"));
+        assertTrue(text.contains("deploy/edge"));
         assertTrue(text.contains("不是生产集群") || text.toLowerCase().contains("not a production cluster"));
     }
 

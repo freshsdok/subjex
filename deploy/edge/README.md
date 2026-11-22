@@ -66,8 +66,8 @@ Use standalone YAML (`config_provider: yaml`) as sketched in `apisix/config-note
   审计导出 / SIEM 在应用侧（WP9-1），见下文；本边缘不承接这条投递路径。
 - Grafana dashboards and the Prometheus scrape example live under [`deploy/observability/`](../observability/README.md) (WP9-2). This edge folder does not deploy them, and checking them in is not a live Grafana or TLS landing.
   Grafana 看板与 Prometheus 抓取样例在 [`deploy/observability/`](../observability/README.md)（WP9-2）。本边缘目录不部署它们，写入仓库也不等于已在真实环境落地 Grafana 或 TLS。
-- It does not add a multi-replica recipe (WP9-3; still later). Default k8s manifests stay at `replicas: 1`.
-  本配方不含多副本方案（WP9-3 仍往后排）。默认 k8s 清单仍是 `replicas: 1`。
+- Multi-replica (WP9-3) is a separate optional recipe under [`deploy/k8s/platform-app-shared-backends.snippet.yaml`](../k8s/platform-app-shared-backends.snippet.yaml) and [`deploy/compose/docker-compose.shared-backends.yml`](../compose/docker-compose.shared-backends.yml). Default k8s manifests stay at `replicas: 1`. This edge folder does not change that, and it is not a live deploy.
+  多副本（WP9-3）是另一套可选配方，见上文路径。默认 k8s 清单仍是 `replicas: 1`。本边缘目录不改这一点，也不是一次真实部署。
 - It does not change `entry-gateway`. That process remains an optional in-cluster HTTP forwarder without public TLS. A first launch may omit it and let this edge proxy `platform-app` directly.
   不修改 `entry-gateway`。它仍是可选的集群内 HTTP 转发器，不对公终结 TLS。首次上线可以省略它，由本边缘直接反代 `platform-app`。
 

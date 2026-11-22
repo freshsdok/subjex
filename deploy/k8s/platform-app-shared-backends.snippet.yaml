@@ -1,20 +1,30 @@
-# OPTIONAL — not applied by CI/tests. Merge only when you intentionally advertise replicas>1.
-# 可选——CI/测试不应用。仅在你有意对外宣称多副本时合并。
+# OPTIONAL — not the default manifest, not applied by CI/tests, not a production deploy.
+# 可选——不是默认清单，CI/测试不应用，也不是一次生产发布。
 #
-# Gate (Scale-4d): BOTH backends must be jdbc, or keep replicas: 1.
-# 门禁（Scale-4d）：两个后端都必须是 jdbc，否则保持 replicas: 1。
+# This machine is not a production cluster. Checking this file in does not apply
+# it with kubectl and does not land a live multi-replica deploy.
+# 本机不是生产集群。把本文件写入仓库，并不等于已用 kubectl 应用或已多副本上线。
+#
+# Honesty gate (WP9-3 / Scale-4d): platform-app replicas>1 is honest only when
+# BOTH shared JDBC backends are jdbc. A patch that raises replicas without both
+# env values is dishonest and is rejected by MultiReplicaRecipeHonestyTest.
+# 诚实门禁：platform-app 多副本仅在两个共享 JDBC 后端都为 jdbc 时才成立。
+# 只改副本数却不配齐后端的补丁不诚实，会被测试拒绝。
 #   PLATFORM_RATE_LIMIT_BACKEND=jdbc
 #   PLATFORM_DELIVERY_CIRCUIT_BREAKER_BACKEND=jdbc
 #
-# Object storage: production already defaults to S3-compatible (see platform-app.yaml Secret
-# placeholders). Local disk / a PVC at object-store is not a multi-instance plan.
-# 对象存储：生产已默认 S3 兼容（见 platform-app.yaml 的 Secret 占位）。本地盘或 object-store PVC 不是多实例方案。
+# Merge on top of deploy/k8s/platform-app.yaml (illustrative — edit to match
+# your cluster; default published manifest stays replicas: 1).
+# 在 platform-app.yaml 之上合并（示意——按集群改；已发布的默认清单仍是 replicas: 1）。
+#
+# Object storage: production already defaults to S3-compatible (see
+# platform-app.yaml Secret placeholders). Local disk / a PVC at object-store
+# is not a multi-instance plan.
+# 对象存储：生产已默认 S3 兼容（见 platform-app.yaml 的 Secret 占位）。
+# 本地盘或 object-store PVC 不是多实例方案。
 #
 # entry-gateway rate-limit stays per process (gateway has no JDBC backend).
-# 入口网关限流仍按进程（网关无 jdbc 后端）。
-#
-# Example patch on top of platform-app.yaml (illustrative — edit to match your cluster):
-# 在 platform-app.yaml 之上的示例补丁（示意——按集群改）：
+# 入口转发器限流仍按进程（网关无 jdbc 后端）。
 apiVersion: apps/v1
 kind: Deployment
 metadata:
