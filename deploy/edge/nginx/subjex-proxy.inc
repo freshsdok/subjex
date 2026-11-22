@@ -1,4 +1,6 @@
 # Shared reverse-proxy headers for platform-app / 反代 platform-app 的共用头
+# Upstream is platform_app (business port 8080 only; never 8089/8090/8091).
+# 上游是 platform_app（仅业务口 8080；绝不用 8089/8090/8091）。
 # Install next to the included path, or copy to /etc/nginx/conf.d/subjex-proxy.inc
 # 安装到 include 路径，或复制到 /etc/nginx/conf.d/subjex-proxy.inc
 proxy_pass http://platform_app;

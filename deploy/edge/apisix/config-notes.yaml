@@ -1,8 +1,25 @@
 # APISIX instance sketch (not a full production config.yaml).
 # APISIX 实例示意（不是完整生产 config.yaml）。
 #
-# Enable HTTPS on 443, HTTP 80 redirect, and keep the Admin API off the public interface.
-# 443 终结 TLS，80 跳转 HTTPS，Admin API 不对公网开放。
+# This is a follow-along note, not a live inventory and not a production landing.
+# 这是可照着做的说明，不是现网清单，也不是一次生产落地。
+# REPLACE-ME any bind addresses, file paths, and Admin API listeners before use.
+# 使用前替换绑定地址、文件路径与 Admin API 监听。
+# Keep the Admin API off the public interface (disable it, or bind a private address only).
+# Admin API 不对公网开放（关闭，或只绑私网地址）。
+# Do not listen on management ports 8089/8090/8091.
+# 不要监听管理端口 8089/8090/8091。
+#
+# Intended listeners / 预期监听:
+#   - 443: TLS termination (SNI placeholders in apisix.yaml)
+#   - 80: HTTP, redirected to HTTPS by global_rules.redirect.http_to_https in apisix.yaml
+# If a front load balancer already redirects 80 → 443, you may listen on 443 only;
+# keep the same 301 behaviour at that hop.
+# 若前置负载均衡已经把 80 跳到 443，可以只听 443，但须在那一跳保持同样的 301。
+#
+# ACME / certbot / a vendor dashboard is not included. Install certificates yourself
+# and paste PEM only into a private copy of apisix.yaml — never commit real PEM.
+# 不含 ACME / certbot / 厂商控制台。自行安装证书，只把 PEM 贴进私有副本，切勿提交真实 PEM。
 #
 # apisix:
 #   node_listen: 80

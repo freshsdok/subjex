@@ -114,7 +114,7 @@ The canvas does not settle the following; recommended defaults above may change 
 - Whether `entry-gateway` remains in the hop behind the edge, or is omitted.
 - Audit export format (JSONL, CEF, syslog, HTTP webhook, …) and SIEM vendor.
 - Trace sampling policy beyond today’s always-on in-process spans + opt-in OTLP.
-- Landing the edge recipes (TLS, public rate limits) on a real environment. Grafana dashboards shipped as repo files in WP9-2; the optional multi-replica recipe shipped as repo files in WP9-3 (default still `replicas: 1`). Neither is a live production deploy.
+- Landing the edge recipes (TLS, public rate limits) on a **real** environment. Repo files were tightened after WP9-0 (see Later progress); they are still placeholders and not a live production deploy. Grafana dashboards (WP9-2) and the optional multi-replica recipe (WP9-3; default still `replicas: 1`) are also repo files only.
 
 ## Later progress / 后续进展
 
@@ -125,4 +125,4 @@ These notes do not reopen D1–D4. They record work that landed after this ADR w
 - **WP9-1** (2026-11-20 Asia/Shanghai): audit NDJSON export and an optional write-path SIEM sink. See [`docs/observability/wp9-observability-edge-progress.md`](../observability/wp9-observability-edge-progress.md).
 - **WP9-2** (2026-11-22 Asia/Shanghai): versioned Grafana dashboard JSON and a Prometheus scrape example under [`deploy/observability/`](../../deploy/observability/README.md). Import into operator-owned Grafana OSS. A Grafana Cloud account is not required. This is not a production deploy of Grafana, Prometheus, or edge TLS. D2 still holds: production Actuator exposure remains `health,prometheus` on the management port only.
 - **WP9-3** (2026-11-22 Asia/Shanghai): optional honest multi-replica recipes under `deploy/k8s/platform-app-shared-backends.snippet.yaml` and `deploy/compose/docker-compose.shared-backends.yml`, gated by `MultiReplicaRecipeHonestyTest`. The published default stays `replicas: 1`. This is not a live multi-replica or production deploy. D4 still holds.
-- Landing the edge recipes on a real environment remains later. `deploy/edge/` is still a configuration sample.
+- **Edge recipes tightened** (2026-11-22 Asia/Shanghai): operator-usable Nginx / APISIX recipes under [`deploy/edge/`](../../deploy/edge/README.md), gated by `EdgeRecipeHonestyTest`. Placeholders only (`example.com`, `PLACEHOLDER_*` PEM, certificate *paths*). HTTP→HTTPS, public rate limits, and `/actuator` plus management ports kept off the public edge. This is **not** a live TLS or rate-limit deploy; this machine has no public edge to land on. D3 still holds (`entry-gateway` is not a gateway product).

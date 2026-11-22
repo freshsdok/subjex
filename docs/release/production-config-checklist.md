@@ -42,9 +42,18 @@ A fuller Nginx/APISIX edge recipe is later work (WP9). This list only requires T
 
 ## 6. Edge TLS and management ports / 边缘 TLS 与管理端口
 
+Follow the tightened recipes in [`deploy/edge/README.md`](../../deploy/edge/README.md) (Nginx default walkthrough, APISIX peer alternative). Checking those files in is **not** a live production landing; replace placeholders in a private copy on the real edge host, and do not commit real certificates, keys, or production hostnames.
+按收紧后的配方操作（Nginx 默认走查，APISIX 对等备选）。写入仓库**不等于**已在真实环境落地；在真实边缘主机的私有副本中替换占位，不要把真实证书、私钥或生产主机名提交进仓库。
+
 - [ ] TLS is terminated at the edge (Nginx or APISIX). The Java processes themselves do not serve TLS.
+- [ ] Placeholder hostnames and certificate paths / PEM tokens have been replaced in a **private** copy (IANA `example.com` and `PLACEHOLDER_*` must not remain on the live edge).
+      占位主机名与证书路径 / PEM 已在**私有**副本中替换（现网边缘不得留下 `example.com` 与 `PLACEHOLDER_*`）。
+- [ ] HTTP on port 80 redirects to HTTPS (except `/actuator`, which stays blocked).
+      80 端口 HTTP 跳转到 HTTPS（`/actuator` 除外，仍拦截）。
+- [ ] The four public rate-limit classes are in place (or deliberately adjusted).
+      四档对外限流已就绪（或已有意调整）。
 - [ ] `entry-gateway` is only an HTTP forwarder with coarse in-process rate limits — not the TLS terminator and not an API-gateway product.
-- [ ] Management ports are **not** on Ingress (`management.server.port`; platform-app default `8089`).
+- [ ] Management ports are **not** on Ingress (`management.server.port`; platform-app default `8089`; also 8090 / 8091). `/actuator` is blocked at the public edge.
 - [ ] Liveness, readiness, and Prometheus are limited to the cluster network (see [`probes-and-network.md`](probes-and-network.md) and `deploy/k8s/networkpolicy-sample.yaml`).
 
 ## 7. Multi-replica gate / 多副本门禁

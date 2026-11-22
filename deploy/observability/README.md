@@ -16,8 +16,8 @@ See ADR [`docs/adr/0021-observability-and-edge-recipe.md`](../../docs/adr/0021-o
   `entry-gateway` 仍是可选的集群内 HTTP 转发器。本切片不把它改成网关产品。
 - Default Kubernetes manifests stay at `replicas: 1`. The optional WP9-3 multi-replica recipe is under `deploy/k8s/platform-app-shared-backends.snippet.yaml` and `deploy/compose/docker-compose.shared-backends.yml`. It is not a live multi-replica deploy.
   默认 Kubernetes 清单仍是 `replicas: 1`。可选的 WP9-3 多副本配方见上述路径。那不是一次真实的多副本部署。
-- Edge TLS and public rate limits remain **configuration samples** under `deploy/edge/`. They have not been applied to a real environment in this work.
-  边缘 TLS 与对外限流仍是 `deploy/edge/` 下的**配置样例**，本工作并未在真实环境落地。
+- Edge TLS and public rate limits are tightened recipes under [`deploy/edge/`](../edge/README.md). They are still placeholders, and they have not been applied to a real environment in this work.
+  边缘 TLS 与对外限流是 [`deploy/edge/`](../edge/README.md) 下已收紧的配方，仍是占位，本工作并未在真实环境落地。
 
 ## What the platform already emits / 平台已发出的信号
 

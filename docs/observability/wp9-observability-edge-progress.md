@@ -1,6 +1,6 @@
 # WP9 observability and edge recipe progress / 可观测性与边缘配方进度
 
-- Date: 2026-11-22 (Asia/Shanghai) — WP9-3 optional multi-replica recipes landed as repo files; WP9-2 the same day; earlier WP9-0 / WP9-1 dates stay 2026-11-20.
+- Date: 2026-11-22 (Asia/Shanghai) — edge TLS / rate-limit recipes tightened as repo files; WP9-2 and WP9-3 the same day; earlier WP9-0 / WP9-1 dates stay 2026-11-20.
 - ADR: [`docs/adr/0021-observability-and-edge-recipe.md`](../adr/0021-observability-and-edge-recipe.md)
 - Predecessor: ADR [`0004`](../adr/0004-observability-audit-trace.md) (audit query + correlation / traceparent), [`docs/observability/obs-progress.md`](obs-progress.md) (OBS-1 / thin OBS-2), WP1 probes and single-replica gate under [`docs/release/`](../release/).
 - Baseline tip when this note was opened: `2be7e94` (WP8 consent/export package closed; formal acceptance `2569f52`)
@@ -9,6 +9,7 @@
 - WP9-1 提交：`4a9797d`（`4a9797dd9ec1ce2493623de90cff70ac9d4a0a4e`；审计 NDJSON 导出与可选写路径 SIEM sink）。画布验收「审计可导出」已满足。未改 `entry-gateway`，当时不启动 WP9-2/3。
 - WP9-2 进度：见下文「WP9-2 [done]」。本机不是生产集群；未在真实环境落地 Grafana、Prometheus、边缘 TLS 或多副本。
 - WP9-3 进度：见下文「WP9-3 [done]」。默认清单仍是 `replicas: 1`。可选配方已收紧并加诚实门禁；未向任何集群应用清单，也不是一次生产发布。
+- 边缘配方进度：见下文「Edge recipes [done]」。配方已收紧并加解析门禁；本机不是生产集群，没有可落地的对公边缘，未在真实环境应用 Nginx / APISIX。
 
 Canvas WP9 verbatim / 画布 WP9 原文：
 
@@ -168,8 +169,30 @@ Still not claimed: full HA, HPA, shared `entry-gateway` rate limits, or shared b
 
 Tests: `MultiReplicaRecipeHonestyTest` (default stays single-replica; official optional recipes include both jdbc backends; constructed dishonest recipes — N>1 with missing, `process`, or only-one backend — are rejected). The test parses files only. Regression: `ProductionConfigChecklistTest` still pins the default manifest at `replicas: 1` with no silent JDBC env.
 
+## Edge recipes [done] — TLS and public rate-limit tightening / 边缘配方收紧（TLS 与对外限流）
+
+Date: 2026-11-22 (Asia/Shanghai). The last agreed slice of the production-hardening item. Nginx remains the default walkthrough; APISIX remains the peer alternative. `entry-gateway` is unchanged (in-cluster HTTP forwarder, not a gateway product).
+
+这是「生产加固」约定清单的最后一刀。Nginx 仍是默认走查，APISIX 仍是对等备选。`entry-gateway` 未改（集群内 HTTP 转发器，不是网关产品）。
+
+The recipes are now operator-usable and honesty-gated: placeholder hostnames (`api.example.com`, `console.example.com`) and certificate paths / `PLACEHOLDER_*` PEM tokens; how to replace them in a **private** copy; HTTP → HTTPS (301); the four public rate-limit classes; `/actuator` blocked on the public edge including port 80; management ports 8089 / 8090 / 8091 must not be published or used as upstreams. `EdgeRecipeHonestyTest` parses the files and rejects real private-key PEM and non-placeholder production hostnames.
+
+配方现可供运维按说明替换占位，并有诚实门禁：占位主机名与证书路径 / `PLACEHOLDER_*` PEM、如何在**私有**副本中替换、HTTP 跳转 HTTPS、四档对外限流、对公（含 80 端口）拦截 `/actuator`、管理端口不得发布或作为上游。`EdgeRecipeHonestyTest` 只解析文件，并拒绝真实私钥 PEM 与非占位生产主机名。
+
+**This machine is not a production cluster and has no live public edge.** The files were not applied with Nginx or APISIX, no public-facing proxy was started as production, and checking them in is **not** a production TLS or rate-limit deploy. Live environment landing was not possible here.
+
+**本机不是生产集群，也没有可落地的对公边缘。** 没有用 Nginx 或 APISIX 应用这些文件，没有把对公代理当成生产启动，写入仓库也**不是**一次生产 TLS 或对外限流发布。此处无法做真实环境落地。
+
+Files / 文件:
+
+- [`deploy/edge/README.md`](../../deploy/edge/README.md) — operator checklist, how to replace placeholders, HTTP→HTTPS, actuator / management-port rules, what is not included
+- [`deploy/edge/nginx/subjex.conf`](../../deploy/edge/nginx/subjex.conf), [`deploy/edge/nginx/subjex-proxy.inc`](../../deploy/edge/nginx/subjex-proxy.inc)
+- [`deploy/edge/apisix/apisix.yaml`](../../deploy/edge/apisix/apisix.yaml), [`deploy/edge/apisix/config-notes.yaml`](../../deploy/edge/apisix/config-notes.yaml)
+
+Tests: `EdgeRecipeHonestyTest` (TLS listen + HTTP→HTTPS, rate-limit directives, actuator blocked, no management-port upstreams, placeholder hostnames and PEM only, README honesty wording). Parses files only; does not start a proxy.
+
 ### Next / 下一步
 
-**Edge TLS and public rate-limit recipe tightening** — `deploy/edge/` is still a configuration sample (placeholder certificates and hostnames; Nginx / APISIX have not been landed on a real environment). A later slice may tighten those recipes. It must **not** pretend a production TLS or rate-limit deploy happened, and it must not start that work in this slice.
+The agreed production-hardening item is **complete locally** (WP9-2 dashboards, WP9-3 multi-replica recipes, and these tightened edge recipes). It is still **unpushed**. No further work on this list. Live TLS / rate-limit landing on a real public edge is still **not done** and was not possible on this machine.
 
-边缘 TLS 与对外限流配方收紧仍往后排：`deploy/edge/` 仍是配置样例（证书与域名为占位；Nginx / APISIX 尚未在真实环境落地）。后续切片可以收紧配方，但不得假装已在生产落地 TLS 或对外限流，本切片也不启动该项。
+约定的生产加固项已在**本地完成**（WP9-2 看板、WP9-3 多副本配方、以及本刀收紧的边缘配方），仍**未推送**。本清单没有更多工作。真实对公边缘上的 TLS / 限流落地**仍未做**，本机也无法做。

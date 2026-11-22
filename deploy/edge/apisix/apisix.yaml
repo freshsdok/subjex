@@ -1,15 +1,23 @@
 # Subjex public edge (APISIX declarative / standalone) — same responsibilities as the Nginx recipe.
 # Subjex 对公边缘（APISIX 声明式 / standalone）：职责与 Nginx 配方相同。
-# Placeholders for domains and certificates. Not a live inventory.
-# 域与证书均为占位，不是现网清单。
-# Do not publish management ports. Do not grow entry-gateway into this role.
+# Placeholders for domains and certificates (PLACEHOLDER_* PEM tokens only). Not a live inventory.
+# 域与证书均为占位（PEM 里只有 PLACEHOLDER_* 标记）。不是现网清单。
+# REPLACE-ME before use: hostnames, PEM blocks, upstreams, trusted hop CIDR.
+# 使用前必换：主机名、PEM 块、上游、前一跳可信 CIDR。
+# Never commit a real certificate or private key to this repository.
+# 切勿把真实证书或私钥提交进本仓库。
+# Do not publish management ports 8089/8090/8091. Do not grow entry-gateway into this role.
 # 不要发布管理端口。不要把 entry-gateway 做成这一角色。
+# This machine is not a production cluster; checking this file in is not a live TLS landing.
+# 本机不是生产集群；写入仓库不等于已在真实环境落地 TLS。
 #
 # Load with APISIX standalone config_provider, or adapt into etcd/Admin API routes.
 # 用 APISIX standalone 加载，或改写为 etcd / Admin API 路由。
+# Listen on 80 + 443 as sketched in config-notes.yaml (Admin API stays off the public interface).
+# 按 config-notes.yaml 监听 80 与 443（Admin API 不对公开放）。
 
 routes:
-  # Block actuator on the public edge / 对公边缘拦截 actuator
+  # Block actuator on the public edge (every host) / 对公边缘拦截 actuator（所有主机名）
   - id: block-actuator
     uri: /actuator*
     priority: 20
@@ -23,6 +31,7 @@ routes:
   - id: auth-otp-request-code
     uri: /api/v1/end-user/auth/phone/request-code
     methods: ["POST"]
+    hosts: ["api.example.com"]
     priority: 15
     plugins:
       limit-req:
@@ -40,6 +49,7 @@ routes:
   - id: auth-end-user
     uris:
       - /api/v1/end-user/auth/*
+    hosts: ["api.example.com"]
     priority: 10
     plugins:
       limit-req:
@@ -53,6 +63,7 @@ routes:
   - id: auth-operator
     uris:
       - /api/v1/auth/*
+    hosts: ["api.example.com"]
     priority: 10
     plugins:
       limit-req:
@@ -65,6 +76,7 @@ routes:
   # Uploads: 52MB envelope (50 MiB cap + slack) / 上传：52MB 封装上限
   - id: upload-end-user-objects
     uri: /api/v1/end-user/objects*
+    hosts: ["api.example.com"]
     priority: 8
     plugins:
       limit-req:
@@ -78,6 +90,7 @@ routes:
 
   - id: upload-entities
     uri: /api/v1/entities/*
+    hosts: ["api.example.com"]
     priority: 8
     plugins:
       limit-req:
@@ -92,6 +105,7 @@ routes:
   # General API / 通用 API
   - id: api-general
     uri: /api/v1/*
+    hosts: ["api.example.com"]
     priority: 1
     plugins:
       limit-req:
@@ -101,18 +115,36 @@ routes:
         rejected_code: 429
     upstream_id: platform-app
 
-# Optional console hostname is a separate APISIX route/host (console.example.com) — see README.
-# 可选控制台主机名用另一条带 host 的路由，见 README。
+  # Optional operator console hostname / 可选操作员控制台主机名
+  - id: operator-console
+    uri: /*
+    hosts: ["console.example.com"]
+    priority: 1
+    plugins:
+      limit-req:
+        rate: 2
+        burst: 40
+        key: remote_addr
+        rejected_code: 429
+    upstream_id: console-web
 
 upstreams:
   - id: platform-app
     type: roundrobin
     nodes:
+      # Business port only — never 8089/8090/8091 / 仅业务口，绝不用管理口
       "platform-app:8080": 1
+  - id: console-web
+    type: roundrobin
+    nodes:
+      # REPLACE-ME with the real static/console upstream / 使用前换成真实控制台上游
+      "console-web:80": 1
 
 ssl:
   - id: api-example
-    # Certificate placeholders — replace before use / 证书占位，使用前替换
+    # REPLACE-ME certificate placeholders — replace the PLACEHOLDER_* tokens before use.
+    # Never paste a real PEM into this file and commit it.
+    # 证书占位：使用前替换 PLACEHOLDER_* 标记。切勿把真实 PEM 粘进本文件并提交。
     snis: ["api.example.com"]
     cert: |-
       -----BEGIN CERTIFICATE-----
@@ -133,11 +165,19 @@ ssl:
       PLACEHOLDER_CONSOLE_KEY
       -----END PRIVATE KEY-----
 
-# Global plugins: HSTS + forwarded headers + trace propagation.
-# 全局插件：HSTS、转发头、跟踪头透传。
+# Global plugins: HTTP→HTTPS, HSTS, forwarded headers, trace propagation.
+# 全局插件：HTTP 跳转 HTTPS、HSTS、转发头、跟踪头透传。
+# `redirect.http_to_https` fires on HTTP only; HTTPS requests continue to the routes above.
+# 该跳转只在 HTTP 上触发；HTTPS 仍走上面的路由。
+# APISIX must also listen on port 80 (see config-notes.yaml). If port 80 is on a front load
+# balancer instead, keep the same 301 to HTTPS there.
+# APISIX 还须监听 80（见 config-notes.yaml）。若 80 在前置负载均衡上，也在那里做同样的 301。
 global_rules:
   - id: edge-headers
     plugins:
+      redirect:
+        http_to_https: true
+        ret_code: 301
       response-rewrite:
         headers:
           set:
