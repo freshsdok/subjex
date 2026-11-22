@@ -47,6 +47,12 @@
       "style": {
         "navigationBarTitleText": "我的同意"
       }
+    },
+    {
+      "path": "pages/export/export",
+      "style": {
+        "navigationBarTitleText": "我的导出"
+      }
     }
   ],
   "globalStyle": {

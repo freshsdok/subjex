@@ -22,6 +22,7 @@
 
     <view class="card" v-if="signedIn">
       <navigator url="/pages/consent/consent" class="link">管理我的同意</navigator>
+      <navigator url="/pages/export/export" class="link">申请导出我的资料</navigator>
       <button size="mini" :disabled="busy" @click="onLogout">退出登录</button>
     </view>
 

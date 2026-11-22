@@ -44,6 +44,7 @@ export const SHELL_MENU_LABEL_BY_ID: Readonly<Record<string, string>> = {
   "nav.questionnaires": "问卷",
   "nav.files": "我的文件",
   "nav.consents": "我的同意",
+  "nav.exports": "我的导出",
 };
 
 /**

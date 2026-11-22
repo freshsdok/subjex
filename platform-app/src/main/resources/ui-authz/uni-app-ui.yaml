@@ -29,6 +29,11 @@ entries:
   - id: nav.consents
     kind: menu
     href: /pages/consent/consent
+  # Own personal-data export requests (login-only; no self-approval controls)
+  # 本人资料导出申请（登录即可；页面不提供自行批准）
+  - id: nav.exports
+    kind: menu
+    href: /pages/export/export
   # Placeholder actions — 壳页占位动作
   - id: btn.shell.reprobe
     kind: button

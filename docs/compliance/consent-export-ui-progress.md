@@ -15,7 +15,7 @@
 | --- | --- | --- | --- |
 | 终端同意：列出当前、授予、按目的撤回、历史 | `GET/POST /api/v1/end-user/consents`，`POST .../{purposeKey}/withdraw`，`GET .../history`（`EndUserConsentEndpoint`） | 终端本人；租户失败关闭；不能指定他人 | uni-app 同意页已落地（第 3 刀） |
 | 同意台账 | `ConsentPort` / `JdbcConsentPort`（`consent_event` 只追加，`consent_current` 投影） | 内核不存法律正文；撤销按目的；`require` 在给出版本时必须完全一致 | 无操作员查询接口 |
-| 终端导出：申请、查看自己的申请、短时下载链接 | `GET/POST /api/v1/end-user/exports`，`GET .../{id}`，`POST .../{id}/download-link` | 只针对本人；产物默认 P7D 过期 | uni-app **无**导出页 |
+| 终端导出：申请、查看自己的申请、短时下载链接 | `GET/POST /api/v1/end-user/exports`，`GET .../{id}`，`POST .../{id}/download-link` | 只针对本人；产物默认 P7D 过期 | uni-app 导出页已落地（第 4 刀） |
 | 操作员导出：代申请、队列、批准、驳回、生成、短时链接 | `GET/POST /api/v1/exports`，`.../{id}/approve\|reject\|generate\|download-link`（`OperatorExportEndpoint`） | `export.request` / `export.approve`；禁止自己批准自己；生成与操作员下载复用 `export.approve` | 控制台队列页已落地（第 2 刀）；本切片未做「代申请」表单 |
 | 审批钩子 | `workflows/data-export.workflow.yaml` + `ExportApprovalGate` | 未批准不可生成；敏感级别 NORMAL/SENSITIVE | — |
 | 易混淆的既有能力（不要挪用） | OAuth 客户端同意：`web/src/app/(console)/oauth/consent`；租户 ZIP：`POST /api/v1/tenants/{id}/export`；问卷 CSV；审计 NDJSON | 各自原权限 | 已有页面/接口，与本轨无关 |
@@ -41,7 +41,14 @@
 1. uni-app 新增「我的同意」页（`/pages/consent/consent`）：列出当前用途与文本版本，可同意或按目的撤回。无操作员审批控件。
 2. 平台不存放说明正文。页面要求用户核对说明上的用途编号和文本版本；也可通过深链参数 `purposeKey`/`consentVersionId`（或 `purpose`/`version`）预填并确认。已撤回的用途可填回上次版本后再同意。
 3. 首页本地导航、资料页入口，以及 `uni-app-ui.yaml` 的 `nav.consents` 已接上。复用现有终端登录与 `/api/v1/end-user/consents`。
-4. uni-app 导出页：**仍未做**。
+4. uni-app 导出页：当时尚未开始。
+
+### 本切片已落地（第 4 刀）
+
+1. uni-app 新增「我的导出」页（`/pages/export/export`）：可提交「我在本组织的全部个人资料」申请，查看自己的申请状态，就绪后获取并打开已有短时签名下载链接；尊重产物过期时间。
+2. 页面没有批准或驳回按钮；自行批准仍由后端禁止。下载只签发并打开现有短时签名链接，不另开文件通道。
+3. 首页本地导航、资料页入口，以及 `uni-app-ui.yaml` 的 `nav.exports` 已接上。复用现有终端登录与 `/api/v1/end-user/exports`。
+4. 本项「控制台和 uni-app 的同意与导出页面」已全部落地。未做操作员「代申请」表单（不属于本项必做范围）。
 
 ## 界面计划 / UI plan
 
@@ -53,10 +60,10 @@
 ### uni-app（终端用户，H5 + 微信小程序）
 
 - **同意页（第 3 刀，已落地）**：列出当前用途与文本版本，允许同意或撤回；用语清楚、面向普通人；走现有 `/api/v1/end-user/consents`。平台不提供法律正文，用途键与版本由租户/业务提供——页面说明须与正在阅读的文本版本一致，并复用 WP7 的登录与导航（资料 / 站内信 / 文件）。
-- **导出页（下一刀）**：提交申请、查看状态；就绪后获取下载链接并尊重过期时间。申请人看不到批准按钮。
+- **导出页（第 4 刀，已落地）**：提交申请、查看状态；就绪后获取下载链接并尊重过期时间。申请人看不到批准按钮。
 
 导航与构建：保持 HBuilderX 兼容，H5 与 `mp-weixin` 可 `vue-tsc` / 构建通过。不另开第三套终端前端。
 
-## 后续切片 / Remaining slices in this backlog item
+## 本项状态 / Item status
 
-1. uni-app 导出页（申请、状态、到期前的下载链接）。
+控制台同意记录、控制台导出队列、uni-app 同意页、uni-app 导出页四刀均已落地，本项「控制台和 uni-app 的同意与导出页面」已完成。后续公共能力（通知页、支付等）不在本项范围内。
