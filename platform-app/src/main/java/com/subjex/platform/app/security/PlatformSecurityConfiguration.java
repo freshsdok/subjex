@@ -146,6 +146,12 @@ public class PlatformSecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/v1/operators/me/password").authenticated()
                         .requestMatchers("/api/v1/operators", "/api/v1/operators/**")
                                 .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
+                        // Current logins: list admin.read; revoke operator.manage. Hung on refresh tokens.
+                        // 当前登录：列表 admin.read；吊销 operator.manage。挂在刷新令牌上。
+                        .requestMatchers(HttpMethod.POST, "/api/v1/sessions/**")
+                                .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/sessions", "/api/v1/sessions/**")
+                                .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         // ID-2 service-account client registry — 服务账号客户端登记。
                         .requestMatchers(OauthClientAdminEndpoint.PATH, OauthClientAdminEndpoint.PATH + "/**")
                                 .hasAuthority(OperatorPermission.OPERATOR_MANAGE.permissionName())

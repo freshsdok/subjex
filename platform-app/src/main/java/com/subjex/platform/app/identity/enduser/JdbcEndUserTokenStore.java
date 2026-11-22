@@ -283,6 +283,32 @@ public final class JdbcEndUserTokenStore {
                 accessRaw, refreshRaw, accessTtl.toSeconds(), accessExpires, refreshExpires, familyId);
     }
 
+    /**
+     * Revoke one refresh family when it belongs to the given tenant (operator session list).
+     * 该家族属于指定租户时吊销整族（操作员查看的终端登录列表）。
+     */
+    public boolean revokeFamilyByIdInTenant(String familyId, String tenantId) {
+        if (familyId == null || familyId.isBlank() || tenantId == null || tenantId.isBlank()) {
+            return false;
+        }
+        String id = familyId.trim();
+        String tid = tenantId.trim();
+        Integer count = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM end_user_refresh_token r
+                INNER JOIN subject_identity si ON si.subject_id = r.subject_id
+                WHERE r.family_id = ? AND si.tenant_id = ?
+                """,
+                Integer.class,
+                id,
+                tid);
+        if (count == null || count == 0) {
+            return false;
+        }
+        revokeFamily(id, clock.instant());
+        return true;
+    }
+
     private void revokeFamily(String familyId, Instant when) {
         java.sql.Timestamp ts = java.sql.Timestamp.from(when);
         jdbc.update(

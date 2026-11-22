@@ -124,7 +124,8 @@ Each slice: small PR-sized change, local git commit, update `web/PROGRESS.md` (a
 
 **Success criteria:** Fresh console login leaves **zero** Basic ciphertext in Redis/memory; `/api/v1/me` works with Bearer; password change / disable invalidates refresh families for that account.
 
-**Deferred:** Device/session list UI; JWT; DPoP; public OAuth client for third parties.
+**Deferred:** JWT; DPoP; public OAuth client for third parties.
+**Landed (thin):** operator console `/sessions` lists current, unexpired, unrevoked refresh-token families (operator + tenant-scoped end-user). Fields: who, optional user-agent and IP captured at issue/refresh, and expiry. No device name or last-used (those columns do not exist). Revoke uses the existing family-revoke path (`admin.read` to list, `operator.manage` to revoke). Console Redis/httpOnly cookies are not listed (they only store login name and encrypted tokens).
 
 ---
 

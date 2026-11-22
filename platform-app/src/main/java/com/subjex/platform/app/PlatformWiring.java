@@ -188,6 +188,7 @@ import com.subjex.platform.contract.audit.AuditSink;
 import com.subjex.platform.app.admin.SinkingAuditPort;
 import com.subjex.platform.app.admin.NdjsonAuditSink;
 import com.subjex.platform.app.admin.AuditExportService;
+import com.subjex.platform.app.admin.SessionListService;
 import com.subjex.platform.app.config.ConfigCatalog;
 import com.subjex.platform.app.flags.FeatureFlagService;
 import com.subjex.platform.contract.config.ConfigListing;
@@ -412,6 +413,22 @@ public class PlatformWiring {
             AuditPort auditPort,
             Clock clock) {
         return new AuditExportService(jdbcAdminReader, operatorTenantAccess, auditPort, clock);
+    }
+
+    /**
+     * Current-login list hung on existing refresh-token stores (no new session product) —
+     * 当前登录列表挂在已有刷新令牌存储上（不另做一套会话产品）。
+     */
+    @Bean
+    SessionListService sessionListService(
+            JdbcTemplate jdbc,
+            JdbcOperatorTokenStore operatorTokenStore,
+            JdbcEndUserTokenStore endUserTokenStore,
+            OperatorTenantAccess operatorTenantAccess,
+            OperatorActionAudit operatorActionAudit,
+            Clock clock) {
+        return new SessionListService(
+                jdbc, operatorTokenStore, endUserTokenStore, operatorTenantAccess, operatorActionAudit, clock);
     }
 
     /**

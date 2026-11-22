@@ -203,6 +203,24 @@ public final class JdbcOperatorTokenStore {
         revokeFamily(families.get(0), clock.instant());
     }
 
+    /**
+     * Revoke one refresh family when it exists (operator session list).
+     * 家族存在时吊销整族（操作员登录列表）。
+     */
+    public boolean revokeFamilyById(String familyId) {
+        if (familyId == null || familyId.isBlank()) {
+            return false;
+        }
+        String id = familyId.trim();
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM operator_refresh_token WHERE family_id = ?", Integer.class, id);
+        if (count == null || count == 0) {
+            return false;
+        }
+        revokeFamily(id, clock.instant());
+        return true;
+    }
+
     /** Revoke every token family for a subject (password change / disable) — 吊销某主体的全部令牌族。 */
     public void revokeAllForSubject(String subjectId) {
         if (subjectId == null || subjectId.isBlank()) {

@@ -77,7 +77,9 @@ public class AuditPage {
             Map.entry("end-user.verification-code.send", new String[] {"发送验证码", "send verification code"}),
             Map.entry("notification.channel.send", new String[] {"发送通知", "send notification"}),
             Map.entry("payment.charge", new String[] {"支付入账", "payment charge"}),
-            Map.entry("payment.refund", new String[] {"支付退款", "payment refund"}));
+            Map.entry("payment.refund", new String[] {"支付退款", "payment refund"}),
+            Map.entry("session.revoke.operator", new String[] {"吊销操作员登录", "revoke operator login"}),
+            Map.entry("session.revoke.end-user", new String[] {"吊销终端登录", "revoke end-user login"}));
 
     /** Plain words for outcomes — 结果的白话。 */
     static final Map<String, String[]> OUTCOME_WORDS = Map.of(

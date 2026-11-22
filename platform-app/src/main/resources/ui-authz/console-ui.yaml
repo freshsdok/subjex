@@ -43,6 +43,10 @@ entries:
     kind: menu
     href: /audit
     permission: admin.read
+  - id: nav.sessions
+    kind: menu
+    href: /sessions
+    permission: admin.read
   - id: nav.consents
     kind: menu
     href: /consents
@@ -201,6 +205,13 @@ entries:
   - id: btn.audit.export
     kind: button
     permission: audit.export
+  - id: page.sessions
+    kind: page
+    route: /sessions
+    permission: admin.read
+  - id: btn.sessions.revoke
+    kind: button
+    permission: operator.manage
   - id: page.consents
     kind: page
     route: /consents
