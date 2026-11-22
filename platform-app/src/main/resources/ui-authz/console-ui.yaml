@@ -54,6 +54,12 @@ entries:
     anyOf:
       - export.request
       - export.approve
+  # Operator read-only payment and refund status (no create/capture/refund actions)
+  # 操作员只读支付与退款状态（无创单、确认到账或退款动作）
+  - id: nav.payments
+    kind: menu
+    href: /payments
+    permission: payment.read
   - id: nav.dead-letters
     kind: menu
     href: /dead-letters
@@ -197,6 +203,10 @@ entries:
     anyOf:
       - export.request
       - export.approve
+  - id: page.payments
+    kind: page
+    route: /payments
+    permission: payment.read
   - id: page.dead-letters
     kind: page
     route: /dead-letters

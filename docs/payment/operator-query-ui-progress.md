@@ -25,13 +25,13 @@
 
 | 能力 | 路径与实现 | 权限 / 门禁 | 界面与查询现状 |
 | --- | --- | --- | --- |
-| 创单 / 查单 / 回调 / 退款 | `PaymentPort.createOrder`、`queryOrder`、`applyPaymentResult`、`refund`（`JdbcPaymentPort`） | 租户失败关闭；跨租户拒绝；回调与退款幂等 | **没有**任何 `/api/v1/payments` HTTP。`queryOrder` 仅按单号查一张单据，不能列表 |
-| 台账表 | Flyway **V51/V52**：`payment`、`payment_refund`、`payment_voucher` | 金额为非负最小货币单位 + 显式 ISO 4217 币种 | 状态、已退金额、退款行已可查询，缺操作员列表 API |
+| 创单 / 查单 / 回调 / 退款 | `PaymentPort.createOrder`、`queryOrder`、`applyPaymentResult`、`refund`（`JdbcPaymentPort`） | 租户失败关闭；跨租户拒绝；回调与退款幂等 | 操作员只读 HTTP 已落地：`GET /api/v1/payments`、`GET /api/v1/payments/{id}`（第 1 刀）。`queryOrder` 仍是按单号查一张单据的端口方法 |
+| 台账表 | Flyway **V51/V52**：`payment`、`payment_refund`、`payment_voucher` | 金额为非负最小货币单位 + 显式 ISO 4217 币种 | 状态、已退金额、退款行已可查询；操作员列表 API 与控制台页已落地（第 1–2 刀） |
 | 单据状态 | `PENDING` / `SUCCEEDED` / `FAILED` / `PARTIALLY_REFUNDED` / `REFUNDED` | — | 适合只读状态页，不做结账或操作员代退款 |
 | 适配器 | `MockPaymentAdapter` / `FailClosedPaymentAdapter`；`WECHAT_PAY` / `ALIPAY` 仅为预留名 | 生产未注册厂商 Bean 则失败关闭 | 本项不接入真实厂商，不验签 webhook |
 | 出箱 | 状态变更写已有 `outbox_event` 的 `PaymentStatusChanged` | — | 不是操作员查单入口 |
 
-结论：没有操作员支付/退款列表 HTTP，也没有 `payment.read`。本切片优先补这一侧：只读列表与按单号查看，复用 `queryOrder` 与同一张台账，不把 `createOrder` / `refund` / 回调暴露给控制台。
+结论（开工时）：当时没有操作员支付/退款列表 HTTP，也没有 `payment.read`。第 1–2 刀已补只读列表、按单号查看与控制台页，复用 `queryOrder` 与同一张台账，不把 `createOrder` / `refund` / 回调暴露给控制台。
 
 ### 易混淆的既有能力（不要挪用）
 
@@ -43,14 +43,20 @@
 
 1. 新增操作员只读查询：`GET /api/v1/payments`（当前业务租户内列表，可按状态、付款人筛选，按时间从新到旧），`GET /api/v1/payments/{paymentId}`（复用 `PaymentPort.queryOrder`，含退款行与已退金额）。无创单、回调、退款或结账路由。
 2. 新增权限 `payment.read`，授予 `platform-operator` 与 `platform-reader`。须有租户授权；保留租户 `platform`、缺租户、跨租户一律拒绝。
-3. 控制台支付/退款列表页、通知发送记录查询 API 与页面：**未做**，留给后续切片。
+3. 控制台支付/退款列表页、通知发送记录查询 API 与页面：当时尚未开始。
+
+### 本切片已落地（第 2 刀）
+
+1. 控制台新增「支付与退款状态」页（`/payments`）及详情页（`/payments/{paymentId}`）：按租户列出状态、金额、已退金额、付款人和时间，可按状态与付款人筛选；点进一条查看退款明细。金额按币种小数位展示，不用原始最小单位。
+2. 页面只读，没有收款、确认到账或办理退款的按钮。进入走 Manifest `nav.payments` / `page.payments`（`payment.read`）。复用 `GET /api/v1/payments` 与 `GET /api/v1/payments/{paymentId}`。
+3. 通知发送记录查询 API 与页面：**仍未做**。
 
 ## 界面计划 / UI plan
 
 ### 控制台（操作员，`web/`）
 
-- **支付与退款状态（下一刀）**：在当前业务租户内列出单据；展示状态、金额与币种、已退金额、付款人、时间；可按状态筛选；点进一条看退款明细。只读。不能代为收款、退款或发起支付。菜单与页面门禁为 `payment.read`。
-- **通知发送记录（再下一刀）**：按租户列出 `NotificationRequested` 出箱行（模板、渠道、状态、尝试次数、时间）；失败的可看到已有死信关联，重放仍走现有死信页，不在查询页另做发送按钮。需新增只读查询 API 与 `notification.read`（或经评估复用现有只读权）。文案面向非开发人员，不把出箱内部名直接当作页面标题。
+- **支付与退款状态（第 2 刀，已落地）**：在当前业务租户内列出单据；展示状态、金额与币种、已退金额、付款人、时间；可按状态与付款人筛选；点进一条看退款明细。只读。不能代为收款、退款或发起支付。菜单与页面门禁为 `payment.read`。
+- **通知发送记录（下一刀）**：按租户列出 `NotificationRequested` 出箱行（模板、渠道、状态、尝试次数、时间）；失败的可看到已有死信关联，重放仍走现有死信页，不在查询页另做发送按钮。需新增只读查询 API 与 `notification.read`（或经评估复用现有只读权）。文案面向非开发人员，不把出箱内部名直接当作页面标题。
 
 ### uni-app（终端用户）
 
