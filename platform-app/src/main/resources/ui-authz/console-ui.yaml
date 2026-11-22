@@ -198,6 +198,9 @@ entries:
     kind: page
     route: /audit
     permission: admin.read
+  - id: btn.audit.export
+    kind: button
+    permission: audit.export
   - id: page.consents
     kind: page
     route: /consents

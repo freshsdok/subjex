@@ -70,9 +70,9 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.client").value("console"))
                 .andExpect(jsonPath("$.defaults.lockedMenuEffect").value("grey"))
                 .andExpect(jsonPath("$.defaults.missingButtonEffect").value("disable"))
-                // Classpath console-ui.yaml: 61 entries after notification send-log menu and page bindings.
-                // classpath 控制台 Manifest 在通知发送记录菜单与页面入册后为 61 条。
-                .andExpect(jsonPath("$.entries.length()").value(61))
+                // Classpath console-ui.yaml: 62 entries after the audit-export button.
+                // classpath 控制台 Manifest 在审计导出按钮入册后为 62 条。
+                .andExpect(jsonPath("$.entries.length()").value(62))
                 .andExpect(jsonPath("$.entries[0].id").value("nav.overview"))
                 .andExpect(jsonPath("$.entries[0].kind").value("menu"))
                 .andExpect(jsonPath("$.entries[0].href").value("/"))

@@ -2,11 +2,14 @@ import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/pag
 import { currentLanguage } from "@/i18n/server-language";
 import type { components } from "@/api/schema";
 import {
+  BUTTON_AUDIT_EXPORT,
   PAGE_AUDIT,
+  buttonAllowed,
   pageAllowed,
   type UiPermissionManifestDocument,
 } from "@/lib/ui-permissions";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
+import { AuditExportForm } from "./audit-export-form";
 
 type AuditDocument = components["schemas"]["AuditDocument"];
 
@@ -19,10 +22,14 @@ type AuditDocument = components["schemas"]["AuditDocument"];
  */
 export default async function AuditPage() {
   const { language, phrases } = await currentLanguage();
-  const [{ status, body }, { body: me }, uiPermissionsRead] = await Promise.all([
+  type TenantsDocument = {
+    tenants?: Array<{ tenantId?: string; tenantName?: string }>;
+  };
+  const [{ status, body }, { body: me }, uiPermissionsRead, tenantsRead] = await Promise.all([
     readPlatform<AuditDocument>("audit"),
     readPlatform<OperatorSelfDocument>("me"),
     readPlatform<UiPermissionManifestDocument>("ui-permissions?client=console"),
+    readPlatform<TenantsDocument>("tenants"),
   ]);
   const permissions = new Set(me?.permissions ?? []);
   const manifest =
@@ -39,9 +46,21 @@ export default async function AuditPage() {
     dateStyle: "medium",
     timeStyle: "medium",
   });
+  const canExport = buttonAllowed(
+    manifest,
+    BUTTON_AUDIT_EXPORT,
+    permissions.has("audit.export"),
+  );
+  const exportTenants = (tenantsRead.body?.tenants ?? [])
+    .map((row) => ({
+      tenantId: row.tenantId ?? "",
+      tenantName: row.tenantName ?? "",
+    }))
+    .filter((row) => row.tenantId);
   return (
     <section>
       <PageHeading title={phrases.auditTitle} hint={phrases.auditHint} />
+      <AuditExportForm phrases={phrases} tenants={exportTenants} canExport={canExport} />
       {auditEntries.length === 0 ? (
         <p className="text-sm text-muted">{phrases.emptyList}</p>
       ) : (

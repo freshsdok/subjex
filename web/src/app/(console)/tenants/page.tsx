@@ -11,6 +11,7 @@ import {
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { CreateTenantForm } from "./create-tenant-form";
 import { TenantAdminActions } from "./tenant-admin-actions";
+import { TenantOpsPanel } from "./tenant-ops-panel";
 
 type TenantsDocument = {
   tenants?: Array<{
@@ -90,6 +91,17 @@ export default async function TenantsPage() {
                         />
                       ) : reserved ? (
                         <span className="text-xs text-muted">{phrases.reservedTenantHint}</span>
+                      ) : null}
+                      {id && !reserved ? (
+                        <div className={canManage ? "mt-2" : ""}>
+                          <TenantOpsPanel
+                            tenantId={id}
+                            tenantName={row.tenantName ?? id}
+                            tenantState={row.tenantState ?? "ACTIVE"}
+                            phrases={phrases}
+                            canManage={canManage}
+                          />
+                        </div>
                       ) : null}
                     </td>
                   </tr>

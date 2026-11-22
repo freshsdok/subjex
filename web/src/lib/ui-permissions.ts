@@ -164,6 +164,7 @@ export const BUTTON_CONFIG_WRITE = "btn.config.write";
 export const BUTTON_OPERATORS_MANAGE = "btn.operators.manage";
 export const BUTTON_QUESTIONNAIRES_WRITE = "btn.questionnaires.write";
 export const BUTTON_EXPORTS_APPROVE = "btn.exports.approve";
+export const BUTTON_AUDIT_EXPORT = "btn.audit.export";
 
 /** Known console page ids for ForbiddenNotice (#5 / deepen-2/3) — 页面 Forbidden 用 page id。 */
 export const PAGE_FLAGS = "page.flags";

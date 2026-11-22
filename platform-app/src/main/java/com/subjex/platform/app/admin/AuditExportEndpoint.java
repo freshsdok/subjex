@@ -6,6 +6,7 @@ import com.subjex.platform.app.security.TenantEnforcementFilter;
 import java.time.Instant;
 import java.util.Objects;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -45,7 +46,14 @@ public class AuditExportEndpoint {
         OperatorPrincipal operator = requireOperator();
         String tenantId = tenantIdParam != null && !tenantIdParam.isBlank() ? tenantIdParam : tenantHeader;
         byte[] body = exports.export(operator, tenantId, from, to, limit);
-        return ResponseEntity.ok().contentType(NDJSON).body(body);
+        String safeTenant = tenantId == null ? "tenant" : tenantId.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (safeTenant.isBlank()) {
+            safeTenant = "tenant";
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"audit-" + safeTenant + ".ndjson\"")
+                .contentType(NDJSON)
+                .body(body);
     }
 
     private static OperatorPrincipal requireOperator() {

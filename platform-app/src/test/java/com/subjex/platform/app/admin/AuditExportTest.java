@@ -119,6 +119,8 @@ class AuditExportTest {
                 .andExpect(status().isOk())
                 .andReturn();
         assertThat(result.getResponse().getContentType()).contains("ndjson");
+        assertThat(result.getResponse().getHeader("Content-Disposition"))
+                .contains("audit-" + TENANT_A + ".ndjson");
         String body = result.getResponse().getContentAsString();
         assertThat(body).contains("key-a");
         assertThat(body).doesNotContain("key-b");

@@ -134,6 +134,10 @@ async function forwardToPlatform(
   };
   const etag = upstreamReply.headers.get("etag");
   if (etag) replyHeaders["etag"] = etag;
+  // Pass through download filenames for audit NDJSON and tenant ZIP exports.
+  // 透传下载文件名（审计 NDJSON 与租户 ZIP 备份）。
+  const contentDisposition = upstreamReply.headers.get("content-disposition");
+  if (contentDisposition) replyHeaders["content-disposition"] = contentDisposition;
   return new Response(upstreamReply.body, {
     status: upstreamReply.status,
     headers: replyHeaders,
