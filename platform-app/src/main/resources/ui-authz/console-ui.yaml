@@ -47,6 +47,13 @@ entries:
     kind: menu
     href: /consents
     permission: consent.read
+  - id: nav.exports
+    kind: menu
+    href: /exports
+    permission: export.request
+    anyOf:
+      - export.request
+      - export.approve
   - id: nav.dead-letters
     kind: menu
     href: /dead-letters
@@ -183,6 +190,13 @@ entries:
     kind: page
     route: /consents
     permission: consent.read
+  - id: page.exports
+    kind: page
+    route: /exports
+    permission: export.request
+    anyOf:
+      - export.request
+      - export.approve
   - id: page.dead-letters
     kind: page
     route: /dead-letters
@@ -212,6 +226,9 @@ entries:
   - id: btn.questionnaires.write
     kind: button
     permission: questionnaire.write
+  - id: btn.exports.approve
+    kind: button
+    permission: export.approve
   - id: page.pages
     kind: page
     route: /pages
