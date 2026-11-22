@@ -9,7 +9,7 @@
         </button>
         <button size="mini" :disabled="busy" @click="refresh">刷新</button>
       </view>
-      <navigator v-if="!signedIn" url="/pages/login/login" class="link">请先登录后再查看文件</navigator>
+      <navigator v-if="!signedIn" :url="loginHref" class="link">请先登录后再查看文件</navigator>
       <text class="muted" v-if="loading">正在加载…</text>
       <text class="warn" v-if="error">{{ error }}</text>
     </view>
@@ -34,10 +34,12 @@
  */
 import { ref, onMounted } from "vue";
 import { isSignedIn } from "../../api/auth";
+import { loginPageUrl } from "../../api/shell-path";
 import { listObjects, openObject, pickFile, uploadObject, type EndUserObject } from "../../api/objects";
 import { messageForHttpError, toastHttpError } from "../../api/platform";
 
 const signedIn = ref(isSignedIn());
+const loginHref = loginPageUrl("/pages/files/files");
 const loading = ref(false);
 const busy = ref(false);
 const error = ref("");

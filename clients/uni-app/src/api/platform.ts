@@ -11,6 +11,7 @@
  */
 
 import { readBearer } from "./auth-token";
+import { loginPageUrl } from "./shell-path";
 import { TENANT_HEADER, readTenantId } from "./tenant";
 
 const DEFAULT_BASE = "http://127.0.0.1:8080";
@@ -88,7 +89,12 @@ export function messageForHttpError(err: unknown): string {
       return "没有权限完成这项操作";
     }
     if (err.status === 404) return "没有找到相关内容";
-    if (err.status === 409) return "您已经提交过这份问卷了";
+    if (err.status === 409) {
+      if (err.reason === "last-authenticator") {
+        return "这是您目前唯一的登录方式，解绑后将无法登录。请先绑定其他方式。";
+      }
+      return "您已经提交过这份问卷了";
+    }
     if (err.status === 413) return "文件太大了，请选择不超过 50MB 的文件";
     if (err.status === 415) return "这种文件类型暂不支持，请改用图片、PDF 或常用办公文档";
     return "操作没有成功，请稍后重试";
@@ -105,9 +111,25 @@ export function toastHttpError(err: unknown): void {
   uni.showToast({ title: messageForHttpError(err), icon: "none", duration: 2500 });
 }
 
-/** Send the user to the login page — 回到登录页. */
-export function goToLogin(): void {
-  uni.reLaunch({ url: "/pages/login/login" });
+/**
+ * Send the user to the login page, remembering the current shell page when possible.
+ * 回到登录页；如能确定当前壳页，登录成功后返回那里。
+ */
+export function goToLogin(returnPath?: string): void {
+  let path = (returnPath || "").trim();
+  if (!path) {
+    try {
+      const pages = getCurrentPages();
+      const current = pages[pages.length - 1] as { route?: string } | undefined;
+      const route = (current?.route || "").trim();
+      if (route && route !== "pages/login/login") {
+        path = route.startsWith("/") ? route : `/${route}`;
+      }
+    } catch {
+      path = "";
+    }
+  }
+  uni.reLaunch({ url: loginPageUrl(path) });
 }
 
 async function tryRefreshSession(): Promise<boolean> {

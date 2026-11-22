@@ -3,7 +3,7 @@
     <view class="card" v-if="!signedIn">
       <text class="title">我的同意</text>
       <text class="muted">登录后可以查看、同意或撤回您对某项说明的决定。</text>
-      <navigator url="/pages/login/login" class="link">去登录</navigator>
+      <navigator :url="loginHref" class="link">去登录</navigator>
     </view>
 
     <view class="card" v-else>
@@ -99,6 +99,7 @@
 import { computed, ref } from "vue";
 import { onLoad, onShow } from "@dcloudio/uni-app";
 import { isSignedIn } from "../../api/auth";
+import { loginPageUrl } from "../../api/shell-path";
 import {
   grantConsent,
   listConsentHistory,
@@ -110,6 +111,7 @@ import {
 import { PlatformHttpError, messageForHttpError, toastHttpError } from "../../api/platform";
 
 const signedIn = ref(isSignedIn());
+const loginHref = loginPageUrl("/pages/consent/consent");
 const loading = ref(false);
 const busy = ref(false);
 const error = ref("");

@@ -15,15 +15,26 @@ entries:
   - id: nav.login
     kind: menu
     href: /pages/login/login
+  # Profile (login-only; display name and authenticators)
+  # 我的资料（登录即可；称呼与登录方式）
+  - id: nav.profile
+    kind: menu
+    href: /pages/profile/profile
+  # Inbox (login-only; end-user inbox API, not operator inbox.read)
+  # 站内信（登录即可；走终端站内信接口，不要求操作员 inbox.read）
   - id: nav.inbox
     kind: menu
     href: /pages/inbox/inbox
-    permission: inbox.read
   # Q7 questionnaire hub (login-only shell entry; anon fill via deep link)
   # Q7 问卷入口（登录即可；匿名填写走深链）
   - id: nav.questionnaires
     kind: menu
     href: /pages/questionnaire/list
+  # Own files (login-only; list / upload / signed download)
+  # 我的文件（登录即可；列表、上传、签名下载）
+  - id: nav.files
+    kind: menu
+    href: /pages/files/files
   # Purpose-consent records (login-only; end user grants/withdraws their own)
   # 目的同意记录（登录即可；终端用户本人同意或撤回）
   - id: nav.consents

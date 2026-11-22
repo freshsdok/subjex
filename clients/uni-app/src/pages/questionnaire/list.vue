@@ -8,7 +8,7 @@
           {{ busy ? "正在加载…" : "刷新列表" }}
         </button>
       </view>
-      <navigator v-if="!signedIn" url="/pages/login/login" class="link">登录后查看需要您填写的问卷</navigator>
+      <navigator v-if="!signedIn" :url="loginHref" class="link">登录后查看需要您填写的问卷</navigator>
       <text class="warn" v-if="listError">{{ listError }}</text>
       <text class="muted" v-if="signedIn && busy">正在加载问卷…</text>
       <view v-for="row in published" :key="row.questionnaireId" class="row-item">
@@ -37,6 +37,7 @@
  */
 import { ref, onMounted } from "vue";
 import { isSignedIn } from "../../api/auth";
+import { loginPageUrl } from "../../api/shell-path";
 import { listAuthenticated, type QuestionnaireDefinition } from "../../api/questionnaire";
 import { messageForHttpError, toastHttpError } from "../../api/platform";
 import { readTenantId } from "../../api/tenant";
@@ -47,6 +48,7 @@ const listError = ref("");
 const busy = ref(false);
 const listedOnce = ref(false);
 const signedIn = ref(isSignedIn());
+const loginHref = loginPageUrl("/pages/questionnaire/list");
 
 function openFill() {
   const t = tokenId.value.trim();

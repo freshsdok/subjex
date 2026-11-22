@@ -1,108 +1,66 @@
 <template>
   <view class="page">
     <view class="card">
-      <text class="title">登录 / Sign in (WP2-6)</text>
-      <text class="body">
-        本页只调用终端认证接口 /api/v1/end-user/auth/**，不再走操作员登录或微信回调。
-        This page calls end-user auth only — not operator /api/v1/auth/**.
-      </text>
+      <text class="title">登录</text>
+      <text class="muted">使用手机号登录您所在的组织。在微信小程序里也可以用微信登录。</text>
 
-      <text class="label">业务租户 / Business tenantId（必填，不能是 platform）</text>
+      <text class="label">组织编号</text>
       <input
         class="input"
         v-model="tenantId"
-        placeholder="existing ACTIVE tenantId"
+        placeholder="请填写组织编号"
         @blur="onTenantBlur"
       />
       <text class="hint" v-if="tenantHint">{{ tenantHint }}</text>
 
-      <text class="label">手机号登录（注册或登录）/ Phone register-or-login</text>
-      <input class="input" v-model="phone" type="number" placeholder="phone" />
+      <text class="label">手机号</text>
+      <input class="input" v-model="phone" type="number" placeholder="请输入手机号" />
       <view class="row">
-        <input class="input flex" v-model="loginCode" placeholder="verification code" />
+        <input class="input flex" v-model="loginCode" placeholder="请输入验证码" />
         <button size="mini" :disabled="busy" @click="onRequestLoginCode">
-          获取验证码 / Get code
+          获取验证码
         </button>
       </view>
-      <text class="hint" v-if="devCode">开发验证码 / dev code: {{ devCode }}（仅本地揭示）</text>
+      <text class="hint" v-if="devCode">本次验证码（仅本地调试显示）：{{ devCode }}</text>
       <button size="mini" type="primary" :disabled="busy" @click="onPhoneLogin">
-        登录 / Sign in
+        登录
       </button>
 
       <!-- #ifdef MP-WEIXIN -->
-      <button size="mini" :disabled="busy" @click="onWeChatMini">
-        微信小程序登录 / WeChat mini login
-      </button>
+      <button size="mini" :disabled="busy" @click="onWeChatMini">微信登录</button>
       <!-- #endif -->
       <!-- #ifndef MP-WEIXIN -->
-      <text class="muted">
-        微信小程序登录仅在小程序运行时可用（需要 uni.login jsCode）。H5 请用手机号。
-        WeChat mini login is hidden on H5 — jsCode is unavailable here.
-      </text>
+      <text class="muted">微信登录只在小程序中提供。当前请使用手机号登录。</text>
       <!-- #endif -->
 
-      <button size="mini" v-if="signedIn" @click="onLogout">退出 / Sign out</button>
-
       <text class="muted" v-if="status">{{ status }}</text>
-      <navigator url="/pages/index/index" class="link">← 首页 / Home</navigator>
-      <navigator url="/pages/inbox/inbox" class="link">站内信 / Inbox →</navigator>
+      <navigator url="/pages/index/index" class="link">返回首页</navigator>
     </view>
 
     <view class="card" v-if="signedIn">
-      <text class="title">绑定 / 解绑 / Bind and unbind</text>
-      <text class="body">
-        需要已登录的终端令牌。解绑最后一个认证器会返回 409 last-authenticator。
-        Requires a signed-in end-user token. Unbinding the last authenticator returns 409.
-      </text>
-
-      <text class="label">手机号 / Phone</text>
-      <input class="input" v-model="bindPhoneNumber" type="number" placeholder="phone" />
-      <view class="row">
-        <input class="input flex" v-model="bindCode" placeholder="verification code" />
-        <button size="mini" :disabled="busy" @click="onRequestBindCode('bind')">
-          绑定验证码 / Bind code
-        </button>
-        <button size="mini" :disabled="busy" @click="onRequestBindCode('unbind')">
-          解绑验证码 / Unbind code
-        </button>
-      </view>
-      <text class="hint" v-if="bindDevCode">开发验证码 / dev code: {{ bindDevCode }}</text>
-      <view class="row">
-        <button size="mini" :disabled="busy" @click="onBindPhone">绑定手机 / Bind phone</button>
-        <button size="mini" :disabled="busy" @click="onUnbindPhone">解绑手机 / Unbind phone</button>
-      </view>
-
-      <!-- #ifdef MP-WEIXIN -->
-      <view class="row">
-        <button size="mini" :disabled="busy" @click="onBindWeChat">绑定微信 / Bind WeChat</button>
-        <button size="mini" :disabled="busy" @click="onUnbindWeChat">解绑微信 / Unbind WeChat</button>
-      </view>
-      <!-- #endif -->
+      <text class="muted">您已登录。</text>
+      <button size="mini" type="primary" :disabled="busy" @click="goAfterLogin">进入首页</button>
+      <button size="mini" :disabled="busy" @click="onLogout">退出登录</button>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 /**
- * Login — phone (H5 + MP) + WeChat mini jsCode (MP only) (WP2-6).
- * 登录：手机号（H5 与小程序）+ 小程序 jsCode（仅小程序）。
+ * Login — phone (H5 + mini-program) and WeChat jsCode (mini-program only).
+ * 登录：手机号（H5 与小程序）+ 小程序微信登录。成功后进入首页或返回原功能页。
  */
 import { ref, onMounted } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import {
-  PHONE_PURPOSE_BIND,
   PHONE_PURPOSE_LOGIN,
-  PHONE_PURPOSE_UNBIND,
-  bindPhone,
-  bindWeChat,
   isSignedIn,
   loginWithPhone,
   loginWithWeChatMini,
   logoutAndClear,
   requestPhoneCode,
-  unbindPhone,
-  unbindWeChat,
 } from "../../api/auth";
+import { postLoginUrl } from "../../api/shell-path";
 import {
   applyTenantFromQuery,
   isReservedTenant,
@@ -115,21 +73,19 @@ const tenantHint = ref("");
 const phone = ref("");
 const loginCode = ref("");
 const devCode = ref("");
-const bindPhoneNumber = ref("");
-const bindCode = ref("");
-const bindDevCode = ref("");
 const status = ref("");
 const busy = ref(false);
 const signedIn = ref(isSignedIn());
+const redirect = ref("");
 
 function syncTenantHint() {
   const raw = tenantId.value.trim();
   if (!raw) {
-    tenantHint.value = "登录前须填写已存在且 ACTIVE 的业务租户 / an existing ACTIVE tenant is required";
+    tenantHint.value = "登录前请填写您所在组织的编号";
     return;
   }
   if (isReservedTenant(raw)) {
-    tenantHint.value = "不能使用保留租户 platform / must not use reserved tenant platform";
+    tenantHint.value = "请填写您所在组织的编号，不要使用内部保留编号";
     return;
   }
   tenantHint.value = "";
@@ -154,16 +110,18 @@ function rememberTenant(): string {
   return id;
 }
 
+function goAfterLogin() {
+  uni.reLaunch({ url: postLoginUrl(redirect.value) });
+}
+
 async function onRequestLoginCode() {
   busy.value = true;
-  status.value = "正在请求验证码… / requesting code…";
+  status.value = "正在获取验证码…";
   devCode.value = "";
   try {
     const issued = await requestPhoneCode(phone.value, PHONE_PURPOSE_LOGIN);
     devCode.value = issued.devCode || "";
-    status.value = devCode.value
-      ? "验证码已签发（本地揭示）/ code issued (dev reveal)"
-      : "验证码已发送 / code sent";
+    status.value = devCode.value ? "验证码已签发。" : "验证码已发送，请查看手机短信。";
   } catch (e) {
     status.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -173,12 +131,12 @@ async function onRequestLoginCode() {
 
 async function onPhoneLogin() {
   busy.value = true;
-  status.value = "登录中… / signing in…";
+  status.value = "正在登录…";
   try {
     const tenant = rememberTenant();
-    const tokens = await loginWithPhone(phone.value, loginCode.value, tenant);
+    await loginWithPhone(phone.value, loginCode.value, tenant);
     signedIn.value = true;
-    status.value = `已登录 / signed in (eu.at. len ${tokens.accessToken.length})`;
+    goAfterLogin();
   } catch (e) {
     status.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -203,114 +161,30 @@ function onWeChatMini() {
     success: async (res) => {
       const code = res.code || "";
       if (!code) {
-        status.value = "uni.login 无 code / no code";
+        status.value = "没有拿到微信登录凭证，请重试";
         busy.value = false;
         return;
       }
       try {
-        const tokens = await loginWithWeChatMini(code, tenant);
+        await loginWithWeChatMini(code, tenant);
         signedIn.value = true;
-        status.value = `微信登录成功 / WeChat ok (eu.at. len ${tokens.accessToken.length})`;
+        goAfterLogin();
       } catch (e) {
         status.value = e instanceof Error ? e.message : String(e);
       } finally {
         busy.value = false;
       }
     },
-    fail: (err) => {
-      status.value = `uni.login 失败 / failed: ${JSON.stringify(err)}`;
+    fail: () => {
+      status.value = "微信登录没有完成，请重试";
       busy.value = false;
     },
   });
   // #endif
   // #ifndef MP-WEIXIN
-  status.value =
-    "非小程序运行时：请用上方手机号登录，或用微信开发者工具跑 mp-weixin。 / Not mp-weixin; use phone login or WeChat DevTools.";
+  status.value = "当前不在小程序中，请使用手机号登录。";
   busy.value = false;
   // #endif
-}
-
-async function onRequestBindCode(kind: "bind" | "unbind") {
-  busy.value = true;
-  bindDevCode.value = "";
-  const purpose = kind === "unbind" ? PHONE_PURPOSE_UNBIND : PHONE_PURPOSE_BIND;
-  try {
-    const issued = await requestPhoneCode(bindPhoneNumber.value, purpose);
-    bindDevCode.value = issued.devCode || "";
-    status.value = bindDevCode.value
-      ? "验证码已签发（本地揭示）/ code issued (dev reveal)"
-      : "验证码已发送 / code sent";
-  } catch (e) {
-    status.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function onBindPhone() {
-  busy.value = true;
-  try {
-    await bindPhone(bindPhoneNumber.value, bindCode.value);
-    status.value = "手机号已绑定 / phone bound";
-  } catch (e) {
-    status.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function onUnbindPhone() {
-  busy.value = true;
-  try {
-    await unbindPhone(bindPhoneNumber.value, bindCode.value);
-    status.value = "手机号已解绑 / phone unbound";
-  } catch (e) {
-    status.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    busy.value = false;
-  }
-}
-
-function runWeChatJsCode(action: (jsCode: string) => Promise<void>, okMessage: string) {
-  busy.value = true;
-  status.value = "";
-  // #ifdef MP-WEIXIN
-  uni.login({
-    provider: "weixin",
-    success: async (res) => {
-      const code = res.code || "";
-      if (!code) {
-        status.value = "uni.login 无 code / no code";
-        busy.value = false;
-        return;
-      }
-      try {
-        await action(code);
-        status.value = okMessage;
-      } catch (e) {
-        status.value = e instanceof Error ? e.message : String(e);
-      } finally {
-        busy.value = false;
-      }
-    },
-    fail: (err) => {
-      status.value = `uni.login 失败 / failed: ${JSON.stringify(err)}`;
-      busy.value = false;
-    },
-  });
-  // #endif
-  // #ifndef MP-WEIXIN
-  status.value = "微信绑定仅在小程序可用 / WeChat bind is mini-program only";
-  busy.value = false;
-  // #endif
-}
-
-function onBindWeChat() {
-  runWeChatJsCode((jsCode) => bindWeChat(jsCode), "微信已绑定 / WeChat bound");
-}
-
-function onUnbindWeChat() {
-  runWeChatJsCode((jsCode) => unbindWeChat(jsCode), "微信已解绑 / WeChat unbound");
 }
 
 async function onLogout() {
@@ -318,7 +192,7 @@ async function onLogout() {
   try {
     await logoutAndClear();
     signedIn.value = false;
-    status.value = "已退出 / signed out";
+    status.value = "已退出登录";
   } catch (e) {
     signedIn.value = false;
     status.value = e instanceof Error ? e.message : String(e);
@@ -328,9 +202,12 @@ async function onLogout() {
 }
 
 onLoad((query) => {
-  const fromQuery = applyTenantFromQuery(query as Record<string, unknown>);
+  const bag = (query || {}) as Record<string, unknown>;
+  const fromQuery = applyTenantFromQuery(bag);
   if (fromQuery) tenantId.value = fromQuery;
   else tenantId.value = readTenantId() || tenantId.value;
+  const rawRedirect = bag.redirect;
+  redirect.value = typeof rawRedirect === "string" ? rawRedirect : "";
   syncTenantHint();
 });
 
@@ -348,7 +225,6 @@ onMounted(() => {
   display: flex; flex-direction: column; gap: 16rpx; border: 1px solid #e5e5e5;
 }
 .title { font-size: 32rpx; font-weight: 600; }
-.body { font-size: 26rpx; color: #333; }
 .label { font-size: 22rpx; color: #888; margin-top: 8rpx; }
 .input {
   border: 1px solid #ddd; border-radius: 8rpx; padding: 12rpx 16rpx; font-size: 26rpx;

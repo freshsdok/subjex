@@ -113,18 +113,23 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.client").value("uni-app"))
                 .andExpect(jsonPath("$.defaults.lockedMenuEffect").value("grey"))
                 .andExpect(jsonPath("$.defaults.missingButtonEffect").value("disable"))
-                .andExpect(jsonPath("$.entries.length()").value(10))
+                .andExpect(jsonPath("$.entries.length()").value(12))
                 .andExpect(jsonPath("$.entries[0].id").value("nav.home"))
                 .andExpect(jsonPath("$.entries[0].kind").value("menu"))
                 .andExpect(jsonPath("$.entries[0].href").value("/pages/index/index"))
                 .andExpect(jsonPath("$.entries[0].allowed").value(true))
-                .andExpect(jsonPath("$.entries[3].id").value("nav.questionnaires"))
-                .andExpect(jsonPath("$.entries[4].id").value("nav.consents"))
-                .andExpect(jsonPath("$.entries[5].id").value("nav.exports"))
-                .andExpect(jsonPath("$.entries[5].href").value("/pages/export/export"))
-                .andExpect(jsonPath("$.entries[6].id").value("btn.shell.reprobe"))
-                .andExpect(jsonPath("$.entries[6].kind").value("button"))
-                .andExpect(jsonPath("$.entries[2].allowed").value(true));
+                .andExpect(jsonPath("$.entries[2].id").value("nav.profile"))
+                .andExpect(jsonPath("$.entries[2].href").value("/pages/profile/profile"))
+                .andExpect(jsonPath("$.entries[3].id").value("nav.inbox"))
+                .andExpect(jsonPath("$.entries[4].id").value("nav.questionnaires"))
+                .andExpect(jsonPath("$.entries[5].id").value("nav.files"))
+                .andExpect(jsonPath("$.entries[5].href").value("/pages/files/files"))
+                .andExpect(jsonPath("$.entries[6].id").value("nav.consents"))
+                .andExpect(jsonPath("$.entries[7].id").value("nav.exports"))
+                .andExpect(jsonPath("$.entries[7].href").value("/pages/export/export"))
+                .andExpect(jsonPath("$.entries[8].id").value("btn.shell.reprobe"))
+                .andExpect(jsonPath("$.entries[8].kind").value("button"))
+                .andExpect(jsonPath("$.entries[3].allowed").value(true));
     }
 
     @Test

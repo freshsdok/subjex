@@ -50,6 +50,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
@@ -323,6 +325,29 @@ class EndUserShellAcceptanceTest {
             }
         }
         assertThat(hits).as("uni-app client leftover operator routes or domain pages").isEmpty();
+    }
+
+    @Test
+    void uniAppNavCoversEveryShellPageInPagesJson() throws Exception {
+        Path root = repoRoot();
+        String pagesJson = Files.readString(root.resolve("clients/uni-app/src/pages.json"), StandardCharsets.UTF_8);
+        String yaml = Files.readString(
+                root.resolve("platform-app/src/main/resources/ui-authz/uni-app-ui.yaml"), StandardCharsets.UTF_8);
+        String home = Files.readString(root.resolve("clients/uni-app/src/pages/index/index.vue"), StandardCharsets.UTF_8);
+        Matcher paths = Pattern.compile("\"path\"\\s*:\\s*\"(pages/[^\"]+)\"").matcher(pagesJson);
+        List<String> pages = new ArrayList<>();
+        while (paths.find()) {
+            pages.add("/" + paths.group(1));
+        }
+        assertThat(pages).as("pages.json shell routes").isNotEmpty();
+        for (String page : pages) {
+            if ("/pages/questionnaire/fill".equals(page)) {
+                assertThat(yaml).as("fill page is a Manifest page route, not a home menu").contains("route: " + page);
+                continue;
+            }
+            assertThat(yaml).as("Manifest menu href for " + page).contains("href: " + page);
+            assertThat(home).as("home fallback nav for " + page).contains(page);
+        }
     }
 
     private String sendEndUserMail(String tenantId, String subjectId, String title, String body) {

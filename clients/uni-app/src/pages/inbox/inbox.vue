@@ -9,7 +9,7 @@
         </button>
         <text class="badge" v-if="!loading">未读 {{ unread }} 条</text>
       </view>
-      <navigator v-if="!signedIn" url="/pages/login/login" class="link">请先登录后再查看站内信</navigator>
+      <navigator v-if="!signedIn" :url="loginHref" class="link">请先登录后再查看站内信</navigator>
       <text class="warn" v-if="error">{{ error }}</text>
     </view>
 
@@ -45,6 +45,7 @@
  */
 import { ref, onMounted } from "vue";
 import { isSignedIn } from "../../api/auth";
+import { loginPageUrl } from "../../api/shell-path";
 import { listMyInbox, markRead, unreadCount, type InboxEntry } from "../../api/inbox";
 import { messageForHttpError, toastHttpError } from "../../api/platform";
 import { readTenantId } from "../../api/tenant";
@@ -55,6 +56,7 @@ const error = ref("");
 const busy = ref(false);
 const loading = ref(false);
 const signedIn = ref(isSignedIn());
+const loginHref = loginPageUrl("/pages/inbox/inbox");
 
 async function refresh() {
   if (!signedIn.value) return;

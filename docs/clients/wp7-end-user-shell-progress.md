@@ -10,6 +10,9 @@ This track deepens the **end-user client shell** on `clients/uni-app` (H5 + WeCh
 
 本轨加深 `clients/uni-app` 终端壳（H5 + 微信小程序，兼容 HBuilderX）：登录、资料、站内信、表单（先问卷）与文件，走 WP2 终端领域。必须保持通用：无医院/医疗、预约、签证、保险或支付页面。`web/` 仍是操作员控制台。不改写平台。
 
+Later shell-path polish (human home/login, Manifest coverage, post-login return) is in [`end-user-shell-polish-progress.md`](end-user-shell-polish-progress.md).
+后续壳路径打磨（人话首页/登录、清单覆盖、登录后返回）见上述笔记。
+
 ## WP7-4 [done] — formal acceptance; WP7 package closed
 
 This slice restores the uni-app primary button look (WP7-3 had dropped `type="primary"` so vue-tsc would pass) and locks formal acceptance, **closing the WP7 package**. WP8 (consent and export approval hooks) is not started. `web/` was not changed.

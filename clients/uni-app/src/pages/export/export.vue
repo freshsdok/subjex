@@ -3,7 +3,7 @@
     <view class="card" v-if="!signedIn">
       <text class="title">我的导出</text>
       <text class="muted">登录后可以申请导出您在本组织的个人资料，并查看申请进度。</text>
-      <navigator url="/pages/login/login" class="link">去登录</navigator>
+      <navigator :url="loginHref" class="link">去登录</navigator>
     </view>
 
     <view class="card" v-else>
@@ -68,6 +68,7 @@
 import { computed, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { isSignedIn } from "../../api/auth";
+import { loginPageUrl } from "../../api/shell-path";
 import {
   canDownloadExport,
   createExportRequest,
@@ -85,6 +86,7 @@ import {
 import { toastHttpError } from "../../api/platform";
 
 const signedIn = ref(isSignedIn());
+const loginHref = loginPageUrl("/pages/export/export");
 const loading = ref(false);
 const busy = ref(false);
 const error = ref("");
