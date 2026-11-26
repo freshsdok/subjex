@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canDecideExport,
-  canGenerateExport,
+  canRetryExport,
   canIssueExportDownload,
   exportQueueErrorPhraseKey,
   filterExportQueueRows,
@@ -37,12 +37,16 @@ describe("export queue helpers", () => {
     expect(canDecideExport("REQUESTED", "sub-other", "sub-op", false)).toBe(false);
   });
 
-  it("allows generate only when approved, and download only when ready", () => {
-    expect(canGenerateExport("APPROVED", true)).toBe(true);
-    expect(canGenerateExport("REQUESTED", true)).toBe(false);
-    expect(canGenerateExport("READY", true)).toBe(false);
+  it("allows retry only after a failed generation, and download only when ready", () => {
+    expect(canRetryExport("FAILED", true)).toBe(true);
+    expect(canRetryExport("APPROVED", true)).toBe(false);
+    expect(canRetryExport("GENERATING", true)).toBe(false);
+    expect(canRetryExport("REQUESTED", true)).toBe(false);
+    expect(canRetryExport("READY", true)).toBe(false);
+    expect(canRetryExport("FAILED", false)).toBe(false);
     expect(canIssueExportDownload("READY", true)).toBe(true);
     expect(canIssueExportDownload("APPROVED", true)).toBe(false);
+    expect(canIssueExportDownload("GENERATING", true)).toBe(false);
     expect(canIssueExportDownload("EXPIRED", true)).toBe(false);
     expect(canIssueExportDownload("READY", false)).toBe(false);
   });

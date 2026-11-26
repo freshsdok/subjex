@@ -1,6 +1,7 @@
 package com.subjex.platform.app.exporthook;
 
 import com.subjex.platform.app.identity.enduser.EndUserAccountStore;
+import com.subjex.platform.app.support.TenantKeyset;
 import com.subjex.platform.app.identity.enduser.EndUserPrincipal;
 import com.subjex.platform.app.identity.enduser.EndUserTenantAccessDeniedException;
 import com.subjex.platform.app.security.AccessAction;
@@ -38,8 +39,8 @@ import java.util.regex.Pattern;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * ExportRequestService — WP8-2 export request lifecycle and thin-workflow approval hook.
- * 导出申请生命周期与薄工作流审批钩子。本切片不生成产物、不写出箱通知。
+ * ExportRequestService — export request lifecycle and thin-workflow approval hook.
+ * 导出申请生命周期与薄工作流审批钩子。批准后立即入队后台生成，不在请求线程写出产物。
  */
 public final class ExportRequestService {
 
@@ -121,11 +122,21 @@ public final class ExportRequestService {
                 scopeDescriptor);
     }
 
-    public List<ExportRequest> listOwn(EndUserPrincipal principal, String tenantId) {
+    /**
+     * Own requests, newest first, tenant-scoped keyset page.
+     * 本人申请，从新到旧，按租户键集分页。
+     */
+    public ExportRequestPage listOwn(
+            EndUserPrincipal principal, String tenantId, String cursor, Integer limit) {
         Identity identity = accounts.requireActiveMembership(principal.accountId(), tenantId);
-        return store.listBySubject(identity.tenantId(), identity.subjectId()).stream()
-                .map(expiry::expireIfNeeded)
-                .toList();
+        return pageRequests(
+                store.listBySubject(
+                        identity.tenantId(),
+                        identity.subjectId(),
+                        afterTime(cursor),
+                        afterId(cursor),
+                        TenantKeyset.clamp(limit)),
+                TenantKeyset.clamp(limit));
     }
 
     public ExportRequest getOwn(EndUserPrincipal principal, String tenantId, String requestId) {
@@ -137,12 +148,39 @@ public final class ExportRequestService {
         return expiry.expireIfNeeded(request);
     }
 
-    public List<ExportRequest> listTenant(OperatorPrincipal operator, String tenantId) {
+    /**
+     * Tenant-scoped operator list, newest first, keyset page.
+     * 操作员按租户列出，从新到旧，键集分页。
+     */
+    public ExportRequestPage listTenant(
+            OperatorPrincipal operator, String tenantId, String cursor, Integer limit) {
         String tid = requireActiveBusinessTenant(tenantId);
         tenantAccess.requireGranted(operator, tid);
         requireExportListPermission(operator, tid);
-        return store.listByTenant(tid).stream().map(expiry::expireIfNeeded).toList();
+        int cap = TenantKeyset.clamp(limit);
+        return pageRequests(
+                store.listByTenant(tid, afterTime(cursor), afterId(cursor), cap), cap);
     }
+
+    private ExportRequestPage pageRequests(List<ExportRequest> rows, int limit) {
+        List<ExportRequest> items = rows.stream().map(expiry::expireIfNeeded).toList();
+        String next = TenantKeyset.nextCursor(
+                items, limit, row -> TenantKeyset.encode(row.createdAt(), row.requestId()));
+        return new ExportRequestPage(items, next);
+    }
+
+    private static Instant afterTime(String cursor) {
+        TenantKeyset.Cursor decoded = TenantKeyset.decode(cursor);
+        return decoded == null ? null : decoded.instant();
+    }
+
+    private static String afterId(String cursor) {
+        TenantKeyset.Cursor decoded = TenantKeyset.decode(cursor);
+        return decoded == null ? null : decoded.id();
+    }
+
+    /** One keyset page of export requests — 导出申请的一页键集结果. */
+    public record ExportRequestPage(List<ExportRequest> requests, String nextCursor) {}
 
     public ExportRequest getForOperator(OperatorPrincipal operator, String tenantId, String requestId) {
         String tid = requireActiveBusinessTenant(tenantId);
@@ -177,6 +215,13 @@ public final class ExportRequestService {
             throw new IllegalArgumentException("export request is not awaiting approval");
         }
         workflows.transition(operator, current.workflowInstanceId(), action, null);
+        ExportRequestStatus stored = next;
+        if (next == ExportRequestStatus.APPROVED) {
+            // Enqueue immediately; do not generate the artifact on this request thread.
+            // 立即入队；不在本请求线程生成产物。
+            exportHook.enqueue(current.workflowInstanceId(), operator.subjectId());
+            stored = ExportRequestStatus.GENERATING;
+        }
         Instant now = clock.instant();
         ExportRequest updated = new ExportRequest(
                 current.requestId(),
@@ -185,7 +230,7 @@ public final class ExportRequestService {
                 current.requesterRealm(),
                 current.requesterId(),
                 current.scopeDescriptor(),
-                next,
+                stored,
                 operator.subjectId(),
                 current.workflowInstanceId(),
                 current.createdAt(),

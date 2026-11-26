@@ -15,7 +15,8 @@ import com.subjex.platform.app.security.PolicyResource;
 import com.subjex.platform.app.storage.IssuedDownloadLink;
 import com.subjex.platform.app.storage.ObjectDownloadLinkService;
 import com.subjex.platform.app.storage.ObjectGrantStore;
-import com.subjex.platform.app.workflow.WorkflowAction;
+import com.subjex.platform.app.support.TenantKeyset;
+import com.subjex.platform.app.workflow.WorkflowExportHook;
 import com.subjex.platform.app.workflow.WorkflowService;
 import com.subjex.platform.contract.audit.AuditEntry;
 import com.subjex.platform.contract.audit.AuditOutcome;
@@ -36,14 +37,17 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * ExportGenerationService — fail-closed generate after approval, store via WP3, issue signed links (WP8-3).
- * 批准后失败关闭地生成产物，经 WP3 存储，并签发短时签名链接。
+ * ExportGenerationService — enqueue after approval, generate in a thin worker, store via WP3, issue signed links.
+ * 批准后入队，由薄工作线程生成产物，经 WP3 存储，并签发短时签名链接。
  * <p>
- * Operator generate and operator download-link reuse {@code export.approve} (least new permission surface).
- * 操作员生成与下载链接复用 {@code export.approve}（最少新增权限面）。
+ * Operator retry and operator download-link reuse {@code export.approve} (least new permission surface).
+ * The request-thread {@link #generate} method only enqueues; it does not write the artifact.
+ * 操作员重试与下载链接复用 {@code export.approve}（最少新增权限面）。
+ * 请求线程上的 {@link #generate} 只负责入队，不写产物。
  */
 public final class ExportGenerationService {
 
@@ -105,9 +109,9 @@ public final class ExportGenerationService {
     }
 
     /**
-     * Require approved, run a supporting exporter, store the artifact, move to READY.
-     * Synchronous in this slice. Idempotent when already READY and not expired.
-     * 先要求已批准，再跑支持该范围的导出器，存储产物并转到 READY。本切片同步。已 READY 且未过期则幂等。
+     * Enqueue generation or retry. Never writes the artifact on this thread.
+     * Idempotent when already GENERATING, or READY and not expired. FAILED is re-queued.
+     * 只入队或重试，绝不在本线程写产物。已在生成中，或已 READY 且未过期，则幂等。FAILED 重新入队。
      */
     public ExportRequest generate(OperatorPrincipal operator, String tenantId, String requestId) {
         Objects.requireNonNull(operator, "operator");
@@ -118,50 +122,154 @@ public final class ExportGenerationService {
         if (request.status() == ExportRequestStatus.EXPIRED) {
             throw new ExportExpiredException();
         }
-        if (request.status() == ExportRequestStatus.READY) {
+        if (request.status() == ExportRequestStatus.READY || request.status() == ExportRequestStatus.GENERATING) {
             return request;
         }
+        if (request.status() == ExportRequestStatus.FAILED) {
+            return enqueueRetry(request, operator.subjectId());
+        }
+        if (request.status() == ExportRequestStatus.APPROVED) {
+            return enqueueApproved(request, operator.subjectId());
+        }
         gate.requireApproved(request.requestId());
-        final ExportRequest approved = request;
-        SubjectRecordExporter exporter = resolveExporter(approved);
-        ExportArtifact artifact =
-                exporter.export(approved.tenantId(), approved.subjectId(), approved.scopeDescriptor());
-        String objectKey = "export-" + approved.requestId();
+        throw new IllegalStateException("export request cannot be enqueued in status " + request.status());
+    }
+
+    /**
+     * Drain a batch of GENERATING (and leftover APPROVED) rows on the worker thread.
+     * 在工作线程领取一批 GENERATING（以及遗留的 APPROVED）并生成产物。
+     */
+    public int processQueued(int limit) {
+        int cap = TenantKeyset.clamp(limit, TenantKeyset.DEFAULT_LIMIT, TenantKeyset.MAX_LIMIT);
+        int count = 0;
+        WorkflowExportHook hook = new WorkflowExportHook(workflows);
+        for (ExportRequest leftover : store.listByStatus(ExportRequestStatus.APPROVED, cap)) {
+            enqueueApproved(leftover, leftover.approverSubjectId() == null ? "export-enqueue" : leftover.approverSubjectId());
+        }
+        for (ExportRequest queued : store.listByStatus(ExportRequestStatus.GENERATING, cap)) {
+            if (processOne(queued, hook)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private ExportRequest enqueueApproved(ExportRequest request, String actorSubjectId) {
+        WorkflowExportHook hook = new WorkflowExportHook(workflows);
+        hook.enqueue(request.workflowInstanceId(), actorSubjectId);
         Instant now = clock.instant();
-        Instant expiresAt = now.plus(artifactTtl);
-        transactionTemplate.executeWithoutResult(status -> {
-            storage.put(approved.tenantId(), objectKey, artifact.content(), artifact.contentType());
-            grants.register(approved.tenantId(), objectKey, approved.subjectId());
-            grants.grantToSubject(
-                    approved.tenantId(), objectKey, approved.subjectId(), expiresAt, operator.subjectId());
-            grants.setObjectSensitivity(approved.tenantId(), objectKey, SensitivityClass.SENSITIVE);
-            workflows.transition(
-                    operator, approved.workflowInstanceId(), WorkflowAction.fromWire("generate"), null);
-            store.updateArtifact(new ExportRequest(
-                    approved.requestId(),
-                    approved.tenantId(),
-                    approved.subjectId(),
-                    approved.requesterRealm(),
-                    approved.requesterId(),
-                    approved.scopeDescriptor(),
-                    ExportRequestStatus.READY,
-                    approved.approverSubjectId(),
-                    approved.workflowInstanceId(),
-                    approved.createdAt(),
-                    now,
-                    approved.decidedAt(),
-                    expiresAt,
-                    objectKey));
-        });
-        audit.record(new AuditEntry(
-                UUID.randomUUID().toString(),
-                approved.tenantId(),
-                operator.identityId(),
-                AUDIT_GENERATE,
-                approved.requestId(),
-                AuditOutcome.ALLOWED,
-                now));
-        return store.find(approved.requestId()).orElseThrow(ExportCrossTenantDeniedException::new);
+        ExportRequest queued = withStatus(request, ExportRequestStatus.GENERATING, now, request.expiresAt(), request.artifactObjectKey());
+        store.updateDecision(queued);
+        return store.find(request.requestId()).orElseThrow(ExportCrossTenantDeniedException::new);
+    }
+
+    private ExportRequest enqueueRetry(ExportRequest request, String actorSubjectId) {
+        WorkflowExportHook hook = new WorkflowExportHook(workflows);
+        hook.retry(request.workflowInstanceId(), actorSubjectId);
+        Instant now = clock.instant();
+        ExportRequest queued = withStatus(request, ExportRequestStatus.GENERATING, now, request.expiresAt(), request.artifactObjectKey());
+        store.updateDecision(queued);
+        return store.find(request.requestId()).orElseThrow(ExportCrossTenantDeniedException::new);
+    }
+
+    private boolean processOne(ExportRequest request, WorkflowExportHook hook) {
+        ExportRequest current = expiry.expireIfNeeded(request);
+        if (current.status() != ExportRequestStatus.GENERATING && current.status() != ExportRequestStatus.APPROVED) {
+            return false;
+        }
+        if (current.status() == ExportRequestStatus.APPROVED) {
+            current = enqueueApproved(current, current.approverSubjectId());
+        }
+        try {
+            gate.requireApproved(current.requestId(), "export-worker");
+            SubjectRecordExporter exporter = resolveExporter(current);
+            String objectKey = "export-" + current.requestId();
+            Instant now = clock.instant();
+            Instant expiresAt = now.plus(artifactTtl);
+            final ExportRequest generating = current;
+            AtomicBoolean claimed = new AtomicBoolean(false);
+            transactionTemplate.executeWithoutResult(status -> {
+                ExportRequest locked = store.findForUpdate(generating.requestId()).orElse(null);
+                if (locked == null || locked.status() != ExportRequestStatus.GENERATING) {
+                    return;
+                }
+                claimed.set(true);
+                storage.put(
+                        generating.tenantId(),
+                        objectKey,
+                        "application/json",
+                        output -> exporter.exportTo(
+                                generating.tenantId(), generating.subjectId(), generating.scopeDescriptor(), output));
+                grants.register(generating.tenantId(), objectKey, generating.subjectId());
+                String grantActor =
+                        generating.approverSubjectId() == null || generating.approverSubjectId().isBlank()
+                                ? "export-worker"
+                                : generating.approverSubjectId();
+                grants.grantToSubject(
+                        generating.tenantId(), objectKey, generating.subjectId(), expiresAt, grantActor);
+                grants.setObjectSensitivity(generating.tenantId(), objectKey, SensitivityClass.SENSITIVE);
+                hook.complete(generating.workflowInstanceId());
+                store.updateArtifact(withStatus(generating, ExportRequestStatus.READY, now, expiresAt, objectKey));
+            });
+            if (!claimed.get()) {
+                return false;
+            }
+            audit.record(new AuditEntry(
+                    UUID.randomUUID().toString(),
+                    current.tenantId(),
+                    "export-worker",
+                    AUDIT_GENERATE,
+                    current.requestId(),
+                    AuditOutcome.ALLOWED,
+                    now));
+            return true;
+        } catch (RuntimeException ex) {
+            Instant now = clock.instant();
+            try {
+                storage.delete(current.tenantId(), "export-" + current.requestId());
+            } catch (RuntimeException deleteEx) {
+                ex.addSuppressed(deleteEx);
+            }
+            try {
+                hook.fail(current.workflowInstanceId());
+                store.updateArtifact(
+                        withStatus(current, ExportRequestStatus.FAILED, now, current.expiresAt(), current.artifactObjectKey()));
+            } catch (RuntimeException failEx) {
+                ex.addSuppressed(failEx);
+            }
+            audit.record(new AuditEntry(
+                    UUID.randomUUID().toString(),
+                    current.tenantId(),
+                    "export-worker",
+                    AUDIT_GENERATE,
+                    current.requestId(),
+                    AuditOutcome.FAILED,
+                    now));
+            return false;
+        }
+    }
+
+    private static ExportRequest withStatus(
+            ExportRequest request,
+            ExportRequestStatus status,
+            Instant updatedAt,
+            Instant expiresAt,
+            String artifactObjectKey) {
+        return new ExportRequest(
+                request.requestId(),
+                request.tenantId(),
+                request.subjectId(),
+                request.requesterRealm(),
+                request.requesterId(),
+                request.scopeDescriptor(),
+                status,
+                request.approverSubjectId(),
+                request.workflowInstanceId(),
+                request.createdAt(),
+                updatedAt,
+                request.decidedAt(),
+                expiresAt,
+                artifactObjectKey);
     }
 
     /**

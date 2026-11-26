@@ -3,6 +3,8 @@ package com.subjex.platform.app.storage;
 import com.subjex.platform.contract.storage.ObjectStorage;
 import com.subjex.platform.contract.storage.StoredObject;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -29,12 +31,40 @@ public final class LocalDirectoryObjectStorage implements ObjectStorage {
 
     @Override
     public void put(String tenantId, String objectKey, byte[] content, String mediaType) {
+        put(tenantId, objectKey, mediaType, out -> out.write(content == null ? new byte[0] : content));
+    }
+
+    /**
+     * Stream into a sibling temp file, then move into place so a failed write does not leave a half object.
+     * 先写入同目录临时文件再改名就位，避免失败时留下半截对象。
+     */
+    @Override
+    public void put(String tenantId, String objectKey, String mediaType, ObjectPutWriter writer) {
+        if (writer == null) {
+            throw new IllegalArgumentException("writer is required");
+        }
         Path objectPath = resolve(tenantId, objectKey);
+        Path temp = objectPath.resolveSibling(objectKey + ".part");
         try {
             Files.createDirectories(objectPath.getParent());
-            Files.write(objectPath, content == null ? new byte[0] : content);
+            try (OutputStream out = Files.newOutputStream(temp)) {
+                writer.writeTo(out);
+            }
+            Files.move(temp, objectPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             Files.writeString(objectPath.resolveSibling(objectKey + ".type"), mediaType == null ? "" : mediaType);
         } catch (IOException ex) {
+            try {
+                Files.deleteIfExists(temp);
+            } catch (IOException ignored) {
+                // Best-effort cleanup of the temp file / 尽力删掉临时文件
+            }
+            throw new IllegalStateException("could not store object " + objectKey, ex);
+        } catch (UncheckedIOException ex) {
+            try {
+                Files.deleteIfExists(temp);
+            } catch (IOException ignored) {
+                // Best-effort cleanup of the temp file / 尽力删掉临时文件
+            }
             throw new IllegalStateException("could not store object " + objectKey, ex);
         }
     }

@@ -8,6 +8,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes PC-deepen-2/3 (local) on `49172c3`+.
 
 ### Added / 新增
+- **Async personal-data export and keyset volume increments:** After approval, generation is enqueued automatically (`APPROVED` → `GENERATING`). A thin `@Scheduled` `ExportGenerationWorker` (same style as `PaymentExpiryWorker`) streams the artifact to object storage and completes to `READY` or `FAILED`. `POST .../generate` only enqueues or retries a failure; it does not write the artifact on the request thread. Operator `/exports` and uni-app 「我的导出」 show generating/failed honestly; retry is optional for `FAILED`. Lists use tenant-scoped keyset pages (`{exports, nextCursor}`). Flyway V66 adds composite indexes. Artifact TTL remains 7 days on `READY`. Self-approval remains forbidden. Questionnaire CSV and tenant ZIP are unchanged. No Elasticsearch and no new job platform.
+  **个人资料导出改为后台生成，并补上键集分页：** 批准后自动入队；薄定时工作线程流式写入对象存储；失败可重试。列表改为租户内键集分页。产物仍 7 天后过期。禁止自己批准自己。未改问卷 CSV 与租户 ZIP，不上 Elasticsearch，不另做任务平台。
+
 - **Rename exporter SPI for the naming guard:** `PersonalDataExporter` / `GenericPlatformPersonalDataExporter` are now `SubjectRecordExporter` / `GenericSubjectRecordExporter` so the class-name token `data` is not a standalone fragment (NamingGuardArchTest). No behavior change, no allowlist, no guard weakening.
   **导出 SPI 更名以通过命名护栏：** 独立词段 `data` 不得出现在类名中。行为不变，不放宽护栏。
 

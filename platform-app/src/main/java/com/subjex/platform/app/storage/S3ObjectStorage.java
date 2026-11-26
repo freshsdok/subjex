@@ -3,7 +3,10 @@ package com.subjex.platform.app.storage;
 import com.subjex.platform.contract.storage.ObjectStorage;
 import com.subjex.platform.contract.storage.StoredObject;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
@@ -140,6 +143,39 @@ public final class S3ObjectStorage implements ObjectStorage {
                     RequestBody.fromBytes(content == null ? new byte[0] : content));
         } catch (RuntimeException ex) {
             throw new IllegalStateException("could not store object " + objectKey, ex);
+        }
+    }
+
+    /**
+     * Stream to a temp file, then upload from disk so the request thread need not hold the full payload.
+     * 先流到临时文件再从磁盘上传，避免请求线程持有整包。
+     */
+    @Override
+    public void put(String tenantId, String objectKey, String mediaType, ObjectPutWriter writer) {
+        if (writer == null) {
+            throw new IllegalArgumentException("writer is required");
+        }
+        String key = s3Key(tenantId, objectKey);
+        String type = mediaType == null || mediaType.isBlank() ? "application/octet-stream" : mediaType;
+        Path temp = null;
+        try {
+            temp = Files.createTempFile("subjex-object-", ".part");
+            try (OutputStream out = Files.newOutputStream(temp)) {
+                writer.writeTo(out);
+            }
+            client.putObject(
+                    PutObjectRequest.builder().bucket(bucket).key(key).contentType(type).build(),
+                    RequestBody.fromFile(temp));
+        } catch (IOException | RuntimeException ex) {
+            throw new IllegalStateException("could not store object " + objectKey, ex);
+        } finally {
+            if (temp != null) {
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (IOException ignored) {
+                    // Best-effort temp cleanup / 尽力清理临时文件
+                }
+            }
         }
     }
 

@@ -1,15 +1,20 @@
-# Data-export approval thin FSM — 数据导出审批薄状态机（WP8-2 / ADR 0020）
-# After approval, generate moves APPROVED → READY; expire moves READY → EXPIRED (WP8-3).
+# Data-export approval thin FSM — 数据导出审批薄状态机（ADR 0020 follow-up）
+# Approval still REQUESTED → APPROVED / REJECTED (no self-approval). The service then
+# immediately enqueues APPROVED → GENERATING; a thin worker completes or fails.
+# 批准仍是 REQUESTED → APPROVED / REJECTED（禁止自批）。服务随即入队 APPROVED → GENERATING；
+# 薄工作线程完成或标为失败。READY 产物仍 7 日后过期。
 # Reuses WorkflowCatalog / WorkflowService; no new engine, no legal judgment in the kernel.
-# 批准后 generate 将 APPROVED → READY；expire 将 READY → EXPIRED。复用现有目录与引擎，不新建引擎，内核不做法律判定。
+# 复用现有目录与引擎，不新建引擎，内核不做法律判定。
 definitionKey: data-export
 entityKey: data-export
-version: 1
+version: 2
 initialState: REQUESTED
 states:
   - REQUESTED
   - APPROVED
   - REJECTED
+  - GENERATING
+  - FAILED
   - READY
   - EXPIRED
 autoStartOnUpsert: false
@@ -23,11 +28,22 @@ transitions:
     to: REJECTED
     permission: export.approve
   - from: APPROVED
-    action: generate
+    action: enqueue
+    to: GENERATING
+    permission: export.approve
+  - from: GENERATING
+    action: complete
     to: READY
+    permission: export.approve
+  - from: GENERATING
+    action: fail
+    to: FAILED
+    permission: export.approve
+  - from: FAILED
+    action: retry
+    to: GENERATING
     permission: export.approve
   - from: READY
     action: expire
     to: EXPIRED
     permission: export.approve
-

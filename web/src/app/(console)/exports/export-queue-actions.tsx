@@ -3,7 +3,7 @@
 import { fillPhrase, type PhraseBook } from "@/i18n/phrases";
 import {
   canDecideExport,
-  canGenerateExport,
+  canRetryExport,
   canIssueExportDownload,
   exportQueueErrorPhraseKey,
   isOwnExportRequest,
@@ -13,8 +13,8 @@ import {
 import { useState } from "react";
 
 /**
- * Row actions for the export queue: approve, reject, generate, or issue the existing short-lived link.
- * 导出队列行内操作：批准、驳回、生成，或签发已有的短时下载链接。不能代审自己的申请。
+ * Row actions for the export queue: approve, reject, retry a failed generation, or issue a short-lived link.
+ * 导出队列行内操作：批准、驳回、失败后重试，或签发已有的短时下载链接。不能代审自己的申请。批准后自动开始生成。
  */
 export function ExportQueueActions({
   row,
@@ -37,7 +37,8 @@ export function ExportQueueActions({
   const requestId = (row.requestId ?? "").trim();
   const ownRequest = isOwnExportRequest(row.requesterId, operatorSubjectId);
   const showDecide = canDecideExport(row.status, row.requesterId, operatorSubjectId, canApprove);
-  const showGenerate = canGenerateExport(row.status, canApprove);
+  const showRetry = canRetryExport(row.status, canApprove);
+  const generating = (row.status ?? "").toUpperCase() === "GENERATING";
   const showDownload = canIssueExportDownload(row.status, canApprove);
 
   if (!requestId || (!canApprove && !ownRequest)) {
@@ -91,15 +92,15 @@ export function ExportQueueActions({
     onUpdated(updated);
   }
 
-  async function generate() {
-    if (!showGenerate) return;
+  async function retry() {
+    if (!showRetry) return;
     const reply = await postAction("generate");
     if (!reply?.ok) {
       fail(reply, reply ? await readReason(reply) : "");
       return;
     }
     const updated = (await reply.json()) as ExportQueueRow;
-    setNotice(phrases.exportsGeneratedNotice);
+    setNotice(phrases.exportsRetriedNotice);
     onUpdated(updated);
   }
 
@@ -150,14 +151,14 @@ export function ExportQueueActions({
             </button>
           </>
         ) : null}
-        {showGenerate ? (
+        {showRetry ? (
           <button
             type="button"
             disabled={busy}
-            onClick={() => void generate()}
+            onClick={() => void retry()}
             className="rounded-md bg-accent px-2 py-1 text-xs text-white disabled:opacity-60"
           >
-            {phrases.exportsGenerateAction}
+            {phrases.exportsRetryAction}
           </button>
         ) : null}
         {showDownload ? (
@@ -173,6 +174,10 @@ export function ExportQueueActions({
       </div>
       {ownRequest && (row.status ?? "").toUpperCase() === "REQUESTED" ? (
         <p className="text-xs text-muted">{phrases.exportsSelfApprovalHint}</p>
+      ) : null}
+      {generating ? <p className="text-xs text-muted">{phrases.exportsGeneratingHint}</p> : null}
+      {(row.status ?? "").toUpperCase() === "FAILED" && !notice ? (
+        <p className="text-xs text-muted">{phrases.exportsFailedHint}</p>
       ) : null}
       {notice ? <p className="text-xs text-muted">{notice}</p> : null}
       {downloadHref ? (

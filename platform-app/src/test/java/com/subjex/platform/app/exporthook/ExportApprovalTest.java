@@ -171,9 +171,9 @@ class ExportApprovalTest {
                         .with(asPrincipal(approver))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("APPROVED"));
+                .andExpect(jsonPath("$.status").value("GENERATING"));
         ExportRequest approved = gate.requireApproved(requestId);
-        assertThat(approved.status()).isEqualTo(ExportRequestStatus.APPROVED);
+        assertThat(approved.status()).isEqualTo(ExportRequestStatus.GENERATING);
         assertThat(approved.workflowInstanceId()).isNotBlank();
 
         MvcResult other = mvc.perform(post(EndUserExportEndpoint.PATH)
@@ -239,7 +239,7 @@ class ExportApprovalTest {
                         .with(asEndUser(bob))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.exports.length()").value(0));
         mvc.perform(get(EndUserExportEndpoint.PATH + "/" + requestId)
                         .with(asEndUser(bob))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))

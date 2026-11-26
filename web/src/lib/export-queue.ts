@@ -7,6 +7,8 @@
 export const EXPORT_QUEUE_STATUSES = [
   "REQUESTED",
   "APPROVED",
+  "GENERATING",
+  "FAILED",
   "REJECTED",
   "READY",
   "EXPIRED",
@@ -34,10 +36,12 @@ export type ExportQueueRow = {
 
 const STATUS_RANK: Record<string, number> = {
   REQUESTED: 0,
-  APPROVED: 1,
-  READY: 2,
-  REJECTED: 3,
-  EXPIRED: 4,
+  GENERATING: 1,
+  FAILED: 2,
+  APPROVED: 3,
+  READY: 4,
+  REJECTED: 5,
+  EXPIRED: 6,
 };
 
 export function isExportQueueStatus(value: string): value is ExportQueueStatus {
@@ -57,8 +61,8 @@ export function filterExportQueueRows<T extends { status?: string }>(rows: T[], 
 }
 
 /**
- * Queue order: pending, approved, ready, rejected, expired; newest created first within a status.
- * 队列排序：待审批、已批准、已生成、已驳回、已过期；同一状态里按创建时间从新到旧。
+ * Queue order: pending, generating, failed, leftover approved, ready, rejected, expired; newest first within a status.
+ * 队列排序：待审批、正在生成、生成失败、遗留已批准、已生成、已驳回、已过期；同一状态里按创建时间从新到旧。
  */
 export function sortExportQueueRows<T extends { status?: string; createdAt?: string }>(rows: T[]): T[] {
   return [...rows].sort((left, right) => {
@@ -86,9 +90,12 @@ export function canDecideExport(
   return canApprove && (status ?? "").toUpperCase() === "REQUESTED" && !isOwnExportRequest(requesterId, operatorSubjectId);
 }
 
-/** Generate is allowed only after approval, before the artifact exists — 仅已批准、尚未生成时可生成. */
-export function canGenerateExport(status: string | undefined, canApprove: boolean): boolean {
-  return canApprove && (status ?? "").toUpperCase() === "APPROVED";
+/**
+ * Retry is allowed only after a failed generation. Approval already starts the first run.
+ * 仅生成失败后可重试。批准后会自动开始第一次生成，不再把“生成文件”当作必经步骤。
+ */
+export function canRetryExport(status: string | undefined, canApprove: boolean): boolean {
+  return canApprove && (status ?? "").toUpperCase() === "FAILED";
 }
 
 /** Download link is issued only when the artifact is ready (not expired) — 仅已生成且未过期时可签发下载链接. */

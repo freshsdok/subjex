@@ -117,6 +117,7 @@ class ConsentExportAcceptanceTest {
 
     private JdbcTemplate jdbc;
     private ConsentPort consents;
+    private ExportGenerationService generation;
     private MockMvc mvc;
     private EndUserRecord alice;
     private EndUserRecord bob;
@@ -191,7 +192,7 @@ class ConsentExportAcceptanceTest {
                 properties,
                 clock,
                 objectAudit);
-        ExportGenerationService generation = new ExportGenerationService(
+        generation = new ExportGenerationService(
                 store,
                 gate,
                 new ExportExpiryService(store, clock, new WorkflowExportHook(workflows)),
@@ -291,12 +292,13 @@ class ConsentExportAcceptanceTest {
                         .with(asPrincipal(approver))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("APPROVED"));
+                .andExpect(jsonPath("$.status").value("GENERATING"));
         mvc.perform(post(OperatorExportEndpoint.PATH + "/" + requestId + "/generate")
                         .with(asPrincipal(approver))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("READY"));
+                .andExpect(jsonPath("$.status").value("GENERATING"));
+        assertThat(generation.processQueued(10)).isEqualTo(1);
         MvcResult issued = mvc.perform(post(EndUserExportEndpoint.PATH + "/" + requestId + "/download-link")
                         .with(asEndUser(alice))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)

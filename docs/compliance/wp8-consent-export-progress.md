@@ -1,6 +1,6 @@
 # WP8 consent and export-approval hooks progress / 同意与导出审批钩子进度
 
-- Date: 2026-11-20 (Asia/Shanghai)
+- Date: 2026-11-20 (Asia/Shanghai); async generation deepening 2026-11-26
 - ADR: [`docs/adr/0020-consent-and-export-hooks.md`](../adr/0020-consent-and-export-hooks.md)
 - Baseline tip when this note was opened: `4ea515a` (WP7 end-user shell package closed; formal acceptance `bf30bdf`)
 - Predecessor: ADR [`0014`](../adr/0014-end-user-identity.md) (EndUserPrincipal, `/api/v1/end-user/**`), ADR [`0015`](../adr/0015-object-storage-authorization.md) (ObjectGrantStore, signed download), ADR [`0016`](../adr/0016-thin-reusable-workflow.md) (declarable thin workflow), ADR [`0004`](../adr/0004-observability-audit-trace.md) (`AuditPort`), ADR [`0003`](../adr/0003-user-center-oidc.md) (OAuth consent — **not** this package). Tenant ZIP export / hard erase: [`docs/tenant/tn-progress.md`](../tenant/tn-progress.md) (TN-2). Locked base-work canvas: 「Subjex 底座工作需求」WP8 section (read this slice).
@@ -9,6 +9,14 @@
 This track adds generic **consent records** and **export-approval hooks**: a subject can grant or withdraw consent for a purpose (tenant-supplied purpose key + consent-text version id, timestamps, audit, queryable history), and a batch / sensitive personal-data export must pass an approval hook, be audited, and (when approved) produce an artifact redeemable as a short-lived signed download via WP3. The kernel does not embed legal opinions, legal-text content, or medical cross-border compliance judgments. It must stay generic: no hospital/medical, visa, or insurance wording.
 
 本轨增加通用的同意记录与导出审批钩子：主体可对某目的授予或撤销同意（租户提供的目的键与同意文本版本标识、时间、审计、可查询历史）；批量或敏感个人数据导出须经审批钩子并留痕，获准后经 WP3 短时签名下载。内核不写法律意见、法律正文或医疗跨境合规判定。必须保持通用：无医院/医疗、签证或保险用语。
+
+## Product deepening [done] — async generation and keyset pages
+
+A later product-deepening slice (after WP8 close) moves generation off the request thread. Approval auto-enqueues `GENERATING`. A thin `@Scheduled` `ExportGenerationWorker` (same style as `PaymentExpiryWorker`) calls `ExportGenerationService.processQueued`, streams the artifact into object storage, and completes to `READY` or fails to `FAILED`. `POST .../generate` only enqueues or retries; it does not write the artifact. Lists are tenant-scoped keyset pages (`{exports, nextCursor}`). Artifact TTL remains 7 days on `READY`. Self-approval remains forbidden. Questionnaire CSV and tenant ZIP export are unchanged.
+
+随后的产品加深切片（WP8 关包之后）把生成移出请求线程。批准后自动入队 `GENERATING`。薄定时 `ExportGenerationWorker`（风格同 `PaymentExpiryWorker`）调用 `ExportGenerationService.processQueued`，把产物流式写入对象存储，成功为 `READY`，失败为 `FAILED`。`POST .../generate` 只入队或重试，不写产物。列表改为租户内键集分页（`{exports, nextCursor}`）。产物仍是 7 天后过期。禁止自己批准自己。问卷 CSV 与租户 ZIP 导出未改。
+
+Honest limits / 诚实边界：million-row readiness is for inbox / questionnaire responses / owned objects in the generic exporter (keyset + stream), not million QPS and not Elasticsearch. Consent history is still loaded as a section list. Third-party exporters that only implement `export()` may still buffer. Mid-write failure deletes the partial object; there is no resume/checkpoint. Export-request lists are capped and cursor-paged, not a million-request search product.
 
 ## WP8-4 [done] — formal acceptance; WP8 package closed
 
@@ -39,13 +47,13 @@ These are the defaults WP8 applied to ADR 0020 open points; they are not canvas-
 - `ConsentPort.require`: if `requiredVersion` is given it must match the current grant exactly; if absent, any current grant for that purpose passes.
 - Withdrawal is per purpose. History is append-only. The kernel stores no legal text.
 - Operator generate and operator download-link reuse `export.approve` (no dedicated generate permission). Self-approval is forbidden.
-- Generation is synchronous. Artifact TTL is request-level `expiresAt` (default P7D). Download TTL default PT15M, cap PT1H, via the existing WP3 issuer.
+- Generation is asynchronous after approval (deepening slice). Artifact TTL is request-level `expiresAt` (default P7D). Download TTL default PT15M, cap PT1H, via the existing WP3 issuer.
 - No outbox notifications on consent or export (the canvas does not require them; a later notice must reuse `outbox_event`).
 
 ### Residual gaps (honest, not in this package) / 仍存缺口（本包不解决）
 
-- No operator-console or uni-app / `web/` pages for consent or export; this package is API + kernel only.
-- Generation is synchronous; there is no async/job export worker.
+- Operator-console and uni-app consent/export pages later landed in the UI track; they now show `GENERATING` / `FAILED` honestly.
+- Generation now uses a thin scheduled worker (`ExportGenerationWorker`); this residual is closed. Residual honesty: no new job platform, no resume/checkpoint, no Elasticsearch.
 - No subject-level erasure or retention automation (TN-2 tenant hard-erase remains a separate operator lifecycle tool).
 - No outbox notifications when a request is approved, ready, or expires.
 - Sensitivity vocabulary is only `NORMAL` / `SENSITIVE` (no finer grades).

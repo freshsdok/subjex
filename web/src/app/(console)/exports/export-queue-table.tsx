@@ -43,6 +43,10 @@ export function ExportQueueTable({
         return phrases.exportsStatusRequested;
       case "APPROVED":
         return phrases.exportsStatusApproved;
+      case "GENERATING":
+        return phrases.exportsStatusGenerating;
+      case "FAILED":
+        return phrases.exportsStatusFailed;
       case "REJECTED":
         return phrases.exportsStatusRejected;
       case "READY":

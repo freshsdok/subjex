@@ -1,32 +1,36 @@
 package com.subjex.platform.app.exporthook;
 
-import com.subjex.platform.app.storage.ObjectDescriptor;
 import com.subjex.platform.app.storage.ObjectGrantStore;
+import com.subjex.platform.app.support.TenantKeyset;
 import com.subjex.platform.contract.consent.ConsentPort;
 import com.subjex.platform.contract.exporthook.ExportArtifact;
 import com.subjex.platform.contract.exporthook.SubjectRecordExporter;
 import com.subjex.platform.contract.exporthook.SensitivityClass;
-import com.subjex.platform.contract.inbox.InboxListQuery;
 import com.subjex.platform.contract.inbox.InboxPort;
-import com.subjex.platform.contract.inbox.InboxRecipientRealm;
-import com.subjex.platform.contract.questionnaire.QuestionnaireDefinition;
 import com.subjex.platform.contract.questionnaire.QuestionnairePort;
-import com.subjex.platform.contract.questionnaire.QuestionnaireResponse;
-import com.subjex.platform.contract.questionnaire.QuestionnaireResponseListQuery;
+import com.subjex.platform.contract.questionnaire.QuestionnaireRespondentRealm;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.springframework.jdbc.core.JdbcTemplate;
+import tools.jackson.core.JsonGenerator;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * GenericSubjectRecordExporter — built-in JSON bundle of the subject's own platform data (WP8-3).
- * No domain exporter. Metadata only for objects (no blob bytes). Sensitive sections are marked.
- * 内置通用 JSON 包：主体本人的平台数据。无领域导出器。对象只含元数据（不含字节）。敏感段已标记。
+ * GenericSubjectRecordExporter — built-in JSON bundle of the subject's own platform data.
+ * Pages inbox, questionnaire responses, and owned objects with a tenant-scoped keyset and streams
+ * them; it does not assemble the whole package in a single map. No domain exporter. Object
+ * metadata only (no blob bytes). Sensitive sections are marked.
+ * 内置通用 JSON 包：主体本人的平台数据。站内信、答卷与自有对象按租户键集分页并流式写出，
+ * 不把整包装进一张大图。无领域导出器。对象只含元数据（不含字节）。敏感段已标记。
  */
 public final class GenericSubjectRecordExporter implements SubjectRecordExporter {
 
@@ -67,31 +71,41 @@ public final class GenericSubjectRecordExporter implements SubjectRecordExporter
 
     @Override
     public ExportArtifact export(String tenantId, String subjectId, String scopeDescriptor) {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        try {
+            exportTo(tenantId, subjectId, scopeDescriptor, buffer);
+        } catch (IOException ex) {
+            throw new UncheckedIOException("failed to serialize export bundle", ex);
+        }
+        return new ExportArtifact(buffer.toByteArray(), CONTENT_TYPE, "export-" + subjectId + ".json");
+    }
+
+    @Override
+    public void exportTo(String tenantId, String subjectId, String scopeDescriptor, OutputStream output)
+            throws IOException {
         if (!supports(tenantId, subjectId, scopeDescriptor)) {
             throw new IllegalArgumentException("exporter does not support this tenant/subject/scope");
         }
+        Objects.requireNonNull(output, "output");
         Instant now = clock.instant();
-        Map<String, Object> bundle = new LinkedHashMap<>();
-        bundle.put("schema", "platform-personal-data-bundle/v1");
-        bundle.put("tenantId", tenantId);
-        bundle.put("subjectId", subjectId);
-        bundle.put("scope", scopeDescriptor);
-        bundle.put("generatedAt", now.toString());
-        // Whole artifact is SENSITIVE (ADR 0020); sections also carry markers.
-        // 整包按 ADR 0020 标为 SENSITIVE；各段也带标记。
-        bundle.put("artifactSensitivity", SensitivityClass.SENSITIVE.name());
-        bundle.put("profile", profile(subjectId));
-        bundle.put("consents", consents(tenantId, subjectId));
-        bundle.put("inbox", inbox(tenantId, subjectId));
-        bundle.put("questionnaires", questionnaires(tenantId, subjectId));
-        bundle.put("objects", objects(tenantId, subjectId));
-        byte[] json;
-        try {
-            json = mapper.writeValueAsBytes(bundle);
-        } catch (Exception ex) {
-            throw new IllegalStateException("failed to serialize export bundle", ex);
+        try (JsonGenerator json = mapper.createGenerator(output)) {
+            json.writeStartObject();
+            json.writeStringProperty("schema", "platform-personal-data-bundle/v1");
+            json.writeStringProperty("tenantId", tenantId);
+            json.writeStringProperty("subjectId", subjectId);
+            json.writeStringProperty("scope", scopeDescriptor);
+            json.writeStringProperty("generatedAt", now.toString());
+            // Whole artifact is SENSITIVE (ADR 0020); sections also carry markers.
+            // 整包按 ADR 0020 标为 SENSITIVE；各段也带标记。
+            json.writeStringProperty("artifactSensitivity", SensitivityClass.SENSITIVE.name());
+            json.writePOJOProperty("profile", profile(subjectId));
+            json.writePOJOProperty("consents", consents(tenantId, subjectId));
+            writeInbox(json, tenantId, subjectId);
+            writeQuestionnaires(json, tenantId, subjectId);
+            writeObjects(json, tenantId, subjectId);
+            json.writeEndObject();
+            json.flush();
         }
-        return new ExportArtifact(json, CONTENT_TYPE, "export-" + subjectId + ".json");
     }
 
     private Map<String, Object> profile(String subjectId) {
@@ -113,73 +127,220 @@ public final class GenericSubjectRecordExporter implements SubjectRecordExporter
             section.put("history", List.of());
             return section;
         }
+        // Consent history for one subject is typically small; still a section list, not a search index.
+        // 单个主体的同意历史通常不大；仍按段列出，不是搜索索引。
         section.put("current", consents.listCurrent(tenantId, subjectId));
         section.put("history", consents.history(tenantId, subjectId, null));
         return section;
     }
 
-    private Map<String, Object> inbox(String tenantId, String subjectId) {
-        Map<String, Object> section = new LinkedHashMap<>();
-        section.put("sensitivity", SensitivityClass.NORMAL.name());
-        List<Map<String, Object>> entries = new ArrayList<>();
-        if (inbox != null) {
-            inbox.listEntries(
-                            tenantId,
-                            InboxRecipientRealm.END_USER,
-                            subjectId,
-                            new InboxListQuery(false, null, InboxListQuery.MAX_LIMIT, 0))
-                    .forEach(view -> {
-                        Map<String, Object> row = new LinkedHashMap<>();
-                        row.put("entryId", view.entry().entryId());
-                        row.put("messageId", view.entry().messageId());
-                        row.put("channel", view.message().channel().name());
-                        row.put("title", view.message().title());
-                        row.put("severity", view.message().severity().name());
-                        row.put("readAt", view.entry().readAt() == null ? null : view.entry().readAt().toString());
-                        row.put("createdAt", view.entry().createdAt().toString());
-                        entries.add(row);
-                    });
-        }
-        section.put("entries", entries);
-        return section;
-    }
-
-    private Map<String, Object> questionnaires(String tenantId, String subjectId) {
-        Map<String, Object> section = new LinkedHashMap<>();
-        section.put("sensitivity", SensitivityClass.SENSITIVE.name());
-        List<QuestionnaireResponse> mine = new ArrayList<>();
-        if (questionnaires != null) {
-            for (QuestionnaireDefinition definition : questionnaires.list(tenantId, 200)) {
-                for (QuestionnaireResponse response :
-                        questionnaires.listResponses(
-                                tenantId, definition.questionnaireId(), QuestionnaireResponseListQuery.production(200))) {
-                    if (subjectId.equals(response.respondentSubjectId())) {
-                        mine.add(response);
-                    }
+    private void writeInbox(JsonGenerator json, String tenantId, String subjectId) throws IOException {
+        json.writeObjectPropertyStart("inbox");
+        json.writeStringProperty("sensitivity", SensitivityClass.NORMAL.name());
+        json.writeArrayPropertyStart("entries");
+        Instant afterTime = Instant.EPOCH;
+        String afterId = "";
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        while (true) {
+            List<InboxRow> page = jdbc.query(
+                    """
+                    SELECT entry_id, message_id, read_at, created_at
+                    FROM inbox_entry
+                    WHERE tenant_id = ? AND recipient_realm = 'END_USER' AND recipient_subject_id = ?
+                      AND (created_at > ? OR (created_at = ? AND entry_id > ?))
+                    ORDER BY created_at ASC, entry_id ASC
+                    LIMIT ?
+                    """,
+                    (row, n) -> new InboxRow(
+                            row.getString("entry_id"),
+                            row.getString("message_id"),
+                            instant(row.getTimestamp("read_at")),
+                            instant(row.getTimestamp("created_at"))),
+                    tenantId,
+                    subjectId,
+                    Timestamp.from(afterTime),
+                    Timestamp.from(afterTime),
+                    afterId,
+                    pageSize);
+            for (InboxRow entry : page) {
+                Map<String, Object> meta = messageMeta(entry.messageId);
+                json.writeStartObject();
+                json.writeStringProperty("entryId", entry.entryId);
+                json.writeStringProperty("messageId", entry.messageId);
+                json.writeStringProperty("channel", stringOrNull(meta.get("channel")));
+                json.writeStringProperty("title", stringOrNull(meta.get("title")));
+                json.writeStringProperty("severity", stringOrNull(meta.get("severity")));
+                if (entry.readAt == null) {
+                    json.writeNullProperty("readAt");
+                } else {
+                    json.writeStringProperty("readAt", entry.readAt.toString());
                 }
+                json.writeStringProperty("createdAt", entry.createdAt.toString());
+                json.writeEndObject();
+                afterTime = entry.createdAt;
+                afterId = entry.entryId;
+            }
+            if (page.size() < pageSize) {
+                break;
             }
         }
-        section.put("responses", mine);
-        return section;
+        json.writeEndArray();
+        json.writeEndObject();
     }
 
-    private Map<String, Object> objects(String tenantId, String subjectId) {
-        Map<String, Object> section = new LinkedHashMap<>();
-        section.put("sensitivity", SensitivityClass.NORMAL.name());
-        List<Map<String, Object>> descriptors = new ArrayList<>();
-        for (ObjectDescriptor descriptor : objects.listOwnedOrSubjectGranted(tenantId, subjectId, 200, 0)) {
-            if (!subjectId.equals(descriptor.ownerSubjectId())) {
-                continue;
-            }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("objectId", descriptor.objectId());
-            row.put("objectKey", descriptor.objectKey());
-            row.put("ownerSubjectId", descriptor.ownerSubjectId());
-            row.put("createdAt", descriptor.createdAt() == null ? null : descriptor.createdAt().toString());
-            row.put("sensitivity", objects.objectSensitivity(tenantId, descriptor.objectKey()).name());
-            descriptors.add(row);
-        }
-        section.put("descriptors", descriptors);
-        return section;
+    private Map<String, Object> messageMeta(String messageId) {
+        List<Map<String, Object>> rows = jdbc.query(
+                "SELECT channel, title, severity FROM inbox_message WHERE message_id = ?",
+                (row, n) -> {
+                    Map<String, Object> meta = new LinkedHashMap<>();
+                    meta.put("channel", row.getString("channel"));
+                    meta.put("title", row.getString("title"));
+                    meta.put("severity", row.getString("severity"));
+                    return meta;
+                },
+                messageId);
+        return rows.isEmpty() ? Map.of() : rows.get(0);
     }
+
+    private void writeQuestionnaires(JsonGenerator json, String tenantId, String subjectId) throws IOException {
+        json.writeObjectPropertyStart("questionnaires");
+        json.writeStringProperty("sensitivity", SensitivityClass.SENSITIVE.name());
+        json.writeArrayPropertyStart("responses");
+        Instant afterTime = Instant.EPOCH;
+        String afterId = "";
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        while (true) {
+            List<ResponseRow> page = jdbc.query(
+                    """
+                    SELECT response_id, questionnaire_id, revision, tenant_id,
+                           respondent_realm, respondent_subject_id, submitted_at
+                    FROM questionnaire_response
+                    WHERE tenant_id = ? AND respondent_subject_id = ? AND respondent_realm <> ?
+                      AND (submitted_at > ? OR (submitted_at = ? AND response_id > ?))
+                    ORDER BY submitted_at ASC, response_id ASC
+                    LIMIT ?
+                    """,
+                    (row, n) -> new ResponseRow(
+                            row.getString("response_id"),
+                            row.getString("questionnaire_id"),
+                            row.getInt("revision"),
+                            row.getString("tenant_id"),
+                            row.getString("respondent_realm"),
+                            row.getString("respondent_subject_id"),
+                            instant(row.getTimestamp("submitted_at"))),
+                    tenantId,
+                    subjectId,
+                    QuestionnaireRespondentRealm.OPERATOR.name(),
+                    Timestamp.from(afterTime),
+                    Timestamp.from(afterTime),
+                    afterId,
+                    pageSize);
+            for (ResponseRow response : page) {
+                List<Map<String, Object>> answers = jdbc.query(
+                        """
+                        SELECT item_id, value_json
+                        FROM questionnaire_answer
+                        WHERE response_id = ?
+                        ORDER BY item_id ASC
+                        """,
+                        (row, n) -> {
+                            Map<String, Object> answer = new LinkedHashMap<>();
+                            answer.put("itemId", row.getString("item_id"));
+                            answer.put("valueJson", row.getString("value_json"));
+                            return answer;
+                        },
+                        response.responseId);
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("responseId", response.responseId);
+                body.put("questionnaireId", response.questionnaireId);
+                body.put("revision", response.revision);
+                body.put("tenantId", response.tenantId);
+                body.put("respondentRealm", response.respondentRealm);
+                body.put("respondentSubjectId", response.respondentSubjectId);
+                body.put("submittedAt", response.submittedAt == null ? null : response.submittedAt.toString());
+                body.put("answers", answers);
+                json.writePOJO(body);
+                afterTime = response.submittedAt;
+                afterId = response.responseId;
+            }
+            if (page.size() < pageSize) {
+                break;
+            }
+        }
+        json.writeEndArray();
+        json.writeEndObject();
+    }
+
+    private void writeObjects(JsonGenerator json, String tenantId, String subjectId) throws IOException {
+        json.writeObjectPropertyStart("objects");
+        json.writeStringProperty("sensitivity", SensitivityClass.NORMAL.name());
+        json.writeArrayPropertyStart("descriptors");
+        Instant afterTime = Instant.EPOCH;
+        String afterId = "";
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        while (true) {
+            List<ObjectRow> page = jdbc.query(
+                    """
+                    SELECT object_id, object_key, owner_subject_id, created_at
+                    FROM object_descriptor
+                    WHERE tenant_id = ? AND owner_subject_id = ?
+                      AND (created_at > ? OR (created_at = ? AND object_id > ?))
+                    ORDER BY created_at ASC, object_id ASC
+                    LIMIT ?
+                    """,
+                    (row, n) -> new ObjectRow(
+                            row.getString("object_id"),
+                            row.getString("object_key"),
+                            row.getString("owner_subject_id"),
+                            instant(row.getTimestamp("created_at"))),
+                    tenantId,
+                    subjectId,
+                    Timestamp.from(afterTime),
+                    Timestamp.from(afterTime),
+                    afterId,
+                    pageSize);
+            for (ObjectRow descriptor : page) {
+                json.writeStartObject();
+                json.writeStringProperty("objectId", descriptor.objectId);
+                json.writeStringProperty("objectKey", descriptor.objectKey);
+                json.writeStringProperty("ownerSubjectId", descriptor.ownerSubjectId);
+                if (descriptor.createdAt == null) {
+                    json.writeNullProperty("createdAt");
+                } else {
+                    json.writeStringProperty("createdAt", descriptor.createdAt.toString());
+                }
+                json.writeStringProperty(
+                        "sensitivity", objects.objectSensitivity(tenantId, descriptor.objectKey).name());
+                json.writeEndObject();
+                afterTime = descriptor.createdAt == null ? afterTime : descriptor.createdAt;
+                afterId = descriptor.objectId;
+            }
+            if (page.size() < pageSize) {
+                break;
+            }
+        }
+        json.writeEndArray();
+        json.writeEndObject();
+    }
+
+    private static Instant instant(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    private static String stringOrNull(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private record InboxRow(String entryId, String messageId, Instant readAt, Instant createdAt) {}
+
+    private record ResponseRow(
+            String responseId,
+            String questionnaireId,
+            int revision,
+            String tenantId,
+            String respondentRealm,
+            String respondentSubjectId,
+            Instant submittedAt) {}
+
+    private record ObjectRow(String objectId, String objectKey, String ownerSubjectId, Instant createdAt) {}
 }

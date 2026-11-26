@@ -79,27 +79,105 @@ public final class JdbcExportRequestStore {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
-    public List<ExportRequest> listBySubject(String tenantId, String subjectId) {
+    /**
+     * Lock one row for the worker so two schedulers do not generate the same artifact.
+     * 工作线程锁定一行，避免两个调度实例同时生成同一份产物。
+     */
+    public Optional<ExportRequest> findForUpdate(String requestId) {
+        if (requestId == null || requestId.isBlank()) {
+            return Optional.empty();
+        }
+        List<ExportRequest> rows = jdbc.query(
+                "SELECT * FROM data_export_request WHERE request_id = ? FOR UPDATE",
+                ROW,
+                requestId.trim());
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    /**
+     * Subject-scoped list, newest first, exclusive keyset cursor, already clamped limit.
+     * 按主体列出，从新到旧，游标为开区间，条数须已夹紧。
+     */
+    public List<ExportRequest> listBySubject(
+            String tenantId, String subjectId, java.time.Instant afterCreatedAt, String afterRequestId, int limit) {
+        if (afterCreatedAt != null && afterRequestId != null && !afterRequestId.isBlank()) {
+            return jdbc.query(
+                    """
+                    SELECT * FROM data_export_request
+                    WHERE tenant_id = ? AND subject_id = ?
+                      AND (created_at < ? OR (created_at = ? AND request_id < ?))
+                    ORDER BY created_at DESC, request_id DESC
+                    LIMIT ?
+                    """,
+                    ROW,
+                    tenantId,
+                    subjectId,
+                    PlatformTables.timestamp(afterCreatedAt),
+                    PlatformTables.timestamp(afterCreatedAt),
+                    afterRequestId.trim(),
+                    limit);
+        }
         return jdbc.query(
                 """
                 SELECT * FROM data_export_request
                 WHERE tenant_id = ? AND subject_id = ?
-                ORDER BY created_at ASC, request_id ASC
+                ORDER BY created_at DESC, request_id DESC
+                LIMIT ?
                 """,
                 ROW,
                 tenantId,
-                subjectId);
+                subjectId,
+                limit);
     }
 
-    public List<ExportRequest> listByTenant(String tenantId) {
+    /**
+     * Tenant-scoped list, newest first, exclusive keyset cursor, already clamped limit.
+     * 按租户列出，从新到旧，游标为开区间，条数须已夹紧。
+     */
+    public List<ExportRequest> listByTenant(
+            String tenantId, java.time.Instant afterCreatedAt, String afterRequestId, int limit) {
+        if (afterCreatedAt != null && afterRequestId != null && !afterRequestId.isBlank()) {
+            return jdbc.query(
+                    """
+                    SELECT * FROM data_export_request
+                    WHERE tenant_id = ?
+                      AND (created_at < ? OR (created_at = ? AND request_id < ?))
+                    ORDER BY created_at DESC, request_id DESC
+                    LIMIT ?
+                    """,
+                    ROW,
+                    tenantId,
+                    PlatformTables.timestamp(afterCreatedAt),
+                    PlatformTables.timestamp(afterCreatedAt),
+                    afterRequestId.trim(),
+                    limit);
+        }
         return jdbc.query(
                 """
                 SELECT * FROM data_export_request
                 WHERE tenant_id = ?
-                ORDER BY created_at ASC, request_id ASC
+                ORDER BY created_at DESC, request_id DESC
+                LIMIT ?
                 """,
                 ROW,
-                tenantId);
+                tenantId,
+                limit);
+    }
+
+    /**
+     * Oldest queued generation rows for the thin worker — 薄工作线程领取最早入队的生成中申请.
+     */
+    public List<ExportRequest> listByStatus(ExportRequestStatus status, int limit) {
+        return jdbc.query(
+                """
+                SELECT * FROM data_export_request
+                WHERE request_status = ?
+                ORDER BY updated_at ASC, request_id ASC
+                LIMIT ?
+                """,
+                ROW,
+                status.name(),
+                limit);
     }
 
     public void updateDecision(ExportRequest request) {

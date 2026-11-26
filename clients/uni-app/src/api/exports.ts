@@ -10,7 +10,15 @@ import type { IssuedDownloadLink } from "./objects";
 /** Scope meaning all of this subject's own records in the tenant — 范围：本人在本组织的全部资料. */
 export const SCOPE_ALL_OWN = "ALL_OWN";
 
-export type ExportStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "READY" | "EXPIRED" | string;
+export type ExportStatus =
+  | "REQUESTED"
+  | "APPROVED"
+  | "GENERATING"
+  | "FAILED"
+  | "REJECTED"
+  | "READY"
+  | "EXPIRED"
+  | string;
 
 export type EndUserExport = {
   requestId: string;
@@ -29,13 +37,29 @@ export type EndUserExport = {
 
 const EXPORTS_PATH = "/api/v1/end-user/exports";
 
-/** List own requests (server returns oldest first) — 列出本人申请（服务端按时间正序）. */
+type ExportPage = { exports?: EndUserExport[]; nextCursor?: string | null };
+
+/** List own requests, walking keyset pages (newest first) — 列出本人申请并跟随键集分页（从新到旧）. */
 export async function listOwnExports(): Promise<EndUserExport[]> {
-  const rows = await authedFetch<EndUserExport[]>({
-    path: EXPORTS_PATH,
-    tenantId: true,
-  });
-  return Array.isArray(rows) ? rows : [];
+  const collected: EndUserExport[] = [];
+  let cursor = "";
+  for (let page = 0; page < 20; page++) {
+    const path = cursor
+      ? `${EXPORTS_PATH}?limit=100&cursor=${encodeURIComponent(cursor)}`
+      : `${EXPORTS_PATH}?limit=100`;
+    const body = await authedFetch<ExportPage | EndUserExport[]>({
+      path,
+      tenantId: true,
+    });
+    const rows = Array.isArray(body) ? body : (body?.exports ?? []);
+    collected.push(...rows);
+    const next = Array.isArray(body) ? "" : (body?.nextCursor ?? "").trim();
+    if (!next) {
+      break;
+    }
+    cursor = next;
+  }
+  return collected;
 }
 
 /**
@@ -137,7 +161,7 @@ export function canDownloadExport(row: EndUserExport, now: Date = new Date()): b
 
 export function isExportInProgress(row: EndUserExport): boolean {
   const status = (row.status || "").toUpperCase();
-  return status === "REQUESTED" || status === "APPROVED";
+  return status === "REQUESTED" || status === "APPROVED" || status === "GENERATING";
 }
 
 export function exportStatusLabel(status?: string): string {
@@ -146,6 +170,10 @@ export function exportStatusLabel(status?: string): string {
       return "等待审核";
     case "APPROVED":
       return "已通过，正在准备文件";
+    case "GENERATING":
+      return "正在生成文件";
+    case "FAILED":
+      return "文件没有生成成功";
     case "REJECTED":
       return "未通过";
     case "READY":

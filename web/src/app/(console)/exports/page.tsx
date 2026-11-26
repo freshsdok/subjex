@@ -24,12 +24,12 @@ type SearchBag = {
 };
 
 /**
- * Export request queue — list, approve/reject (not self), generate, and short-lived signed download.
+ * Export request queue — list, approve/reject (not self), retry a failed generation, and short-lived signed download.
  * Enter: Manifest {@code page.exports} ({@code export.request} or {@code export.approve}).
  * Decide / generate / download: {@code btn.exports.approve} ({@code export.approve}).
  * <p>
- * 导出申请队列：列表、批准/驳回（不能审自己的）、生成，以及短时签名下载。
- * 进入走 page.exports；审批/生成/下载走 btn.exports.approve。
+ * 导出申请队列：列表、批准/驳回（不能审自己的）、失败后重试，以及短时签名下载。批准后自动开始后台生成。
+ * 进入走 page.exports；审批/重试/下载走 btn.exports.approve。
  */
 export default async function ExportsPage({
   searchParams,
@@ -85,6 +85,8 @@ export default async function ExportsPage({
           <option value="all">{phrases.exportsStatusAll}</option>
           <option value="REQUESTED">{phrases.exportsStatusRequested}</option>
           <option value="APPROVED">{phrases.exportsStatusApproved}</option>
+          <option value="GENERATING">{phrases.exportsStatusGenerating}</option>
+          <option value="FAILED">{phrases.exportsStatusFailed}</option>
           <option value="REJECTED">{phrases.exportsStatusRejected}</option>
           <option value="READY">{phrases.exportsStatusReady}</option>
           <option value="EXPIRED">{phrases.exportsStatusExpired}</option>
@@ -137,7 +139,7 @@ async function QueueBody({
   phrases: Awaited<ReturnType<typeof currentLanguage>>["phrases"];
   language: "zh" | "en";
 }) {
-  const read = await readPlatform<ExportQueueRow[]>("exports", { tenantId });
+  const read = await loadExportQueue(tenantId);
   if (read.status === 403) {
     return <ForbiddenNotice phrases={phrases} permission="export.request | export.approve" />;
   }
@@ -157,6 +159,38 @@ async function QueueBody({
       language={language}
     />
   );
+}
+
+type ExportQueuePage = { exports?: ExportQueueRow[]; nextCursor?: string | null };
+
+/**
+ * Walk keyset pages so a modest queue still appears in one table (cap 20 pages).
+ * 跟随键集分页，让适量队列仍能在一张表里看全（最多 20 页）。
+ */
+async function loadExportQueue(tenantId: string): Promise<{ status: number; body: ExportQueueRow[] | null }> {
+  const rows: ExportQueueRow[] = [];
+  let cursor = "";
+  for (let page = 0; page < 20; page++) {
+    const path = cursor
+      ? `exports?limit=100&cursor=${encodeURIComponent(cursor)}`
+      : "exports?limit=100";
+    const read = await readPlatform<ExportQueuePage | ExportQueueRow[]>(path, { tenantId });
+    if (read.status === 403) {
+      return { status: 403, body: null };
+    }
+    if (!read.body) {
+      return { status: read.status, body: rows.length > 0 ? rows : null };
+    }
+    const body = read.body;
+    const pageRows = Array.isArray(body) ? body : (body.exports ?? []);
+    rows.push(...pageRows);
+    const next = Array.isArray(body) ? "" : (body.nextCursor ?? "").trim();
+    if (!next) {
+      return { status: 200, body: rows };
+    }
+    cursor = next;
+  }
+  return { status: 200, body: rows };
 }
 
 function first(value: string | undefined): string {

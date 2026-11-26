@@ -9,8 +9,8 @@
     <view class="card" v-else>
       <text class="title">我的导出</text>
       <text class="muted">
-        您可以申请一份个人资料副本。申请需要工作人员审核，通过后会为您准备文件。
-        文件准备好后请尽快下载，过期后需要重新申请。本页不会出现批准或驳回按钮。
+        您可以申请一份个人资料副本。申请需要工作人员审核，通过后会在后台为您准备文件。
+        生成中或失败时，本页会如实显示。文件准备好后请尽快下载，过期后需要重新申请。本页不会出现批准或驳回按钮。
       </text>
       <text class="muted" v-if="loading">正在加载…</text>
       <text class="warn" v-if="error">{{ error }}</text>
@@ -42,6 +42,12 @@
         </text>
         <text class="muted" v-else-if="displayStatus(item) === 'EXPIRED' || (item.status === 'READY' && isExportExpired(item))">
           这份文件已过期，无法再下载。如需文件，请再提交一份申请。
+        </text>
+        <text class="muted" v-else-if="displayStatus(item) === 'GENERATING'">
+          文件正在后台生成，请稍后刷新查看。
+        </text>
+        <text class="warn" v-else-if="displayStatus(item) === 'FAILED'">
+          文件没有生成成功。请稍后刷新，或联系工作人员重新生成。
         </text>
         <text class="muted" v-if="item.requestId">申请编号 {{ shortId(item.requestId) }}</text>
         <button

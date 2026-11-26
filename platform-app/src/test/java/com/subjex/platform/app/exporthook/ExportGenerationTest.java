@@ -36,7 +36,9 @@ import com.subjex.platform.app.workflow.WorkflowCatalog;
 import com.subjex.platform.app.workflow.WorkflowExportHook;
 import com.subjex.platform.app.workflow.WorkflowService;
 import com.subjex.platform.contract.consent.ConsentPort;
+import com.subjex.platform.contract.exporthook.ExportArtifact;
 import com.subjex.platform.contract.exporthook.ExportExpiredException;
+import com.subjex.platform.contract.exporthook.SubjectRecordExporter;
 import com.subjex.platform.contract.exporthook.ExportNotApprovedException;
 import com.subjex.platform.contract.exporthook.SensitivityClass;
 import com.subjex.platform.contract.storage.ObjectStorage;
@@ -96,6 +98,8 @@ class ExportGenerationTest {
     private EndUserRecord carol;
     private OperatorPrincipal requester;
     private OperatorPrincipal approver;
+    private ExportGenerationService generation;
+    private final ToggleExporter failingExporter = new ToggleExporter();
     private final ObjectMapper mapper = new ObjectMapper();
 
     @TempDir
@@ -160,11 +164,11 @@ class ExportGenerationTest {
                 clock,
                 objectAudit);
         ExportExpiryService expiry = new ExportExpiryService(store, clock, new WorkflowExportHook(workflows));
-        ExportGenerationService generation = new ExportGenerationService(
+        generation = new ExportGenerationService(
                 store,
                 gate,
                 expiry,
-                List.of(exporter),
+                List.of(failingExporter, exporter),
                 storage,
                 objects,
                 downloads,
@@ -216,7 +220,27 @@ class ExportGenerationTest {
     @Test
     void approveGenerateEndUserLinkRedeemContainsOnlyOwnData() throws Exception {
         String requestId = openAndApprove(alice);
+        mvc.perform(get(OperatorExportEndpoint.PATH + "/" + requestId)
+                        .with(asPrincipal(approver))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("GENERATING"))
+                .andExpect(jsonPath("$.artifactObjectKey").isEmpty());
+        // Approval auto-enqueues; HTTP generate must not write the artifact on the request thread.
+        // 批准后自动入队；HTTP generate 不得在请求线程写产物。
         mvc.perform(post(OperatorExportEndpoint.PATH + "/" + requestId + "/generate")
+                        .with(asPrincipal(approver))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("GENERATING"));
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM audit_entry WHERE action_name = ? AND action_target = ?",
+                        Integer.class,
+                        ExportGenerationService.AUDIT_GENERATE,
+                        requestId))
+                .isZero();
+        assertThat(generation.processQueued(10)).isEqualTo(1);
+        mvc.perform(get(OperatorExportEndpoint.PATH + "/" + requestId)
                         .with(asPrincipal(approver))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
                 .andExpect(status().isOk())
@@ -305,10 +329,7 @@ class ExportGenerationTest {
     @Test
     void expiredRequestYieldsNoLinkAndStatusBecomesExpired() throws Exception {
         String requestId = openAndApprove(alice);
-        mvc.perform(post(OperatorExportEndpoint.PATH + "/" + requestId + "/generate")
-                        .with(asPrincipal(approver))
-                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
-                .andExpect(status().isOk());
+        assertThat(generation.processQueued(10)).isEqualTo(1);
         jdbc.update(
                 "UPDATE data_export_request SET expires_at = TIMESTAMP '2020-01-01 00:00:00' WHERE request_id = ?",
                 requestId);
@@ -329,10 +350,7 @@ class ExportGenerationTest {
     @Test
     void anotherEndUserAndCrossTenantCannotGetLinkOrGenerate() throws Exception {
         String requestId = openAndApprove(alice);
-        mvc.perform(post(OperatorExportEndpoint.PATH + "/" + requestId + "/generate")
-                        .with(asPrincipal(approver))
-                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
-                .andExpect(status().isOk());
+        assertThat(generation.processQueued(10)).isEqualTo(1);
         mvc.perform(post(EndUserExportEndpoint.PATH + "/" + requestId + "/download-link")
                         .with(asEndUser(bob))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
@@ -413,6 +431,66 @@ class ExportGenerationTest {
         }
     }
 
+
+    @Test
+    void failedGenerationCanBeRetriedAndThenSucceeds() throws Exception {
+        String requestId = openAndApprove(alice);
+        failingExporter.fail = true;
+        assertThat(generation.processQueued(10)).isZero();
+        mvc.perform(get(OperatorExportEndpoint.PATH + "/" + requestId)
+                        .with(asPrincipal(approver))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"));
+        failingExporter.fail = false;
+        mvc.perform(post(OperatorExportEndpoint.PATH + "/" + requestId + "/generate")
+                        .with(asPrincipal(approver))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("GENERATING"));
+        assertThat(generation.processQueued(10)).isEqualTo(1);
+        mvc.perform(get(OperatorExportEndpoint.PATH + "/" + requestId)
+                        .with(asPrincipal(approver))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("READY"));
+    }
+
+    @Test
+    void exportListsPageByKeysetCursorNewestFirst() throws Exception {
+        String first = openAs(alice);
+        String second = openAs(alice);
+        String third = openAs(alice);
+        MvcResult page1 = mvc.perform(get(EndUserExportEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.exports.length()").value(2))
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty())
+                .andReturn();
+        var root = mapper.readTree(page1.getResponse().getContentAsString());
+        assertThat(root.get("exports").get(0).get("requestId").asText()).isEqualTo(third);
+        assertThat(root.get("exports").get(1).get("requestId").asText()).isEqualTo(second);
+        String cursor = root.get("nextCursor").asText();
+        mvc.perform(get(EndUserExportEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .param("limit", "2")
+                        .param("cursor", cursor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.exports.length()").value(1))
+                .andExpect(jsonPath("$.exports[0].requestId").value(first))
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+        mvc.perform(get(OperatorExportEndpoint.PATH)
+                        .with(asPrincipal(approver))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.exports.length()").value(2))
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty());
+    }
+
     private String openAs(EndUserRecord record) throws Exception {
         MvcResult created = mvc.perform(post(EndUserExportEndpoint.PATH)
                         .with(asEndUser(record))
@@ -438,6 +516,25 @@ class ExportGenerationTest {
                 "INSERT INTO operator_tenant_grant (subject_id, tenant_id) VALUES (?, ?)",
                 operator.subjectId(),
                 tenantId);
+    }
+
+    private static final class ToggleExporter implements SubjectRecordExporter {
+        volatile boolean fail;
+
+        @Override
+        public boolean supports(String tenantId, String subjectId, String scopeDescriptor) {
+            return fail;
+        }
+
+        @Override
+        public ExportArtifact export(String tenantId, String subjectId, String scopeDescriptor) {
+            throw new IllegalStateException("export failed on purpose");
+        }
+
+        @Override
+        public void exportTo(String tenantId, String subjectId, String scopeDescriptor, java.io.OutputStream output) {
+            throw new IllegalStateException("export failed on purpose");
+        }
     }
 
     private static OperatorPrincipal operator(String slug, String... permissions) {

@@ -3,6 +3,7 @@ package com.subjex.platform.app.exporthook;
 import com.subjex.platform.app.api.JsonApi;
 import com.subjex.platform.app.identity.enduser.EndUserExportEndpoint.DownloadLinkRequest;
 import com.subjex.platform.app.identity.enduser.EndUserExportEndpoint.ExportDocument;
+import com.subjex.platform.app.identity.enduser.EndUserExportEndpoint.ExportPageDocument;
 import com.subjex.platform.app.storage.IssuedDownloadLink;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
@@ -20,8 +21,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * OperatorExportEndpoint — operator export request, approval, generate, and signed download under {@code /api/v1/exports}.
- * 操作员代申请、批准、同步生成与短时签名下载。生成与操作员下载复用 {@code export.approve}。
+ * OperatorExportEndpoint — operator export request, approval, retry, and signed download under {@code /api/v1/exports}.
+ * 操作员代申请、批准、失败重试与短时签名下载。批准后自动入队后台生成；{@code generate} 只入队或重试，不在请求线程写产物。
  */
 @RestController
 public class OperatorExportEndpoint {
@@ -41,13 +42,14 @@ public class OperatorExportEndpoint {
     }
 
     @GetMapping(PATH)
-    public List<ExportDocument> list(
+    public ExportPageDocument list(
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantHeader,
-            @RequestParam(value = "tenantId", required = false) String tenantIdParam) {
+            @RequestParam(value = "tenantId", required = false) String tenantIdParam,
+            @RequestParam(value = "cursor", required = false) String cursor,
+            @RequestParam(value = "limit", required = false) Integer limit) {
         OperatorPrincipal operator = requireOperator();
-        return exports.listTenant(operator, resolveTenant(tenantHeader, tenantIdParam)).stream()
-                .map(ExportDocument::from)
-                .toList();
+        var page = exports.listTenant(operator, resolveTenant(tenantHeader, tenantIdParam), cursor, limit);
+        return ExportPageDocument.from(page);
     }
 
     @PostMapping(PATH)

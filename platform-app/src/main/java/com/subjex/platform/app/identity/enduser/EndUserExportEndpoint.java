@@ -40,13 +40,14 @@ public class EndUserExportEndpoint {
     }
 
     @GetMapping(PATH)
-    public List<ExportDocument> list(
+    public ExportPageDocument list(
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantHeader,
-            @RequestParam(value = "tenantId", required = false) String tenantIdParam) {
+            @RequestParam(value = "tenantId", required = false) String tenantIdParam,
+            @RequestParam(value = "cursor", required = false) String cursor,
+            @RequestParam(value = "limit", required = false) Integer limit) {
         EndUserPrincipal principal = EndUserPrincipals.requireEndUserPrincipal();
-        return exports.listOwn(principal, resolveTenant(tenantHeader, tenantIdParam)).stream()
-                .map(ExportDocument::from)
-                .toList();
+        var page = exports.listOwn(principal, resolveTenant(tenantHeader, tenantIdParam), cursor, limit);
+        return ExportPageDocument.from(page);
     }
 
     @PostMapping(PATH)
@@ -131,6 +132,16 @@ public class EndUserExportEndpoint {
                     request.decidedAt(),
                     request.expiresAt(),
                     request.artifactObjectKey());
+        }
+    }
+
+    /**
+     * Keyset page of export requests — 导出申请的键集分页。
+     */
+    public record ExportPageDocument(List<ExportDocument> exports, String nextCursor) {
+        public static ExportPageDocument from(ExportRequestService.ExportRequestPage page) {
+            List<ExportDocument> rows = page.requests().stream().map(ExportDocument::from).toList();
+            return new ExportPageDocument(rows, page.nextCursor());
         }
     }
 }
