@@ -9,6 +9,8 @@ import java.util.Set;
  */
 public final class ObjectContentTypes {
 
+    private static final Set<String> IMAGES = Set.of("image/png", "image/jpeg", "image/webp");
+
     private static final Set<String> ALLOWED = Set.of(
             "application/pdf",
             "image/png",
@@ -50,6 +52,18 @@ public final class ObjectContentTypes {
         try {
             requireAllowed(contentType);
             return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * True when the type is an allowed still image suitable for an avatar.
+     * 是否为允许用作头像的静态图片类型。
+     */
+    public static boolean isImage(String contentType) {
+        try {
+            return IMAGES.contains(requireAllowed(contentType));
         } catch (IllegalArgumentException ex) {
             return false;
         }

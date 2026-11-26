@@ -2,7 +2,7 @@
   <view class="page">
     <view class="card" v-if="!signedIn">
       <text class="title">我的资料</text>
-      <text class="muted">登录后可以查看和修改您的称呼，并管理登录方式。</text>
+      <text class="muted">登录后可以查看和修改您的称呼、头像和邮箱，并管理登录方式。</text>
       <navigator :url="loginHref" class="link">去登录</navigator>
     </view>
 
@@ -11,12 +11,37 @@
       <text class="muted" v-if="loading">正在加载…</text>
       <text class="warn" v-if="error">{{ error }}</text>
       <view v-if="!loading">
+        <text class="label">头像</text>
+        <view class="row">
+          <image v-if="avatarUrl" class="avatar" :src="avatarUrl" mode="aspectFill" />
+          <view v-else class="avatar avatar-empty">
+            <text class="avatar-letter">{{ avatarLetter }}</text>
+          </view>
+          <button size="mini" :disabled="busy" @click="onChangeAvatar">更换头像</button>
+          <button size="mini" :disabled="busy || !avatarObjectId" @click="onClearAvatar">移除头像</button>
+        </view>
+        <text class="muted">请选择一张照片。较大的图片会按现有方式分段上传。</text>
+
         <text class="label">您的称呼</text>
         <input class="input" v-model="subjectName" maxlength="256" placeholder="请输入姓名或昵称" />
         <button size="mini" type="primary" :disabled="busy || !subjectName.trim()" @click="onSave">
-          {{ busy ? "正在保存…" : "保存" }}
+          {{ busy ? "正在保存…" : "保存称呼" }}
         </button>
-        <text class="ok" v-if="saved">已保存</text>
+        <text class="ok" v-if="saved">称呼已保存</text>
+
+        <text class="label">邮箱</text>
+        <text class="muted" v-if="verifiedEmail">当前邮箱：{{ verifiedEmail }}（已验证）</text>
+        <text class="muted" v-else>还没有已验证的邮箱。</text>
+        <text class="hint" v-if="pendingEmail">待验证：{{ pendingEmail }}。验证通过前不会替换已有邮箱。</text>
+        <input class="input" v-model="emailDraft" maxlength="256" placeholder="请输入要验证的邮箱" />
+        <view class="row">
+          <input class="input flex" v-model="emailCode" placeholder="请输入验证码" />
+          <button size="mini" :disabled="busy" @click="onRequestEmailCode">获取验证码</button>
+          <button size="mini" :disabled="busy" @click="onVerifyEmail">验证并保存</button>
+        </view>
+        <text class="hint" v-if="emailDevCode">本次验证码（仅本地调试显示）：{{ emailDevCode }}</text>
+        <text class="ok" v-if="emailStatusOk">{{ emailStatus }}</text>
+        <text class="muted" v-else-if="emailStatus">{{ emailStatus }}</text>
       </view>
     </view>
 
@@ -55,7 +80,8 @@
 
 <script setup lang="ts">
 /**
- * Profile: display name, authenticators, and logout — 资料：称呼、登录方式与退出。
+ * Profile: display name, avatar, verified email, authenticators, and logout.
+ * 资料：称呼、头像、须验证的邮箱、登录方式与退出。
  */
 import { computed, ref, onMounted } from "vue";
 import {
@@ -69,7 +95,17 @@ import {
   unbindPhone,
   unbindWeChat,
 } from "../../api/auth";
-import { getProfile, updateProfile } from "../../api/profile";
+import { uploadObject } from "../../api/objects";
+import {
+  clearAvatar,
+  getProfile,
+  pickAvatar,
+  requestEmailCode,
+  setAvatar,
+  updateProfile,
+  verifyEmail,
+  type EndUserProfile,
+} from "../../api/profile";
 import { goToLogin, messageForHttpError, toastHttpError } from "../../api/platform";
 import { loginPageUrl } from "../../api/shell-path";
 
@@ -79,19 +115,44 @@ const busy = ref(false);
 const error = ref("");
 const saved = ref(false);
 const subjectName = ref("");
+const avatarObjectId = ref("");
+const avatarUrl = ref("");
+const verifiedEmail = ref("");
+const pendingEmail = ref("");
+const emailDraft = ref("");
+const emailCode = ref("");
+const emailDevCode = ref("");
+const emailStatus = ref("");
+const emailStatusOk = ref(false);
 const bindPhoneNumber = ref("");
 const bindCode = ref("");
 const bindDevCode = ref("");
 const bindStatus = ref("");
 const loginHref = computed(() => loginPageUrl("/pages/profile/profile"));
+const avatarLetter = computed(() => {
+  const name = subjectName.value.trim();
+  return name ? name.slice(0, 1) : "我";
+});
+
+function applyProfile(profile: EndUserProfile) {
+  subjectName.value = profile.subjectName || subjectName.value;
+  avatarObjectId.value = profile.avatarObjectId || "";
+  avatarUrl.value = profile.avatarDownload?.url || "";
+  verifiedEmail.value = profile.email || "";
+  pendingEmail.value = profile.pendingEmail || "";
+  if (profile.pendingEmail && !emailDraft.value) {
+    emailDraft.value = profile.pendingEmail;
+  } else if (profile.email && !emailDraft.value) {
+    emailDraft.value = profile.email;
+  }
+}
 
 async function load() {
   if (!signedIn.value) return;
   loading.value = true;
   error.value = "";
   try {
-    const profile = await getProfile();
-    subjectName.value = profile.subjectName || "";
+    applyProfile(await getProfile());
   } catch (e) {
     error.value = messageForHttpError(e);
     toastHttpError(e);
@@ -105,12 +166,81 @@ async function onSave() {
   error.value = "";
   saved.value = false;
   try {
-    const profile = await updateProfile(subjectName.value);
-    subjectName.value = profile.subjectName || subjectName.value.trim();
+    applyProfile(await updateProfile(subjectName.value));
     saved.value = true;
     uni.showToast({ title: "称呼已更新", icon: "none" });
   } catch (e) {
     error.value = messageForHttpError(e);
+    toastHttpError(e);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onChangeAvatar() {
+  busy.value = true;
+  error.value = "";
+  try {
+    const file = await pickAvatar();
+    const uploaded = await uploadObject(file);
+    if (!uploaded.objectId) {
+      throw new Error("上传已完成，但没有拿到头像编号，请稍后重试");
+    }
+    applyProfile(await setAvatar(uploaded.objectId));
+    uni.showToast({ title: "头像已更新", icon: "none" });
+  } catch (e) {
+    error.value = messageForHttpError(e);
+    toastHttpError(e);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onClearAvatar() {
+  busy.value = true;
+  error.value = "";
+  try {
+    applyProfile(await clearAvatar());
+    uni.showToast({ title: "头像已移除", icon: "none" });
+  } catch (e) {
+    error.value = messageForHttpError(e);
+    toastHttpError(e);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onRequestEmailCode() {
+  busy.value = true;
+  emailDevCode.value = "";
+  emailStatusOk.value = false;
+  emailStatus.value = "正在获取验证码…";
+  try {
+    const issued = await requestEmailCode(emailDraft.value);
+    emailDevCode.value = issued.devCode || "";
+    emailStatus.value = emailDevCode.value
+      ? "验证码已签发。请在验证通过后再把它当作您的邮箱。"
+      : "验证码已发送，请查看您的邮箱。验证通过前不会替换已有邮箱。";
+  } catch (e) {
+    emailStatus.value = messageForHttpError(e);
+    toastHttpError(e);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onVerifyEmail() {
+  busy.value = true;
+  emailStatusOk.value = false;
+  try {
+    applyProfile(await verifyEmail(emailDraft.value, emailCode.value));
+    emailCode.value = "";
+    emailDevCode.value = "";
+    emailStatusOk.value = true;
+    emailStatus.value = "邮箱已验证并保存";
+    uni.showToast({ title: "邮箱已验证", icon: "none" });
+  } catch (e) {
+    emailStatus.value = messageForHttpError(e);
     toastHttpError(e);
   } finally {
     busy.value = false;
@@ -236,4 +366,10 @@ onMounted(() => {
 .flex { flex: 1; }
 .link { color: #2563eb; font-size: 28rpx; }
 .bottom { margin: 12rpx 24rpx 40rpx; }
+.avatar {
+  width: 120rpx; height: 120rpx; border-radius: 60rpx;
+  background: #e5e7eb; border: 1px solid #ddd;
+}
+.avatar-empty { display: flex; align-items: center; justify-content: center; }
+.avatar-letter { font-size: 40rpx; color: #444; }
 </style>

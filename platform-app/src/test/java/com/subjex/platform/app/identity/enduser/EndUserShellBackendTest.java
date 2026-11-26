@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.subjex.platform.app.inbox.EndUserShellInboxEndpoint;
 import com.subjex.platform.app.inbox.JdbcInboxPort;
-import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.questionnaire.EndUserShellQuestionnaireEndpoint;
 import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
 import com.subjex.platform.app.security.H2PlatformTables;
@@ -98,13 +97,14 @@ class EndUserShellBackendTest {
         inbox = new JdbcInboxPort(jdbc, tx);
         RateLimitPort alwaysPermit = (tenantId, actionName) -> true;
         questionnaires = new JdbcQuestionnairePort(jdbc, tx, clock, alwaysPermit);
-        EndUserShellService shell = new EndUserShellService(
+        EndUserShellService shell = EndUserShellFixtures.shell(
                 accounts,
                 inbox,
                 questionnaires,
-                new JdbcAuditPort(jdbc),
-                new LocalDirectoryObjectStorage(objectRoot),
-                clock);
+                jdbc,
+                tx,
+                clock,
+                new LocalDirectoryObjectStorage(objectRoot)).shell();
         mvc = MockMvcBuilders.standaloneSetup(
                         new EndUserProfileEndpoint(shell),
                         new EndUserShellInboxEndpoint(shell),

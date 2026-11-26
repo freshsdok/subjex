@@ -103,8 +103,8 @@ class EndUserInboxAttachmentTest {
         RateLimitPort alwaysPermit = (tenantId, actionName) -> true;
         QuestionnairePort questionnaires = new JdbcQuestionnairePort(jdbc, tx, clock, alwaysPermit);
         storage = new LocalDirectoryObjectStorage(objectRoot);
-        EndUserShellService shell = new EndUserShellService(
-                accounts, inbox, questionnaires, new JdbcAuditPort(jdbc), storage, clock);
+        EndUserShellService shell = EndUserShellFixtures.shell(
+                accounts, inbox, questionnaires, jdbc, tx, clock, storage).shell();
         mvc = MockMvcBuilders.standaloneSetup(new EndUserShellInboxEndpoint(shell))
                 .setControllerAdvice(new PlatformExceptionAdvice(null))
                 .setMessageConverters(new ByteArrayHttpMessageConverter(), new JacksonJsonHttpMessageConverter())

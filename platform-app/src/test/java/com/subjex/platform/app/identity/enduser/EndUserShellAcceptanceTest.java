@@ -124,8 +124,8 @@ class EndUserShellAcceptanceTest {
         RateLimitPort alwaysPermit = (tenantId, actionName) -> true;
         JdbcQuestionnairePort questionnaires = new JdbcQuestionnairePort(jdbc, tx, clock, alwaysPermit);
         LocalDirectoryObjectStorage storage = new LocalDirectoryObjectStorage(objectRoot);
-        EndUserShellService shell = new EndUserShellService(
-                accounts, inbox, questionnaires, new JdbcAuditPort(jdbc), storage, clock);
+        EndUserShellService shell = EndUserShellFixtures.shell(
+                accounts, inbox, questionnaires, jdbc, tx, clock, storage).shell();
         ObjectAccessAudit audit = new ObjectAccessAudit(new JdbcAuditPort(jdbc), clock);
         JdbcObjectGrantStore grants = new JdbcObjectGrantStore(jdbc, clock, audit);
         EndUserObjectService objects = new EndUserObjectService(

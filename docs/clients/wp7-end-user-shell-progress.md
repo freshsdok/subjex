@@ -42,7 +42,7 @@ Residual gaps (honest, not in this package) / 仍存缺口（本包不解决）�
 - Inbox attachments remain closed to end users.
 - `/api/v1/me/inbox` is not retired (the end-user shell uses `/api/v1/end-user/inbox/**`; the older path is unchanged).
 - No questionnaire assignment / ACL (list is published + `AUTH_END_USER` in the current business tenant only).
-- Profile is `subjectName` only; no avatar or email fields.
+- Profile includes `subjectName`, an authorized-track avatar (object id + short-lived download), and an email that must be verified before it is the profile address.
 - Mini-program appid provisioning is still an operational concern, not delivered in this package.
 
 Next package would be **WP8 (consent and export approval hooks)**, not started here.
@@ -135,8 +135,8 @@ Recorded here so later slices can revisit them without treating this implementat
   保留 `/api/v1/me/inbox`，本切片不退役。
 - Inbox **attachments stay closed** to end users (not exposed on the new routes).
   终端收件箱不暴露附件。
-- Profile: read/update `subjectName` (display name) only; no new avatar/email columns.
-  资料只读写展示名；不加头像/邮箱列。
+- Profile: display name, authorized-track avatar, and email stored pending until a verification code is consumed.
+  资料含展示名、授权轨头像，以及须验证后才生效的邮箱。
 - No end-user `ui-permissions` endpoint.
   不加终端 `ui-permissions` 接口。
 

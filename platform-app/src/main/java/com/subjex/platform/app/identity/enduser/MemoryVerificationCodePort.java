@@ -122,13 +122,17 @@ public final class MemoryVerificationCodePort implements VerificationCodePort {
         }
     }
 
+    /** Same cap as a stored profile email — 与资料邮箱列宽一致. */
+    static final int MAX_DESTINATION_LENGTH = 256;
+
     private static String requireDestination(String destination) {
         if (destination == null || destination.isBlank()) {
-            throw new IllegalArgumentException("phone is required");
+            throw new IllegalArgumentException("destination is required");
         }
         String value = destination.trim();
-        if (value.length() > 32) {
-            throw new IllegalArgumentException("phone must be at most 32 characters");
+        if (value.length() > MAX_DESTINATION_LENGTH) {
+            throw new IllegalArgumentException(
+                    "destination must be at most " + MAX_DESTINATION_LENGTH + " characters");
         }
         return value;
     }

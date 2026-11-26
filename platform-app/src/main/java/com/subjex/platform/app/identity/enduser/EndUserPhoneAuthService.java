@@ -69,6 +69,9 @@ public final class EndUserPhoneAuthService {
         String number = requirePhone(phone);
         String usedFor = VerificationCodePort.requirePurpose(
                 purpose == null || purpose.isBlank() ? VerificationCodePort.PURPOSE_LOGIN : purpose);
+        if (VerificationCodePort.PURPOSE_EMAIL_VERIFY.equals(usedFor)) {
+            throw new IllegalArgumentException("unknown verification purpose: " + usedFor);
+        }
         if (VerificationCodePort.PURPOSE_LOGIN.equals(usedFor)) {
             lockout.assertNotLocked(number);
         }

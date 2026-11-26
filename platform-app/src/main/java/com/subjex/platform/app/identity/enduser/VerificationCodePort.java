@@ -5,8 +5,8 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * VerificationCodePort — generic short-lived phone verification codes (ADR 0014 / WP2-3).
- * 通用短时手机验证码端口。内核不含短信厂商。
+ * VerificationCodePort — generic short-lived verification codes (ADR 0014 / WP2-3).
+ * 通用短时验证码端口（手机或邮箱目的地）。内核不含短信或邮件厂商。
  * <p>
  * Local/dev adapters may reveal a code to tests or a laptop response. Production must use a
  * configured sender and must not print or return codes.
@@ -22,6 +22,12 @@ public interface VerificationCodePort {
 
     /** Prove possession before unbind — 解绑前证明持有该号码。 */
     String PURPOSE_UNBIND = "phone-unbind";
+
+    /**
+     * Prove possession of a profile email before it becomes the verified address.
+     * 证明持有资料邮箱后，才把它视为已验证地址。不是登录认证器。
+     */
+    String PURPOSE_EMAIL_VERIFY = "email-verify";
 
     Duration ttl();
 
@@ -56,7 +62,8 @@ public interface VerificationCodePort {
         String value = purpose.trim().toLowerCase(Locale.ROOT);
         if (!PURPOSE_LOGIN.equals(value)
                 && !PURPOSE_BIND.equals(value)
-                && !PURPOSE_UNBIND.equals(value)) {
+                && !PURPOSE_UNBIND.equals(value)
+                && !PURPOSE_EMAIL_VERIFY.equals(value)) {
             throw new IllegalArgumentException("unknown verification purpose: " + purpose);
         }
         return value;

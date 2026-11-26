@@ -102,6 +102,22 @@ public final class JdbcObjectGrantStore implements ObjectGrantStore {
     }
 
     @Override
+    public Optional<ObjectDescriptor> findByObjectId(String objectId) {
+        if (objectId == null || objectId.isBlank()) {
+            return Optional.empty();
+        }
+        List<ObjectDescriptor> rows = jdbc.query(
+                """
+                SELECT object_id, tenant_id, object_key, owner_subject_id, created_at
+                FROM object_descriptor
+                WHERE object_id = ?
+                """,
+                DESCRIPTOR,
+                objectId.trim());
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    @Override
     public ObjectGrant grantToSubject(
             String tenantId, String objectKey, String granteeSubjectId, Instant expiresAt, String createdBySubjectId) {
         ObjectGrant grant = upsertGrant(

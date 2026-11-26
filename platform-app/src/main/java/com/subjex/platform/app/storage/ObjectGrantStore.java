@@ -30,6 +30,12 @@ public interface ObjectGrantStore {
     Optional<ObjectDescriptor> find(String tenantId, String objectKey);
 
     /**
+     * Look up a registered object by its globally unique registry id.
+     * 按全局唯一的登记标识查找已登记对象。
+     */
+    Optional<ObjectDescriptor> findByObjectId(String objectId);
+
+    /**
      * Grant the object to a subject in the same tenant. Idempotent on the same tuple.
      * 把对象授权给同一租户内的主体；同一元组幂等。
      */

@@ -126,7 +126,9 @@ import com.subjex.platform.app.resourceevent.JdbcResourceEventStore;
 import com.subjex.platform.app.resourceevent.ResourceEventService;
 import com.subjex.platform.app.identity.enduser.EndUserShellService;
 import com.subjex.platform.app.identity.enduser.EndUserObjectService;
+import com.subjex.platform.app.identity.enduser.EndUserProfileStore;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserAccountStore;
+import com.subjex.platform.app.identity.enduser.JdbcEndUserProfileStore;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserTokenStore;
 import com.subjex.platform.app.identity.enduser.EndUserPhoneAuthService;
 import com.subjex.platform.app.identity.enduser.AdapterEndUserWeChatAssertion;
@@ -531,8 +533,18 @@ public class PlatformWiring {
     }
 
     /**
+     * Account-level profile fields (avatar object id + verified/pending email).
+     * 账号级资料字段（头像对象标识与已验证/待验证邮箱）。
+     */
+    @Bean
+    EndUserProfileStore endUserProfileStore(
+            JdbcTemplate jdbc, TransactionTemplate transactionTemplate, Clock clock) {
+        return new JdbcEndUserProfileStore(jdbc, transactionTemplate, clock);
+    }
+
+    /**
      * End-user profile / inbox / questionnaire shell (ADR 0019).
-     * 终端资料、收件箱与认证问卷外壳；附件按本人收件直接下载；不拓宽操作员路由。
+     * 终端资料（含头像与须验证邮箱）、收件箱与认证问卷外壳；附件按本人收件直接下载；不拓宽操作员路由。
      */
     @Bean
     EndUserShellService endUserShellService(
@@ -541,9 +553,22 @@ public class PlatformWiring {
             QuestionnairePort questionnaires,
             AuditPort auditPort,
             ObjectStorage objectStorage,
+            EndUserProfileStore endUserProfileStore,
+            ObjectGrantStore objectGrantStore,
+            ObjectDownloadLinkService objectDownloadLinkService,
+            VerificationCodePort endUserVerificationCodePort,
             Clock clock) {
         return new EndUserShellService(
-                endUserAccountStore, inbox, questionnaires, auditPort, objectStorage, clock);
+                endUserAccountStore,
+                inbox,
+                questionnaires,
+                auditPort,
+                objectStorage,
+                endUserProfileStore,
+                objectGrantStore,
+                objectDownloadLinkService,
+                endUserVerificationCodePort,
+                clock);
     }
 
     /**
