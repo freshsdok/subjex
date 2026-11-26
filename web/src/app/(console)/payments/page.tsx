@@ -119,6 +119,8 @@ function FilterForm({
           <option value="FAILED">{phrases.paymentsStatusFailed}</option>
           <option value="PARTIALLY_REFUNDED">{phrases.paymentsStatusPartiallyRefunded}</option>
           <option value="REFUNDED">{phrases.paymentsStatusRefunded}</option>
+          <option value="EXPIRED">{phrases.paymentsStatusExpired}</option>
+          <option value="CANCELLED">{phrases.paymentsStatusCancelled}</option>
         </select>
       </label>
       <label className="flex min-w-[10rem] flex-col gap-1">

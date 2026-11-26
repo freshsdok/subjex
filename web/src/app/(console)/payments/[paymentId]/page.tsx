@@ -146,6 +146,15 @@ export default async function PaymentDetailPage({
           itemLabel={phrases.paymentsUpdatedAtLabel}
           value={doc.updatedAt ? timeFormat.format(new Date(doc.updatedAt)) : ""}
         />
+        {doc.expiresAt ? (
+          <Detail itemLabel={phrases.paymentsExpiresAtLabel} value={timeFormat.format(new Date(doc.expiresAt))} />
+        ) : null}
+        {doc.succeededAt ? (
+          <Detail itemLabel={phrases.paymentsSucceededAtLabel} value={timeFormat.format(new Date(doc.succeededAt))} />
+        ) : null}
+        {doc.cancelledAt ? (
+          <Detail itemLabel={phrases.paymentsCancelledAtLabel} value={timeFormat.format(new Date(doc.cancelledAt))} />
+        ) : null}
       </dl>
       <h2 className="mb-2 text-base font-medium">{phrases.paymentsRefundsTitle}</h2>
       {refunds.length === 0 ? (

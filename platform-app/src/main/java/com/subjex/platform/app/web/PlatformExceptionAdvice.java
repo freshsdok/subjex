@@ -48,8 +48,10 @@ import com.subjex.platform.contract.exporthook.ExportNotApprovedException;
 import com.subjex.platform.contract.exporthook.ExportSelfApprovalException;
 import com.subjex.platform.app.notification.NotificationSendCrossTenantDeniedException;
 import com.subjex.platform.app.notification.NotificationSendNotFoundException;
+import com.subjex.platform.contract.payment.PaymentCancelDeniedException;
 import com.subjex.platform.contract.payment.PaymentCrossTenantDeniedException;
 import com.subjex.platform.contract.payment.PaymentNotFoundException;
+import com.subjex.platform.contract.payment.PaymentRefundWindowClosedException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.List;
 import java.util.Map;
@@ -152,6 +154,17 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler(PaymentCrossTenantDeniedException.class)
     ResponseEntity<Map<String, String>> paymentCrossTenant() {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", "payment-cross-tenant-denied"));
+    }
+
+    @ExceptionHandler(PaymentCancelDeniedException.class)
+    ResponseEntity<Map<String, String>> paymentCancelDenied() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", PaymentCancelDeniedException.REASON));
+    }
+
+    @ExceptionHandler(PaymentRefundWindowClosedException.class)
+    ResponseEntity<Map<String, String>> paymentRefundWindowClosed() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", PaymentRefundWindowClosedException.REASON));
     }
 
     @ExceptionHandler(NotificationSendNotFoundException.class)

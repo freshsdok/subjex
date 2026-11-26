@@ -47,7 +47,7 @@ class OperatorPaymentQueryTest {
     private static final String TENANT_A = "tenant-pay-ui-a";
     private static final String TENANT_B = "tenant-pay-ui-b";
     private static final Instant T0 = Instant.parse("2026-11-22T08:00:00Z");
-    private static final Instant T1 = Instant.parse("2026-11-22T10:00:00Z");
+    private static final Instant T1 = Instant.parse("2026-11-22T08:01:00Z");
     private static final String PAYER_ADA = "payer-ada";
     private static final String PAYER_BEA = "payer-bea";
 
@@ -200,6 +200,26 @@ class OperatorPaymentQueryTest {
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.reason").value("payment-cross-tenant-denied"));
+    }
+
+    @Test
+    void listShowsExpiredAfterThePendingClockAndCancelRouteDoesNotExist() throws Exception {
+        now.set(T0.plus(PaymentLifecycleRules.PENDING_TTL));
+        mvc.perform(get(OperatorPaymentEndpoint.PATH)
+                        .with(asOperator(reader))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .param("status", "EXPIRED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].paymentId").value(first.paymentId()))
+                .andExpect(jsonPath("$[0].status").value(PaymentStatus.EXPIRED.name()));
+
+        // No operator cancel route is registered; standalone MockMvc reports an unknown path as 404.
+        // 操作员取消路由并未注册；独立 MockMvc 对未知路径返回 404。
+        mvc.perform(post(OperatorPaymentEndpoint.PATH + "/" + first.paymentId() + "/cancel")
+                        .with(asOperator(reader))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isNotFound());
     }
 
     @Test

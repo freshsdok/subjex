@@ -119,7 +119,8 @@ Production vendor adapters (SPI, no single hardcoded vendor) may land after WP6-
 
 - Settlement / reconciliation cycles or windows (explicitly not invented here).
 - Which WeChat Pay or Alipay product a production adapter should use.
-- Payment expiration, caller-initiated cancel, or a refund time window.
+- Payment expiration, caller-initiated cancel, or a refund time window — later locked and implemented in a product-deepening slice: PENDING expires 30 minutes after `created_at`; the payer may cancel PENDING; refunds are refused 7 days after `succeeded_at`; states `EXPIRED` and `CANCELLED` were added.
+  支付过期、付款人取消与退款时限后来在产品加深切片锁定并落地：待支付自 `created_at` 起 30 分钟过期；付款人可取消待支付；距 `succeeded_at` 超过 7 天拒绝退款；新增 `EXPIRED` 与 `CANCELLED`。
 - Automatic thin-workflow transition or `NotificationPort` enqueue when a payment succeeds.
 - Operator console payment pages, or an end-user pay sheet in `clients/uni-app/` (client triad is already locked; the UI is not part of this ADR).
 - Whether create-order must always take a caller idempotency token, or only callbacks/refunds must (callbacks are mandatory; create-order token is recommended and may be required in implementation).

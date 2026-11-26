@@ -30,7 +30,8 @@ Regression (this turn, all passed): `PaymentPortAcceptanceTest` 3/3, `PaymentPor
 Residual gaps (honest, not in this package) / 仍存缺口（本包不解决）：
 
 - No production vendor adapter is registered. `WECHAT_PAY` / `ALIPAY` are reserved identifiers only; there is no commercial SDK and no webhook signature verification. Production stays fail-closed until a vendor `PaymentProviderAdapter` bean is registered.
-- Payment expiration, caller-initiated cancel, and a refund time window are not implemented.
+- Payment expiration, payer cancel, and the 7-day refund window later landed in a product-deepening slice (30 minutes from `created_at`; payer-only cancel of PENDING; refunds refused 7 days after `succeeded_at`; states `EXPIRED` / `CANCELLED`).
+  待支付过期、付款人取消与 7 日退款窗口已在后续产品加深切片落地（自 `created_at` 起 30 分钟；仅付款人可取消待支付；距 `succeeded_at` 7 日后拒绝退款；新增 `EXPIRED` / `CANCELLED`）。
 - No operator console payment pages (`web/`) and no end-user pay sheet in `clients/uni-app/`.
 - Settlement / reconciliation cycles or windows remain open, as does which WeChat Pay or Alipay product a later adapter should use.
 - This package does not automatically transition a thin workflow or enqueue `NotificationPort` when a payment succeeds.
@@ -114,7 +115,8 @@ Do **not** start WP7 (end-user client shell deepen) in those slices unless a lat
 
 - Settlement / reconciliation cycles or windows.
 - Which WeChat Pay or Alipay product a production adapter should use.
-- Payment expiration, caller-initiated cancel, or a refund time window.
+- Payment expiration, payer cancel, and the 7-day refund window later landed in a product-deepening slice: PENDING unpaid orders expire 30 minutes after `created_at`; the payer may cancel PENDING; refunds (including partial) are refused after 7 days from `succeeded_at`. New states: `EXPIRED`, `CANCELLED`.
+  待支付过期、付款人取消与 7 日退款窗口已在后续产品加深切片落地：未支付单据自 `created_at` 起 30 分钟过期；付款人可取消待支付；距 `succeeded_at` 超过 7 天拒绝退款（含部分退款）。新增状态：`EXPIRED`、`CANCELLED`。
 - Automatic thin-workflow transition or `NotificationPort` enqueue when a payment succeeds.
 - Operator console payment pages, or an end-user pay sheet in uni-app.
 - Whether create-order must always take a caller idempotency token (callbacks are mandatory-idempotent).

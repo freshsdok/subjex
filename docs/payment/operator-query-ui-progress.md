@@ -27,7 +27,7 @@
 | --- | --- | --- | --- |
 | 创单 / 查单 / 回调 / 退款 | `PaymentPort.createOrder`、`queryOrder`、`applyPaymentResult`、`refund`（`JdbcPaymentPort`） | 租户失败关闭；跨租户拒绝；回调与退款幂等 | 操作员只读 HTTP 已落地：`GET /api/v1/payments`、`GET /api/v1/payments/{id}`（第 1 刀）。`queryOrder` 仍是按单号查一张单据的端口方法 |
 | 台账表 | Flyway **V51/V52**：`payment`、`payment_refund`、`payment_voucher` | 金额为非负最小货币单位 + 显式 ISO 4217 币种 | 状态、已退金额、退款行已可查询；操作员列表 API 与控制台页已落地（第 1–2 刀） |
-| 单据状态 | `PENDING` / `SUCCEEDED` / `FAILED` / `PARTIALLY_REFUNDED` / `REFUNDED` | — | 适合只读状态页，不做结账或操作员代退款 |
+| 单据状态 | `PENDING` / `SUCCEEDED` / `FAILED` / `PARTIALLY_REFUNDED` / `REFUNDED` / `EXPIRED` / `CANCELLED` | — | 适合只读状态页，不做结账或操作员代退款；未支付自创建起 30 分钟过期，付款人可取消待支付，成功后 7 日内可退 |
 | 适配器 | `MockPaymentAdapter` / `FailClosedPaymentAdapter`；`WECHAT_PAY` / `ALIPAY` 仅为预留名 | 生产未注册厂商 Bean 则失败关闭 | 本项不接入真实厂商，不验签 webhook |
 | 出箱 | 状态变更写已有 `outbox_event` 的 `PaymentStatusChanged` | — | 不是操作员查单入口 |
 

@@ -31,6 +31,9 @@ export type PaymentDocumentView = {
   refunds?: PaymentRefundView[];
   createdAt?: string;
   updatedAt?: string;
+  expiresAt?: string | null;
+  succeededAt?: string | null;
+  cancelledAt?: string | null;
 };
 
 export const PAYMENT_STATUS_VALUES = [
@@ -39,6 +42,8 @@ export const PAYMENT_STATUS_VALUES = [
   "FAILED",
   "PARTIALLY_REFUNDED",
   "REFUNDED",
+  "EXPIRED",
+  "CANCELLED",
 ] as const;
 
 export type PaymentStatusValue = (typeof PAYMENT_STATUS_VALUES)[number];
@@ -49,6 +54,8 @@ const STATUS_PHRASE_KEYS = {
   FAILED: "paymentsStatusFailed",
   PARTIALLY_REFUNDED: "paymentsStatusPartiallyRefunded",
   REFUNDED: "paymentsStatusRefunded",
+  EXPIRED: "paymentsStatusExpired",
+  CANCELLED: "paymentsStatusCancelled",
 } as const;
 
 /** Phrase key for a payment or refund status — 支付或退款状态对应的文案键. */

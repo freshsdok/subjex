@@ -3,12 +3,12 @@ package com.subjex.platform.contract.payment;
 /**
  * PaymentPort — 统一支付端口：创单、查单、幂等支付结果回调与退款（含部分退款）。
  * <p>
- * Domain modules create a payment document, apply a provider (or mock) result, refund, and query
+ * Domain modules create a payment document, apply a provider (or mock) result, cancel a pending payment, refund, and query
  * status here. The port must not call {@link com.subjex.platform.contract.task.TaskMessagePort#submit}
  * and must not invent a second outbox. Status changes write {@code PaymentStatusChanged} onto the
  * existing {@code outbox_event} bus for {@code DeliveryPort} delivery. This port does not auto-advance
  * workflows or enqueue notifications.
- * 域模块在此创单、应用厂商（或模拟）结果、退款并查询单据状态。不得调用 {@code TaskMessagePort.submit}，
+ * 域模块在此创单、应用厂商（或模拟）结果、取消待支付、退款并查询单据状态。不得调用 {@code TaskMessagePort.submit}，
  * 也不得另起出箱。状态变化在已有 {@code outbox_event} 上写 {@code PaymentStatusChanged}，经 {@code DeliveryPort}
  * 投递。本端口不自动推进工作流，也不入队通知。
  * <p>
@@ -38,7 +38,18 @@ public interface PaymentPort {
 
     /**
      * Apply a refund, including partial. Duplicate same-token + same-fingerprint refunds are a no-op.
+     * Refunds (including further partial refunds) are refused after 7 days from {@code succeeded_at}.
      * 申请退款（含部分退款）。同一退款令牌且指纹一致的重复申请为空操作。
+     * 距 {@code succeeded_at} 超过 7 日后，退款（含再次部分退款）一律拒绝。
      */
     PaymentDocument refund(RefundCommand command);
+
+    /**
+     * Cancel a {@code PENDING} payment. Only the payer (the subject that owns the document, and the
+     * recorded realm when one was stored) may cancel. A repeat cancel by the same payer is a no-op.
+     * Expired or already-final documents cannot be cancelled. Operators have no cancel-for-anyone path.
+     * 取消待支付单据。仅付款人（单据所属主体，以及已记录的身份域）可以取消。
+     * 同一付款人再次取消为空操作。已过期或已终态的单据不能取消。操作员没有代任何人取消的入口。
+     */
+    PaymentDocument cancelOrder(String tenantId, String paymentId, String payerSubjectId, String payerRealm);
 }

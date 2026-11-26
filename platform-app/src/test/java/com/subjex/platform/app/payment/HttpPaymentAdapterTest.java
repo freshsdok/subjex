@@ -103,7 +103,10 @@ class HttpPaymentAdapterTest {
                 null,
                 List.of(),
                 at,
-                at);
+                at,
+                at.plus(PaymentLifecycleRules.PENDING_TTL),
+                null,
+                null);
     }
 
     private static final class RecordingClient implements PaymentHttpClient {

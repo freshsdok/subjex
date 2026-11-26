@@ -12,11 +12,13 @@ import com.subjex.platform.contract.audit.AuditPort;
 import com.subjex.platform.contract.payment.CreatePaymentCommand;
 import com.subjex.platform.contract.payment.PaymentAdapterUnconfiguredException;
 import com.subjex.platform.contract.payment.PaymentAmount;
+import com.subjex.platform.contract.payment.PaymentCancelDeniedException;
 import com.subjex.platform.contract.payment.PaymentCrossTenantDeniedException;
 import com.subjex.platform.contract.payment.PaymentDocument;
 import com.subjex.platform.contract.payment.PaymentIdempotencyConflictException;
 import com.subjex.platform.contract.payment.PaymentNotFoundException;
 import com.subjex.platform.contract.payment.PaymentPort;
+import com.subjex.platform.contract.payment.PaymentRefundWindowClosedException;
 import com.subjex.platform.contract.payment.PaymentProviderAdapter;
 import com.subjex.platform.contract.payment.PaymentProviderIds;
 import com.subjex.platform.contract.payment.PaymentRefundLine;
@@ -47,7 +49,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * JdbcPaymentPort — JDBC 支付端口：创单、查单、幂等回调与退款，并在已有出箱上写 {@link PaymentStatusChanged}。
+ * JdbcPaymentPort — JDBC 支付端口：创单、查单、取消待支付、幂等回调与退款，并在已有出箱上写 {@link PaymentStatusChanged}。
+ * Pending payments expire 30 minutes after {@code created_at} (on read, charge, or a thin sweep).
+ * 待支付单据自 {@code created_at} 起 30 分钟过期（读取、扣费或薄清扫时入账）。
  * <p>
  * This path does <em>not</em> call {@code TaskMessagePort.submit}, does not insert {@code platform_task},
  * and does not overload {@code idempotency_claim}. Callback and refund require a configured
@@ -75,6 +79,12 @@ public final class JdbcPaymentPort implements PaymentPort {
     /** Refund-applied voucher fact kind / 退款入账凭证事实类型 */
     public static final String FACT_REFUND_APPLIED = "REFUND_APPLIED";
 
+    /** Pending-expired voucher fact kind / 待支付过期凭证事实类型 */
+    public static final String FACT_PAYMENT_EXPIRED = "PAYMENT_EXPIRED";
+
+    /** Payer-cancelled voucher fact kind / 付款人取消凭证事实类型 */
+    public static final String FACT_PAYMENT_CANCELLED = "PAYMENT_CANCELLED";
+
     /**
      * {@code outbox_event.event_body} VARCHAR(4000). Fail closed rather than invent a payload store.
      * {@code outbox_event.event_body} 为 VARCHAR(4000)。超限失败关闭，不另起载荷库。
@@ -90,6 +100,16 @@ public final class JdbcPaymentPort implements PaymentPort {
      * Audit action for a refund attempt — 退款尝试的审计动作。
      */
     public static final String REFUND_ACTION = "payment.refund";
+
+    /**
+     * Audit action for a payer cancel attempt — 付款人取消尝试的审计动作。
+     */
+    public static final String CANCEL_ACTION = "payment.cancel";
+
+    /**
+     * Audit action when a pending payment is expired — 待支付单据过期时的审计动作。
+     */
+    public static final String EXPIRE_ACTION = "payment.expire";
 
     /**
      * System actor for in-process payment port calls — 进程内支付端口调用的系统操作者。
@@ -150,7 +170,7 @@ public final class JdbcPaymentPort implements PaymentPort {
                 if (!fingerprint.equals(stored)) {
                     throw new PaymentIdempotencyConflictException(tenantId, command.idempotencyToken());
                 }
-                return existing;
+                return expireOnRead(existing);
             }
         }
         String paymentId = UUID.randomUUID().toString();
@@ -164,8 +184,9 @@ public final class JdbcPaymentPort implements PaymentPort {
                             + "payment_status, domain_reference, payer_subject_id, payer_realm, "
                             + "provider_id, provider_reference, create_idempotency_token, "
                             + "create_idempotency_fingerprint, callback_notification_id, "
-                            + "callback_notification_fingerprint, created_at, updated_at) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            + "callback_notification_fingerprint, created_at, updated_at, "
+                            + "expires_at, succeeded_at, cancelled_at) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     paymentId,
                     tenantId,
                     command.amount().amountMinor(),
@@ -182,7 +203,10 @@ public final class JdbcPaymentPort implements PaymentPort {
                     null,
                     null,
                     ts,
-                    ts);
+                    ts,
+                    PlatformTables.timestamp(now.plus(PaymentLifecycleRules.PENDING_TTL)),
+                    null,
+                    null);
             // 写下创单凭证 / Write the create-order voucher fact
             insertVoucher(
                     tenantId,
@@ -216,7 +240,7 @@ public final class JdbcPaymentPort implements PaymentPort {
         if (!tenant.equals(found.tenantId)) {
             throw new PaymentCrossTenantDeniedException(tenant, found.tenantId);
         }
-        return toDocument(found, loadRefunds(tenant, id));
+        return expireOnRead(toDocument(found, loadRefunds(tenant, id)));
     }
 
     /** Default page size for operator lists — 操作员列表默认条数. */
@@ -234,6 +258,7 @@ public final class JdbcPaymentPort implements PaymentPort {
     public List<PaymentDocument> listOrders(
             String tenantId, PaymentStatus status, String payerSubjectId, Integer limit) {
         String tenant = requireActiveBusinessTenant(tenantId);
+        expireOverdueInTenant(tenant);
         int cap = normalizeListLimit(limit);
         String payer = payerSubjectId == null || payerSubjectId.isBlank() ? null : payerSubjectId.trim();
         StringBuilder sql = new StringBuilder("SELECT * FROM payment WHERE tenant_id = ?");
@@ -295,6 +320,12 @@ public final class JdbcPaymentPort implements PaymentPort {
                 }
                 return current;
             }
+            if (found.status == PaymentStatus.PENDING && isPendingExpired(found, clock.instant())) {
+                PaymentDocument expired = markExpiredLocked(found, clock.instant());
+                recordAttempt(tenantId, found.providerId, paymentId, CHARGE_ACTION, AuditOutcome.REFUSED);
+                throw new IllegalStateException(
+                        "payment " + paymentId + " is already " + expired.status() + " and cannot be credited again");
+            }
             PaymentProviderAdapter adapter = requireConfiguredAdapter(found.providerId);
             adapter.acceptPaymentResult(current, callback);
             if (found.status != PaymentStatus.PENDING) {
@@ -304,15 +335,19 @@ public final class JdbcPaymentPort implements PaymentPort {
             // 应用支付结果并写凭证与出箱 / Apply the payment result and write voucher plus outbox
             Instant now = clock.instant();
             Timestamp ts = PlatformTables.timestamp(now);
+            Timestamp succeededAt =
+                    callback.resultingStatus() == PaymentStatus.SUCCEEDED ? ts : null;
             jdbc.update(
                     "UPDATE payment SET payment_status = ?, provider_reference = ?, "
-                            + "callback_notification_id = ?, callback_notification_fingerprint = ?, updated_at = ? "
+                            + "callback_notification_id = ?, callback_notification_fingerprint = ?, "
+                            + "updated_at = ?, succeeded_at = COALESCE(succeeded_at, ?) "
                             + "WHERE payment_id = ? AND tenant_id = ?",
                     callback.resultingStatus().name(),
                     callback.providerReference(),
                     notificationId,
                     fingerprint,
                     ts,
+                    succeededAt,
                     paymentId,
                     tenantId);
             String fact = callback.resultingStatus() == PaymentStatus.SUCCEEDED
@@ -385,12 +420,16 @@ public final class JdbcPaymentPort implements PaymentPort {
                 }
             }
             PaymentDocument current = toDocument(found, loadRefunds(tenantId, paymentId));
-            PaymentProviderAdapter adapter = requireConfiguredAdapter(found.providerId);
-            adapter.acceptRefund(current, command);
             if (found.status != PaymentStatus.SUCCEEDED && found.status != PaymentStatus.PARTIALLY_REFUNDED) {
                 throw new IllegalStateException(
                         "payment " + paymentId + " in status " + found.status + " cannot be refunded");
             }
+            Instant succeededAt = resolveSucceededAt(found);
+            if (!PaymentLifecycleRules.refundAllowed(succeededAt, clock.instant())) {
+                throw new PaymentRefundWindowClosedException(tenantId, paymentId);
+            }
+            PaymentProviderAdapter adapter = requireConfiguredAdapter(found.providerId);
+            adapter.acceptRefund(current, command);
             if (!found.currency.equals(command.amount().currency())) {
                 throw new IllegalArgumentException(
                         "refund currency " + command.amount().currency() + " must match payment currency " + found.currency);
@@ -464,7 +503,244 @@ public final class JdbcPaymentPort implements PaymentPort {
         } catch (PaymentCrossTenantDeniedException ex) {
             recordAttempt(tenantId, providerIdOf(paymentId), paymentId, REFUND_ACTION, AuditOutcome.REFUSED);
             throw ex;
+        } catch (PaymentRefundWindowClosedException ex) {
+            recordAttempt(tenantId, providerIdOf(paymentId), paymentId, REFUND_ACTION, AuditOutcome.REFUSED);
+            throw ex;
         }
+    }
+
+    @Override
+    public PaymentDocument cancelOrder(
+            String tenantId, String paymentId, String payerSubjectId, String payerRealm) {
+        String tenant = requireActiveBusinessTenant(tenantId);
+        if (paymentId == null || paymentId.isBlank()) {
+            throw new IllegalArgumentException("paymentId required");
+        }
+        String id = paymentId.trim();
+        String subject = payerSubjectId == null || payerSubjectId.isBlank() ? null : payerSubjectId.trim();
+        String realm = payerRealm == null || payerRealm.isBlank() ? null : payerRealm.trim();
+        try {
+            return transactionTemplate.execute(status -> {
+                PaymentRow found = lockPayment(id);
+                if (found == null) {
+                    throw new PaymentNotFoundException(tenant, id);
+                }
+                if (!tenant.equals(found.tenantId)) {
+                    throw new PaymentCrossTenantDeniedException(tenant, found.tenantId);
+                }
+                if (!isPayer(found, subject, realm)) {
+                    recordAttempt(tenant, found.providerId, id, CANCEL_ACTION, AuditOutcome.REFUSED);
+                    throw new PaymentCancelDeniedException(tenant, id);
+                }
+                if (found.status == PaymentStatus.CANCELLED) {
+                    return toDocument(found, loadRefunds(tenant, id));
+                }
+                Instant now = clock.instant();
+                if (found.status == PaymentStatus.PENDING && isPendingExpired(found, now)) {
+                    PaymentDocument expired = markExpiredLocked(found, now);
+                    throw new IllegalStateException(
+                            "payment " + id + " in status " + expired.status() + " cannot be cancelled");
+                }
+                if (found.status != PaymentStatus.PENDING) {
+                    throw new IllegalStateException(
+                            "payment " + id + " in status " + found.status + " cannot be cancelled");
+                }
+                Timestamp ts = PlatformTables.timestamp(now);
+                jdbc.update(
+                        "UPDATE payment SET payment_status = ?, cancelled_at = ?, updated_at = ? "
+                                + "WHERE payment_id = ? AND tenant_id = ? AND payment_status = ?",
+                        PaymentStatus.CANCELLED.name(),
+                        ts,
+                        ts,
+                        id,
+                        tenant,
+                        PaymentStatus.PENDING.name());
+                insertVoucher(
+                        tenant,
+                        id,
+                        null,
+                        FACT_PAYMENT_CANCELLED,
+                        found.amountMinor,
+                        found.currency,
+                        PaymentStatus.CANCELLED,
+                        found.providerId,
+                        found.providerReference,
+                        ts);
+                insertStatusChanged(
+                        tenant,
+                        id,
+                        PaymentStatus.CANCELLED,
+                        found.amountMinor,
+                        found.refundedAmountMinor,
+                        found.currency,
+                        found.providerId,
+                        found.providerReference,
+                        ts);
+                PaymentDocument cancelled = loadDocument(tenant, id);
+                recordAttempt(tenant, found.providerId, id, CANCEL_ACTION, AuditOutcome.ALLOWED);
+                return cancelled;
+            });
+        } catch (PaymentCrossTenantDeniedException ex) {
+            recordAttempt(tenant, providerIdOf(id), id, CANCEL_ACTION, AuditOutcome.REFUSED);
+            throw ex;
+        }
+    }
+
+    /**
+     * Expire overdue PENDING payments across tenants, returning how many were marked expired.
+     * Used by the thin scheduled sweep. Each row is locked; a concurrent charge wins the race.
+     * 跨租户将已到期的待支付单据标为过期，返回本次过期条数。供薄定时清扫使用。
+     * 逐行加锁；若与扣费并发，先入账的一方生效。
+     */
+    public int expireOverdue(int limit) {
+        int cap = limit < 1 ? 1 : Math.min(limit, MAX_LIST_LIMIT);
+        Instant now = clock.instant();
+        Timestamp createdCutoff = PlatformTables.timestamp(now.minus(PaymentLifecycleRules.PENDING_TTL));
+        Timestamp expiresCutoff = PlatformTables.timestamp(now);
+        List<String> ids = jdbc.query(
+                "SELECT payment_id FROM payment WHERE payment_status = ? AND ("
+                        + "(expires_at IS NOT NULL AND expires_at <= ?) "
+                        + "OR (expires_at IS NULL AND created_at <= ?)) "
+                        + "ORDER BY created_at, payment_id LIMIT ?",
+                (row, n) -> row.getString("payment_id"),
+                PaymentStatus.PENDING.name(),
+                expiresCutoff,
+                createdCutoff,
+                cap);
+        int count = 0;
+        for (String paymentId : ids) {
+            Boolean marked = transactionTemplate.execute(status -> {
+                PaymentRow found = lockPayment(paymentId);
+                if (found == null || found.status != PaymentStatus.PENDING || !isPendingExpired(found, now)) {
+                    return false;
+                }
+                markExpiredLocked(found, now);
+                return true;
+            });
+            if (Boolean.TRUE.equals(marked)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void expireOverdueInTenant(String tenantId) {
+        Instant now = clock.instant();
+        Timestamp createdCutoff = PlatformTables.timestamp(now.minus(PaymentLifecycleRules.PENDING_TTL));
+        Timestamp expiresCutoff = PlatformTables.timestamp(now);
+        List<String> ids = jdbc.query(
+                "SELECT payment_id FROM payment WHERE tenant_id = ? AND payment_status = ? AND ("
+                        + "(expires_at IS NOT NULL AND expires_at <= ?) "
+                        + "OR (expires_at IS NULL AND created_at <= ?)) "
+                        + "ORDER BY created_at, payment_id LIMIT ?",
+                (row, n) -> row.getString("payment_id"),
+                tenantId,
+                PaymentStatus.PENDING.name(),
+                expiresCutoff,
+                createdCutoff,
+                MAX_LIST_LIMIT);
+        for (String paymentId : ids) {
+            transactionTemplate.executeWithoutResult(status -> {
+                PaymentRow found = lockPayment(paymentId);
+                if (found != null && found.status == PaymentStatus.PENDING && isPendingExpired(found, now)) {
+                    markExpiredLocked(found, now);
+                }
+            });
+        }
+    }
+
+    private PaymentDocument expireOnRead(PaymentDocument document) {
+        if (document.status() != PaymentStatus.PENDING
+                || !PaymentLifecycleRules.pendingExpired(document.createdAt(), document.expiresAt(), clock.instant())) {
+            return document;
+        }
+        return transactionTemplate.execute(status -> {
+            PaymentRow found = lockPayment(document.paymentId());
+            if (found == null) {
+                throw new PaymentNotFoundException(document.tenantId(), document.paymentId());
+            }
+            Instant now = clock.instant();
+            if (found.status == PaymentStatus.PENDING && isPendingExpired(found, now)) {
+                return markExpiredLocked(found, now);
+            }
+            return toDocument(found, loadRefunds(found.tenantId, found.paymentId));
+        });
+    }
+
+    private PaymentDocument markExpiredLocked(PaymentRow found, Instant now) {
+        Timestamp ts = PlatformTables.timestamp(now);
+        int updated = jdbc.update(
+                "UPDATE payment SET payment_status = ?, updated_at = ? "
+                        + "WHERE payment_id = ? AND tenant_id = ? AND payment_status = ?",
+                PaymentStatus.EXPIRED.name(),
+                ts,
+                found.paymentId,
+                found.tenantId,
+                PaymentStatus.PENDING.name());
+        if (updated == 0) {
+            return loadDocument(found.tenantId, found.paymentId);
+        }
+        insertVoucher(
+                found.tenantId,
+                found.paymentId,
+                null,
+                FACT_PAYMENT_EXPIRED,
+                found.amountMinor,
+                found.currency,
+                PaymentStatus.EXPIRED,
+                found.providerId,
+                found.providerReference,
+                ts);
+        insertStatusChanged(
+                found.tenantId,
+                found.paymentId,
+                PaymentStatus.EXPIRED,
+                found.amountMinor,
+                found.refundedAmountMinor,
+                found.currency,
+                found.providerId,
+                found.providerReference,
+                ts);
+        recordAttempt(found.tenantId, found.providerId, found.paymentId, EXPIRE_ACTION, AuditOutcome.ALLOWED);
+        return loadDocument(found.tenantId, found.paymentId);
+    }
+
+    private static boolean isPendingExpired(PaymentRow row, Instant now) {
+        return PaymentLifecycleRules.pendingExpired(row.createdAt, row.expiresAt, now);
+    }
+
+    private static boolean isPayer(PaymentRow row, String subjectId, String realm) {
+        if (subjectId == null || row.payerSubjectId == null || row.payerSubjectId.isBlank()) {
+            return false;
+        }
+        if (!subjectId.equals(row.payerSubjectId)) {
+            return false;
+        }
+        if (row.payerRealm == null || row.payerRealm.isBlank()) {
+            return true;
+        }
+        return row.payerRealm.equals(realm);
+    }
+
+    /**
+     * Success clock: stored {@code succeeded_at}, else the PAYMENT_SUCCEEDED voucher time (legacy rows).
+     * 成功时钟：已落库的 {@code succeeded_at}，否则取 PAYMENT_SUCCEEDED 凭证时间（兼容旧行）。
+     */
+    private Instant resolveSucceededAt(PaymentRow row) {
+        if (row.succeededAt != null) {
+            return row.succeededAt;
+        }
+        List<Timestamp> times = jdbc.query(
+                "SELECT created_at FROM payment_voucher WHERE tenant_id = ? AND payment_id = ? "
+                        + "AND fact_kind = ? ORDER BY created_at, voucher_id LIMIT 1",
+                (rs, n) -> rs.getTimestamp("created_at"),
+                row.tenantId,
+                row.paymentId,
+                FACT_PAYMENT_SUCCEEDED);
+        if (times.isEmpty() || times.get(0) == null) {
+            return null;
+        }
+        return times.get(0).toInstant();
     }
 
     /**
@@ -501,7 +777,18 @@ public final class JdbcPaymentPort implements PaymentPort {
      */
     static String actionTarget(String providerId, String action, String paymentId) {
         String provider = providerId == null || providerId.isBlank() ? "unknown" : providerId.trim();
-        String kind = CHARGE_ACTION.equals(action) ? "charge" : "refund";
+        String kind;
+        if (CHARGE_ACTION.equals(action)) {
+            kind = "charge";
+        } else if (REFUND_ACTION.equals(action)) {
+            kind = "refund";
+        } else if (CANCEL_ACTION.equals(action)) {
+            kind = "cancel";
+        } else if (EXPIRE_ACTION.equals(action)) {
+            kind = "expire";
+        } else {
+            kind = "payment";
+        }
         return provider + ":" + kind + ":" + maskIdentifier(paymentId);
     }
 
@@ -721,7 +1008,10 @@ public final class JdbcPaymentPort implements PaymentPort {
                 row.providerReference,
                 refunds,
                 row.createdAt,
-                row.updatedAt);
+                row.updatedAt,
+                PaymentLifecycleRules.expiresAt(row.createdAt, row.expiresAt),
+                row.succeededAt,
+                row.cancelledAt);
     }
 
     private static PaymentRow mapRow(ResultSet row) throws SQLException {
@@ -740,7 +1030,10 @@ public final class JdbcPaymentPort implements PaymentPort {
                 row.getString("callback_notification_id"),
                 row.getString("callback_notification_fingerprint"),
                 instant(row.getTimestamp("created_at")),
-                instant(row.getTimestamp("updated_at")));
+                instant(row.getTimestamp("updated_at")),
+                instant(row.getTimestamp("expires_at")),
+                instant(row.getTimestamp("succeeded_at")),
+                instant(row.getTimestamp("cancelled_at")));
     }
 
     private static String trimCurrency(String currency) {
@@ -803,5 +1096,8 @@ public final class JdbcPaymentPort implements PaymentPort {
             String callbackNotificationId,
             String callbackFingerprint,
             Instant createdAt,
-            Instant updatedAt) {}
+            Instant updatedAt,
+            Instant expiresAt,
+            Instant succeededAt,
+            Instant cancelledAt) {}
 }

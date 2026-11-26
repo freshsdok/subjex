@@ -11,6 +11,8 @@ describe("payments-console", () => {
   it("maps statuses and error reasons to phrase keys — 状态与错误原因映射到文案键", () => {
     expect(paymentStatusPhraseKey("pending")).toBe("paymentsStatusPending");
     expect(paymentStatusPhraseKey("PARTIALLY_REFUNDED")).toBe("paymentsStatusPartiallyRefunded");
+    expect(paymentStatusPhraseKey("EXPIRED")).toBe("paymentsStatusExpired");
+    expect(paymentStatusPhraseKey("CANCELLED")).toBe("paymentsStatusCancelled");
     expect(paymentStatusPhraseKey("unknown")).toBeUndefined();
     expect(paymentQueryErrorPhraseKey("payment-not-found")).toBe("paymentsNotFound");
     expect(paymentQueryErrorPhraseKey("payment-cross-tenant-denied")).toBe("paymentsCrossTenantForbidden");
@@ -21,6 +23,8 @@ describe("payments-console", () => {
     expect(apiPaymentStatusFilter("all")).toBe("");
     expect(apiPaymentStatusFilter("")).toBe("");
     expect(apiPaymentStatusFilter("SUCCEEDED")).toBe("SUCCEEDED");
+    expect(apiPaymentStatusFilter("EXPIRED")).toBe("EXPIRED");
+    expect(apiPaymentStatusFilter("CANCELLED")).toBe("CANCELLED");
     expect(apiPaymentStatusFilter("nope")).toBe("");
   });
 
