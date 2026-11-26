@@ -1,6 +1,9 @@
 package com.subjex.platform.app.identity.enduser;
 
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
+import com.subjex.platform.app.organization.JdbcOrganizationStore;
+import com.subjex.platform.app.questionnaire.JdbcQuestionnaireAssignmentStore;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssignmentVisibility;
 import com.subjex.platform.app.storage.JdbcObjectGrantStore;
 import com.subjex.platform.app.storage.LocalHmacDownloadIssuer;
 import com.subjex.platform.app.storage.LocalDownloadSignature;
@@ -51,6 +54,10 @@ final class EndUserShellFixtures {
                 accessAudit);
         VerificationCodePort codes = new MemoryVerificationCodePort(
                 clock, Duration.ofMinutes(10), true, new DevVerificationCodeSender());
+        JdbcQuestionnaireAssignmentStore assignmentStore = new JdbcQuestionnaireAssignmentStore(jdbc);
+        JdbcOrganizationStore orgs = new JdbcOrganizationStore(jdbc);
+        QuestionnaireAssignmentVisibility visibility =
+                new QuestionnaireAssignmentVisibility(assignmentStore, orgs);
         EndUserShellService service = new EndUserShellService(
                 accounts,
                 inbox,
@@ -61,13 +68,16 @@ final class EndUserShellFixtures {
                 grants,
                 downloads,
                 codes,
+                visibility,
                 clock);
-        return new Kit(service, grants, codes, downloads);
+        return new Kit(service, grants, codes, downloads, assignmentStore, orgs);
     }
 
     record Kit(
             EndUserShellService shell,
             JdbcObjectGrantStore grants,
             VerificationCodePort codes,
-            ObjectDownloadLinkService downloads) {}
+            ObjectDownloadLinkService downloads,
+            JdbcQuestionnaireAssignmentStore assignments,
+            JdbcOrganizationStore organizations) {}
 }

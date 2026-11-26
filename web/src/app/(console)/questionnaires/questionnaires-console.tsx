@@ -26,6 +26,19 @@ type Stats = {
   items?: { itemId?: string; prompt?: string; questionType?: string; counts?: Record<string, number> }[];
 };
 
+type Assignment = {
+  assignmentId?: string;
+  questionnaireId?: string;
+  assigneeKind?: string;
+  assigneeId?: string;
+  createdAt?: string;
+};
+
+type OrganizationRow = {
+  organizationId?: string;
+  organizationName?: string;
+};
+
 type Props = {
   phrases: PhraseBook;
   initialTenantId: string;
@@ -33,8 +46,8 @@ type Props = {
 };
 
 /**
- * Thin questionnaire console — list/create/publish/close + stats/CSV (Q6b).
- * 薄问卷控制台：列表/创建/发布/关闭 + 汇总/CSV（Q6b）。
+ * Thin questionnaire console — list/create/publish/close, assignments, stats/CSV (Q6b).
+ * 薄问卷控制台：列表/创建/发布/关闭、分配、汇总/CSV（Q6b）。
  */
 export function QuestionnairesConsole({ phrases, initialTenantId, canWrite }: Props) {
   const [tenantId, setTenantId] = useState(initialTenantId);
@@ -50,6 +63,10 @@ export function QuestionnairesConsole({ phrases, initialTenantId, canWrite }: Pr
   const [itemPrompt, setItemPrompt] = useState("");
   const [itemType, setItemType] = useState("TEXT_SHORT");
   const [busy, setBusy] = useState(false);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationRow[]>([]);
+  const [assigneeKind, setAssigneeKind] = useState("SUBJECT");
+  const [assigneeId, setAssigneeId] = useState("");
 
   const tenantQ = () => `tenantId=${encodeURIComponent(tenantId.trim())}`;
 
@@ -94,6 +111,7 @@ export function QuestionnairesConsole({ phrases, initialTenantId, canWrite }: Pr
       ]);
       if (!dReply?.ok) {
         setDetail(null);
+        setAssignments([]);
         setErrorStatus(dReply?.status ?? 0);
         setStatus("error");
         return;
@@ -103,6 +121,25 @@ export function QuestionnairesConsole({ phrases, initialTenantId, canWrite }: Pr
         setStats((await sReply.json()) as Stats);
       } else {
         setStats(null);
+      }
+      const aReply = await fetch(
+        `/api/platform/questionnaires/${encodeURIComponent(qid)}/assignments?${tenantQ()}`,
+        { cache: "no-store" },
+      ).catch(() => null);
+      if (aReply?.ok) {
+        const body = (await aReply.json()) as { assignments?: Assignment[] };
+        setAssignments(body.assignments ?? []);
+      } else {
+        setAssignments([]);
+      }
+      const oReply = await fetch(`/api/platform/organizations?${tenantQ()}`, { cache: "no-store" }).catch(
+        () => null,
+      );
+      if (oReply?.ok) {
+        const body = (await oReply.json()) as { organizations?: OrganizationRow[] };
+        setOrganizations(body.organizations ?? []);
+      } else {
+        setOrganizations([]);
       }
     },
     [tenantId],
@@ -219,6 +256,49 @@ export function QuestionnairesConsole({ phrases, initialTenantId, canWrite }: Pr
     );
     await loadDetail(selectedId);
     await loadList();
+  }
+
+  async function addAssignment() {
+    if (!canWrite || !selectedId) return;
+    const id = assigneeId.trim();
+    if (!id) return;
+    setBusy(true);
+    setNotice(null);
+    const reply = await fetch(
+      `/api/platform/questionnaires/${encodeURIComponent(selectedId)}/assignments?${tenantQ()}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeKind, assigneeId: id }),
+      },
+    ).catch(() => null);
+    setBusy(false);
+    if (!reply?.ok) {
+      setErrorStatus(reply?.status ?? 0);
+      setStatus("error");
+      return;
+    }
+    setAssigneeId("");
+    setNotice(phrases.questionnairesAssignmentAddedNotice);
+    await loadDetail(selectedId);
+  }
+
+  async function removeAssignment(assignmentId: string) {
+    if (!canWrite || !selectedId || !assignmentId) return;
+    setBusy(true);
+    setNotice(null);
+    const reply = await fetch(
+      `/api/platform/questionnaires/${encodeURIComponent(selectedId)}/assignments/${encodeURIComponent(assignmentId)}?${tenantQ()}`,
+      { method: "DELETE" },
+    ).catch(() => null);
+    setBusy(false);
+    if (!reply?.ok) {
+      setErrorStatus(reply?.status ?? 0);
+      setStatus("error");
+      return;
+    }
+    setNotice(phrases.questionnairesAssignmentRemovedNotice);
+    await loadDetail(selectedId);
   }
 
   function downloadCsv() {
@@ -400,6 +480,92 @@ export function QuestionnairesConsole({ phrases, initialTenantId, canWrite }: Pr
                   {phrases.questionnairesExportCsvAction}
                 </button>
               </div>
+              {detail.collectMode === "AUTH_END_USER" ? (
+                <div className="flex flex-col gap-2 rounded-md border border-border p-2">
+                  <h3 className="text-sm font-medium">{phrases.questionnairesAssignmentsHeading}</h3>
+                  <p className="text-sm text-muted">{phrases.questionnairesAssignmentsHint}</p>
+                  {assignments.length === 0 ? (
+                    <p className="text-sm text-muted">{phrases.questionnairesAssignmentsEmpty}</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1 text-sm">
+                      {assignments.map((row) => (
+                        <li key={row.assignmentId} className="flex flex-wrap items-center justify-between gap-2">
+                          <span>
+                            {row.assigneeKind === "ORGANIZATION"
+                              ? phrases.questionnairesAssignmentKindOrganization
+                              : phrases.questionnairesAssignmentKindSubject}
+                            <span className="ml-2 font-mono text-xs">{row.assigneeId}</span>
+                          </span>
+                          {canWrite ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              className="rounded-md border border-border px-2 py-0.5 text-xs disabled:opacity-50"
+                              onClick={() => void removeAssignment(row.assignmentId ?? "")}
+                            >
+                              {phrases.questionnairesRemoveAssignmentAction}
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {canWrite ? (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="flex flex-col gap-1 text-sm">
+                        {phrases.questionnairesAssigneeKindLabel}
+                        <select
+                          value={assigneeKind}
+                          onChange={(e) => { setAssigneeKind(e.target.value); setAssigneeId(""); }}
+                          className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                        >
+                          <option value="SUBJECT">{phrases.questionnairesAssigneeKindSubject}</option>
+                          <option value="ORGANIZATION">{phrases.questionnairesAssigneeKindOrganization}</option>
+                        </select>
+                      </label>
+                      {assigneeKind === "ORGANIZATION" && organizations.length > 0 ? (
+                        <label className="flex flex-col gap-1 text-sm">
+                          {phrases.questionnairesOrganizationIdLabel}
+                          <select
+                            value={assigneeId}
+                            onChange={(e) => setAssigneeId(e.target.value)}
+                            className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                          >
+                            <option value="">{phrases.questionnairesOrganizationIdLabel}</option>
+                            {organizations.map((org) => (
+                              <option key={org.organizationId} value={org.organizationId}>
+                                {org.organizationName || org.organizationId}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : (
+                        <label className="flex flex-col gap-1 text-sm">
+                          {assigneeKind === "ORGANIZATION"
+                            ? phrases.questionnairesOrganizationIdLabel
+                            : phrases.questionnairesSubjectIdLabel}
+                          <input
+                            value={assigneeId}
+                            onChange={(e) => setAssigneeId(e.target.value)}
+                            className="rounded-md border border-border bg-background px-2 py-1 font-mono text-sm"
+                            autoComplete="off"
+                          />
+                        </label>
+                      )}
+                      <button
+                        type="button"
+                        disabled={busy || !assigneeId.trim()}
+                        className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+                        onClick={() => void addAssignment()}
+                      >
+                        {phrases.questionnairesAddAssignmentAction}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-sm text-muted">{phrases.questionnairesAssignmentsHint}</p>
+              )}
               {stats ? (
                 <div className="rounded-md border border-border p-2 text-sm">
                   <p>

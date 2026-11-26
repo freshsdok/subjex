@@ -2,7 +2,7 @@
   <view class="page">
     <view class="card">
       <text class="title">问卷</text>
-      <text class="muted">这里列出需要您填写的问卷。有填写码也可以直接打开。</text>
+      <text class="muted">这里列出分配给您或您所在部门的问卷。有填写码也可以直接打开公开问卷。</text>
       <view class="row" v-if="signedIn">
         <button size="mini" type="primary" :disabled="busy" @click="refreshList">
           {{ busy ? "正在加载…" : "刷新列表" }}
@@ -16,7 +16,7 @@
         <button size="mini" type="primary" @click="openAuth(row.questionnaireId!)">去填写</button>
       </view>
       <text class="muted" v-if="signedIn && !published.length && !listError && listedOnce && !busy">
-        暂时没有需要填写的问卷。
+        暂时没有分配给您的问卷。
       </text>
     </view>
 

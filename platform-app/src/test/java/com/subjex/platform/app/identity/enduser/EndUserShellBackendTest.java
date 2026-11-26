@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.subjex.platform.app.inbox.EndUserShellInboxEndpoint;
 import com.subjex.platform.app.inbox.JdbcInboxPort;
 import com.subjex.platform.app.questionnaire.EndUserShellQuestionnaireEndpoint;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssigneeKind;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssignment;
 import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.app.security.OperatorPrincipal;
@@ -32,6 +34,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -97,14 +100,15 @@ class EndUserShellBackendTest {
         inbox = new JdbcInboxPort(jdbc, tx);
         RateLimitPort alwaysPermit = (tenantId, actionName) -> true;
         questionnaires = new JdbcQuestionnairePort(jdbc, tx, clock, alwaysPermit);
-        EndUserShellService shell = EndUserShellFixtures.shell(
+        EndUserShellFixtures.Kit kit = EndUserShellFixtures.shell(
                 accounts,
                 inbox,
                 questionnaires,
                 jdbc,
                 tx,
                 clock,
-                new LocalDirectoryObjectStorage(objectRoot)).shell();
+                new LocalDirectoryObjectStorage(objectRoot));
+        EndUserShellService shell = kit.shell();
         mvc = MockMvcBuilders.standaloneSetup(
                         new EndUserProfileEndpoint(shell),
                         new EndUserShellInboxEndpoint(shell),
@@ -126,6 +130,15 @@ class EndUserShellBackendTest {
                 published.questionnaireId(),
                 List.of(item("i1", 1, QuestionType.TEXT_SHORT, "建议", true, null)));
         publishedAuthId = questionnaires.publish(TENANT_A, published.questionnaireId()).orElseThrow().questionnaireId();
+        kit.assignments()
+                .insert(new QuestionnaireAssignment(
+                        UUID.randomUUID().toString(),
+                        TENANT_A,
+                        publishedAuthId,
+                        QuestionnaireAssigneeKind.SUBJECT,
+                        alice.subject().subjectId(),
+                        T0,
+                        "test"));
 
         QuestionnaireDefinition draft = questionnaires.create(TENANT_A, "草稿", QuestionnaireCollectMode.AUTH_END_USER);
         draftId = draft.questionnaireId();

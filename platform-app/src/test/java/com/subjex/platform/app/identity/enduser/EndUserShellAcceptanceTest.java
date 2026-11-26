@@ -14,6 +14,8 @@ import com.subjex.platform.app.inbox.JdbcInboxPort;
 import com.subjex.platform.app.entity.LocalDirChunkedBlobUploadStore;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.questionnaire.EndUserShellQuestionnaireEndpoint;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssigneeKind;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssignment;
 import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.app.security.OperatorPrincipal;
@@ -50,6 +52,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -124,8 +127,9 @@ class EndUserShellAcceptanceTest {
         RateLimitPort alwaysPermit = (tenantId, actionName) -> true;
         JdbcQuestionnairePort questionnaires = new JdbcQuestionnairePort(jdbc, tx, clock, alwaysPermit);
         LocalDirectoryObjectStorage storage = new LocalDirectoryObjectStorage(objectRoot);
-        EndUserShellService shell = EndUserShellFixtures.shell(
-                accounts, inbox, questionnaires, jdbc, tx, clock, storage).shell();
+        EndUserShellFixtures.Kit kit = EndUserShellFixtures.shell(
+                accounts, inbox, questionnaires, jdbc, tx, clock, storage);
+        EndUserShellService shell = kit.shell();
         ObjectAccessAudit audit = new ObjectAccessAudit(new JdbcAuditPort(jdbc), clock);
         JdbcObjectGrantStore grants = new JdbcObjectGrantStore(jdbc, clock, audit);
         EndUserObjectService objects = new EndUserObjectService(
@@ -173,6 +177,15 @@ class EndUserShellAcceptanceTest {
                 published.questionnaireId(),
                 List.of(new QuestionnaireItem("i1", 1, QuestionType.TEXT_SHORT, "建议", true, null)));
         publishedAuthId = questionnaires.publish(TENANT_A, published.questionnaireId()).orElseThrow().questionnaireId();
+        kit.assignments()
+                .insert(new QuestionnaireAssignment(
+                        UUID.randomUUID().toString(),
+                        TENANT_A,
+                        publishedAuthId,
+                        QuestionnaireAssigneeKind.SUBJECT,
+                        alice.subject().subjectId(),
+                        T0,
+                        "test"));
     }
 
     @AfterEach

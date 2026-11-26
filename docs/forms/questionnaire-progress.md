@@ -19,6 +19,7 @@
 | Q0–Q5 | **done** (pushed `718000f`) | ADR → CRUD → lifecycle → auth → anon → stats/CSV |
 | Q6a/b | **done** (local `6a7d7bc`) | REST + console `/questionnaires` + Manifest |
 | **Q7** | **done** (local) | uni-app list hub + token fill (ANON_LINK); Manifest nav/page/button |
+| Assignment / ACL | **done** (later product-deepening) | Operators assign AUTH_END_USER questionnaires to a person or organization; unassigned published ones are not visible to signed-in users. ANON_LINK tokens stay unconstrained. |
 
 ## Q7 delivered
 

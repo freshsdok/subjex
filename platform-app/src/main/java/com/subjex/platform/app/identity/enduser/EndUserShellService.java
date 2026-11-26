@@ -16,6 +16,7 @@ import com.subjex.platform.contract.questionnaire.QuestionnaireDefinition;
 import com.subjex.platform.contract.questionnaire.QuestionnairePort;
 import com.subjex.platform.contract.questionnaire.QuestionnaireRespondentRealm;
 import com.subjex.platform.contract.questionnaire.QuestionnaireResponse;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssignmentVisibility;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStatus;
 import com.subjex.platform.app.storage.IssuedDownloadLink;
 import com.subjex.platform.app.storage.ObjectContentTypes;
@@ -35,7 +36,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * EndUserShellService — profile / inbox / AUTH_END_USER questionnaire for {@link EndUserPrincipal}.
- * 终端外壳：资料（含头像与须验证邮箱）、收件箱与认证问卷；不拓宽操作员路由。
+ * 终端外壳：资料（含头像与须验证邮箱）、收件箱与须分配后才可见的认证问卷；不拓宽操作员路由。
  * Inbox attachments are listed and downloaded only for the caller's own entry (ADR 0009),
  * as raw bytes — not ObjectGrantStore signed links. No end-user compose/send.
  * 附件仅限本人收件条目列表与直接下字节，不签发授权对象链接；不做终端写信。
@@ -65,6 +66,7 @@ public final class EndUserShellService {
     private final ObjectGrantStore grants;
     private final ObjectDownloadLinkService downloads;
     private final VerificationCodePort codes;
+    private final QuestionnaireAssignmentVisibility assignments;
     private final Clock clock;
 
     public EndUserShellService(
@@ -77,6 +79,7 @@ public final class EndUserShellService {
             ObjectGrantStore grants,
             ObjectDownloadLinkService downloads,
             VerificationCodePort codes,
+            QuestionnaireAssignmentVisibility assignments,
             Clock clock) {
         this.accounts = Objects.requireNonNull(accounts, "accounts");
         this.inbox = Objects.requireNonNull(inbox, "inbox");
@@ -87,6 +90,7 @@ public final class EndUserShellService {
         this.grants = Objects.requireNonNull(grants, "grants");
         this.downloads = Objects.requireNonNull(downloads, "downloads");
         this.codes = Objects.requireNonNull(codes, "codes");
+        this.assignments = Objects.requireNonNull(assignments, "assignments");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -380,26 +384,28 @@ public final class EndUserShellService {
     }
 
     /**
-     * Published {@code AUTH_END_USER} questionnaires in the current business tenant only.
-     * 仅当前业务租户已发布且采集模式为认证终端的问卷（无分配/ACL 产品）。
+     * Published, assigned {@code AUTH_END_USER} questionnaires in the current business tenant.
+     * Unassigned published questionnaires are not listed.
+     * 仅当前业务租户已发布、认证终端、且已分配给本人或所属部门的问卷；未分配的已发布问卷不出现。
      */
     public List<QuestionnaireDefinition> listQuestionnaires(EndUserPrincipal principal, String tenantId) {
         String tid = requireMembership(principal, tenantId).tenantId();
+        String subjectId = principal.subjectId();
         return questionnaires.list(tid, QUESTIONNAIRE_LIST_LIMIT).stream()
-                .filter(EndUserShellService::visibleToEndUser)
+                .filter(definition -> visibleToEndUser(tid, subjectId, definition))
                 .toList();
     }
 
     /**
-     * Fetch one visible questionnaire; others 404 (do not leak draft / ANON_LINK).
-     * 读取一份对终端可见的问卷；其余 404，不泄露草稿或匿名问卷。
+     * Fetch one visible questionnaire; others 404 (do not leak draft / ANON_LINK / unassigned).
+     * 读取一份对终端可见的问卷；其余 404，不泄露草稿、匿名或未分配问卷。
      */
     public QuestionnaireDefinition getQuestionnaire(
             EndUserPrincipal principal, String tenantId, String questionnaireId) {
         String tid = requireMembership(principal, tenantId).tenantId();
         return questionnaires
                 .get(tid, questionnaireId)
-                .filter(EndUserShellService::visibleToEndUser)
+                .filter(definition -> visibleToEndUser(tid, principal.subjectId(), definition))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
@@ -440,8 +446,9 @@ public final class EndUserShellService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
-    private static boolean visibleToEndUser(QuestionnaireDefinition definition) {
+    private boolean visibleToEndUser(String tenantId, String subjectId, QuestionnaireDefinition definition) {
         return definition.status() == QuestionnaireStatus.PUBLISHED
-                && definition.collectMode() == QuestionnaireCollectMode.AUTH_END_USER;
+                && definition.collectMode() == QuestionnaireCollectMode.AUTH_END_USER
+                && assignments.isAssigned(tenantId, definition.questionnaireId(), subjectId);
     }
 }

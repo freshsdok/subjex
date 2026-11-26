@@ -105,7 +105,11 @@ import com.subjex.platform.app.notification.NotificationChannelAdapterFactory;
 import com.subjex.platform.app.notification.NotificationChannelSettings;
 import com.subjex.platform.app.notification.NotificationHttpClient;
 import com.subjex.platform.app.notification.RecordingNotificationSink;
+import com.subjex.platform.app.questionnaire.JdbcQuestionnaireAssignmentStore;
 import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssignmentService;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssignmentStore;
+import com.subjex.platform.app.questionnaire.QuestionnaireAssignmentVisibility;
 import com.subjex.platform.app.questionnaire.QuestionnaireService;
 import com.subjex.platform.contract.questionnaire.QuestionnairePort;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
@@ -557,6 +561,7 @@ public class PlatformWiring {
             ObjectGrantStore objectGrantStore,
             ObjectDownloadLinkService objectDownloadLinkService,
             VerificationCodePort endUserVerificationCodePort,
+            QuestionnaireAssignmentVisibility questionnaireAssignmentVisibility,
             Clock clock) {
         return new EndUserShellService(
                 endUserAccountStore,
@@ -568,6 +573,7 @@ public class PlatformWiring {
                 objectGrantStore,
                 objectDownloadLinkService,
                 endUserVerificationCodePort,
+                questionnaireAssignmentVisibility,
                 clock);
     }
 
@@ -1222,6 +1228,43 @@ public class PlatformWiring {
             OperatorTenantAccess operatorTenantAccess,
             TenantGuard tenantGuard) {
         return new QuestionnaireService(questionnairePort, operatorTenantAccess, tenantGuard);
+    }
+
+    /**
+     * Tenant-scoped questionnaire assignments (AUTH_END_USER visibility).
+     * 租户内问卷分配（认证终端可见性）。
+     */
+    @Bean
+    QuestionnaireAssignmentStore questionnaireAssignmentStore(JdbcTemplate jdbc) {
+        return new JdbcQuestionnaireAssignmentStore(jdbc);
+    }
+
+    @Bean
+    QuestionnaireAssignmentVisibility questionnaireAssignmentVisibility(
+            QuestionnaireAssignmentStore questionnaireAssignmentStore,
+            JdbcOrganizationStore jdbcOrganizationStore) {
+        return new QuestionnaireAssignmentVisibility(questionnaireAssignmentStore, jdbcOrganizationStore);
+    }
+
+    @Bean
+    QuestionnaireAssignmentService questionnaireAssignmentService(
+            QuestionnairePort questionnairePort,
+            QuestionnaireAssignmentStore questionnaireAssignmentStore,
+            JdbcOrganizationStore jdbcOrganizationStore,
+            JdbcTemplate jdbc,
+            OperatorTenantAccess operatorTenantAccess,
+            TenantGuard tenantGuard,
+            AuditPort auditPort,
+            Clock clock) {
+        return new QuestionnaireAssignmentService(
+                questionnairePort,
+                questionnaireAssignmentStore,
+                jdbcOrganizationStore,
+                jdbc,
+                operatorTenantAccess,
+                tenantGuard,
+                auditPort,
+                clock);
     }
 
     @Bean
