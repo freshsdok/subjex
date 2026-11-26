@@ -531,8 +531,8 @@ public class PlatformWiring {
     }
 
     /**
-     * WP7-1 end-user profile / inbox / questionnaire shell (ADR 0019).
-     * 终端资料、收件箱与认证问卷外壳；不拓宽操作员路由。
+     * End-user profile / inbox / questionnaire shell (ADR 0019).
+     * 终端资料、收件箱与认证问卷外壳；附件按本人收件直接下载；不拓宽操作员路由。
      */
     @Bean
     EndUserShellService endUserShellService(
@@ -540,8 +540,10 @@ public class PlatformWiring {
             InboxPort inbox,
             QuestionnairePort questionnaires,
             AuditPort auditPort,
+            ObjectStorage objectStorage,
             Clock clock) {
-        return new EndUserShellService(endUserAccountStore, inbox, questionnaires, auditPort, clock);
+        return new EndUserShellService(
+                endUserAccountStore, inbox, questionnaires, auditPort, objectStorage, clock);
     }
 
     /**

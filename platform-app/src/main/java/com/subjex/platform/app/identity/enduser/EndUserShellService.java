@@ -7,6 +7,7 @@ import com.subjex.platform.contract.identity.Identity;
 import com.subjex.platform.contract.inbox.InboxChannel;
 import com.subjex.platform.contract.inbox.InboxEntryView;
 import com.subjex.platform.contract.inbox.InboxListQuery;
+import com.subjex.platform.contract.inbox.InboxAttachment;
 import com.subjex.platform.contract.inbox.InboxPort;
 import com.subjex.platform.contract.inbox.InboxRecipientRealm;
 import com.subjex.platform.contract.questionnaire.QuestionnaireAnswer;
@@ -16,6 +17,8 @@ import com.subjex.platform.contract.questionnaire.QuestionnairePort;
 import com.subjex.platform.contract.questionnaire.QuestionnaireRespondentRealm;
 import com.subjex.platform.contract.questionnaire.QuestionnaireResponse;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStatus;
+import com.subjex.platform.contract.storage.ObjectStorage;
+import com.subjex.platform.contract.storage.StoredObject;
 import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
@@ -25,8 +28,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * EndUserShellService — WP7-1 profile / inbox / AUTH_END_USER questionnaire for {@link EndUserPrincipal}.
+ * EndUserShellService — profile / inbox / AUTH_END_USER questionnaire for {@link EndUserPrincipal}.
  * 终端外壳：资料、收件箱与认证问卷；不拓宽操作员路由。
+ * Inbox attachments are listed and downloaded only for the caller's own entry (ADR 0009),
+ * as raw bytes — not ObjectGrantStore signed links. No end-user compose/send.
+ * 附件仅限本人收件条目列表与直接下字节，不签发授权对象链接；不做终端写信。
  */
 public final class EndUserShellService {
 
@@ -39,6 +45,7 @@ public final class EndUserShellService {
     private final InboxPort inbox;
     private final QuestionnairePort questionnaires;
     private final AuditPort audit;
+    private final ObjectStorage objects;
     private final Clock clock;
 
     public EndUserShellService(
@@ -46,11 +53,13 @@ public final class EndUserShellService {
             InboxPort inbox,
             QuestionnairePort questionnaires,
             AuditPort audit,
+            ObjectStorage objects,
             Clock clock) {
         this.accounts = Objects.requireNonNull(accounts, "accounts");
         this.inbox = Objects.requireNonNull(inbox, "inbox");
         this.questionnaires = Objects.requireNonNull(questionnaires, "questionnaires");
         this.audit = Objects.requireNonNull(audit, "audit");
+        this.objects = Objects.requireNonNull(objects, "objects");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -122,6 +131,47 @@ public final class EndUserShellService {
                 principal.subjectId(),
                 entryId,
                 clock.instant());
+    }
+
+    /**
+     * List attachments on an own inbox entry. Foreign or missing entry → 404.
+     * 列出本人收件上的附件；他人或缺失条目为 404。
+     */
+    public List<InboxAttachment> listAttachments(EndUserPrincipal principal, String tenantId, String entryId) {
+        InboxEntryView own = getInbox(principal, tenantId, entryId);
+        return inbox.listAttachmentsForOwnEntry(
+                own.entry().tenantId(),
+                InboxRecipientRealm.END_USER,
+                principal.subjectId(),
+                entryId);
+    }
+
+    /**
+     * Download attachment bytes for an own entry only (not a signed URL).
+     * 仅本人收件可下载附件字节（不是签名链接）。
+     */
+    public DownloadedAttachment downloadAttachment(
+            EndUserPrincipal principal, String tenantId, String entryId, String attachmentId) {
+        InboxEntryView own = getInbox(principal, tenantId, entryId);
+        InboxAttachment meta = inbox.findAttachmentForOwnEntry(
+                        own.entry().tenantId(),
+                        InboxRecipientRealm.END_USER,
+                        principal.subjectId(),
+                        entryId,
+                        attachmentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "attachment not found"));
+        StoredObject stored = objects
+                .find(own.entry().tenantId(), meta.storageKey())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "attachment bytes missing"));
+        return new DownloadedAttachment(meta, stored.content());
+    }
+
+    /** Downloaded attachment metadata + bytes — 附件元数据与字节. */
+    public record DownloadedAttachment(InboxAttachment metadata, byte[] content) {
+        public DownloadedAttachment {
+            Objects.requireNonNull(metadata, "metadata");
+            Objects.requireNonNull(content, "content");
+        }
     }
 
     /**

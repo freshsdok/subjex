@@ -265,6 +265,125 @@ export async function authedFetch<T = unknown>(
   });
 }
 
+export type BinaryResponse = {
+  data: ArrayBuffer;
+  contentType: string;
+  fileName?: string;
+};
+
+function headerValue(headers: unknown, name: string): string {
+  if (!headers || typeof headers !== "object") return "";
+  const rec = headers as Record<string, unknown>;
+  const want = name.toLowerCase();
+  for (const [key, value] of Object.entries(rec)) {
+    if (key.toLowerCase() === want) {
+      return typeof value === "string" ? value : Array.isArray(value) ? String(value[0] ?? "") : "";
+    }
+  }
+  return "";
+}
+
+function parseFileName(disposition: string): string | undefined {
+  const star = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(disposition);
+  if (star && star[1]) {
+    try {
+      return decodeURIComponent(star[1].trim());
+    } catch {
+      return star[1].trim();
+    }
+  }
+  const plain = /filename\s*=\s*"([^"]+)"/i.exec(disposition) || /filename\s*=\s*([^;]+)/i.exec(disposition);
+  return plain && plain[1] ? plain[1].trim() : undefined;
+}
+
+function bufferToText(data: ArrayBuffer): string {
+  try {
+    return new TextDecoder().decode(data);
+  } catch {
+    return "";
+  }
+}
+
+function toArrayBuffer(raw: unknown): ArrayBuffer {
+  if (raw instanceof ArrayBuffer) return raw;
+  if (ArrayBuffer.isView(raw)) {
+    return raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+  }
+  return new ArrayBuffer(0);
+}
+
+function sendBinaryRequest(
+  method: string,
+  url: string,
+  headers: Record<string, string>
+): Promise<{ status: number; data: ArrayBuffer; headers: unknown }> {
+  return new Promise((resolve, reject) => {
+    uni.request({
+      url,
+      method: method as UniNamespace.RequestOptions["method"],
+      header: headers,
+      responseType: "arraybuffer",
+      success: (res) => {
+        resolve({
+          status: res.statusCode || 0,
+          data: toArrayBuffer(res.data),
+          headers: (res as { header?: unknown }).header,
+        });
+      },
+      fail: (err) => {
+        reject(new Error((err && err.errMsg) || "网络连接失败，请稍后重试"));
+      },
+    });
+  });
+}
+
+/**
+ * Authenticated byte download (inbox attachments). Not a signed URL.
+ * 已登录的直接字节下载（站内信附件），不是签名链接。
+ */
+export async function authedBinaryFetch(
+  options: Omit<PlatformRequestOptions, "bearer" | "body" | "rawBody">
+): Promise<BinaryResponse> {
+  const bearer = readBearer();
+  if (!bearer) {
+    goToLogin();
+    throw new Error("请先登录");
+  }
+  const method = (options.method || "GET").toUpperCase();
+  const url = `${apiBase().replace(/\/$/, "")}${options.path.startsWith("/") ? "" : "/"}${options.path}`;
+  const headers: Record<string, string> = {
+    Accept: "*/*",
+    ...(options.headers || {}),
+    Authorization: `Bearer ${bearer}`,
+  };
+  const tenant =
+    options.tenantId === true || options.tenantId == null
+      ? readTenantId()
+      : options.tenantId
+        ? options.tenantId.trim()
+        : "";
+  if (tenant && !headers[TENANT_HEADER]) {
+    headers[TENANT_HEADER] = tenant;
+  }
+  const res = await sendBinaryRequest(method, url, headers);
+  if (!res.status || res.status < 200 || res.status >= 300) {
+    const err = new PlatformHttpError(method, options.path, res.status, "", bufferToText(res.data));
+    if (err.status === 401 && !options.skipAuthRetry) {
+      const refreshed = await tryRefreshSession();
+      if (refreshed) {
+        return authedBinaryFetch({ ...options, skipAuthRetry: true });
+      }
+      goToLogin();
+    }
+    throw err;
+  }
+  return {
+    data: res.data,
+    contentType: headerValue(res.headers, "Content-Type") || "application/octet-stream",
+    fileName: parseFileName(headerValue(res.headers, "Content-Disposition")),
+  };
+}
+
 /**
  * Probe liveness (no auth). Useful for shell smoke.
  * 存活探针（无需认证），供壳页冒烟。

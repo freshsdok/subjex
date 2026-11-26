@@ -15,6 +15,7 @@ import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
+import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.inbox.InboxChannel;
 import com.subjex.platform.contract.inbox.InboxRecipient;
@@ -36,6 +37,8 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -74,6 +77,9 @@ class EndUserShellBackendTest {
     private String draftId;
     private String publishedAnonId;
 
+    @TempDir
+    Path objectRoot;
+
     @BeforeEach
     void setUp() {
         DataSource ds = H2PlatformTables.migrated(H2PlatformTables.Mode.POSTGRESQL);
@@ -92,8 +98,13 @@ class EndUserShellBackendTest {
         inbox = new JdbcInboxPort(jdbc, tx);
         RateLimitPort alwaysPermit = (tenantId, actionName) -> true;
         questionnaires = new JdbcQuestionnairePort(jdbc, tx, clock, alwaysPermit);
-        EndUserShellService shell =
-                new EndUserShellService(accounts, inbox, questionnaires, new JdbcAuditPort(jdbc), clock);
+        EndUserShellService shell = new EndUserShellService(
+                accounts,
+                inbox,
+                questionnaires,
+                new JdbcAuditPort(jdbc),
+                new LocalDirectoryObjectStorage(objectRoot),
+                clock);
         mvc = MockMvcBuilders.standaloneSetup(
                         new EndUserProfileEndpoint(shell),
                         new EndUserShellInboxEndpoint(shell),

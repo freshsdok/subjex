@@ -123,11 +123,11 @@ class EndUserShellAcceptanceTest {
         inbox = new JdbcInboxPort(jdbc, tx);
         RateLimitPort alwaysPermit = (tenantId, actionName) -> true;
         JdbcQuestionnairePort questionnaires = new JdbcQuestionnairePort(jdbc, tx, clock, alwaysPermit);
-        EndUserShellService shell =
-                new EndUserShellService(accounts, inbox, questionnaires, new JdbcAuditPort(jdbc), clock);
+        LocalDirectoryObjectStorage storage = new LocalDirectoryObjectStorage(objectRoot);
+        EndUserShellService shell = new EndUserShellService(
+                accounts, inbox, questionnaires, new JdbcAuditPort(jdbc), storage, clock);
         ObjectAccessAudit audit = new ObjectAccessAudit(new JdbcAuditPort(jdbc), clock);
         JdbcObjectGrantStore grants = new JdbcObjectGrantStore(jdbc, clock, audit);
-        LocalDirectoryObjectStorage storage = new LocalDirectoryObjectStorage(objectRoot);
         EndUserObjectService objects = new EndUserObjectService(
                 accounts,
                 storage,
