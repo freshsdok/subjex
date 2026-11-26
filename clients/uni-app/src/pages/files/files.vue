@@ -2,7 +2,7 @@
   <view class="page">
     <view class="card">
       <text class="title">我的文件</text>
-      <text class="muted">您可以上传图片、PDF 或常用办公文档，单个文件不超过 50MB。</text>
+      <text class="muted">您可以上传图片、PDF 或常用办公文档，单个文件不超过 50MB。较大的文件会自动分段上传。</text>
       <view class="row" v-if="signedIn">
         <button size="mini" type="primary" :disabled="busy" @click="onUpload">
           {{ busy ? "请稍候…" : "上传文件" }}
@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 /**
- * Files: list, upload, open via signed download — 文件：列表、上传、经签名链接打开。
+ * Files: list, upload (multipart or chunked), open via signed download — 文件：列表、上传（小文件一次/大文件分片）、经签名链接打开。
  */
 import { ref, onMounted } from "vue";
 import { isSignedIn } from "../../api/auth";

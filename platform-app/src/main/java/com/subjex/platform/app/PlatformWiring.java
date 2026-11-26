@@ -1483,8 +1483,8 @@ public class PlatformWiring {
     }
 
     /**
-     * WP7-2 end-user object upload and list (ADR 0019). No chunked upload in this slice.
-     * 终端对象上传与列表；本切片不做分块上传。
+     * End-user object upload and list (ADR 0019), including CHUNK-1 sessions on ObjectGrantStore.
+     * 终端对象上传与列表；分片复用 CHUNK-1 会话，完成后登记到授权对象轨。
      */
     @Bean
     EndUserObjectService endUserObjectService(
@@ -1492,9 +1492,15 @@ public class PlatformWiring {
             ObjectStorage objectStorage,
             ObjectGrantStore objectGrantStore,
             ObjectUploadLimits objectUploadLimits,
-            ObjectAccessAudit objectAccessAudit) {
+            ObjectAccessAudit objectAccessAudit,
+            ChunkedBlobUploadStore chunkedBlobUploadStore) {
         return new EndUserObjectService(
-                endUserAccountStore, objectStorage, objectGrantStore, objectUploadLimits, objectAccessAudit);
+                endUserAccountStore,
+                objectStorage,
+                objectGrantStore,
+                objectUploadLimits,
+                objectAccessAudit,
+                chunkedBlobUploadStore);
     }
 
     @Bean

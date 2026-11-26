@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.subjex.platform.app.inbox.EndUserShellInboxEndpoint;
 import com.subjex.platform.app.inbox.JdbcInboxPort;
+import com.subjex.platform.app.entity.LocalDirChunkedBlobUploadStore;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.questionnaire.EndUserShellQuestionnaireEndpoint;
 import com.subjex.platform.app.questionnaire.JdbcQuestionnairePort;
@@ -127,8 +128,13 @@ class EndUserShellAcceptanceTest {
         ObjectAccessAudit audit = new ObjectAccessAudit(new JdbcAuditPort(jdbc), clock);
         JdbcObjectGrantStore grants = new JdbcObjectGrantStore(jdbc, clock, audit);
         LocalDirectoryObjectStorage storage = new LocalDirectoryObjectStorage(objectRoot);
-        EndUserObjectService objects =
-                new EndUserObjectService(accounts, storage, grants, ObjectUploadLimits.defaults(), audit);
+        EndUserObjectService objects = new EndUserObjectService(
+                accounts,
+                storage,
+                grants,
+                ObjectUploadLimits.defaults(),
+                audit,
+                new LocalDirChunkedBlobUploadStore(objectRoot.resolve("chunks"), clock));
         LocalDownloadSignature signature = new LocalDownloadSignature("test-hmac-key");
         ObjectDownloadProperties properties = new ObjectDownloadProperties(
                 ObjectDownloadProperties.DEFAULT_TTL,

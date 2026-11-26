@@ -1,13 +1,16 @@
 package com.subjex.platform.app.identity.enduser;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.subjex.platform.app.entity.LocalDirChunkedBlobUploadStore;
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.app.security.OperatorPrincipal;
@@ -56,10 +59,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * EndUserObjectUploadTest — purpose/gate WP7-2: end-user multipart upload, list, and HMAC redeem.
- * Another user cannot list or download; oversize/MIME rejected; operator and reserved tenant denied.
+ * EndUserObjectUploadTest — end-user multipart and CHUNK-1 upload, list, and HMAC redeem.
+ * Another user cannot list, download, or complete a foreign chunk session; oversize/MIME rejected.
  * <p>
- * 目的/门禁 WP7-2：终端分件上传、列表与本地 HMAC 兑换。他人不可见；超限与非法 MIME 拒绝；操作员与保留租户拒绝。
+ * 终端一次上传与分片上传、列表与本地 HMAC 兑换。他人不可见、不能完成他人分片会话；超限与非法 MIME 拒绝。
  */
 class EndUserObjectUploadTest {
 
@@ -101,7 +104,12 @@ class EndUserObjectUploadTest {
         grants = new JdbcObjectGrantStore(jdbc, clock, audit);
         storage = new LocalDirectoryObjectStorage(objectRoot);
         EndUserObjectService objects = new EndUserObjectService(
-                accounts, storage, grants, new ObjectUploadLimits(TEST_CAP), audit);
+                accounts,
+                storage,
+                grants,
+                new ObjectUploadLimits(TEST_CAP),
+                audit,
+                new LocalDirChunkedBlobUploadStore(objectRoot.resolve("chunks"), clock, 8));
         LocalDownloadSignature signature = new LocalDownloadSignature("test-hmac-key");
         ObjectDownloadProperties properties = new ObjectDownloadProperties(
                 ObjectDownloadProperties.DEFAULT_TTL,
@@ -295,6 +303,157 @@ class EndUserObjectUploadTest {
 
         mvc.perform(get(EndUserObjectEndpoint.PATH).with(asEndUser(alice)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void chunkedUploadListAndRedeemRoundTrip() throws Exception {
+        byte[] first = new byte[] {1, 2, 3, 4, 5, 6, 7, 8};
+        byte[] second = new byte[] {9, 10, 11};
+        byte[] payload = new byte[first.length + second.length];
+        System.arraycopy(first, 0, payload, 0, first.length);
+        System.arraycopy(second, 0, payload, first.length, second.length);
+
+        MvcResult init = mvc.perform(post(EndUserObjectEndpoint.UPLOADS_PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contentType\":\"text/plain\",\"totalBytes\":%d}".formatted(payload.length)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.chunkSize").value(8))
+                .andExpect(jsonPath("$.chunkCount").value(2))
+                .andExpect(jsonPath("$.maxBytes").value(TEST_CAP))
+                .andReturn();
+        String uploadId = mapper.readTree(init.getResponse().getContentAsString()).get("uploadId").asText();
+
+        // Same-index retry is idempotent — 同下标重试可覆盖。
+        mvc.perform(put(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId + "/chunks/0")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(first))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.receivedCount").value(1));
+        mvc.perform(put(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId + "/chunks/0")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(first))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.receivedCount").value(1));
+        mvc.perform(put(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId + "/chunks/1")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(second))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.receivedCount").value(2));
+
+        MvcResult uploaded = mvc.perform(post(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId + "/complete")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ownerSubjectId").value(alice.subject().subjectId()))
+                .andExpect(jsonPath("$.mediaType").value("text/plain"))
+                .andExpect(jsonPath("$.sizeBytes").value(payload.length))
+                .andReturn();
+        String objectKey = mapper.readTree(uploaded.getResponse().getContentAsString())
+                .get("objectKey")
+                .asText();
+        assertThat(objectKey).startsWith("eu-" + alice.subject().subjectId() + "-");
+
+        // Completed session is gone — 完成后会话已清理。
+        mvc.perform(post(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId + "/complete")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isNotFound());
+
+        mvc.perform(get(EndUserObjectEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.objects.length()").value(1))
+                .andExpect(jsonPath("$.objects[0].objectKey").value(objectKey));
+
+        MvcResult issued = mvc.perform(post(ObjectDownloadEndpoint.END_USER_ISSUE_PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"objectKey\":\"" + objectKey + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        java.net.URI uri = java.net.URI.create(
+                mapper.readTree(issued.getResponse().getContentAsString()).get("url").asText());
+        mvc.perform(get(uri.getRawPath() + "?" + uri.getRawQuery()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(payload));
+
+        Integer audits = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM audit_entry WHERE action_name = ? AND outcome = ?",
+                Integer.class,
+                ObjectAccessAudit.UPLOAD,
+                AuditOutcome.ALLOWED.name());
+        assertThat(audits).isEqualTo(1);
+    }
+
+    @Test
+    void chunkedUploadRejectsForeignSessionOversizeAndMime() throws Exception {
+        MvcResult init = mvc.perform(post(EndUserObjectEndpoint.UPLOADS_PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contentType\":\"text/plain\",\"totalBytes\":8}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String uploadId = mapper.readTree(init.getResponse().getContentAsString()).get("uploadId").asText();
+
+        mvc.perform(put(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId + "/chunks/0")
+                        .with(asEndUser(bob))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(new byte[] {1, 2, 3, 4, 5, 6, 7, 8}))
+                .andExpect(status().isNotFound());
+        mvc.perform(post(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId + "/complete")
+                        .with(asEndUser(bob))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId)
+                        .with(asEndUser(bob))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isNotFound());
+
+        mvc.perform(post(EndUserObjectEndpoint.UPLOADS_PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contentType\":\"text/plain\",\"totalBytes\":%d}".formatted(TEST_CAP + 1)))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.reason").value(ObjectUploadRejectedException.TOO_LARGE));
+
+        mvc.perform(post(EndUserObjectEndpoint.UPLOADS_PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contentType\":\"application/zip\",\"totalBytes\":8}"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.reason").value(ObjectUploadRejectedException.CONTENT_TYPE));
+
+        mvc.perform(post(EndUserObjectEndpoint.UPLOADS_PATH)
+                        .with(asEndUser(carolInB))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contentType\":\"text/plain\",\"totalBytes\":8}"))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(delete(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isNoContent());
+        mvc.perform(put(EndUserObjectEndpoint.UPLOADS_PATH + "/" + uploadId + "/chunks/0")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(new byte[] {1, 2, 3, 4, 5, 6, 7, 8}))
+                .andExpect(status().isNotFound());
     }
 
     private static MockMultipartFile plainFile(String name, byte[] bytes) {

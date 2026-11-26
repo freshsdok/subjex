@@ -68,6 +68,11 @@ export type PlatformRequestOptions = {
   tenantId?: string | true;
   /** Do not try refresh+retry on 401 (login/refresh/logout). / 401 时不刷新重试（登录/刷新/退出）。 */
   skipAuthRetry?: boolean;
+  /**
+   * Raw octet-stream body (chunked upload). Not JSON-serialized.
+   * 原始分片字节，不按 JSON 序列化。
+   */
+  rawBody?: ArrayBuffer;
 };
 
 type SessionRefresh = () => Promise<unknown>;
@@ -146,7 +151,7 @@ function sendRequest(
   method: string,
   url: string,
   headers: Record<string, string>,
-  body?: string
+  body?: string | ArrayBuffer
 ): Promise<{ status: number; statusText: string; text: string }> {
   return new Promise((resolve, reject) => {
     uni.request({
@@ -189,8 +194,13 @@ export async function platformFetch<T = unknown>(options: PlatformRequestOptions
   if (tenant && !headers[TENANT_HEADER]) {
     headers[TENANT_HEADER] = tenant;
   }
-  let body: string | undefined;
-  if (options.body !== undefined && method !== "GET" && method !== "HEAD") {
+  let body: string | ArrayBuffer | undefined;
+  if (options.rawBody !== undefined && method !== "GET" && method !== "HEAD") {
+    if (!headers["Content-Type"]) {
+      headers["Content-Type"] = "application/octet-stream";
+    }
+    body = options.rawBody;
+  } else if (options.body !== undefined && method !== "GET" && method !== "HEAD") {
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(options.body);
   }
