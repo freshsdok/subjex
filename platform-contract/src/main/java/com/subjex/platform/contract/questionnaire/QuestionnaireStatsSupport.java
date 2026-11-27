@@ -1,5 +1,6 @@
 package com.subjex.platform.contract.questionnaire;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,30 +55,63 @@ public final class QuestionnaireStatsSupport {
      * 列：固定元数据列，再按定义顺序每题一列。
      */
     public static String toCsv(QuestionnaireDefinition definition, List<QuestionnaireResponse> productionResponses) {
-        Objects.requireNonNull(definition, "definition");
-        Objects.requireNonNull(productionResponses, "productionResponses");
         StringBuilder sb = new StringBuilder();
-        sb.append("response_id,revision,respondent_realm,respondent_subject_id,submitted_at");
-        for (QuestionnaireItem item : definition.items()) {
-            sb.append(',').append(csvEscape(item.itemId()));
-        }
-        sb.append('\n');
-        for (QuestionnaireResponse response : productionResponses) {
-            sb.append(csvEscape(response.responseId()))
-                    .append(',')
-                    .append(response.revision())
-                    .append(',')
-                    .append(csvEscape(response.respondentRealm().name()))
-                    .append(',')
-                    .append(csvEscape(response.respondentSubjectId()))
-                    .append(',')
-                    .append(csvEscape(response.submittedAt().toString()));
-            for (QuestionnaireItem item : definition.items()) {
-                sb.append(',').append(csvEscape(answerValue(response, item.itemId())));
-            }
-            sb.append('\n');
+        try {
+            writeCsv(definition, productionResponses, sb);
+        } catch (IOException ex) {
+            throw new IllegalStateException("CSV write failed", ex);
         }
         return sb.toString();
+    }
+
+    /**
+     * Write the same CSV as {@link #toCsv} into {@code out}, row by row.
+     * 按行写入与 {@link #toCsv} 相同的 CSV，而不先拼成一整段字符串。
+     */
+    public static void writeCsv(
+            QuestionnaireDefinition definition, List<QuestionnaireResponse> productionResponses, Appendable out)
+            throws IOException {
+        Objects.requireNonNull(productionResponses, "productionResponses");
+        writeCsvHeader(definition, out);
+        for (QuestionnaireResponse response : productionResponses) {
+            writeCsvRow(definition, response, out);
+        }
+    }
+
+    /**
+     * Header line including item ids in definition order — 表头，题目列按定义顺序。
+     */
+    public static void writeCsvHeader(QuestionnaireDefinition definition, Appendable out) throws IOException {
+        Objects.requireNonNull(definition, "definition");
+        Objects.requireNonNull(out, "out");
+        out.append("response_id,revision,respondent_realm,respondent_subject_id,submitted_at");
+        for (QuestionnaireItem item : definition.items()) {
+            out.append(',').append(csvEscape(item.itemId()));
+        }
+        out.append('\n');
+    }
+
+    /**
+     * One production-response row — 一行生产答卷。
+     */
+    public static void writeCsvRow(
+            QuestionnaireDefinition definition, QuestionnaireResponse response, Appendable out) throws IOException {
+        Objects.requireNonNull(definition, "definition");
+        Objects.requireNonNull(response, "response");
+        Objects.requireNonNull(out, "out");
+        out.append(csvEscape(response.responseId()))
+                .append(',')
+                .append(Integer.toString(response.revision()))
+                .append(',')
+                .append(csvEscape(response.respondentRealm().name()))
+                .append(',')
+                .append(csvEscape(response.respondentSubjectId()))
+                .append(',')
+                .append(csvEscape(response.submittedAt().toString()));
+        for (QuestionnaireItem item : definition.items()) {
+            out.append(',').append(csvEscape(answerValue(response, item.itemId())));
+        }
+        out.append('\n');
     }
 
     static boolean isAggregatable(QuestionType type) {

@@ -63,7 +63,7 @@ Lifecycle (architecture, not a schema in this slice):
 4. **Download** — the artifact is stored via existing `ObjectStorage`, registered on `ObjectGrantStore` with a required owner, and redeemed through the existing short-lived signed-download issue path (`ObjectDownloadLinkService` / `ObjectDownloadEndpoint`). No second download product.
 5. **Audit** — request, approval or denial, artifact issue, download, and rejected unapproved attempts all go through `AuditPort`.
 
-TN-2 `POST /api/v1/tenants/{id}/export` (whole-tenant operator ZIP) and questionnaire `exportCsv` stay as they are and are not this pipeline.
+TN-2 `POST /api/v1/tenants/{id}/export` (whole-tenant operator ZIP) and questionnaire `exportCsv` are not this pipeline. A later volume cut streams those operator downloads in the same request; the path, auth, and file format stay, and they still do not use the personal-export approval/worker.
 
 批量或敏感个人数据导出必须走审批钩子并审计；未审批的敏感导出拒绝并留痕。审批复用可声明的薄工作流；策略引擎只做权限检查。获准后由可插拔导出 SPI 生成产物，经 WP3 对象授权与短时签名下载。不挪用 TN-2 租户 ZIP。
 

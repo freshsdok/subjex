@@ -14,6 +14,7 @@ import com.subjex.platform.contract.questionnaire.QuestionnaireResponse;
 import com.subjex.platform.contract.questionnaire.QuestionnaireResponseListQuery;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStats;
 import com.subjex.platform.contract.tenant.TenantGuard;
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -107,11 +108,31 @@ public final class QuestionnaireService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "questionnaire not found"));
     }
 
-    public String exportCsv(OperatorPrincipal operator, String tenantId, String questionnaireId) {
+    /**
+     * Auth and existence check so the HTTP layer can 404 before starting the body.
+     * 先做授权与存在性检查，便于 HTTP 层在开始写响应体之前返回 404。
+     */
+    public void requireCsvExportable(OperatorPrincipal operator, String tenantId, String questionnaireId) {
         String tid = requireTenantAndGrant(operator, tenantId);
         requirePermission(operator, OperatorPermission.QUESTIONNAIRE_READ.permissionName());
-        return port.exportCsv(tid, questionnaireId)
+        port.get(tid, questionnaireId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "questionnaire not found"));
+    }
+
+    /**
+     * Stream the production CSV into {@code out}. Does not first build one String.
+     * 把生产答卷 CSV 流式写入 {@code out}，不先拼成一整段字符串。
+     */
+    public void writeCsv(OperatorPrincipal operator, String tenantId, String questionnaireId, Appendable out) {
+        String tid = requireTenantAndGrant(operator, tenantId);
+        requirePermission(operator, OperatorPermission.QUESTIONNAIRE_READ.permissionName());
+        try {
+            if (!port.writeCsv(tid, questionnaireId, out)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "questionnaire not found");
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("questionnaire CSV export failed", ex);
+        }
     }
 
     public QuestionnaireCollectToken activeToken(OperatorPrincipal operator, String tenantId, String questionnaireId) {

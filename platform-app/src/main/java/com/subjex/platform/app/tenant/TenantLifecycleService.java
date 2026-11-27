@@ -6,19 +6,19 @@ import com.subjex.platform.app.security.JdbcOperatorDirectory;
 import com.subjex.platform.app.security.JdbcTenantAdmin;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorPrincipal;
+import com.subjex.platform.app.support.TenantKeyset;
 import com.subjex.platform.contract.audit.AuditOutcome;
 import com.subjex.platform.contract.storage.ObjectStorage;
 import com.subjex.platform.contract.tenant.TenantRecord;
 import com.subjex.platform.contract.tenant.TenantState;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +29,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.StreamWriteFeature;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -71,15 +73,24 @@ public final class TenantLifecycleService {
     }
 
     /**
-     * Sync ZIP: JSON tables + blob bytes when ObjectStorage has them —
-     * 同步 ZIP：表 JSON + 能取到的附件字节。
+     * Validate the tenant can be exported (so the HTTP layer can 400 before starting the body).
+     * 校验租户可导出，便于 HTTP 层在开始写响应体之前返回 400。
      */
-    public byte[] exportZip(OperatorPrincipal operator, String tenantId) {
+    public String requireExportable(String tenantId) {
+        return requireBusinessTenant(tenantId);
+    }
+
+    /**
+     * Stream the sync ZIP: JSON tables + blob bytes when ObjectStorage has them.
+     * Does not first materialize the archive as a {@code byte[]}.
+     * 同步流式 ZIP：表 JSON + 能取到的附件字节；不先把整包放进字节数组。
+     */
+    public void exportZip(OperatorPrincipal operator, String tenantId, OutputStream output) {
         String tid = requireBusinessTenant(tenantId);
+        Objects.requireNonNull(output, "output");
         try {
-            byte[] zip = buildZip(tid);
+            writeZip(tid, output);
             audit.record(operator, AUDIT_EXPORT, tid, AuditOutcome.ALLOWED);
-            return zip;
         } catch (IOException ex) {
             throw new IllegalStateException("tenant export failed", ex);
         }
@@ -139,83 +150,199 @@ public final class TenantLifecycleService {
         return new EraseResult(tid, counts, objectsRemoved);
     }
 
-    private byte[] buildZip(String tenantId) throws IOException {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+    private void writeZip(String tenantId, OutputStream output) throws IOException {
+        try (ZipOutputStream zip = new ZipOutputStream(output)) {
             Map<String, Object> manifest = new LinkedHashMap<>();
             manifest.put("tenantId", tenantId);
             manifest.put("exportedAt", clock.instant().toString());
             manifest.put("format", "subjex-tenant-export-v1");
             putJson(zip, "manifest.json", manifest);
 
-            List<Map<String, Object>> tasks = queryMaps(
+            writeTimeKeyedJsonArray(
+                    zip,
+                    "tasks.json",
                     """
                     SELECT task_id, tenant_id, task_kind, task_state, step_name, attempt_count, max_attempt,
                            model_id, input_digest, human_confirmation, failure_reason, created_at
-                    FROM platform_task WHERE tenant_id = ? ORDER BY created_at, task_id
+                    FROM platform_task
+                    WHERE tenant_id = ?
+                    ORDER BY created_at ASC, task_id ASC
+                    LIMIT ?
                     """,
+                    """
+                    SELECT task_id, tenant_id, task_kind, task_state, step_name, attempt_count, max_attempt,
+                           model_id, input_digest, human_confirmation, failure_reason, created_at
+                    FROM platform_task
+                    WHERE tenant_id = ?
+                      AND (created_at > ? OR (created_at = ? AND task_id > ?))
+                    ORDER BY created_at ASC, task_id ASC
+                    LIMIT ?
+                    """,
+                    "created_at",
+                    "task_id",
                     tenantId);
-            putJson(zip, "tasks.json", tasks);
 
-            List<Map<String, Object>> forms = queryMaps(
+            writeTimeKeyedJsonArray(
+                    zip,
+                    "forms.json",
                     """
                     SELECT submission_id, form_key, actor_identity_id, login_name, values_json, result_summary,
                            submitted_at, tenant_id
-                    FROM form_submission WHERE tenant_id = ? ORDER BY submitted_at, submission_id
+                    FROM form_submission
+                    WHERE tenant_id = ?
+                    ORDER BY submitted_at ASC, submission_id ASC
+                    LIMIT ?
                     """,
+                    """
+                    SELECT submission_id, form_key, actor_identity_id, login_name, values_json, result_summary,
+                           submitted_at, tenant_id
+                    FROM form_submission
+                    WHERE tenant_id = ?
+                      AND (submitted_at > ? OR (submitted_at = ? AND submission_id > ?))
+                    ORDER BY submitted_at ASC, submission_id ASC
+                    LIMIT ?
+                    """,
+                    "submitted_at",
+                    "submission_id",
                     tenantId);
-            putJson(zip, "forms.json", forms);
 
-            List<Map<String, Object>> outbox = queryMaps(
+            writeTimeKeyedJsonArray(
+                    zip,
+                    "outbox.json",
                     """
                     SELECT event_id, tenant_id, event_name, event_body, event_state, trace_id, attempt_count,
                            failure_reason, occurred_at, published_at
-                    FROM outbox_event WHERE tenant_id = ? ORDER BY occurred_at, event_id
+                    FROM outbox_event
+                    WHERE tenant_id = ?
+                    ORDER BY occurred_at ASC, event_id ASC
+                    LIMIT ?
                     """,
+                    """
+                    SELECT event_id, tenant_id, event_name, event_body, event_state, trace_id, attempt_count,
+                           failure_reason, occurred_at, published_at
+                    FROM outbox_event
+                    WHERE tenant_id = ?
+                      AND (occurred_at > ? OR (occurred_at = ? AND event_id > ?))
+                    ORDER BY occurred_at ASC, event_id ASC
+                    LIMIT ?
+                    """,
+                    "occurred_at",
+                    "event_id",
                     tenantId);
-            putJson(zip, "outbox.json", outbox);
 
-            List<Map<String, Object>> hosts = queryMaps(
+            writeNamedJsonArray(
+                    zip,
+                    "hosts.json",
                     """
                     SELECT host_name, tenant_id, created_at, created_by_identity_id
-                    FROM tenant_host WHERE tenant_id = ? ORDER BY host_name
+                    FROM tenant_host
+                    WHERE tenant_id = ?
+                    ORDER BY host_name ASC
+                    LIMIT ?
                     """,
+                    """
+                    SELECT host_name, tenant_id, created_at, created_by_identity_id
+                    FROM tenant_host
+                    WHERE tenant_id = ? AND host_name > ?
+                    ORDER BY host_name ASC
+                    LIMIT ?
+                    """,
+                    "host_name",
                     tenantId);
-            putJson(zip, "hosts.json", hosts);
 
-            List<Map<String, Object>> entities = queryMaps(
+            writeCompositeKeyedJsonArray(
+                    zip,
+                    "entity_records.json",
                     """
                     SELECT tenant_id, entity_key, record_id, record_state, attrs, created_at, updated_at
-                    FROM entity_record WHERE tenant_id = ? ORDER BY entity_key, record_id
+                    FROM entity_record
+                    WHERE tenant_id = ?
+                    ORDER BY entity_key ASC, record_id ASC
+                    LIMIT ?
                     """,
+                    """
+                    SELECT tenant_id, entity_key, record_id, record_state, attrs, created_at, updated_at
+                    FROM entity_record
+                    WHERE tenant_id = ?
+                      AND (entity_key > ? OR (entity_key = ? AND record_id > ?))
+                    ORDER BY entity_key ASC, record_id ASC
+                    LIMIT ?
+                    """,
+                    "entity_key",
+                    "record_id",
                     tenantId);
-            putJson(zip, "entity_records.json", entities);
 
-            List<Map<String, Object>> blobMeta = queryMaps(
+            writeTimeKeyedJsonArray(
+                    zip,
+                    "entity_blobs.json",
                     """
                     SELECT blob_id, tenant_id, entity_key, record_id, field_name, content_type, byte_size,
                            storage_key, checksum_sha256, created_at
-                    FROM entity_blob WHERE tenant_id = ? ORDER BY created_at, blob_id
+                    FROM entity_blob
+                    WHERE tenant_id = ?
+                    ORDER BY created_at ASC, blob_id ASC
+                    LIMIT ?
                     """,
+                    """
+                    SELECT blob_id, tenant_id, entity_key, record_id, field_name, content_type, byte_size,
+                           storage_key, checksum_sha256, created_at
+                    FROM entity_blob
+                    WHERE tenant_id = ?
+                      AND (created_at > ? OR (created_at = ? AND blob_id > ?))
+                    ORDER BY created_at ASC, blob_id ASC
+                    LIMIT ?
+                    """,
+                    "created_at",
+                    "blob_id",
                     tenantId);
-            putJson(zip, "entity_blobs.json", blobMeta);
 
-            for (Map<String, Object> row : blobMeta) {
-                String blobId = String.valueOf(row.get("blob_id"));
-                String storageKey = String.valueOf(row.get("storage_key"));
-                String rowTenant = String.valueOf(row.get("tenant_id"));
-                objects.find(objectTenant(rowTenant), storageKey).ifPresent(stored -> {
+            writeBlobBytes(zip, tenantId);
+            zip.finish();
+            zip.flush();
+        }
+    }
+
+    private void writeBlobBytes(ZipOutputStream zip, String tenantId) throws IOException {
+        Instant afterTime = Instant.EPOCH;
+        String afterId = "";
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        while (true) {
+            List<BlobExportRow> page = jdbc.query(
+                    """
+                    SELECT blob_id, tenant_id, storage_key, created_at
+                    FROM entity_blob
+                    WHERE tenant_id = ?
+                      AND (created_at > ? OR (created_at = ? AND blob_id > ?))
+                    ORDER BY created_at ASC, blob_id ASC
+                    LIMIT ?
+                    """,
+                    (rs, n) -> new BlobExportRow(
+                            rs.getString("blob_id"),
+                            rs.getString("tenant_id"),
+                            rs.getString("storage_key"),
+                            rs.getTimestamp("created_at").toInstant()),
+                    tenantId,
+                    java.sql.Timestamp.from(afterTime),
+                    java.sql.Timestamp.from(afterTime),
+                    afterId,
+                    pageSize);
+            for (BlobExportRow row : page) {
+                objects.find(objectTenant(row.tenantId()), row.storageKey()).ifPresent(stored -> {
                     try {
-                        zip.putNextEntry(new ZipEntry("blobs/" + blobId));
+                        zip.putNextEntry(new ZipEntry("blobs/" + row.blobId()));
                         zip.write(stored.content());
                         zip.closeEntry();
                     } catch (IOException ex) {
-                        throw new IllegalStateException("blob zip failed: " + blobId, ex);
+                        throw new IllegalStateException("blob zip failed: " + row.blobId(), ex);
                     }
                 });
+                afterTime = row.createdAt();
+                afterId = row.blobId();
+            }
+            if (page.size() < pageSize) {
+                break;
             }
         }
-        return bytes.toByteArray();
     }
 
     private EraseCounts wipeRows(String tenantId) {
@@ -297,28 +424,186 @@ public final class TenantLifecycleService {
         }
     }
 
-    private List<Map<String, Object>> queryMaps(String sql, String tenantId) {
-        List<Map<String, Object>> rows = jdbc.queryForList(sql, tenantId);
-        List<Map<String, Object>> out = new ArrayList<>(rows.size());
-        for (Map<String, Object> row : rows) {
-            Map<String, Object> copy = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> e : row.entrySet()) {
-                Object v = e.getValue();
-                if (v instanceof java.sql.Timestamp ts) {
-                    copy.put(e.getKey(), ts.toInstant().toString());
+    private void writeTimeKeyedJsonArray(
+            ZipOutputStream zip,
+            String entryName,
+            String firstSql,
+            String nextSql,
+            String timeColumn,
+            String idColumn,
+            String tenantId)
+            throws IOException {
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        zip.putNextEntry(new ZipEntry(entryName));
+        JsonGenerator generator = jsonArrayGenerator(zip);
+        try {
+            Instant afterTime = Instant.EPOCH;
+            String afterId = "";
+            boolean first = true;
+            while (true) {
+                List<Map<String, Object>> page;
+                if (first) {
+                    page = jdbc.queryForList(firstSql, tenantId, pageSize);
+                    first = false;
                 } else {
-                    copy.put(e.getKey(), v);
+                    java.sql.Timestamp ts = java.sql.Timestamp.from(afterTime);
+                    page = jdbc.queryForList(nextSql, tenantId, ts, ts, afterId, pageSize);
+                }
+                for (Map<String, Object> row : page) {
+                    afterTime = timestampOf(row, timeColumn);
+                    afterId = stringOf(row, idColumn);
+                    generator.writePOJO(normalizeRow(row));
+                }
+                if (page.size() < pageSize) {
+                    break;
                 }
             }
-            out.add(copy);
+            generator.writeEndArray();
+            generator.flush();
+        } finally {
+            generator.close();
         }
-        return out;
+        zip.closeEntry();
+        zip.flush();
+    }
+
+    private void writeNamedJsonArray(
+            ZipOutputStream zip, String entryName, String firstSql, String nextSql, String nameColumn, String tenantId)
+            throws IOException {
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        zip.putNextEntry(new ZipEntry(entryName));
+        JsonGenerator generator = jsonArrayGenerator(zip);
+        try {
+            String afterName = "";
+            boolean first = true;
+            while (true) {
+                List<Map<String, Object>> page;
+                if (first) {
+                    page = jdbc.queryForList(firstSql, tenantId, pageSize);
+                    first = false;
+                } else {
+                    page = jdbc.queryForList(nextSql, tenantId, afterName, pageSize);
+                }
+                for (Map<String, Object> row : page) {
+                    afterName = stringOf(row, nameColumn);
+                    generator.writePOJO(normalizeRow(row));
+                }
+                if (page.size() < pageSize) {
+                    break;
+                }
+            }
+            generator.writeEndArray();
+            generator.flush();
+        } finally {
+            generator.close();
+        }
+        zip.closeEntry();
+        zip.flush();
+    }
+
+    private void writeCompositeKeyedJsonArray(
+            ZipOutputStream zip,
+            String entryName,
+            String firstSql,
+            String nextSql,
+            String firstColumn,
+            String secondColumn,
+            String tenantId)
+            throws IOException {
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        zip.putNextEntry(new ZipEntry(entryName));
+        JsonGenerator generator = jsonArrayGenerator(zip);
+        try {
+            String afterFirst = "";
+            String afterSecond = "";
+            boolean first = true;
+            while (true) {
+                List<Map<String, Object>> page;
+                if (first) {
+                    page = jdbc.queryForList(firstSql, tenantId, pageSize);
+                    first = false;
+                } else {
+                    page = jdbc.queryForList(nextSql, tenantId, afterFirst, afterFirst, afterSecond, pageSize);
+                }
+                for (Map<String, Object> row : page) {
+                    afterFirst = stringOf(row, firstColumn);
+                    afterSecond = stringOf(row, secondColumn);
+                    generator.writePOJO(normalizeRow(row));
+                }
+                if (page.size() < pageSize) {
+                    break;
+                }
+            }
+            generator.writeEndArray();
+            generator.flush();
+        } finally {
+            generator.close();
+        }
+        zip.closeEntry();
+        zip.flush();
+    }
+
+    private JsonGenerator jsonArrayGenerator(ZipOutputStream zip) throws IOException {
+        // Do not close the ZIP when a JSON entry finishes — 单个 JSON 条目结束时不要关掉整个 ZIP。
+        JsonGenerator generator = json.createGenerator(zip);
+        generator.configure(StreamWriteFeature.AUTO_CLOSE_TARGET, false);
+        generator.writeStartArray();
+        return generator;
+    }
+
+    private Map<String, Object> normalizeRow(Map<String, Object> row) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : row.entrySet()) {
+            Object v = e.getValue();
+            if (v instanceof java.sql.Timestamp ts) {
+                copy.put(e.getKey(), ts.toInstant().toString());
+            } else {
+                copy.put(e.getKey(), v);
+            }
+        }
+        return copy;
+    }
+
+
+    private Instant timestampOf(Map<String, Object> row, String column) {
+        Object value = valueOf(row, column);
+        if (value instanceof java.sql.Timestamp ts) {
+            return ts.toInstant();
+        }
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        return Instant.parse(String.valueOf(value));
+    }
+
+    private static String stringOf(Map<String, Object> row, String column) {
+        return String.valueOf(valueOf(row, column));
+    }
+
+    private static Object valueOf(Map<String, Object> row, String column) {
+        if (row.containsKey(column)) {
+            return row.get(column);
+        }
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(column)) {
+                return entry.getValue();
+            }
+        }
+        throw new IllegalStateException("missing export column: " + column);
     }
 
     private void putJson(ZipOutputStream zip, String name, Object value) throws IOException {
         zip.putNextEntry(new ZipEntry(name));
-        zip.write(json.writeValueAsBytes(value));
+        JsonGenerator generator = json.createGenerator(zip);
+        generator.configure(StreamWriteFeature.AUTO_CLOSE_TARGET, false);
+        try {
+            generator.writePOJO(value);
+            generator.flush();
+        } finally {
+            generator.close();
+        }
         zip.closeEntry();
+        zip.flush();
     }
 
     private static String objectTenant(String tenantId) {
@@ -338,6 +623,8 @@ public final class TenantLifecycleService {
     }
 
     private record BlobRef(String tenantId, String storageKey) {}
+
+    private record BlobExportRow(String blobId, String tenantId, String storageKey, Instant createdAt) {}
 
     public record EraseChallenge(String challengeId, String token, Instant expiresAt) {}
 

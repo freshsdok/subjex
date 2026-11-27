@@ -12,6 +12,8 @@ import com.subjex.platform.contract.questionnaire.QuestionnaireItemStats;
 import com.subjex.platform.contract.questionnaire.QuestionnaireResponse;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStats;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.io.OutputStreamWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
  * QuestionnaireEndpoint — 问卷 REST（Q6）：操作员编排 + 公开匿名采集。
@@ -159,17 +162,24 @@ public class QuestionnaireEndpoint {
     }
 
     @GetMapping(BASE + "/{questionnaireId}/export.csv")
-    public ResponseEntity<String> exportCsv(
+    public ResponseEntity<StreamingResponseBody> exportCsv(
             @AuthenticationPrincipal OperatorPrincipal operator,
             @PathVariable("questionnaireId") String questionnaireId,
             @RequestHeader(value = TenantEnforcementFilter.TENANT_HEADER, required = false) String tenantHeader,
             @RequestParam(value = "tenantId", required = false) String tenantIdParam) {
         requireOperator(operator);
-        String csv = questionnaires.exportCsv(operator, resolveTenant(tenantHeader, tenantIdParam), questionnaireId);
+        String tenantId = resolveTenant(tenantHeader, tenantIdParam);
+        // 404/auth before the body starts — 先鉴权与 404，再开始写响应体。
+        questionnaires.requireCsvExportable(operator, tenantId, questionnaireId);
+        StreamingResponseBody body = output -> {
+            OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8);
+            questionnaires.writeCsv(operator, tenantId, questionnaireId, writer);
+            writer.flush();
+        };
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"questionnaire-export.csv\"")
                 .contentType(new MediaType("text", "csv"))
-                .body(csv);
+                .body(body);
     }
 
     @GetMapping(BASE + "/{questionnaireId}/collect-token")

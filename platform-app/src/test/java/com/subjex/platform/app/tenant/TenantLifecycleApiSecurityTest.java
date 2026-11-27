@@ -5,8 +5,10 @@ import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguratio
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER;
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER_PASSWORD;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.subjex.platform.app.security.OperatorActionAudit;
@@ -58,9 +60,21 @@ class TenantLifecycleApiSecurityTest {
         String path = TenantManagementEndpoint.PATH + "/tenant-ex/export";
         mockMvc.perform(post(path).with(httpBasic(VIEWER, VIEWER_PASSWORD)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post(path).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+        org.springframework.test.web.servlet.MvcResult exported =
+                mockMvc.perform(post(path).with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                        .andExpect(request().asyncStarted())
+                        .andReturn();
+        mockMvc.perform(asyncDispatch(exported))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Type", "application/zip"));
+                .andExpect(header().string("Content-Type", "application/zip"))
+                .andExpect(header().string(
+                        "Content-Disposition", "attachment; filename=\"tenant-tenant-ex-export.zip\""))
+                .andExpect(result -> {
+                    byte[] body = result.getResponse().getContentAsByteArray();
+                    if (body.length < 20 || body[0] != 'P' || body[1] != 'K') {
+                        throw new AssertionError("expected a ZIP body, length=" + body.length);
+                    }
+                });
     }
 
     @TestConfiguration

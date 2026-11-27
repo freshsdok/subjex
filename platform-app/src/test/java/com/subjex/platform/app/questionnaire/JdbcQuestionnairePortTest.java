@@ -17,7 +17,9 @@ import com.subjex.platform.contract.questionnaire.QuestionnaireRespondentRealm;
 import com.subjex.platform.contract.questionnaire.QuestionnaireResponse;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStats;
 import com.subjex.platform.contract.questionnaire.QuestionnaireResponseListQuery;
+import com.subjex.platform.app.support.TenantKeyset;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStatus;
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -319,6 +321,89 @@ class JdbcQuestionnairePortTest {
         assertThat(csv).contains("END_USER").doesNotContain("OPERATOR").contains("user-1");
         assertThat(csv.lines().findFirst().orElseThrow())
                 .isEqualTo("response_id,revision,respondent_realm,respondent_subject_id,submitted_at,i1,i2");
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void writeCsvPagesWithoutMaterializingWholeString(H2PlatformTables.Mode mode) throws IOException {
+        JdbcQuestionnairePort port = newPort(mode);
+        QuestionnaireDefinition draft = port.create(TENANT_A, "导出分页", QuestionnaireCollectMode.AUTH_END_USER);
+        port.replaceItems(
+                TENANT_A,
+                draft.questionnaireId(),
+                List.of(item("i1", 1, QuestionType.TEXT_SHORT, "建议", false, null)));
+        port.publish(TENANT_A, draft.questionnaireId());
+
+        int production = TenantKeyset.EXPORT_PAGE_LIMIT + 10;
+        for (int i = 0; i < production; i++) {
+            port.submit(
+                    TENANT_A,
+                    draft.questionnaireId(),
+                    QuestionnaireRespondentRealm.END_USER,
+                    "user-" + i,
+                    List.of(new QuestionnaireAnswer("i1", "\"v" + i + "\"")));
+        }
+        port.submit(
+                TENANT_A,
+                draft.questionnaireId(),
+                QuestionnaireRespondentRealm.OPERATOR,
+                "op-preview",
+                List.of(new QuestionnaireAnswer("i1", "\"hidden\"")));
+
+        ChunkTrackingAppendable out = new ChunkTrackingAppendable();
+        assertThat(port.writeCsv(TENANT_A, draft.questionnaireId(), out)).isTrue();
+        String csv = out.text();
+        assertThat(csv.lines().findFirst().orElseThrow())
+                .isEqualTo("response_id,revision,respondent_realm,respondent_subject_id,submitted_at,i1");
+        assertThat(csv.lines().count()).isEqualTo(production + 1L);
+        assertThat(csv).contains("user-0").contains("user-" + (production - 1)).doesNotContain("OPERATOR");
+        assertThat(csv).doesNotContain("op-preview").doesNotContain("hidden");
+        // A leftover toCsv-style write would append the whole file in one chunk.
+        // 若仍走整段 toCsv，会一次写入整个文件。
+        assertThat(out.maxChunk()).isGreaterThan(0);
+        assertThat(out.maxChunk()).isLessThan(out.total());
+        assertThat(out.maxChunk()).isLessThan(csv.length() / 2);
+
+        ChunkTrackingAppendable missing = new ChunkTrackingAppendable();
+        assertThat(port.writeCsv(TENANT_A, "no-such-questionnaire", missing)).isFalse();
+        assertThat(missing.total()).isZero();
+    }
+
+    private static final class ChunkTrackingAppendable implements Appendable {
+        private final StringBuilder all = new StringBuilder();
+        private int maxChunk;
+
+        @Override
+        public Appendable append(CharSequence csq) {
+            CharSequence chunk = csq == null ? "null" : csq;
+            maxChunk = Math.max(maxChunk, chunk.length());
+            all.append(chunk);
+            return this;
+        }
+
+        @Override
+        public Appendable append(CharSequence csq, int start, int end) {
+            return append(csq == null ? "null" : csq.subSequence(start, end));
+        }
+
+        @Override
+        public Appendable append(char c) {
+            maxChunk = Math.max(maxChunk, 1);
+            all.append(c);
+            return this;
+        }
+
+        String text() {
+            return all.toString();
+        }
+
+        int maxChunk() {
+            return maxChunk;
+        }
+
+        int total() {
+            return all.length();
+        }
     }
 
     private static RateLimitPort alwaysPermit() {

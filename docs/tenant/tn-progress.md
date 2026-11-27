@@ -45,7 +45,7 @@ Wave **after** Identity + Observability (`4fd3cc9`). Order: **TN hardening first
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `POST` | `/api/v1/tenants/{id}/export` | Sync ZIP: manifest, tasks, forms, outbox, entity_records, entity_blobs (+ `blobs/*` bytes) |
+| `POST` | `/api/v1/tenants/{id}/export` | Sync streamed ZIP: manifest, tasks, forms, outbox, entity_records, entity_blobs (+ `blobs/*` bytes); keyset pages, not an in-memory `byte[]` |
 | `POST` | `/api/v1/tenants/{id}/erase/challenge` | Requires **SUSPENDED**; returns one-time `{challengeId,token,expiresAt}` (15m) |
 | `POST` | `/api/v1/tenants/{id}/erase` | Body `{challengeId,token}`; wipe scoped rows + ObjectStorage; tenant stays SUSPENDED |
 

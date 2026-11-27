@@ -12,8 +12,12 @@ import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.storage.LocalDirectoryObjectStorage;
 import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.app.support.TenantKeyset;
 import com.subjex.platform.contract.storage.ObjectStorage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Clock;
@@ -70,7 +74,7 @@ class TenantLifecycleTest {
 
     @Test
     void exportZipContainsSeededTablesAndBlobBytes() throws Exception {
-        byte[] zip = lifecycle.exportZip(operator, TENANT);
+        byte[] zip = zipBytes(lifecycle, operator, TENANT);
         assertThat(zip.length).isGreaterThan(100);
         try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
             boolean sawManifest = false;
@@ -169,9 +173,118 @@ class TenantLifecycleTest {
 
     @Test
     void refusePlatformTenant() {
-        assertThatThrownBy(() -> lifecycle.exportZip(operator, "platform"))
+        assertThatThrownBy(() -> lifecycle.exportZip(operator, "platform", new ByteArrayOutputStream()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("reserved");
+        assertThatThrownBy(() -> lifecycle.requireExportable("platform"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("reserved");
+    }
+
+    @Test
+    void exportZipStreamsWithoutMaterializingWholeArchive() throws Exception {
+        int extraRecords = TenantKeyset.EXPORT_PAGE_LIMIT + 5;
+        java.sql.Timestamp at = java.sql.Timestamp.from(CLOCK.instant());
+        for (int i = 0; i < extraRecords; i++) {
+            jdbc.update(
+                    """
+                    INSERT INTO entity_record
+                        (tenant_id, entity_key, record_id, record_state, attrs, created_at, updated_at)
+                    VALUES (?, 'demo', ?, 'ACTIVE', '{}', ?, ?)
+                    """,
+                    TENANT,
+                    "rec-stream-" + i,
+                    at,
+                    at);
+        }
+        // Incompressible so the archive itself is large enough to prove chunked writes.
+        // 用不可压缩字节，让 ZIP 本身足够大，才能证明是分块写出。
+        byte[] payload = new byte[64 * 1024];
+        new java.util.Random(42).nextBytes(payload);
+        storage.put(TENANT, "blob-stream-1", payload, "application/octet-stream");
+        jdbc.update(
+                """
+                INSERT INTO entity_blob
+                    (blob_id, tenant_id, entity_key, record_id, field_name, content_type, byte_size,
+                     storage_key, checksum_sha256, created_at)
+                VALUES ('blob-stream-1', ?, 'demo', 'rec-1', 'file2', 'application/octet-stream', ?, 'blob-stream-1', 'y', ?)
+                """,
+                TENANT,
+                payload.length,
+                at);
+
+        ChunkTrackingOutputStream out = new ChunkTrackingOutputStream();
+        lifecycle.exportZip(operator, TENANT, out);
+        byte[] zip = out.toByteArray();
+        assertThat(zip.length).isGreaterThan(payload.length / 2);
+        assertThat(out.maxChunk()).isGreaterThan(0);
+        assertThat(out.maxChunk()).isLessThan(out.total());
+        boolean sawManifest = false;
+        boolean sawLargeBlob = false;
+        boolean sawPagedRecord = false;
+        try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
+            ZipEntry entry;
+            while ((entry = in.getNextEntry()) != null) {
+                byte[] body = in.readAllBytes();
+                if ("manifest.json".equals(entry.getName())) {
+                    sawManifest = true;
+                    assertThat(new String(body, StandardCharsets.UTF_8)).contains("subjex-tenant-export-v1");
+                }
+                if ("entity_records.json".equals(entry.getName())) {
+                    String json = new String(body, StandardCharsets.UTF_8);
+                    sawPagedRecord = json.contains("rec-stream-0") && json.contains("rec-stream-" + (extraRecords - 1));
+                }
+                if ("blobs/blob-stream-1".equals(entry.getName())) {
+                    sawLargeBlob = true;
+                    assertThat(body).isEqualTo(payload);
+                }
+            }
+        }
+        assertThat(sawManifest).isTrue();
+        assertThat(sawPagedRecord).isTrue();
+        assertThat(sawLargeBlob).isTrue();
+        Integer exports = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM audit_entry WHERE action_name = ? AND outcome = ?",
+                Integer.class,
+                TenantLifecycleService.AUDIT_EXPORT,
+                AuditOutcome.ALLOWED.name());
+        assertThat(exports).isEqualTo(1);
+    }
+
+    private static byte[] zipBytes(TenantLifecycleService lifecycle, OperatorPrincipal operator, String tenantId)
+            throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        lifecycle.exportZip(operator, tenantId, bytes);
+        return bytes.toByteArray();
+    }
+
+    private static final class ChunkTrackingOutputStream extends OutputStream {
+        private final ByteArrayOutputStream all = new ByteArrayOutputStream();
+        private int maxChunk;
+
+        @Override
+        public void write(int b) {
+            maxChunk = Math.max(maxChunk, 1);
+            all.write(b);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) {
+            maxChunk = Math.max(maxChunk, len);
+            all.write(b, off, len);
+        }
+
+        byte[] toByteArray() {
+            return all.toByteArray();
+        }
+
+        int maxChunk() {
+            return maxChunk;
+        }
+
+        int total() {
+            return all.size();
+        }
     }
 
     private void seedTenantData() {

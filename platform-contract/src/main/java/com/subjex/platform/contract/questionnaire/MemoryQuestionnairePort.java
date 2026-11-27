@@ -403,7 +403,8 @@ public final class MemoryQuestionnairePort implements QuestionnairePort {
         }
         List<QuestionnaireResponse> production = responsesFor(tenant, questionnaireId.trim()).stream()
                 .filter(QuestionnaireResponse::countsForStats)
-                .sorted(Comparator.comparing(QuestionnaireResponse::submittedAt))
+                .sorted(Comparator.comparing(QuestionnaireResponse::submittedAt)
+                        .thenComparing(QuestionnaireResponse::responseId))
                 .toList();
         return Optional.of(QuestionnaireStatsSupport.toCsv(found.get(), production));
     }

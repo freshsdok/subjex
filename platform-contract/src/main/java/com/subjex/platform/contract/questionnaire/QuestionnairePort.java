@@ -1,6 +1,8 @@
 package com.subjex.platform.contract.questionnaire;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -82,8 +84,31 @@ public interface QuestionnairePort {
 
     /**
      * CSV of production responses (excludes OPERATOR preview) — 生产答卷 CSV（排除预览）.
+     * <p>
+     * Leftover buffer helper for tests and callers that still want one String.
+     * Production downloads should use {@link #writeCsv}.
+     * 留给测试与仍要整段字符串的调用方；生产下载应走 {@link #writeCsv}。
      *
      * @return empty if questionnaire missing / 问卷不存在则 empty
      */
     Optional<String> exportCsv(String tenantId, String questionnaireId);
+
+    /**
+     * Stream the production CSV into {@code out}. Returns false if the questionnaire is missing
+     * and writes nothing in that case.
+     * 把生产答卷 CSV 流式写入 {@code out}；问卷不存在则返回 false 且不写任何内容。
+     * <p>
+     * The default implementation buffers {@link #exportCsv}. JDBC overrides this to page with a keyset
+     * so a million-row export does not first materialize one String.
+     * 默认实现缓冲 {@link #exportCsv}；JDBC 覆盖为键集分页写出，避免先拼成一整段字符串。
+     */
+    default boolean writeCsv(String tenantId, String questionnaireId, Appendable out) throws IOException {
+        Objects.requireNonNull(out, "out");
+        Optional<String> csv = exportCsv(tenantId, questionnaireId);
+        if (csv.isEmpty()) {
+            return false;
+        }
+        out.append(csv.get());
+        return true;
+    }
 }

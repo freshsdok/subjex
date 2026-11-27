@@ -6,11 +6,14 @@ import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguratio
 import static com.subjex.platform.app.security.OperatorDirectoryTestConfiguration.VIEWER_PASSWORD;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.subjex.platform.app.ratelimit.SingleProcessRateLimit;
@@ -215,11 +218,18 @@ class QuestionnaireApiSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.responseCount").value(1));
 
-        mockMvc.perform(get(QuestionnaireEndpoint.BASE + "/" + qid + "/export.csv")
-                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
-                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+        org.springframework.test.web.servlet.MvcResult csv =
+                mockMvc.perform(get(QuestionnaireEndpoint.BASE + "/" + qid + "/export.csv")
+                                .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
+                                .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
+                        .andExpect(request().asyncStarted())
+                        .andReturn();
+        mockMvc.perform(asyncDispatch(csv))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("response_id")));
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"questionnaire-export.csv\""))
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("response_id")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("ANON")));
 
         mockMvc.perform(get(QuestionnaireEndpoint.BASE + "/" + qid + "/responses")
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)

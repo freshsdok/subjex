@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
  * TenantLifecycleEndpoint — TN-2 export ZIP + erase challenge/confirm ({@code tenant.manage}).
@@ -34,18 +35,20 @@ public class TenantLifecycleEndpoint {
     }
 
     @PostMapping(JsonApi.BASE + "/tenants/{tenantId}/export")
-    public ResponseEntity<byte[]> export(
+    public ResponseEntity<StreamingResponseBody> export(
             @AuthenticationPrincipal OperatorPrincipal operator, @PathVariable("tenantId") String tenantId) {
         requireOperator(operator);
         try {
-            byte[] zip = lifecycle.exportZip(operator, tenantId);
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"tenant-" + tenantId + "-export.zip\"")
-                    .contentType(MediaType.parseMediaType("application/zip"))
-                    .body(zip);
+            // 400 (reserved tenant) before the body starts — 保留租户在写响应体之前拒绝。
+            lifecycle.requireExportable(tenantId);
         } catch (IllegalArgumentException ex) {
             throw badRequest(ex);
         }
+        StreamingResponseBody body = output -> lifecycle.exportZip(operator, tenantId, output);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"tenant-" + tenantId + "-export.zip\"")
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(body);
     }
 
     @PostMapping(JsonApi.BASE + "/tenants/{tenantId}/erase/challenge")

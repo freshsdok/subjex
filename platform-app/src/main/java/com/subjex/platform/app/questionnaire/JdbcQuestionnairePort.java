@@ -18,14 +18,19 @@ import com.subjex.platform.contract.questionnaire.QuestionnaireStats;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStatsSupport;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStatus;
 import com.subjex.platform.contract.questionnaire.QuestionnaireSubmitSupport;
+import com.subjex.platform.app.support.TenantKeyset;
 import com.subjex.platform.contract.ratelimit.RateLimitPort;
+import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,9 +40,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * JdbcQuestionnairePort — JDBC 问卷端口：定义/答卷/匿名令牌 + 薄汇总/CSV（无 ORM）。
  * <p>
- * Q5: {@link #stats} / {@link #exportCsv} load production responses only (exclude OPERATOR).
+ * Q5: {@link #stats} / {@link #writeCsv} load production responses only (exclude OPERATOR).
+ * {@link #writeCsv} pages with a keyset; {@link #exportCsv} remains a test/buffer helper on top of it.
  * Never uses {@code form_submission}.
- * Q5：汇总/导出仅生产答卷；不用 form_submission。
+ * Q5：汇总/导出仅生产答卷；{@link #writeCsv} 按键集分页；{@link #exportCsv} 仍是其上的缓冲辅助。不用 form_submission。
  */
 public final class JdbcQuestionnairePort implements QuestionnairePort {
 
@@ -621,19 +627,50 @@ public final class JdbcQuestionnairePort implements QuestionnairePort {
 
     @Override
     public Optional<String> exportCsv(String tenantId, String questionnaireId) {
+        // Leftover buffer helper — tests and in-memory callers still use one String.
+        // 遗留缓冲辅助：测试与仍要整段字符串的调用方使用。
+        StringBuilder sb = new StringBuilder();
+        try {
+            if (!writeCsv(tenantId, questionnaireId, sb)) {
+                return Optional.empty();
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("CSV write failed", ex);
+        }
+        return Optional.of(sb.toString());
+    }
+
+    @Override
+    public boolean writeCsv(String tenantId, String questionnaireId, Appendable out) throws IOException {
         String tenant = MemoryQuestionnairePort.requireTenant(tenantId);
+        Objects.requireNonNull(out, "out");
         if (questionnaireId == null || questionnaireId.isBlank()) {
-            return Optional.empty();
+            return false;
         }
         Optional<QuestionnaireDefinition> found = load(tenant, questionnaireId.trim());
         if (found.isEmpty()) {
-            return Optional.empty();
+            return false;
         }
-        List<QuestionnaireResponse> production = loadProductionResponses(tenant, questionnaireId.trim());
-        // CSV oldest-first for stable export — CSV 按时间升序便于稳定导出。
-        production = new ArrayList<>(production);
-        production.sort(java.util.Comparator.comparing(QuestionnaireResponse::submittedAt));
-        return Optional.of(QuestionnaireStatsSupport.toCsv(found.get(), production));
+        QuestionnaireDefinition definition = found.get();
+        // Oldest-first, response_id tie-break so the keyset is stable.
+        // 按时间升序，相同时间再按答卷标识，保证键集稳定。
+        QuestionnaireStatsSupport.writeCsvHeader(definition, out);
+        Instant afterTime = Instant.EPOCH;
+        String afterId = "";
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        while (true) {
+            List<QuestionnaireResponse> page =
+                    loadProductionResponsePage(tenant, questionnaireId.trim(), afterTime, afterId, pageSize);
+            for (QuestionnaireResponse response : page) {
+                QuestionnaireStatsSupport.writeCsvRow(definition, response, out);
+                afterTime = response.submittedAt();
+                afterId = response.responseId();
+            }
+            if (page.size() < pageSize) {
+                break;
+            }
+        }
+        return true;
     }
 
     private List<QuestionnaireResponse> loadProductionResponses(String tenant, String questionnaireId) {
@@ -655,6 +692,71 @@ public final class JdbcQuestionnairePort implements QuestionnairePort {
         }
         return List.copyOf(out);
     }
+
+    /**
+     * One keyset page of production responses (excludes OPERATOR), oldest first.
+     * 一页生产答卷（排除操作员预览），按时间升序。
+     */
+    private List<QuestionnaireResponse> loadProductionResponsePage(
+            String tenant, String questionnaireId, Instant afterTime, String afterId, int limit) {
+        List<QuestionnaireResponse> headers = jdbc.query(
+                """
+                SELECT response_id, questionnaire_id, revision, tenant_id,
+                       respondent_realm, respondent_subject_id, submitted_at
+                FROM questionnaire_response
+                WHERE tenant_id = ? AND questionnaire_id = ? AND respondent_realm <> ?
+                  AND (submitted_at > ? OR (submitted_at = ? AND response_id > ?))
+                ORDER BY submitted_at ASC, response_id ASC
+                LIMIT ?
+                """,
+                this::mapResponseHeader,
+                tenant,
+                questionnaireId,
+                QuestionnaireRespondentRealm.OPERATOR.name(),
+                Timestamp.from(afterTime),
+                Timestamp.from(afterTime),
+                afterId,
+                limit);
+        return withAnswersForPage(headers);
+    }
+
+    private List<QuestionnaireResponse> withAnswersForPage(List<QuestionnaireResponse> headers) {
+        if (headers.isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<QuestionnaireAnswer>> answers = loadAnswersFor(headers);
+        List<QuestionnaireResponse> out = new ArrayList<>(headers.size());
+        for (QuestionnaireResponse header : headers) {
+            out.add(withAnswers(header, answers.getOrDefault(header.responseId(), List.of())));
+        }
+        return List.copyOf(out);
+    }
+
+    private Map<String, List<QuestionnaireAnswer>> loadAnswersFor(List<QuestionnaireResponse> headers) {
+        String placeholders = String.join(",", Collections.nCopies(headers.size(), "?"));
+        Object[] ids = headers.stream().map(QuestionnaireResponse::responseId).toArray();
+        List<AnswerRow> rows = jdbc.query(
+                """
+                SELECT response_id, item_id, value_json
+                FROM questionnaire_answer
+                WHERE response_id IN ("""
+                        + placeholders
+                        + """
+                )
+                ORDER BY response_id ASC, item_id ASC
+                """,
+                (rs, rowNum) -> new AnswerRow(
+                        rs.getString("response_id"),
+                        new QuestionnaireAnswer(rs.getString("item_id"), rs.getString("value_json"))),
+                ids);
+        Map<String, List<QuestionnaireAnswer>> out = new LinkedHashMap<>();
+        for (AnswerRow row : rows) {
+            out.computeIfAbsent(row.responseId(), key -> new ArrayList<>()).add(row.answer());
+        }
+        return out;
+    }
+
+    private record AnswerRow(String responseId, QuestionnaireAnswer answer) {}
 
     private void insertItems(String questionnaireId, int revision, List<QuestionnaireItem> items) {
         for (QuestionnaireItem item : items) {

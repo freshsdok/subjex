@@ -3,6 +3,7 @@ package com.subjex.platform.contract.questionnaire;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -65,6 +66,13 @@ class QuestionnaireStatsSupportTest {
         assertTrue(csv.startsWith("response_id,revision,respondent_realm,respondent_subject_id,submitted_at,i1,i2,i3\n"));
         assertTrue(csv.contains("r1,1,END_USER,u1,"));
         assertTrue(csv.contains("\"好\""));
+        StringBuilder streamed = new StringBuilder();
+        try {
+            QuestionnaireStatsSupport.writeCsv(def, rows, streamed);
+        } catch (IOException ex) {
+            throw new AssertionError(ex);
+        }
+        assertEquals(csv, streamed.toString());
     }
 
     private static QuestionnaireResponse response(
