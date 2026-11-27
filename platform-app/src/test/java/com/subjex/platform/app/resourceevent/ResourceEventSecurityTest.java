@@ -81,6 +81,7 @@ class ResourceEventSecurityTest {
                         List.of(),
                         List.of(),
                         List.of(),
+                        List.of(),
                         List.of()));
         mockMvc.perform(get(ResourceEventEndpoint.SUMMARY_PATH)
                         .queryParam("tenantId", "tenant-a")

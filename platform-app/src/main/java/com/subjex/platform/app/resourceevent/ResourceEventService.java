@@ -4,6 +4,7 @@ import com.subjex.platform.app.identity.enduser.EndUserAccountStore;
 import com.subjex.platform.app.identity.enduser.EndUserPrincipal;
 import com.subjex.platform.app.resourceevent.JdbcResourceEventStore.CampaignCount;
 import com.subjex.platform.app.resourceevent.JdbcResourceEventStore.DailyCount;
+import com.subjex.platform.app.resourceevent.JdbcResourceEventStore.ReferrerCount;
 import com.subjex.platform.app.resourceevent.JdbcResourceEventStore.ResourceCount;
 import com.subjex.platform.app.resourceevent.JdbcResourceEventStore.ResourceEventRow;
 import com.subjex.platform.app.resourceevent.JdbcResourceEventStore.SharerCount;
@@ -108,6 +109,7 @@ public final class ResourceEventService {
         }
         Totals totals = store.totals(tid, start, end);
         List<CampaignCount> campaigns = store.campaigns(tid, start, end, MAX_ROWS);
+        List<ReferrerShare> referrers = referrerShares(store.referrers(tid, start, end, MAX_ROWS), totals);
         return new SummaryDocument(
                 tid,
                 start,
@@ -116,7 +118,38 @@ public final class ResourceEventService {
                 store.resourceCounts(tid, start, end, MAX_ROWS),
                 store.dailyCounts(tid, start, end),
                 store.sharers(tid, start, end, MAX_ROWS),
-                campaigns);
+                campaigns,
+                referrers);
+    }
+
+    /**
+     * Attach each captured referrer's share-of the tenant totals (raw counts stay in the row).
+     * 为已捕获的来源页附上占该租户合计的份额（行内仍保留原始次数）。
+     * Events with no referrer are not listed; they remain in the totals.
+     * 没有来源页的事件不单独成行，但仍计入合计。
+     */
+    static List<ReferrerShare> referrerShares(List<ReferrerCount> rows, Totals totals) {
+        long shareTotal = totals == null ? 0L : totals.shares();
+        long openTotal = totals == null ? 0L : totals.opens();
+        return rows.stream()
+                .map(row -> new ReferrerShare(
+                        row.referrer(),
+                        row.shares(),
+                        row.opens(),
+                        shareOf(row.shares(), shareTotal),
+                        shareOf(row.opens(), openTotal)))
+                .toList();
+    }
+
+    /**
+     * Whole-number share of {@code total}, in parts per ten thousand, or 0 when total is 0.
+     * 占 {@code total} 的万分比整数；合计为 0 时为 0。避免把浮点误差写进接口。
+     */
+    static int shareOf(long part, long total) {
+        if (total <= 0L || part <= 0L) {
+            return 0;
+        }
+        return (int) Math.min(10_000L, (part * 10_000L) / total);
     }
 
     private String requireActiveBusinessTenant(String tenantId) {
@@ -228,5 +261,15 @@ public final class ResourceEventService {
             List<ResourceCount> resources,
             List<DailyCount> daily,
             List<SharerCount> sharers,
-            List<CampaignCount> campaigns) {}
+            List<CampaignCount> campaigns,
+            List<ReferrerShare> referrers) {}
+
+    /**
+     * One captured referrer plus its share of tenant totals, in parts per ten thousand.
+     * 一条已捕获来源页，以及占该租户合计的万分比。
+     * {@code shareOfShares} 2500 means 25% of recorded shares in the window.
+     * {@code shareOfShares} 为 2500 表示占本时段已记录分享的 25%。
+     */
+    public record ReferrerShare(
+            String referrer, long shares, long opens, int shareOfShares, int shareOfOpens) {}
 }

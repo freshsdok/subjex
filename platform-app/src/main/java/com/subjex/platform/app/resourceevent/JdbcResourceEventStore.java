@@ -171,6 +171,35 @@ public final class JdbcResourceEventStore {
                 limit);
     }
 
+    /**
+     * Counts by captured referrer only (blank referrer is omitted).
+     * 只汇总已记下的来源页；没有来源页的事件不出现在这里。
+     */
+    public List<ReferrerCount> referrers(String tenantId, Instant from, Instant to, int limit) {
+        return jdbc.query(
+                """
+                SELECT referrer,
+                       SUM(CASE WHEN event_type = 'share' THEN 1 ELSE 0 END) AS shares,
+                       SUM(CASE WHEN event_type = 'open' THEN 1 ELSE 0 END) AS opens
+                FROM resource_event
+                WHERE tenant_id = ? AND occurred_at >= ? AND occurred_at <= ?
+                  AND referrer IS NOT NULL AND referrer <> ''
+                GROUP BY referrer
+                ORDER BY (SUM(CASE WHEN event_type = 'share' THEN 1 ELSE 0 END)
+                        + SUM(CASE WHEN event_type = 'open' THEN 1 ELSE 0 END)) DESC,
+                         referrer
+                LIMIT ?
+                """,
+                (row, i) -> new ReferrerCount(
+                        row.getString("referrer"),
+                        row.getLong("shares"),
+                        row.getLong("opens")),
+                tenantId,
+                PlatformTables.timestamp(from),
+                PlatformTables.timestamp(to),
+                limit);
+    }
+
     private static LocalDate toLocalDate(Object raw) {
         if (raw instanceof LocalDate local) {
             return local;
@@ -214,4 +243,6 @@ public final class JdbcResourceEventStore {
             String utmTerm,
             long shares,
             long opens) {}
+
+    public record ReferrerCount(String referrer, long shares, long opens) {}
 }

@@ -1,7 +1,7 @@
 import { ForbiddenNotice, LoadFailedNotice, PageHeading } from "@/components/page-state";
 import { currentLanguage } from "@/i18n/server-language";
 import { PAGE_SHARES, pageAllowed, type UiPermissionManifestDocument } from "@/lib/ui-permissions";
-import type { ShareCampaignRow, ShareDailyRow, ShareResourceRow, ShareSharerRow, ShareTotals } from "@/lib/shares-observation";
+import type { ShareCampaignRow, ShareDailyRow, ShareReferrerRow, ShareResourceRow, ShareSharerRow, ShareTotals } from "@/lib/shares-observation";
 import { readPlatform, type OperatorSelfDocument } from "@/server/platform-reader";
 import { SharesConsole } from "./shares-console";
 
@@ -14,6 +14,7 @@ type SummaryDocument = {
   daily?: ShareDailyRow[];
   sharers?: ShareSharerRow[];
   campaigns?: ShareCampaignRow[];
+  referrers?: ShareReferrerRow[];
 };
 
 type TenantsDocument = {
@@ -80,6 +81,7 @@ export default async function SharesPage({
         daily={body?.daily ?? []}
         sharers={body?.sharers ?? []}
         campaigns={body?.campaigns ?? []}
+        referrers={body?.referrers ?? []}
         tenants={(tenantsRead.body?.tenants ?? [])
           .map((row) => ({ tenantId: row.tenantId ?? "", tenantName: row.tenantName ?? "" }))
           .filter((row) => row.tenantId)}

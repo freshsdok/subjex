@@ -149,7 +149,8 @@ class ResourceEventTest {
                 .andExpect(jsonPath("$.resources.length()").value(0))
                 .andExpect(jsonPath("$.daily.length()").value(0))
                 .andExpect(jsonPath("$.sharers.length()").value(0))
-                .andExpect(jsonPath("$.campaigns.length()").value(0));
+                .andExpect(jsonPath("$.campaigns.length()").value(0))
+                .andExpect(jsonPath("$.referrers.length()").value(0));
     }
 
     @Test
@@ -181,6 +182,63 @@ class ResourceEventTest {
                 .isInstanceOf(OperatorTenantNotGrantedException.class);
         assertThatThrownBy(() -> service.summarise(admin, " ", null, null))
                 .isInstanceOf(TenantMissingException.class);
+    }
+
+    @Test
+    void fileShareAndOpenAreCountedAndReferrerShareOfUsesCapturedReferrer() throws Exception {
+        mvc.perform(post(ResourceEventEndpoint.PATH)
+                        .header("X-Tenant-Id", TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"resourceType":"file","resourceId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                                 "eventType":"share","referrer":"https://example.com/card"}
+                                """)
+                        .with(asPrincipal(pat)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resourceType").value("file"));
+        mvc.perform(post(ResourceEventEndpoint.PATH)
+                        .header("X-Tenant-Id", TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"resourceType":"file","resourceId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                                 "eventType":"open","referrer":"https://example.com/card"}
+                                """))
+                .andExpect(status().isOk());
+        // A second open without a referrer still counts in totals, but not in the referrer table.
+        // 另一次没有来源页的打开仍计入合计，但不进入来源页表。
+        mvc.perform(post(ResourceEventEndpoint.PATH)
+                        .header("X-Tenant-Id", TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"resourceType":"file","resourceId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                                 "eventType":"open"}
+                                """))
+                .andExpect(status().isOk());
+        mvc.perform(post(ResourceEventEndpoint.PATH)
+                        .header("X-Tenant-Id", TENANT_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"resourceType":"questionnaire","resourceId":"q-1","eventType":"share"}
+                                """))
+                .andExpect(status().isOk());
+
+        mvc.perform(get(ResourceEventEndpoint.SUMMARY_PATH)
+                        .queryParam("tenantId", TENANT_A)
+                        .with(asPrincipal(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totals.shares").value(2))
+                .andExpect(jsonPath("$.totals.opens").value(2))
+                .andExpect(jsonPath("$.resources.length()").value(2))
+                .andExpect(jsonPath("$.referrers.length()").value(1))
+                .andExpect(jsonPath("$.referrers[0].referrer").value("https://example.com/card"))
+                .andExpect(jsonPath("$.referrers[0].shares").value(1))
+                .andExpect(jsonPath("$.referrers[0].opens").value(1))
+                .andExpect(jsonPath("$.referrers[0].shareOfShares").value(5000))
+                .andExpect(jsonPath("$.referrers[0].shareOfOpens").value(5000));
     }
 
     @Test

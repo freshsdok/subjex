@@ -7,9 +7,11 @@ import {
   datetimeLocalToIso,
   datetimeLocalValue,
   hasRecordedEvents,
+  formatShareOf,
   sharesConsoleQuery,
   type ShareCampaignRow,
   type ShareDailyRow,
+  type ShareReferrerRow,
   type ShareResourceRow,
   type ShareSharerRow,
   type ShareTotals,
@@ -31,6 +33,7 @@ export function SharesConsole({
   daily,
   sharers,
   campaigns,
+  referrers,
 }: {
   phrases: PhraseBook;
   tenants: Array<{ tenantId: string; tenantName: string }>;
@@ -43,6 +46,7 @@ export function SharesConsole({
   daily: ShareDailyRow[];
   sharers: ShareSharerRow[];
   campaigns: ShareCampaignRow[];
+  referrers: ShareReferrerRow[];
 }) {
   const router = useRouter();
   const [tenantId, setTenantId] = useState(selectedTenantId);
@@ -185,6 +189,30 @@ export function SharesConsole({
                   row.utmTerm ?? "",
                   String(row.shares ?? 0),
                   String(row.opens ?? 0),
+                ])}
+              />
+            )}
+          </section>
+
+          <section>
+            <h2 className="text-sm font-medium">{phrases.sharesReferrersTitle}</h2>
+            {referrers.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">{phrases.sharesReferrersEmpty}</p>
+            ) : (
+              <CountTable
+                headers={[
+                  phrases.sharesReferrerColumn,
+                  phrases.sharesShareCountLabel,
+                  phrases.sharesShareOfSharesColumn,
+                  phrases.sharesOpenCountLabel,
+                  phrases.sharesShareOfOpensColumn,
+                ]}
+                rows={referrers.map((row) => [
+                  row.referrer ?? "",
+                  String(row.shares ?? 0),
+                  formatShareOf(row.shareOfShares),
+                  String(row.opens ?? 0),
+                  formatShareOf(row.shareOfOpens),
                 ])}
               />
             )}

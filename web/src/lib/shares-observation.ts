@@ -26,6 +26,13 @@ export type ShareCampaignRow = {
   shares?: number;
   opens?: number;
 };
+export type ShareReferrerRow = {
+  referrer?: string | null;
+  shares?: number;
+  opens?: number;
+  shareOfShares?: number;
+  shareOfOpens?: number;
+};
 
 export function sharesConsoleQuery(tenantId: string, from?: string, to?: string): string {
   const params = new URLSearchParams();
@@ -61,4 +68,13 @@ export function datetimeLocalToIso(value: string): string | undefined {
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return undefined;
   return date.toISOString();
+}
+
+/**
+ * Format a parts-per-ten-thousand share-of as a percent, e.g. 2500 → "25.00%".
+ * 把万分比份额格式化为百分数，例如 2500 → "25.00%"。
+ */
+export function formatShareOf(permyriad?: number | null): string {
+  const value = typeof permyriad === "number" && Number.isFinite(permyriad) ? Math.max(0, permyriad) : 0;
+  return (value / 100).toFixed(2) + "%";
 }
