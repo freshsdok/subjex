@@ -14,6 +14,7 @@ import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.idp.IdpProvidersEndpoint;
 import com.subjex.platform.app.idp.MeIdpLinkEndpoint;
 import com.subjex.platform.app.inbox.EndUserInboxEndpoint;
+import com.subjex.platform.app.inbox.InboxPathRetiredException;
 import com.subjex.platform.app.security.EndUserRealmGateFilter;
 import com.subjex.platform.app.security.OperatorAuthEndpoint;
 import com.subjex.platform.app.security.OperatorDirectoryTestConfiguration;
@@ -75,7 +76,8 @@ import tools.jackson.databind.ObjectMapper;
             IdpProvidersEndpoint.class,
             EndUserAuthEndpoint.class,
             EndUserPhoneAuthEndpoint.class,
-            EndUserWeChatAuthEndpoint.class
+            EndUserWeChatAuthEndpoint.class,
+            EndUserInboxEndpoint.class
         })
 @Import({
     PlatformSecurityConfiguration.class,
@@ -159,7 +161,6 @@ class EndUserCrossRealmIsolationTest {
                 Route.get("/api/v1/inbox"),
                 Route.get("/api/v1/inbox/entries"),
                 Route.post("/api/v1/inbox/system"),
-                Route.get(EndUserInboxEndpoint.BASE + "/entries"),
                 Route.get("/api/v1/questionnaires"),
                 Route.post("/api/v1/questionnaires"),
                 Route.post("/api/v1/declarations/demo/1.0.0/promote"),
@@ -184,6 +185,23 @@ class EndUserCrossRealmIsolationTest {
                         .content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.reason").value(EndUserRealmGateFilter.REASON));
+    }
+
+    @Test
+    void leftoverMeInboxPathIsGoneForEndUserAndOperator() throws Exception {
+        // Retired path is not a second working inbox; both realms get 410, not mailbox data.
+        // 旧路径不是第二套可用收件箱；终端与操作员令牌都得到 410，而不是信件内容。
+        mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/entries")
+                        .header("Authorization", "Bearer " + endUserAccess)
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.reason").value(InboxPathRetiredException.REASON))
+                .andExpect(jsonPath("$.use").value(InboxPathRetiredException.USE));
+        mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/unread-count")
+                        .header("Authorization", "Bearer " + operatorAccess)
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.reason").value(InboxPathRetiredException.REASON));
     }
 
     @Test

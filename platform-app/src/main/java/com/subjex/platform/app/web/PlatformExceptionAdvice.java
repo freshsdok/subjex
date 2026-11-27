@@ -24,6 +24,7 @@ import com.subjex.platform.app.security.OperatorTenantNotGrantedException;
 import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.app.security.TenantNotFoundException;
 import com.subjex.platform.app.identity.enduser.EndUserPhoneAuthService;
+import com.subjex.platform.app.inbox.InboxPathRetiredException;
 import com.subjex.platform.app.identity.enduser.EndUserTenantAccessDeniedException;
 import com.subjex.platform.app.task.IdempotencyConflict;
 import com.subjex.platform.app.task.RateLimitExceeded;
@@ -154,6 +155,14 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler(PaymentCrossTenantDeniedException.class)
     ResponseEntity<Map<String, String>> paymentCrossTenant() {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", "payment-cross-tenant-denied"));
+    }
+
+    @ExceptionHandler(InboxPathRetiredException.class)
+    ResponseEntity<Map<String, String>> inboxPathRetired() {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(Map.of(
+                        "reason", InboxPathRetiredException.REASON,
+                        "use", InboxPathRetiredException.USE));
     }
 
     @ExceptionHandler(PaymentCancelDeniedException.class)

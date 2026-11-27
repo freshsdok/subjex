@@ -23,7 +23,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * EndUserShellInboxEndpoint — own-subject inbox under {@code /api/v1/end-user/inbox}.
- * 终端收件箱（本人+当前租户）。可列出并直接下载本人收件上的附件；不写信，不改 {@code /api/v1/me/inbox}。
+ * The leftover {@code /api/v1/me/inbox} path is retired (410).
+ * 终端收件箱（本人+当前租户）。可列出并直接下载本人收件上的附件；不写信。旧路径 {@code /api/v1/me/inbox} 已退役（410）。
  */
 @RestController
 public class EndUserShellInboxEndpoint {

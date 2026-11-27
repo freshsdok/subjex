@@ -107,7 +107,7 @@ Implementation is sliced (below). This ADR does not start WP7-1, does not rewrit
 
 ## Open points not settled from existing docs / 现有文档无法锁死、故不臆造
 
-- Exact retirement of `/api/v1/me/inbox` once `/api/v1/end-user/inbox/**` exists (redirect, 410, or leave unused).
+- Exact retirement of `/api/v1/me/inbox` once `/api/v1/end-user/inbox/**` exists — later settled as HTTP 410 (`inbox-path-retired`), not a redirect and not a second working mailbox.
 - Whether AUTH_END_USER listing is “all published questionnaires in the tenant” (the only model that exists today) or a later assignment/ACL product — this ADR does not invent assignment.
 - Whether a later slice adds end-user variants of generic `GET/POST /api/v1/forms/**` / form-render. WP7 ships questionnaires first; a general form shell is not invented here.
 - Whether the shell needs an end-user-safe `ui-permissions` route, or whether local menu fallback in uni-app is enough (`GET /api/v1/ui-permissions` is operator-gated today).

@@ -8,6 +8,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes PC-deepen-2/3 (local) on `49172c3`+.
 
 ### Added / 新增
+- **Retire leftover `/api/v1/me/inbox`:** The working end-user mailbox remains `/api/v1/end-user/inbox/**`. The old path now returns HTTP 410 (`reason=inbox-path-retired`, `use=/api/v1/end-user/inbox`) for any authenticated caller (operator or end-user). Anonymous callers still get 401. This is not a second working inbox and not a silent redirect. Uni-app already called the new path. Operator `/api/v1/inbox/**` is unchanged.
+  **退役残留的 `/api/v1/me/inbox`：** 终端收件箱仍走 `/api/v1/end-user/inbox/**`。旧路径对已登录调用方一律返回 410，不再提供第二套可用收件接口。未登录仍为 401。操作员 `/api/v1/inbox/**` 不变。
+
 - **Async personal-data export and keyset volume increments:** After approval, generation is enqueued automatically (`APPROVED` → `GENERATING`). A thin `@Scheduled` `ExportGenerationWorker` (same style as `PaymentExpiryWorker`) streams the artifact to object storage and completes to `READY` or `FAILED`. `POST .../generate` only enqueues or retries a failure; it does not write the artifact on the request thread. Operator `/exports` and uni-app 「我的导出」 show generating/failed honestly; retry is optional for `FAILED`. Lists use tenant-scoped keyset pages (`{exports, nextCursor}`). Flyway V66 adds composite indexes. Artifact TTL remains 7 days on `READY`. Self-approval remains forbidden. Questionnaire CSV and tenant ZIP are unchanged. No Elasticsearch and no new job platform.
   **个人资料导出改为后台生成，并补上键集分页：** 批准后自动入队；薄定时工作线程流式写入对象存储；失败可重试。列表改为租户内键集分页。产物仍 7 天后过期。禁止自己批准自己。未改问卷 CSV 与租户 ZIP，不上 Elasticsearch，不另做任务平台。
 

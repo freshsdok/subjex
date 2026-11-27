@@ -20,7 +20,7 @@ IM-8（经出箱做微信/邮件外部推送）改由 WP5 / ADR 0017 跟踪。WP
 | IM-3 Workflow hooks | **done** | repair-ticket `request_approval`→ACTION candidates; `approve`/`reject`/`close`→INFO reporter |
 | IM-4 Console `/inbox` | **done** | `web/` `/inbox` list + mark-read + deep link + nav (`inbox.read`) |
 | IM-5 Unread badge poll | **done** | header badge ~60s poll + visibility pause; click → `/inbox` |
-| IM-6 uni-app END_USER | **done** (thin) | `/api/v1/me/inbox` + uni-app page; after #3a Bearer |
+| IM-6 uni-app END_USER | **done** (thin) | Product path is now `/api/v1/end-user/inbox/**` + uni-app page. Leftover `/api/v1/me/inbox` later retired (HTTP 410). |
 | IM-7 ORG_BROADCAST | **superseded by IM-A5** | Schema enum existed; API now planned under ADR 0009 |
 | IM-8 External push via outbox | deferred | WeChat/email after MVP (locked) |
 
@@ -155,7 +155,7 @@ IM-8（经出箱做微信/邮件外部推送）改由 WP5 / ADR 0017 跟踪。WP
 
 ## IM-6 notes (2026-10-22 Asia/Shanghai)
 
-- API: `GET/POST /api/v1/me/inbox/**` always `InboxRecipientRealm.END_USER` (list/unread/detail/mark-read)
+- API: originally `GET/POST /api/v1/me/inbox/**` always `InboxRecipientRealm.END_USER` (list/unread/detail/mark-read). The product path later moved to `/api/v1/end-user/inbox/**`; `/api/v1/me/inbox` returns HTTP 410.
 - SYSTEM send accepts optional `recipientRealm=END_USER` for seeding
 - uni-app `/pages/inbox/inbox` consumes me/inbox with stored Bearer + `X-Tenant-Id`
 - Auth prerequisite (#3a): password login and/or wechat:mini IdP callback → opaque Bearer (operator-linked until dedicated END_USER identity)

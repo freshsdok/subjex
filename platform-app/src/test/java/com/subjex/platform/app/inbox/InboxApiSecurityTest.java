@@ -245,8 +245,8 @@ class InboxApiSecurityTest {
 
     @Test
     void endUserMailboxIsIsolatedFromOperatorRealm() throws Exception {
-        // IM-6: SYSTEM to END_USER appears on /me/inbox, not operator /inbox/entries.
-        // IM-6：END_USER 系统信只在 /me/inbox 可见，不进操作员收件箱。
+        // SYSTEM to END_USER must not appear on the operator mailbox. The leftover /me/inbox path is retired.
+        // 发给 END_USER 的系统信不得出现在操作员收件箱。残留的 /me/inbox 路径已退役。
         mockMvc.perform(post(InboxEndpoint.BASE + "/system")
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -271,44 +271,36 @@ class InboxApiSecurityTest {
                 .andReturn();
         String opBody = opList.getResponse().getContentAsString();
         org.junit.jupiter.api.Assertions.assertFalse(opBody.contains("终端通知"));
+    }
 
-        MvcResult list = mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/entries")
+    @Test
+    void leftoverMeInboxPathIsGone() throws Exception {
+        // Authenticated callers get 410; the working mailbox is /api/v1/end-user/inbox.
+        // 已登录调用方得到 410；可用收件箱是 /api/v1/end-user/inbox。
+        mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/entries")
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.entries", hasSize(1)))
-                .andExpect(jsonPath("$.entries[0].title").value("终端通知"))
-                .andReturn();
-
-        String entryId = objectMapper
-                .readTree(list.getResponse().getContentAsString())
-                .get("entries")
-                .get(0)
-                .get("entryId")
-                .asText();
-
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.reason").value(InboxPathRetiredException.REASON))
+                .andExpect(jsonPath("$.use").value(InboxPathRetiredException.USE));
         mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/unread-count")
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
-                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.count").value(1));
-
-        mockMvc.perform(post(EndUserInboxEndpoint.BASE + "/entries/" + entryId + "/read")
+                        .with(httpBasic(VIEWER, VIEWER_PASSWORD)))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.reason").value(InboxPathRetiredException.REASON));
+        mockMvc.perform(post(EndUserInboxEndpoint.BASE + "/entries/any/read")
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
                         .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.marked").value(1));
-
-        mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/unread-count")
-                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT)
-                        .with(httpBasic(OPERATOR, OPERATOR_PASSWORD)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.count").value(0));
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.reason").value(InboxPathRetiredException.REASON));
     }
 
     @Test
     void anonymousIsUnauthorized() throws Exception {
         mockMvc.perform(get(InboxEndpoint.BASE + "/unread-count")
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get(EndUserInboxEndpoint.BASE + "/entries")
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT))
                 .andExpect(status().isUnauthorized());
     }

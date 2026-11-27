@@ -40,7 +40,7 @@ Residual gaps (honest, not in this package) / 仍存缺口（本包不解决）�
 
 - No chunked end-user upload (entity chunked sessions are not reused).
 - Inbox attachments remain closed to end users.
-- `/api/v1/me/inbox` is not retired (the end-user shell uses `/api/v1/end-user/inbox/**`; the older path is unchanged).
+- `/api/v1/me/inbox` was later retired (HTTP 410 `inbox-path-retired`); the end-user shell uses `/api/v1/end-user/inbox/**`.
 - Questionnaire assignment / ACL later landed in a product-deepening slice: published `AUTH_END_USER` questionnaires are visible or fillable only when assigned to the person or an organization they belong to.
   问卷分配/ACL 已在后续产品加深切片落地：已发布的 `AUTH_END_USER` 问卷仅在分配给本人或其所在部门时可见可填。
 - Profile includes `subjectName`, an authorized-track avatar (object id + short-lived download), and an email that must be verified before it is the profile address.
@@ -133,7 +133,7 @@ Recorded here so later slices can revisit them without treating this implementat
 - Questionnaire list (WP7 default, later tightened): only questionnaires that are **published** in the end user's **current business tenant** and are `AUTH_END_USER`. A later slice added assignment: unassigned published questionnaires are not visible to signed-in users.
   问卷列表（WP7 默认，后来收紧）：仅当前业务租户已发布且采集模式为 `AUTH_END_USER` 的问卷。后续切片增加分配：已发布但未分配的认证问卷不对登录用户可见。
 - Leave `/api/v1/me/inbox` (operator-wired leftover) **unchanged**; no retirement in this slice.
-  保留 `/api/v1/me/inbox`，本切片不退役。
+  当时保留 `/api/v1/me/inbox`，本切片不退役。随后已退役为 HTTP 410。
 - Inbox **attachments stay closed** to end users (not exposed on the new routes).
   终端收件箱不暴露附件。
 - Profile: display name, authorized-track avatar, and email stored pending until a verification code is consumed.
