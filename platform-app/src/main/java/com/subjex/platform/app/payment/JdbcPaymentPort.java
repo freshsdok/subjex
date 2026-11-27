@@ -8,7 +8,10 @@ import com.subjex.platform.app.security.TenantDisabledException;
 import com.subjex.platform.app.security.TenantNotFoundException;
 import com.subjex.platform.contract.audit.AuditEntry;
 import com.subjex.platform.contract.audit.AuditOutcome;
+import com.subjex.platform.app.notification.JdbcNotificationPort;
 import com.subjex.platform.contract.audit.AuditPort;
+import com.subjex.platform.contract.inbox.InboxRecipientRealm;
+import com.subjex.platform.contract.notification.NotificationPort;
 import com.subjex.platform.contract.payment.CreatePaymentCommand;
 import com.subjex.platform.contract.payment.PaymentAdapterUnconfiguredException;
 import com.subjex.platform.contract.payment.PaymentAmount;
@@ -50,6 +53,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * JdbcPaymentPort — JDBC 支付端口：创单、查单、取消待支付、幂等回调与退款，并在已有出箱上写 {@link PaymentStatusChanged}。
+ * A first transition to {@code SUCCEEDED} also enqueues {@code NotificationRequested} for the payer
+ * on the same outbox via {@link NotificationPort}; it does not start a workflow.
+ * 首次进入 {@code SUCCEEDED} 时，另经 {@link NotificationPort} 在同一出箱为付款人入队 {@code NotificationRequested}，不启动工作流。
  * Pending payments expire 30 minutes after {@code created_at} (on read, charge, or a thin sweep).
  * 待支付单据自 {@code created_at} 起 30 分钟过期（读取、扣费或薄清扫时入账）。
  * <p>
@@ -122,6 +128,7 @@ public final class JdbcPaymentPort implements PaymentPort {
     private final ObjectMapper objectMapper;
     private final Map<String, PaymentProviderAdapter> adapters;
     private final AuditPort audit;
+    private final NotificationPort notifications;
 
     /**
      * Test helper: default mock adapter so create/query tests can stay adapter-agnostic.
@@ -144,6 +151,24 @@ public final class JdbcPaymentPort implements PaymentPort {
             ObjectMapper objectMapper,
             Collection<PaymentProviderAdapter> adapters,
             AuditPort audit) {
+        this(
+                jdbc,
+                transactionTemplate,
+                clock,
+                objectMapper,
+                adapters,
+                audit,
+                new JdbcNotificationPort(jdbc, objectMapper, clock));
+    }
+
+    public JdbcPaymentPort(
+            JdbcTemplate jdbc,
+            TransactionTemplate transactionTemplate,
+            Clock clock,
+            ObjectMapper objectMapper,
+            Collection<PaymentProviderAdapter> adapters,
+            AuditPort audit,
+            NotificationPort notifications) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -155,6 +180,7 @@ public final class JdbcPaymentPort implements PaymentPort {
         }
         this.adapters = Map.copyOf(map);
         this.audit = Objects.requireNonNull(audit, "audit");
+        this.notifications = Objects.requireNonNull(notifications, "notifications");
     }
 
     @Override
@@ -374,6 +400,9 @@ public final class JdbcPaymentPort implements PaymentPort {
                     found.providerId,
                     callback.providerReference(),
                     ts);
+            if (callback.resultingStatus() == PaymentStatus.SUCCEEDED) {
+                enqueueSucceededNotice(tenantId, paymentId, found, callback.resultingStatus());
+            }
             PaymentDocument applied = loadDocument(tenantId, paymentId);
             recordAttempt(tenantId, found.providerId, paymentId, CHARGE_ACTION, AuditOutcome.ALLOWED);
             return applied;
@@ -940,6 +969,38 @@ public final class JdbcPaymentPort implements PaymentPort {
                 providerId,
                 providerReference,
                 ts);
+    }
+
+    /**
+     * Enqueue a payer notice on the same outbox after the first SUCCEEDED transition.
+     * Skip when the payer cannot be addressed; never invent a second delivery path.
+     * 首次成功入账后在同一出箱为付款人入队通知。无法寻址则跳过，不另起投递路径。
+     */
+    private void enqueueSucceededNotice(String tenantId, String paymentId, PaymentRow found, PaymentStatus status) {
+        InboxRecipientRealm realm = parsePayerRealm(found.payerRealm);
+        if (found.payerSubjectId == null || found.payerSubjectId.isBlank() || realm == null) {
+            return;
+        }
+        notifications.enqueue(
+                PaymentSucceededNotice.command(
+                        tenantId,
+                        paymentId,
+                        found.amountMinor,
+                        found.currency,
+                        status,
+                        realm,
+                        found.payerSubjectId));
+    }
+
+    private static InboxRecipientRealm parsePayerRealm(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return InboxRecipientRealm.valueOf(raw.trim());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private void insertStatusChanged(

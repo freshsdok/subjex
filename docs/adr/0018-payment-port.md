@@ -80,7 +80,7 @@ Unlike `NotificationRequested` (an in-process **adapter dispatch** that `OutboxR
 
 Domain modules continue their own workflows by querying status and/or consuming the event. This package does **not** automatically transition a thin workflow or send a notification when a payment succeeds (see Open points).
 
-查单是真相源；支付成功、退款入账等状态变化另在已有 `outbox_event` 上写 `PaymentStatusChanged`（名称示意），经现有 `DeliveryPort` 投递给消费者，不另起出箱，不当成 `TaskRecorded`，也不经 `TaskMessagePort.submit`。本包不自动推进工作流或发送通知。
+查单是真相源；支付成功、退款入账等状态变化另在已有 `outbox_event` 上写 `PaymentStatusChanged`（名称示意），经现有 `DeliveryPort` 投递给消费者，不另起出箱，不当成 `TaskRecorded`，也不经 `TaskMessagePort.submit`。本包（WP6）不自动推进工作流或发送通知。后续切片已在首次 `SUCCEEDED` 时入队 `NotificationRequested`；仍不自动推进工作流。
 
 ### D8 — Small slices; no WP7 and no vendor lock-in in this package
 
@@ -122,6 +122,8 @@ Production vendor adapters (SPI, no single hardcoded vendor) may land after WP6-
 - Payment expiration, caller-initiated cancel, or a refund time window — later locked and implemented in a product-deepening slice: PENDING expires 30 minutes after `created_at`; the payer may cancel PENDING; refunds are refused 7 days after `succeeded_at`; states `EXPIRED` and `CANCELLED` were added.
   支付过期、付款人取消与退款时限后来在产品加深切片锁定并落地：待支付自 `created_at` 起 30 分钟过期；付款人可取消待支付；距 `succeeded_at` 超过 7 天拒绝退款；新增 `EXPIRED` 与 `CANCELLED`。
 - Automatic thin-workflow transition or `NotificationPort` enqueue when a payment succeeds.
+  Later slice: `NotificationRequested` is now enqueued on first `SUCCEEDED` (template `payment.succeeded`, payer subject, same outbox). A payment-success workflow machine is still not invented.
+  后续切片：首次 `SUCCEEDED` 已在同一出箱入队 `NotificationRequested`。仍未发明支付成功工作流机。
 - Operator console payment pages, or an end-user pay sheet in `clients/uni-app/` (client triad is already locked; the UI is not part of this ADR).
 - Whether create-order must always take a caller idempotency token, or only callbacks/refunds must (callbacks are mandatory; create-order token is recommended and may be required in implementation).
 - Signature / webhook authentication details for a specific vendor (a production adapter must verify; the mock may accept a controlled test payload).

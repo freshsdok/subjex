@@ -118,6 +118,8 @@ Do **not** start WP7 (end-user client shell deepen) in those slices unless a lat
 - Payment expiration, payer cancel, and the 7-day refund window later landed in a product-deepening slice: PENDING unpaid orders expire 30 minutes after `created_at`; the payer may cancel PENDING; refunds (including partial) are refused after 7 days from `succeeded_at`. New states: `EXPIRED`, `CANCELLED`.
   待支付过期、付款人取消与 7 日退款窗口已在后续产品加深切片落地：未支付单据自 `created_at` 起 30 分钟过期；付款人可取消待支付；距 `succeeded_at` 超过 7 天拒绝退款（含部分退款）。新增状态：`EXPIRED`、`CANCELLED`。
 - Automatic thin-workflow transition or `NotificationPort` enqueue when a payment succeeds.
+  Later slice: first `SUCCEEDED` now enqueues `NotificationRequested` (`payment.succeeded`) for the payer on the same outbox. A payment-success workflow machine is still not invented.
+  后续切片：首次 `SUCCEEDED` 已为付款人入队通知。仍未发明支付成功工作流机。
 - Operator console payment pages, or an end-user pay sheet in uni-app.
 - Whether create-order must always take a caller idempotency token (callbacks are mandatory-idempotent).
 - Vendor webhook signature details (a production adapter must verify; not locked to one vendor scheme).

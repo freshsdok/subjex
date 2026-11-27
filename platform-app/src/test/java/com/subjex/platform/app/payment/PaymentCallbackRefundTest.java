@@ -72,14 +72,14 @@ class PaymentCallbackRefundTest {
         assertEquals(PaymentStatus.SUCCEEDED, paid.status());
         assertEquals("prov-ref-1", paid.providerReference());
         assertEquals(1, fx.voucherFacts(created.paymentId(), JdbcPaymentPort.FACT_PAYMENT_SUCCEEDED));
-        assertEquals(1, fx.outboxCount());
+        assertEquals(2, fx.outboxCount());
         assertStatusChanged(fx, created.paymentId(), PaymentStatus.SUCCEEDED, 100L, 0L);
 
         PaymentDocument partial = fx.port.refund(refund(TENANT_A, created.paymentId(), 30L, "CNY", "refund-1"));
         assertEquals(PaymentStatus.PARTIALLY_REFUNDED, partial.status());
         assertEquals(30L, partial.refundedAmount().amountMinor());
         assertEquals(1, partial.refunds().size());
-        assertEquals(2, fx.outboxCount());
+        assertEquals(3, fx.outboxCount());
         assertStatusChanged(fx, created.paymentId(), PaymentStatus.PARTIALLY_REFUNDED, 100L, 30L);
 
         // 超过剩余可退金额必须拒绝且不写行 / Over-refund must be rejected with no extra row
@@ -87,13 +87,13 @@ class PaymentCallbackRefundTest {
                 IllegalArgumentException.class,
                 () -> fx.port.refund(refund(TENANT_A, created.paymentId(), 80L, "CNY", "refund-over")));
         assertEquals(1, fx.count("payment_refund"));
-        assertEquals(2, fx.outboxCount());
+        assertEquals(3, fx.outboxCount());
 
         PaymentDocument full = fx.port.refund(refund(TENANT_A, created.paymentId(), 70L, "CNY", "refund-2"));
         assertEquals(PaymentStatus.REFUNDED, full.status());
         assertEquals(100L, full.refundedAmount().amountMinor());
         assertEquals(2, full.refunds().size());
-        assertEquals(3, fx.outboxCount());
+        assertEquals(4, fx.outboxCount());
         assertEquals(2, fx.count("payment_refund"));
         assertEquals(2, fx.voucherFacts(created.paymentId(), JdbcPaymentPort.FACT_REFUND_APPLIED));
         assertStatusChanged(fx, created.paymentId(), PaymentStatus.REFUNDED, 100L, 100L);
@@ -102,7 +102,7 @@ class PaymentCallbackRefundTest {
                 IllegalStateException.class,
                 () -> fx.port.refund(refund(TENANT_A, created.paymentId(), 1L, "CNY", "refund-3")));
         assertEquals(2, fx.count("payment_refund"));
-        assertEquals(3, fx.outboxCount());
+        assertEquals(4, fx.outboxCount());
         assertEquals(0, fx.count("platform_task"));
         assertEquals(0, fx.count("idempotency_claim"));
 
@@ -125,7 +125,7 @@ class PaymentCallbackRefundTest {
         assertEquals(paid.paymentId(), replayed.paymentId());
         assertEquals(PaymentStatus.SUCCEEDED, replayed.status());
         assertEquals(1, fx.voucherFacts(created.paymentId(), JdbcPaymentPort.FACT_PAYMENT_SUCCEEDED));
-        assertEquals(1, fx.outboxCount());
+        assertEquals(2, fx.outboxCount());
 
         assertThrows(
                 PaymentIdempotencyConflictException.class,
@@ -134,7 +134,7 @@ class PaymentCallbackRefundTest {
         PaymentDocument still = fx.port.queryOrder(TENANT_A, created.paymentId());
         assertEquals(PaymentStatus.SUCCEEDED, still.status());
         assertEquals("prov-ref-1", still.providerReference());
-        assertEquals(1, fx.outboxCount());
+        assertEquals(2, fx.outboxCount());
     }
 
     @ParameterizedTest
@@ -150,7 +150,7 @@ class PaymentCallbackRefundTest {
         assertEquals(20L, replayed.refundedAmount().amountMinor());
         assertEquals(first.refunds().size(), replayed.refunds().size());
         assertEquals(1, fx.count("payment_refund"));
-        assertEquals(2, fx.outboxCount());
+        assertEquals(3, fx.outboxCount());
         assertEquals(1, fx.voucherFacts(created.paymentId(), JdbcPaymentPort.FACT_REFUND_APPLIED));
     }
 
@@ -174,7 +174,7 @@ class PaymentCallbackRefundTest {
         assertEquals(PaymentStatus.SUCCEEDED, still.status());
         assertEquals(0L, still.refundedAmount().amountMinor());
         assertEquals(0, fx.count("payment_refund"));
-        assertEquals(1, fx.outboxCount());
+        assertEquals(2, fx.outboxCount());
     }
 
     @ParameterizedTest
@@ -291,8 +291,9 @@ class PaymentCallbackRefundTest {
                 "%" + paymentId + "%");
         JsonNode last = MAPPER.readTree((String) rows.get(rows.size() - 1).get("event_body"));
         assertEquals(PaymentStatusChanged.EVENT_NAME, fx.jdbc.queryForObject(
-                "SELECT event_name FROM outbox_event WHERE event_body LIKE ? ORDER BY occurred_at DESC LIMIT 1",
+                "SELECT event_name FROM outbox_event WHERE event_name = ? AND event_body LIKE ? ORDER BY occurred_at DESC, event_id DESC LIMIT 1",
                 String.class,
+                PaymentStatusChanged.EVENT_NAME,
                 "%" + paymentId + "%"));
         assertEquals(paymentId, last.get("paymentId").asText());
         assertEquals(TENANT_A, last.get("tenantId").asText());

@@ -16,6 +16,7 @@ import com.subjex.platform.contract.payment.PaymentPort;
 import com.subjex.platform.contract.payment.PaymentProviderIds;
 import com.subjex.platform.contract.payment.PaymentResultCallback;
 import com.subjex.platform.contract.payment.PaymentStatus;
+import com.subjex.platform.contract.notification.NotificationRequested;
 import com.subjex.platform.contract.payment.PaymentStatusChanged;
 import com.subjex.platform.contract.payment.RefundCommand;
 import java.nio.charset.StandardCharsets;
@@ -92,7 +93,10 @@ class PaymentPortAcceptanceTest {
         assertEquals(1, fx.voucherFacts(created.paymentId(), JdbcPaymentPort.FACT_PAYMENT_SUCCEEDED));
         assertEquals(0, fx.count("platform_task"));
         assertEquals(0, fx.count("idempotency_claim"));
-        assertEquals(fx.statusChangedCount(), fx.count("outbox_event"));
+        // PaymentStatusChanged per change, plus one NotificationRequested on first SUCCEEDED.
+        // 每次状态变化一行 PaymentStatusChanged；首次成功另加一行 NotificationRequested。
+        assertEquals(fx.statusChangedCount() + 1, fx.count("outbox_event"));
+        assertEquals(1, fx.countByEventName(NotificationRequested.EVENT_NAME));
     }
 
     @Test
@@ -288,10 +292,14 @@ class PaymentPortAcceptanceTest {
         }
 
         private int statusChangedCount() {
+            return countByEventName(PaymentStatusChanged.EVENT_NAME);
+        }
+
+        private int countByEventName(String eventName) {
             Integer n = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM outbox_event WHERE event_name = ?",
                     Integer.class,
-                    PaymentStatusChanged.EVENT_NAME);
+                    eventName);
             return n == null ? 0 : n;
         }
 

@@ -8,6 +8,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes PC-deepen-2/3 (local) on `49172c3`+.
 
 ### Added / 新增
+- **Notify the payer when a payment succeeds:** The first transition to `SUCCEEDED` enqueues `NotificationRequested` (`templateId=payment.succeeded`, amount, currency, payment id, status) for the payer on the same `outbox_event` bus, in the same transaction as `PaymentStatusChanged`. Non-SUCCEEDED transitions do not send this notice; a replay does not enqueue a second one. Delivery stays on the existing `NotificationDispatcher` path (email receipt channel). Missing or fail-closed adapters do not invent a second delivery path and do not roll back the payment. No payment-success workflow machine was added.
+  **支付成功后通知付款人：** 首次进入 `SUCCEEDED` 时在同一出箱为付款人入队 `NotificationRequested`。非成功变迁不发此通知。投递仍走已有调度器；适配器未配置时失败关闭，支付状态仍然入账。未发明支付成功工作流。
+
 - **End-user 「我的支付」:** Signed-in end users can list their own payments, inspect status, and cancel a PENDING payment they own via `GET/POST /api/v1/end-user/payments/**`. List and get force the caller as payer; another person's document is 404; cancel is payer-only and only PENDING (already CANCELLED is a no-op; other statuses are 409 `payment-cancel-not-pending`). Operator tokens are 403 on this path. The operator read-only `/api/v1/payments` contract is unchanged. Uni-app adds `pages/payment/payment` (H5 + WeChat mini-program): list, human status, cancel PENDING — no create, no SKU, no payer "pay now" button (charge remains a provider callback). The shell domain-term guard no longer forbids platform payment wording; medical/hospital/appointment/visa/insurance stay banned.
   **终端「我的支付」：** 已登录终端用户可列出本人支付单、查看状态，并取消自己的待支付单据。不能看见别人的单据。操作员令牌访问该路径为 403。操作员只读 `/api/v1/payments` 不变。uni-app 新增列表页，不能下单或付款。
 

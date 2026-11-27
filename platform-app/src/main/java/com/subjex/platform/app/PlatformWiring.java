@@ -1097,6 +1097,7 @@ public class PlatformWiring {
             PaymentHttpClient paymentHttpClient,
             RecordingPaymentSink paymentAdapterSink,
             AuditPort auditPort,
+            NotificationPort notificationPort,
             @Value("${platform.payment.mock.adapter:}") String mockAdapter,
             @Value("${platform.payment.wechat-pay.adapter:}") String wechatAdapter,
             @Value("${platform.payment.wechat-pay.http.base-url:}") String wechatBaseUrl,
@@ -1124,7 +1125,8 @@ public class PlatformWiring {
                         settings,
                         paymentHttpClient,
                         paymentAdapterSink),
-                auditPort);
+                auditPort,
+                notificationPort);
     }
 
     /**
