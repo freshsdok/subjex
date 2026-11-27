@@ -46,14 +46,23 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>
  * Operator retry and operator download-link reuse {@code export.approve} (least new permission surface).
  * The request-thread {@link #generate} method only enqueues; it does not write the artifact.
+ * Generation takes a short claim/lease, then streams without holding {@code FOR UPDATE}.
+ * A crashed worker's lease expires and can be reclaimed; the write restarts from scratch (no mid-write resume).
  * 操作员重试与下载链接复用 {@code export.approve}（最少新增权限面）。
  * 请求线程上的 {@link #generate} 只负责入队，不写产物。
+ * 生成时短时认领租约，写入期间不持有 {@code FOR UPDATE}。崩溃后的租约过期可被重新认领；写入从头开始（无中途续写）。
  */
 public final class ExportGenerationService {
 
     public static final String AUDIT_GENERATE = "export.generate";
     public static final String AUDIT_DOWNLOAD_LINK = "export.download-link";
     public static final Duration DEFAULT_ARTIFACT_TTL = Duration.ofDays(7);
+
+    /** How long a worker may hold a generation lease without a heartbeat — 无续租时租约保持的时长. */
+    public static final Duration GENERATION_LEASE_TTL = Duration.ofMinutes(2);
+
+    /** How often the write stream renews a held lease — 写入流续租的间隔. */
+    public static final Duration GENERATION_HEARTBEAT_EVERY = ExportGenerationLeaseStream.DEFAULT_HEARTBEAT;
     /** Reuses export.approve — 复用 export.approve. */
     public static final String OPERATOR_PERMISSION = OperatorPermission.EXPORT_APPROVE.permissionName();
 
@@ -146,7 +155,7 @@ public final class ExportGenerationService {
         for (ExportRequest leftover : store.listByStatus(ExportRequestStatus.APPROVED, cap)) {
             enqueueApproved(leftover, leftover.approverSubjectId() == null ? "export-enqueue" : leftover.approverSubjectId());
         }
-        for (ExportRequest queued : store.listByStatus(ExportRequestStatus.GENERATING, cap)) {
+        for (ExportRequest queued : store.listClaimable(clock.instant(), cap)) {
             if (processOne(queued, hook)) {
                 count++;
             }
@@ -180,26 +189,42 @@ public final class ExportGenerationService {
         if (current.status() == ExportRequestStatus.APPROVED) {
             current = enqueueApproved(current, current.approverSubjectId());
         }
+        final ExportRequest generating = current;
+        String owner = UUID.randomUUID().toString();
+        AtomicBoolean claimed = new AtomicBoolean(false);
+        transactionTemplate.executeWithoutResult(status -> {
+            if (store.claimGeneration(generating.requestId(), owner, clock.instant(), GENERATION_LEASE_TTL).isPresent()) {
+                claimed.set(true);
+            }
+        });
+        if (!claimed.get()) {
+            return false;
+        }
+        String objectKey = "export-" + generating.requestId();
         try {
             gate.requireApproved(current.requestId(), "export-worker");
             SubjectRecordExporter exporter = resolveExporter(current);
-            String objectKey = "export-" + current.requestId();
             Instant now = clock.instant();
             Instant expiresAt = now.plus(artifactTtl);
-            final ExportRequest generating = current;
-            AtomicBoolean claimed = new AtomicBoolean(false);
+            storage.put(
+                    generating.tenantId(),
+                    objectKey,
+                    "application/json",
+                    output -> exporter.exportTo(
+                            generating.tenantId(),
+                            generating.subjectId(),
+                            generating.scopeDescriptor(),
+                            new ExportGenerationLeaseStream(
+                                    output,
+                                    clock,
+                                    GENERATION_HEARTBEAT_EVERY,
+                                    instant -> store.renewGenerationLease(
+                                            generating.requestId(), owner, instant, GENERATION_LEASE_TTL))));
+            AtomicBoolean completed = new AtomicBoolean(false);
             transactionTemplate.executeWithoutResult(status -> {
-                ExportRequest locked = store.findForUpdate(generating.requestId()).orElse(null);
-                if (locked == null || locked.status() != ExportRequestStatus.GENERATING) {
+                if (!store.renewGenerationLease(generating.requestId(), owner, clock.instant(), GENERATION_LEASE_TTL)) {
                     return;
                 }
-                claimed.set(true);
-                storage.put(
-                        generating.tenantId(),
-                        objectKey,
-                        "application/json",
-                        output -> exporter.exportTo(
-                                generating.tenantId(), generating.subjectId(), generating.scopeDescriptor(), output));
                 grants.register(generating.tenantId(), objectKey, generating.subjectId());
                 String grantActor =
                         generating.approverSubjectId() == null || generating.approverSubjectId().isBlank()
@@ -209,9 +234,17 @@ public final class ExportGenerationService {
                         generating.tenantId(), objectKey, generating.subjectId(), expiresAt, grantActor);
                 grants.setObjectSensitivity(generating.tenantId(), objectKey, SensitivityClass.SENSITIVE);
                 hook.complete(generating.workflowInstanceId());
-                store.updateArtifact(withStatus(generating, ExportRequestStatus.READY, now, expiresAt, objectKey));
+                if (!store.completeGeneration(
+                        withStatus(generating, ExportRequestStatus.READY, now, expiresAt, objectKey),
+                        owner,
+                        clock.instant())) {
+                    throw new IllegalStateException("export generation lease was lost before completion");
+                }
+                completed.set(true);
             });
-            if (!claimed.get()) {
+            if (!completed.get()) {
+                // Lease was reclaimed; do not stomp the new owner's artifact or status.
+                // 租约已被收回；不覆盖新持有人的产物或状态。
                 return false;
             }
             audit.record(new AuditEntry(
@@ -225,15 +258,20 @@ public final class ExportGenerationService {
             return true;
         } catch (RuntimeException ex) {
             Instant now = clock.instant();
+            boolean stillOwned = store.completeGeneration(
+                    withStatus(current, ExportRequestStatus.FAILED, now, current.expiresAt(), current.artifactObjectKey()),
+                    owner,
+                    now);
+            if (!stillOwned) {
+                return false;
+            }
             try {
-                storage.delete(current.tenantId(), "export-" + current.requestId());
+                storage.delete(current.tenantId(), objectKey);
             } catch (RuntimeException deleteEx) {
                 ex.addSuppressed(deleteEx);
             }
             try {
                 hook.fail(current.workflowInstanceId());
-                store.updateArtifact(
-                        withStatus(current, ExportRequestStatus.FAILED, now, current.expiresAt(), current.artifactObjectKey()));
             } catch (RuntimeException failEx) {
                 ex.addSuppressed(failEx);
             }

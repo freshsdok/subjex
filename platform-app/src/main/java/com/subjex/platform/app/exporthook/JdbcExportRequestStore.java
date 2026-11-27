@@ -5,6 +5,7 @@ import com.subjex.platform.contract.exporthook.ExportRequest;
 import com.subjex.platform.contract.exporthook.ExportRequestStatus;
 import com.subjex.platform.contract.exporthook.ExportRequesterRealm;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -80,8 +81,8 @@ public final class JdbcExportRequestStore {
     }
 
     /**
-     * Lock one row for the worker so two schedulers do not generate the same artifact.
-     * 工作线程锁定一行，避免两个调度实例同时生成同一份产物。
+     * Short row lock used only while taking or finishing a generation lease, not during the stream write.
+     * 仅在领取或结束生成租约时短时锁行，写入过程中不持锁。
      */
     public Optional<ExportRequest> findForUpdate(String requestId) {
         if (requestId == null || requestId.isBlank()) {
@@ -184,7 +185,8 @@ public final class JdbcExportRequestStore {
         jdbc.update(
                 """
                 UPDATE data_export_request
-                   SET request_status = ?, approver_subject_id = ?, updated_at = ?, decided_at = ?
+                   SET request_status = ?, approver_subject_id = ?, updated_at = ?, decided_at = ?,
+                       generation_lease_owner = NULL, generation_lease_expires_at = NULL
                  WHERE request_id = ?
                 """,
                 request.status().name(),
@@ -199,7 +201,8 @@ public final class JdbcExportRequestStore {
         jdbc.update(
                 """
                 UPDATE data_export_request
-                   SET request_status = ?, artifact_object_key = ?, expires_at = ?, updated_at = ?
+                   SET request_status = ?, artifact_object_key = ?, expires_at = ?, updated_at = ?,
+                       generation_lease_owner = NULL, generation_lease_expires_at = NULL
                  WHERE request_id = ?
                 """,
                 request.status().name(),
@@ -218,6 +221,134 @@ public final class JdbcExportRequestStore {
                 ROW,
                 ExportRequestStatus.READY.name(),
                 PlatformTables.timestamp(now));
+    }
+
+
+    /**
+     * GENERATING rows whose lease is missing or already expired, oldest first.
+     * 租约缺失或已过期的 GENERATING 行，从早到晚。
+     */
+    public List<ExportRequest> listClaimable(Instant now, int limit) {
+        Objects.requireNonNull(now, "now");
+        return jdbc.query(
+                """
+                SELECT * FROM data_export_request
+                WHERE request_status = ?
+                  AND (generation_lease_owner IS NULL
+                       OR generation_lease_expires_at IS NULL
+                       OR generation_lease_expires_at <= ?)
+                ORDER BY updated_at ASC, request_id ASC
+                LIMIT ?
+                """,
+                ROW,
+                ExportRequestStatus.GENERATING.name(),
+                PlatformTables.timestamp(now),
+                limit);
+    }
+
+    /**
+     * Take a short FOR UPDATE, write the lease, then let the caller commit so the lock is released.
+     * Another owner cannot take a still-valid lease. Must run inside a transaction.
+     * 短时 FOR UPDATE 写入租约，由调用方提交以释放行锁。有效租约不可被其他持有人抢走。必须在事务中调用。
+     */
+    public Optional<ExportRequest> claimGeneration(String requestId, String owner, Instant now, Duration ttl) {
+        if (requestId == null || requestId.isBlank() || owner == null || owner.isBlank()) {
+            return Optional.empty();
+        }
+        Objects.requireNonNull(now, "now");
+        Duration leaseTtl = ttl == null || ttl.isZero() || ttl.isNegative() ? Duration.ofMinutes(2) : ttl;
+        Optional<ExportRequest> locked = findForUpdate(requestId.trim());
+        if (locked.isEmpty() || locked.get().status() != ExportRequestStatus.GENERATING) {
+            return Optional.empty();
+        }
+        List<Boolean> held = jdbc.query(
+                """
+                SELECT 1 FROM data_export_request
+                WHERE request_id = ?
+                  AND generation_lease_owner IS NOT NULL
+                  AND generation_lease_expires_at IS NOT NULL
+                  AND generation_lease_expires_at > ?
+                """,
+                (row, n) -> Boolean.TRUE,
+                requestId.trim(),
+                PlatformTables.timestamp(now));
+        if (!held.isEmpty()) {
+            return Optional.empty();
+        }
+        Instant expires = now.plus(leaseTtl);
+        jdbc.update(
+                """
+                UPDATE data_export_request
+                   SET generation_lease_owner = ?, generation_lease_expires_at = ?, updated_at = ?
+                 WHERE request_id = ? AND request_status = ?
+                """,
+                owner.trim(),
+                PlatformTables.timestamp(expires),
+                PlatformTables.timestamp(now),
+                requestId.trim(),
+                ExportRequestStatus.GENERATING.name());
+        return find(requestId.trim());
+    }
+
+    /**
+     * Extend a still-valid lease held by {@code owner}. Returns false if the lease was lost.
+     * 延长 {@code owner} 仍然有效的租约；若已丢失则返回 false。
+     */
+    public boolean renewGenerationLease(String requestId, String owner, Instant now, Duration ttl) {
+        if (requestId == null || requestId.isBlank() || owner == null || owner.isBlank()) {
+            return false;
+        }
+        Objects.requireNonNull(now, "now");
+        Duration leaseTtl = ttl == null || ttl.isZero() || ttl.isNegative() ? Duration.ofMinutes(2) : ttl;
+        int updated = jdbc.update(
+                """
+                UPDATE data_export_request
+                   SET generation_lease_expires_at = ?, updated_at = ?
+                 WHERE request_id = ?
+                   AND request_status = ?
+                   AND generation_lease_owner = ?
+                   AND generation_lease_expires_at IS NOT NULL
+                   AND generation_lease_expires_at > ?
+                """,
+                PlatformTables.timestamp(now.plus(leaseTtl)),
+                PlatformTables.timestamp(now),
+                requestId.trim(),
+                ExportRequestStatus.GENERATING.name(),
+                owner.trim(),
+                PlatformTables.timestamp(now));
+        return updated == 1;
+    }
+
+    /**
+     * Complete or fail a generation only while this owner still holds a valid lease, then clear the lease.
+     * 仅在本持有人仍握有有效租约时完成或失败，并清除租约。
+     */
+    public boolean completeGeneration(ExportRequest request, String owner, Instant now) {
+        Objects.requireNonNull(request, "request");
+        if (owner == null || owner.isBlank()) {
+            return false;
+        }
+        Objects.requireNonNull(now, "now");
+        int updated = jdbc.update(
+                """
+                UPDATE data_export_request
+                   SET request_status = ?, artifact_object_key = ?, expires_at = ?, updated_at = ?,
+                       generation_lease_owner = NULL, generation_lease_expires_at = NULL
+                 WHERE request_id = ?
+                   AND request_status = ?
+                   AND generation_lease_owner = ?
+                   AND generation_lease_expires_at IS NOT NULL
+                   AND generation_lease_expires_at > ?
+                """,
+                request.status().name(),
+                request.artifactObjectKey(),
+                PlatformTables.timestamp(request.expiresAt()),
+                PlatformTables.timestamp(now),
+                request.requestId(),
+                ExportRequestStatus.GENERATING.name(),
+                owner.trim(),
+                PlatformTables.timestamp(now));
+        return updated == 1;
     }
 
 }

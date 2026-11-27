@@ -1,6 +1,6 @@
 # WP8 consent and export-approval hooks progress / 同意与导出审批钩子进度
 
-- Date: 2026-11-20 (Asia/Shanghai); async generation deepening 2026-11-26
+- Date: 2026-11-20 (Asia/Shanghai); async generation deepening 2026-11-26; volume leftovers (history + lease) 2026-11-28
 - ADR: [`docs/adr/0020-consent-and-export-hooks.md`](../adr/0020-consent-and-export-hooks.md)
 - Baseline tip when this note was opened: `4ea515a` (WP7 end-user shell package closed; formal acceptance `bf30bdf`)
 - Predecessor: ADR [`0014`](../adr/0014-end-user-identity.md) (EndUserPrincipal, `/api/v1/end-user/**`), ADR [`0015`](../adr/0015-object-storage-authorization.md) (ObjectGrantStore, signed download), ADR [`0016`](../adr/0016-thin-reusable-workflow.md) (declarable thin workflow), ADR [`0004`](../adr/0004-observability-audit-trace.md) (`AuditPort`), ADR [`0003`](../adr/0003-user-center-oidc.md) (OAuth consent — **not** this package). Tenant ZIP export / hard erase: [`docs/tenant/tn-progress.md`](../tenant/tn-progress.md) (TN-2). Locked base-work canvas: 「Subjex 底座工作需求」WP8 section (read this slice).
@@ -16,7 +16,9 @@ A later product-deepening slice (after WP8 close) moves generation off the reque
 
 随后的产品加深切片（WP8 关包之后）把生成移出请求线程。批准后自动入队 `GENERATING`。薄定时 `ExportGenerationWorker`（风格同 `PaymentExpiryWorker`）调用 `ExportGenerationService.processQueued`，把产物流式写入对象存储，成功为 `READY`，失败为 `FAILED`。`POST .../generate` 只入队或重试，不写产物。列表改为租户内键集分页（`{exports, nextCursor}`）。产物仍是 7 天后过期。禁止自己批准自己。问卷 CSV 与租户 ZIP 导出未改。
 
-Honest limits / 诚实边界：million-row readiness is for inbox / questionnaire responses / owned objects in the generic exporter (keyset + stream), not million QPS and not Elasticsearch. Consent history is still loaded as a section list. Third-party exporters that only implement `export()` may still buffer. Mid-write failure deletes the partial object; there is no resume/checkpoint. Export-request lists are capped and cursor-paged, not a million-request search product.
+Honest limits / 诚实边界：million-row readiness is for inbox / questionnaire responses / owned objects **and consent history** in the generic exporter (keyset + stream), not million QPS and not Elasticsearch. Current consents remain a short purpose list. Third-party exporters that only implement `export()` may still buffer. Generation uses a claim/lease so `FOR UPDATE` is not held for the whole stream; an expired lease can be reclaimed. Mid-write resume is not added — a reclaim overwrites the object from scratch. Questionnaire CSV and tenant ZIP still build in memory on the request thread (a later cut). Export-request lists are capped and cursor-paged, not a million-request search product.
+
+随后切片：同意历史已按键集流式写出；生成改为认领/租约。问卷 CSV 与租户 ZIP 仍待后续切片。
 
 ## WP8-4 [done] — formal acceptance; WP8 package closed
 

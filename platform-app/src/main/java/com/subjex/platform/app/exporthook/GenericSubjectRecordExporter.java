@@ -26,11 +26,12 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * GenericSubjectRecordExporter — built-in JSON bundle of the subject's own platform data.
- * Pages inbox, questionnaire responses, and owned objects with a tenant-scoped keyset and streams
- * them; it does not assemble the whole package in a single map. No domain exporter. Object
- * metadata only (no blob bytes). Sensitive sections are marked.
- * 内置通用 JSON 包：主体本人的平台数据。站内信、答卷与自有对象按租户键集分页并流式写出，
- * 不把整包装进一张大图。无领域导出器。对象只含元数据（不含字节）。敏感段已标记。
+ * Pages inbox, questionnaire responses, owned objects, and consent history with a tenant-scoped
+ * keyset and streams them; it does not assemble the whole package in a single map. Current
+ * consents stay a short purpose list. No domain exporter. Object metadata only (no blob bytes).
+ * Sensitive sections are marked.
+ * 内置通用 JSON 包：主体本人的平台数据。站内信、答卷、自有对象与同意历史按租户键集分页并流式写出，
+ * 不把整包装进一张大图。当前同意仍按目的短列表写出。无领域导出器。对象只含元数据（不含字节）。敏感段已标记。
  */
 public final class GenericSubjectRecordExporter implements SubjectRecordExporter {
 
@@ -99,7 +100,7 @@ public final class GenericSubjectRecordExporter implements SubjectRecordExporter
             // 整包按 ADR 0020 标为 SENSITIVE；各段也带标记。
             json.writeStringProperty("artifactSensitivity", SensitivityClass.SENSITIVE.name());
             json.writePOJOProperty("profile", profile(subjectId));
-            json.writePOJOProperty("consents", consents(tenantId, subjectId));
+            writeConsents(json, tenantId, subjectId);
             writeInbox(json, tenantId, subjectId);
             writeQuestionnaires(json, tenantId, subjectId);
             writeObjects(json, tenantId, subjectId);
@@ -119,19 +120,64 @@ public final class GenericSubjectRecordExporter implements SubjectRecordExporter
         return profile;
     }
 
-    private Map<String, Object> consents(String tenantId, String subjectId) {
-        Map<String, Object> section = new LinkedHashMap<>();
-        section.put("sensitivity", SensitivityClass.SENSITIVE.name());
-        if (consents == null) {
-            section.put("current", List.of());
-            section.put("history", List.of());
-            return section;
+    private void writeConsents(JsonGenerator json, String tenantId, String subjectId) throws IOException {
+        json.writeObjectPropertyStart("consents");
+        json.writeStringProperty("sensitivity", SensitivityClass.SENSITIVE.name());
+        json.writePOJOProperty("current", consents == null ? List.of() : consents.listCurrent(tenantId, subjectId));
+        json.writeArrayPropertyStart("history");
+        Instant afterTime = Instant.EPOCH;
+        String afterId = "";
+        int pageSize = TenantKeyset.EXPORT_PAGE_LIMIT;
+        while (true) {
+            List<ConsentHistoryRow> page = jdbc.query(
+                    """
+                    SELECT event_id, tenant_id, subject_id, purpose_key, consent_version_id,
+                           event_kind, actor_identity_id, occurred_at
+                    FROM consent_event
+                    WHERE tenant_id = ? AND subject_id = ?
+                      AND (occurred_at > ? OR (occurred_at = ? AND event_id > ?))
+                    ORDER BY occurred_at ASC, event_id ASC
+                    LIMIT ?
+                    """,
+                    (row, n) -> new ConsentHistoryRow(
+                            row.getString("event_id"),
+                            row.getString("tenant_id"),
+                            row.getString("subject_id"),
+                            row.getString("purpose_key"),
+                            row.getString("consent_version_id"),
+                            row.getString("event_kind"),
+                            row.getString("actor_identity_id"),
+                            instant(row.getTimestamp("occurred_at"))),
+                    tenantId,
+                    subjectId,
+                    Timestamp.from(afterTime),
+                    Timestamp.from(afterTime),
+                    afterId,
+                    pageSize);
+            for (ConsentHistoryRow event : page) {
+                json.writeStartObject();
+                json.writeStringProperty("eventId", event.eventId);
+                json.writeStringProperty("tenantId", event.tenantId);
+                json.writeStringProperty("subjectId", event.subjectId);
+                json.writeStringProperty("purposeKey", event.purposeKey);
+                json.writeStringProperty("consentVersionId", event.consentVersionId);
+                json.writeStringProperty("eventKind", event.eventKind);
+                json.writeStringProperty("actorIdentityId", event.actorIdentityId);
+                if (event.occurredAt == null) {
+                    json.writeNullProperty("occurredAt");
+                } else {
+                    json.writeStringProperty("occurredAt", event.occurredAt.toString());
+                }
+                json.writeEndObject();
+                afterTime = event.occurredAt == null ? afterTime : event.occurredAt;
+                afterId = event.eventId;
+            }
+            if (page.size() < pageSize) {
+                break;
+            }
         }
-        // Consent history for one subject is typically small; still a section list, not a search index.
-        // 单个主体的同意历史通常不大；仍按段列出，不是搜索索引。
-        section.put("current", consents.listCurrent(tenantId, subjectId));
-        section.put("history", consents.history(tenantId, subjectId, null));
-        return section;
+        json.writeEndArray();
+        json.writeEndObject();
     }
 
     private void writeInbox(JsonGenerator json, String tenantId, String subjectId) throws IOException {
@@ -330,6 +376,16 @@ public final class GenericSubjectRecordExporter implements SubjectRecordExporter
     private static String stringOrNull(Object value) {
         return value == null ? null : String.valueOf(value);
     }
+
+    private record ConsentHistoryRow(
+            String eventId,
+            String tenantId,
+            String subjectId,
+            String purposeKey,
+            String consentVersionId,
+            String eventKind,
+            String actorIdentityId,
+            Instant occurredAt) {}
 
     private record InboxRow(String entryId, String messageId, Instant readAt, Instant createdAt) {}
 

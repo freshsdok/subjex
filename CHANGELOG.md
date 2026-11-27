@@ -8,6 +8,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes PC-deepen-2/3 (local) on `49172c3`+.
 
 ### Added / 新增
+- **Export volume leftovers (consent history + generation lease):** The built-in personal-data exporter now streams consent history in tenant-scoped keyset pages of 50 (same pattern as inbox, questionnaire responses, and owned objects) instead of loading the whole history as one list. The async export worker takes a short claim/lease, then releases the row lock for the stream write and heartbeats while writing. An expired lease can be reclaimed; a lost lease does not mark the row failed or delete another worker's artifact. Mid-write resume is not added: a reclaim overwrites the object from scratch (`ObjectPutWriter` has no checkpoint). Questionnaire CSV and tenant ZIP are unchanged in this slice (still a later cut). No Elasticsearch and no new job platform.
+  **导出体量收口（同意历史 + 生成租约）：** 内置个人资料导出器按 50 条键集分页流式写出同意历史。后台生成改为短时认领租约，写入期间不持有行锁，并在写入中续租；租约过期可被重新认领。不发明中途续写。本切片未改问卷 CSV 与租户 ZIP。
+
 - **Notify the payer when a payment succeeds:** The first transition to `SUCCEEDED` enqueues `NotificationRequested` (`templateId=payment.succeeded`, amount, currency, payment id, status) for the payer on the same `outbox_event` bus, in the same transaction as `PaymentStatusChanged`. Non-SUCCEEDED transitions do not send this notice; a replay does not enqueue a second one. Delivery stays on the existing `NotificationDispatcher` path (email receipt channel). Missing or fail-closed adapters do not invent a second delivery path and do not roll back the payment. No payment-success workflow machine was added.
   **支付成功后通知付款人：** 首次进入 `SUCCEEDED` 时在同一出箱为付款人入队 `NotificationRequested`。非成功变迁不发此通知。投递仍走已有调度器；适配器未配置时失败关闭，支付状态仍然入账。未发明支付成功工作流。
 
