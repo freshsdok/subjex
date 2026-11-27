@@ -93,6 +93,7 @@ import com.subjex.platform.app.exporthook.ExportGenerationService;
 import com.subjex.platform.app.exporthook.ExportExpiryService;
 import com.subjex.platform.app.exporthook.JdbcExportRequestStore;
 import com.subjex.platform.app.payment.JdbcPaymentPort;
+import com.subjex.platform.app.payment.EndUserPaymentService;
 import com.subjex.platform.app.payment.OperatorPaymentService;
 import com.subjex.platform.app.payment.RecordingPaymentSink;
 import com.subjex.platform.app.payment.JdkPaymentHttpClient;
@@ -1136,6 +1137,15 @@ public class PlatformWiring {
             OperatorTenantAccess operatorTenantAccess,
             PolicyEngine policyEngine) {
         return new OperatorPaymentService(paymentPort, operatorTenantAccess, policyEngine);
+    }
+
+    /**
+     * End-user list/get/cancel of own payments. No create and no payer charge.
+     * 终端查看并取消本人支付单；不能创单，也不能由付款人直接扣费。
+     */
+    @Bean
+    EndUserPaymentService endUserPaymentService(JdbcPaymentPort paymentPort, EndUserAccountStore endUserAccountStore) {
+        return new EndUserPaymentService(paymentPort, endUserAccountStore);
     }
 
     @Bean

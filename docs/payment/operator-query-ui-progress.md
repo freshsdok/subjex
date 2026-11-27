@@ -37,7 +37,7 @@
 
 - 站内信（ADR 0008/0009）：`/api/v1/inbox/**`，权限 `inbox.read` 等——内部信箱，不是外部短信/邮件/微信模板投递。
 - 审计 NDJSON 导出、租户 ZIP 导出、问卷 CSV、个人资料导出队列——与支付/通知投递无关。
-- 终端 uni-app：本项先做操作员控制台；若以后做薄的「我的支付 / 我的通知」再另开切片。
+- 终端 uni-app：本项当时先做操作员控制台。「我的支付」列表/状态/取消待支付已在后续切片落地（无创单、无付款人扣费）。「我的通知」仍待另开。
 
 ## 本切片已落地（第 1 刀）
 
@@ -72,6 +72,8 @@
 
 ### uni-app（终端用户）
 
-本项先不做。若之后证明「我的支付 / 我的通知」对终端有明显价值，再另开薄页，不另起第三套前端。
+**「我的支付」（后续切片，已落地）**：`GET /api/v1/end-user/payments`、`GET /api/v1/end-user/payments/{paymentId}`、`POST /api/v1/end-user/payments/{paymentId}/cancel`，以及 uni-app 页 `pages/payment/payment`。只列本人单据、查看状态、取消待支付。不创单、不做 SKU/购物车、不提供付款人「立即支付」按钮（入账仍走通道回调）。操作员仍只读 `/api/v1/payments`。不另起第三套前端。
+
+「我的通知」仍待另开薄页。
 
 导航与构建：控制台沿用现有 `web/` 与 Manifest 门禁。不接入真实厂商，不改 `NamingGuardArchTest`。

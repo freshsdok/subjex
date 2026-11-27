@@ -54,6 +54,12 @@
       "style": {
         "navigationBarTitleText": "我的导出"
       }
+    },
+    {
+      "path": "pages/payment/payment",
+      "style": {
+        "navigationBarTitleText": "我的支付"
+      }
     }
   ],
   "globalStyle": {

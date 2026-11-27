@@ -8,6 +8,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Maven co
 Post-alpha.1 work. Tree may move past the tagged tip (`e7dc268`); recent tip lineage includes PC-deepen-2/3 (local) on `49172c3`+.
 
 ### Added / 新增
+- **End-user 「我的支付」:** Signed-in end users can list their own payments, inspect status, and cancel a PENDING payment they own via `GET/POST /api/v1/end-user/payments/**`. List and get force the caller as payer; another person's document is 404; cancel is payer-only and only PENDING (already CANCELLED is a no-op; other statuses are 409 `payment-cancel-not-pending`). Operator tokens are 403 on this path. The operator read-only `/api/v1/payments` contract is unchanged. Uni-app adds `pages/payment/payment` (H5 + WeChat mini-program): list, human status, cancel PENDING — no create, no SKU, no payer "pay now" button (charge remains a provider callback). The shell domain-term guard no longer forbids platform payment wording; medical/hospital/appointment/visa/insurance stay banned.
+  **终端「我的支付」：** 已登录终端用户可列出本人支付单、查看状态，并取消自己的待支付单据。不能看见别人的单据。操作员令牌访问该路径为 403。操作员只读 `/api/v1/payments` 不变。uni-app 新增列表页，不能下单或付款。
+
 - **Retire leftover `/api/v1/me/inbox`:** The working end-user mailbox remains `/api/v1/end-user/inbox/**`. The old path now returns HTTP 410 (`reason=inbox-path-retired`, `use=/api/v1/end-user/inbox`) for any authenticated caller (operator or end-user). Anonymous callers still get 401. This is not a second working inbox and not a silent redirect. Uni-app already called the new path. Operator `/api/v1/inbox/**` is unchanged.
   **退役残留的 `/api/v1/me/inbox`：** 终端收件箱仍走 `/api/v1/end-user/inbox/**`。旧路径对已登录调用方一律返回 410，不再提供第二套可用收件接口。未登录仍为 401。操作员 `/api/v1/inbox/**` 不变。
 

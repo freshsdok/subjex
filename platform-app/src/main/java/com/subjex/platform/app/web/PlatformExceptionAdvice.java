@@ -48,6 +48,7 @@ import com.subjex.platform.contract.exporthook.ExportExpiredException;
 import com.subjex.platform.contract.exporthook.ExportNotApprovedException;
 import com.subjex.platform.contract.exporthook.ExportSelfApprovalException;
 import com.subjex.platform.app.notification.NotificationSendCrossTenantDeniedException;
+import com.subjex.platform.app.payment.PaymentCancelNotPendingException;
 import com.subjex.platform.app.notification.NotificationSendNotFoundException;
 import com.subjex.platform.contract.payment.PaymentCancelDeniedException;
 import com.subjex.platform.contract.payment.PaymentCrossTenantDeniedException;
@@ -168,6 +169,12 @@ public class PlatformExceptionAdvice {
     @ExceptionHandler(PaymentCancelDeniedException.class)
     ResponseEntity<Map<String, String>> paymentCancelDenied() {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", PaymentCancelDeniedException.REASON));
+    }
+
+    @ExceptionHandler(PaymentCancelNotPendingException.class)
+    ResponseEntity<Map<String, String>> paymentCancelNotPending() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", PaymentCancelNotPendingException.REASON));
     }
 
     @ExceptionHandler(PaymentRefundWindowClosedException.class)

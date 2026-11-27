@@ -251,9 +251,9 @@ public final class JdbcPaymentPort implements PaymentPort {
 
     /**
      * List payment documents in an active business tenant, newest first.
-     * Optional status and payer filters. Not on {@link PaymentPort}: operator visibility only.
+     * Optional status and payer filters. Not on {@link PaymentPort}; used by operator query and end-user own lists.
      * 在已激活的业务租户内列出支付单，按时间从新到旧；可按状态或付款人筛选。
-     * 不属于 {@link PaymentPort}，仅供操作员查看，不办理结账或退款。
+     * 不属于 {@link PaymentPort}；供操作员查询与终端本人列表使用，不办理结账或退款。
      */
     public List<PaymentDocument> listOrders(
             String tenantId, PaymentStatus status, String payerSubjectId, Integer limit) {
