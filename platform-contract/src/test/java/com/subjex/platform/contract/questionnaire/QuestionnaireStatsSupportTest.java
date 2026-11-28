@@ -73,6 +73,17 @@ class QuestionnaireStatsSupportTest {
             throw new AssertionError(ex);
         }
         assertEquals(csv, streamed.toString());
+
+        QuestionnaireStats grouped = QuestionnaireStatsSupport.aggregateFromValueCounts(
+                def,
+                2,
+                List.of(
+                        new QuestionnaireStatsSupport.AnswerValueCount("i1", "\"好\"", 1),
+                        new QuestionnaireStatsSupport.AnswerValueCount("i1", "\"差\"", 1),
+                        new QuestionnaireStatsSupport.AnswerValueCount("i2", "5", 1),
+                        new QuestionnaireStatsSupport.AnswerValueCount("i2", "\"3\"", 1),
+                        new QuestionnaireStatsSupport.AnswerValueCount("i3", "\"ok\"", 1)));
+        assertEquals(stats, grouped);
     }
 
     private static QuestionnaireResponse response(

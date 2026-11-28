@@ -48,6 +48,58 @@ public final class QuestionnaireStatsSupport {
     }
 
     /**
+     * Build the same aggregates from grouped (item, value_json, count) rows.
+     * The production JDBC path uses this so Java never sees every response + answer.
+     * 用已分组的（题目、value_json、次数）行构建相同汇总。生产 JDBC 走此路径，Java 不再装入每一份答卷与答案。
+     */
+    public static QuestionnaireStats aggregateFromValueCounts(
+            QuestionnaireDefinition definition, long responseCount, List<AnswerValueCount> valueCounts) {
+        Objects.requireNonNull(definition, "definition");
+        Objects.requireNonNull(valueCounts, "valueCounts");
+        if (responseCount < 0) {
+            throw new IllegalArgumentException("responseCount must be >= 0");
+        }
+        Map<String, List<AnswerValueCount>> byItem = new LinkedHashMap<>();
+        for (AnswerValueCount row : valueCounts) {
+            if (row == null || row.itemId() == null || row.itemId().isBlank()) {
+                continue;
+            }
+            byItem.computeIfAbsent(row.itemId(), key -> new ArrayList<>()).add(row);
+        }
+        List<QuestionnaireItemStats> itemStats = new ArrayList<>();
+        for (QuestionnaireItem item : definition.items()) {
+            if (!isAggregatable(item.questionType())) {
+                continue;
+            }
+            Map<String, Long> counts = new LinkedHashMap<>();
+            seedChoiceOptions(item, counts);
+            for (AnswerValueCount row : byItem.getOrDefault(item.itemId(), List.of())) {
+                long n = row.count();
+                if (n <= 0) {
+                    continue;
+                }
+                for (String bucket : answerBuckets(item.questionType(), row.valueJson())) {
+                    counts.merge(bucket, n, Long::sum);
+                }
+            }
+            itemStats.add(new QuestionnaireItemStats(
+                    item.itemId(), item.questionType(), item.prompt(), Map.copyOf(counts)));
+        }
+        return new QuestionnaireStats(
+                definition.questionnaireId(),
+                definition.tenantId(),
+                definition.revision(),
+                responseCount,
+                List.copyOf(itemStats));
+    }
+
+    /**
+     * One grouped answer value and how many production responses stored it.
+     * 一条已分组的答案原文，以及有多少份生产答卷存了该原文。
+     */
+    public record AnswerValueCount(String itemId, String valueJson, long count) {}
+
+    /**
      * CSV export: header + one row per production response — CSV：表头 + 每行一份生产答卷。
      * <p>
      * Columns: {@code response_id,revision,respondent_realm,respondent_subject_id,submitted_at}
@@ -114,7 +166,7 @@ public final class QuestionnaireStatsSupport {
         out.append('\n');
     }
 
-    static boolean isAggregatable(QuestionType type) {
+    public static boolean isAggregatable(QuestionType type) {
         return type == QuestionType.SINGLE_CHOICE
                 || type == QuestionType.MULTI_CHOICE
                 || type == QuestionType.RATING;

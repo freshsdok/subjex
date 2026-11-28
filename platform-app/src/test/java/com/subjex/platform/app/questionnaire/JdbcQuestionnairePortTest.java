@@ -16,6 +16,7 @@ import com.subjex.platform.contract.questionnaire.QuestionnaireItem;
 import com.subjex.platform.contract.questionnaire.QuestionnaireRespondentRealm;
 import com.subjex.platform.contract.questionnaire.QuestionnaireResponse;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStats;
+import com.subjex.platform.contract.questionnaire.QuestionnaireStatsSupport;
 import com.subjex.platform.contract.questionnaire.QuestionnaireResponseListQuery;
 import com.subjex.platform.app.support.TenantKeyset;
 import com.subjex.platform.contract.questionnaire.QuestionnaireStatus;
@@ -367,6 +368,92 @@ class JdbcQuestionnairePortTest {
         ChunkTrackingAppendable missing = new ChunkTrackingAppendable();
         assertThat(port.writeCsv(TENANT_A, "no-such-questionnaire", missing)).isFalse();
         assertThat(missing.total()).isZero();
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void statsAggregatesInDatabaseWithoutLoadingEveryResponse(H2PlatformTables.Mode mode) {
+        JdbcQuestionnairePort port = newPort(mode);
+        QuestionnaireDefinition draft =
+                port.create(TENANT_A, "分组汇总", QuestionnaireCollectMode.AUTH_END_USER);
+        port.replaceItems(
+                TENANT_A,
+                draft.questionnaireId(),
+                List.of(
+                        item("i1", 1, QuestionType.SINGLE_CHOICE, "满意度?", true, "[\"好\",\"差\"]"),
+                        item("i2", 2, QuestionType.MULTI_CHOICE, "标签", false, "[\"快\",\"稳\"]"),
+                        item("i3", 3, QuestionType.RATING, "打分", true, "{\"max\":5}"),
+                        item("i4", 4, QuestionType.TEXT_SHORT, "建议", false, null)));
+        port.publish(TENANT_A, draft.questionnaireId());
+
+        int production = TenantKeyset.EXPORT_PAGE_LIMIT + 10;
+        int good = 40;
+        int bothTags = 30;
+        int ratingFive = 35;
+        for (int i = 0; i < production; i++) {
+            String choice = i < good ? "\"好\"" : "\"差\"";
+            String tags = i < bothTags ? "[\"快\",\"稳\"]" : "[\"快\"]";
+            String rating = i < ratingFive ? "5" : "4";
+            port.submit(
+                    TENANT_A,
+                    draft.questionnaireId(),
+                    QuestionnaireRespondentRealm.END_USER,
+                    "user-" + i,
+                    List.of(
+                            new QuestionnaireAnswer("i1", choice),
+                            new QuestionnaireAnswer("i2", tags),
+                            new QuestionnaireAnswer("i3", rating),
+                            new QuestionnaireAnswer("i4", "\"note-" + i + "\"")));
+        }
+        port.submit(
+                TENANT_A,
+                draft.questionnaireId(),
+                QuestionnaireRespondentRealm.OPERATOR,
+                "op-preview",
+                List.of(
+                        new QuestionnaireAnswer("i1", "\"差\""),
+                        new QuestionnaireAnswer("i2", "[\"稳\"]"),
+                        new QuestionnaireAnswer("i3", "1"),
+                        new QuestionnaireAnswer("i4", "\"hidden\"")));
+
+        QuestionnaireDefinition other = port.create(TENANT_B, "其他租户", QuestionnaireCollectMode.AUTH_END_USER);
+        port.replaceItems(
+                TENANT_B,
+                other.questionnaireId(),
+                List.of(item("i1", 1, QuestionType.SINGLE_CHOICE, "满意度?", true, "[\"好\",\"差\"]")));
+        port.publish(TENANT_B, other.questionnaireId());
+        port.submit(
+                TENANT_B,
+                other.questionnaireId(),
+                QuestionnaireRespondentRealm.END_USER,
+                "user-b",
+                List.of(new QuestionnaireAnswer("i1", "\"差\"")));
+
+        List<String> aggregatableIds = List.of("i1", "i2", "i3");
+        List<QuestionnaireStatsSupport.AnswerValueCount> groups =
+                port.loadProductionAnswerValueCounts(TENANT_A, draft.questionnaireId(), aggregatableIds);
+        // Grouped input is far smaller than the production set (and smaller than one export page).
+        // 分组后的输入远小于生产答卷全集，也小于一页导出。
+        assertThat(groups.size()).isLessThan(production);
+        assertThat(groups.size()).isLessThan(TenantKeyset.EXPORT_PAGE_LIMIT);
+        assertThat(groups).isNotEmpty();
+        assertThat(groups.stream().map(QuestionnaireStatsSupport.AnswerValueCount::itemId).distinct())
+                .containsExactlyInAnyOrder("i1", "i2", "i3");
+        assertThat(port.countProductionResponses(TENANT_A, draft.questionnaireId())).isEqualTo(production);
+
+        QuestionnaireStats stats = port.stats(TENANT_A, draft.questionnaireId()).orElseThrow();
+        assertThat(stats.responseCount()).isEqualTo(production);
+        assertThat(stats.items()).hasSize(3);
+        assertThat(stats.items().get(0).itemId()).isEqualTo("i1");
+        assertThat(stats.items().get(0).counts().get("好")).isEqualTo((long) good);
+        assertThat(stats.items().get(0).counts().get("差")).isEqualTo((long) (production - good));
+        assertThat(stats.items().get(1).counts().get("快")).isEqualTo((long) production);
+        assertThat(stats.items().get(1).counts().get("稳")).isEqualTo((long) bothTags);
+        assertThat(stats.items().get(2).counts().get("5")).isEqualTo((long) ratingFive);
+        assertThat(stats.items().get(2).counts().get("4")).isEqualTo((long) (production - ratingFive));
+        assertThat(stats.items().get(2).counts().getOrDefault("1", 0L)).isEqualTo(0L);
+        assertThat(port.stats(TENANT_B, other.questionnaireId()).orElseThrow().responseCount()).isEqualTo(1L);
+        assertThat(port.stats(TENANT_B, draft.questionnaireId())).isEmpty();
     }
 
     private static final class ChunkTrackingAppendable implements Appendable {

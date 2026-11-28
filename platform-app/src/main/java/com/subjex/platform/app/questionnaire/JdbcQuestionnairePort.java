@@ -40,10 +40,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * JdbcQuestionnairePort — JDBC 问卷端口：定义/答卷/匿名令牌 + 薄汇总/CSV（无 ORM）。
  * <p>
- * Q5: {@link #stats} / {@link #writeCsv} load production responses only (exclude OPERATOR).
- * {@link #writeCsv} pages with a keyset; {@link #exportCsv} remains a test/buffer helper on top of it.
+ * Q5: {@link #stats} / {@link #writeCsv} use production responses only (exclude OPERATOR).
+ * {@link #stats} aggregates with a grouped SQL query; {@link #writeCsv} pages with a keyset;
+ * {@link #exportCsv} remains a test/buffer helper on top of {@link #writeCsv}.
  * Never uses {@code form_submission}.
- * Q5：汇总/导出仅生产答卷；{@link #writeCsv} 按键集分页；{@link #exportCsv} 仍是其上的缓冲辅助。不用 form_submission。
+ * Q5：汇总/导出仅生产答卷；{@link #stats} 用分组 SQL 聚合；{@link #writeCsv} 按键集分页；
+ * {@link #exportCsv} 仍是其上的缓冲辅助。不用 form_submission。
  */
 public final class JdbcQuestionnairePort implements QuestionnairePort {
 
@@ -621,8 +623,18 @@ public final class JdbcQuestionnairePort implements QuestionnairePort {
         if (found.isEmpty()) {
             return Optional.empty();
         }
-        List<QuestionnaireResponse> production = loadProductionResponses(tenant, questionnaireId.trim());
-        return Optional.of(QuestionnaireStatsSupport.aggregate(found.get(), production));
+        QuestionnaireDefinition definition = found.get();
+        String qid = definition.questionnaireId();
+        // Count and group in the database — do not materialize every production response + answer.
+        // 在数据库内计数并分组，不把每一份生产答卷和答案装入内存。
+        long responseCount = countProductionResponses(tenant, qid);
+        List<String> itemIds = definition.items().stream()
+                .filter(item -> QuestionnaireStatsSupport.isAggregatable(item.questionType()))
+                .map(QuestionnaireItem::itemId)
+                .toList();
+        List<QuestionnaireStatsSupport.AnswerValueCount> groups =
+                loadProductionAnswerValueCounts(tenant, qid, itemIds);
+        return Optional.of(QuestionnaireStatsSupport.aggregateFromValueCounts(definition, responseCount, groups));
     }
 
     @Override
@@ -673,24 +685,58 @@ public final class JdbcQuestionnairePort implements QuestionnairePort {
         return true;
     }
 
-    private List<QuestionnaireResponse> loadProductionResponses(String tenant, String questionnaireId) {
-        List<QuestionnaireResponse> headers = jdbc.query(
+    /**
+     * Production response count (excludes OPERATOR preview). Used by {@link #stats}.
+     * 生产答卷数（排除操作员预览）。供 {@link #stats} 使用。
+     */
+    long countProductionResponses(String tenant, String questionnaireId) {
+        Long count = jdbc.queryForObject(
                 """
-                SELECT response_id, questionnaire_id, revision, tenant_id,
-                       respondent_realm, respondent_subject_id, submitted_at
+                SELECT COUNT(*)
                 FROM questionnaire_response
                 WHERE tenant_id = ? AND questionnaire_id = ? AND respondent_realm <> ?
-                ORDER BY submitted_at DESC
                 """,
-                this::mapResponseHeader,
+                Long.class,
                 tenant,
                 questionnaireId,
                 QuestionnaireRespondentRealm.OPERATOR.name());
-        List<QuestionnaireResponse> out = new ArrayList<>(headers.size());
-        for (QuestionnaireResponse header : headers) {
-            out.add(withAnswers(header, loadAnswers(header.responseId())));
+        return count == null ? 0L : count;
+    }
+
+    /**
+     * Grouped production answer values for the given items — one row per distinct value_json.
+     * Java only sees these compact groups, not every response.
+     * 按题目把生产答案的 value_json 分组，每一种原文一行。Java 只看到这些紧凑分组，而不是每一份答卷。
+     */
+    List<QuestionnaireStatsSupport.AnswerValueCount> loadProductionAnswerValueCounts(
+            String tenant, String questionnaireId, List<String> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return List.of();
         }
-        return List.copyOf(out);
+        String placeholders = String.join(",", Collections.nCopies(itemIds.size(), "?"));
+        List<Object> args = new ArrayList<>();
+        args.add(tenant);
+        args.add(questionnaireId);
+        args.add(QuestionnaireRespondentRealm.OPERATOR.name());
+        args.addAll(itemIds);
+        return List.copyOf(jdbc.query(
+                """
+                SELECT a.item_id, a.value_json, COUNT(*) AS answer_count
+                FROM questionnaire_answer a
+                INNER JOIN questionnaire_response r ON r.response_id = a.response_id
+                WHERE r.tenant_id = ? AND r.questionnaire_id = ? AND r.respondent_realm <> ?
+                  AND a.item_id IN ("""
+                        + placeholders
+                        + """
+                )
+                GROUP BY a.item_id, a.value_json
+                ORDER BY a.item_id ASC, a.value_json ASC
+                """,
+                (rs, rowNum) -> new QuestionnaireStatsSupport.AnswerValueCount(
+                        rs.getString("item_id"),
+                        rs.getString("value_json"),
+                        rs.getLong("answer_count")),
+                args.toArray()));
     }
 
     /**
