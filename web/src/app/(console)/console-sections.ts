@@ -48,6 +48,12 @@ export const consoleSections: ConsoleSection[] = [
   },
   { href: "/payments", labelKey: "navPayments", requiredPermission: "payment.read" },
   { href: "/notification-sends", labelKey: "navNotificationSends", requiredPermission: "notification.read" },
+  {
+    href: "/objects",
+    labelKey: "navObjects",
+    requiredPermission: "object.grant.read",
+    requiredAnyOf: ["object.grant.read", "object.grant"],
+  },
   { href: "/dead-letters", labelKey: "navDeadLetters", requiredPermission: "admin.read" },
   { href: "/deploy", labelKey: "navDeploy", requiredPermission: "page.read" },
   { href: "/forms", labelKey: "navForms", requiredPermission: "page.read" },

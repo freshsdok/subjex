@@ -73,6 +73,10 @@ public enum OperatorPermission {
     END_USER_READ("end-user.read"),
     /** Read recorded share and open events in a granted tenant (no marketing suite) — 在已授权租户内查阅已记录的分享与打开（不是营销套件）。 */
     RESOURCE_EVENT_READ("resource-event.read"),
+    /** List registered objects and their grants in a granted tenant — 在已授权租户内列出已登记对象及其授权。 */
+    OBJECT_GRANT_READ("object.grant.read"),
+    /** Grant or revoke object access to a subject or organization — 向主体或组织授予或撤销对象访问。 */
+    OBJECT_GRANT("object.grant"),
     /** Create and edit questionnaires, publish/close, tokens — 创建编辑问卷、发布关闭、令牌。 */
     QUESTIONNAIRE_WRITE("questionnaire.write"),
     /** Request a personal-data export on behalf of a subject — 代主体申请个人数据导出。 */

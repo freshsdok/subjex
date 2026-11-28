@@ -272,6 +272,14 @@ public class PlatformSecurityConfiguration {
                         // 操作员只读通知发送记录（控制台）。不提供发送/重试/重放路由。
                         .requestMatchers(HttpMethod.GET, "/api/v1/notification-sends", "/api/v1/notification-sends/**")
                                 .hasAuthority(OperatorPermission.NOTIFICATION_READ.permissionName())
+                        // Operator object-grant list (console). Write is object.grant; not public share links.
+                        // 操作员对象授权列表（控制台）。写入走 object.grant；不是公开分享链接。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/objects", "/api/v1/objects/*/grants")
+                                .hasAuthority(OperatorPermission.OBJECT_GRANT_READ.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/objects/*/grants")
+                                .hasAuthority(OperatorPermission.OBJECT_GRANT.permissionName())
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/objects/*/grants/*")
+                                .hasAuthority(OperatorPermission.OBJECT_GRANT.permissionName())
                         .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
                                 .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/questionnaires/**")

@@ -39,6 +39,39 @@
           :disabled="busy"
           @click="prepareWeChatShare(item)"
         >分享</button>
+        <button
+          v-if="isOwner(item)"
+          size="mini"
+          :disabled="busy"
+          @click="toggleGrants(item)"
+        >{{ grantPanelId === item.objectId ? "收起授权" : "管理授权" }}</button>
+      </view>
+      <view v-if="isOwner(item) && grantPanelId === item.objectId" class="grant-panel">
+        <text class="muted">向本租户的主体或组织授予访问。这里不是公开分享，也不会生成未登录就能打开的链接。请手工填写被授权人编号。</text>
+        <text class="muted" v-if="grantLoading">正在加载授权…</text>
+        <text class="muted" v-if="!grantLoading && !grants.length">还没有授权。</text>
+        <view v-for="grant in grants" :key="grant.grantId" class="grant-row">
+          <text class="muted">{{ grantKindLabel(grant.granteeKind) }} {{ grant.granteeId }}{{ grantExpiryLabel(grant) }}</text>
+          <button size="mini" :disabled="busy" @click="onRevokeGrant(item, grant)">撤销</button>
+        </view>
+        <view class="row">
+          <picker :range="grantKinds" :value="grantKindIndex" @change="onGrantKindChange">
+            <text class="picker">{{ grantKinds[grantKindIndex] }}</text>
+          </picker>
+          <input
+            class="grant-input"
+            :value="granteeId"
+            placeholder="主体或组织编号"
+            @input="onGranteeIdInput"
+          />
+        </view>
+        <input
+          class="grant-input"
+          :value="grantExpiresAt"
+          placeholder="过期时间可留空，例如 2026-12-31T12:00:00Z"
+          @input="onGrantExpiresInput"
+        />
+        <button size="mini" type="primary" :disabled="busy || !granteeId.trim()" @click="onGrant(item)">授予</button>
       </view>
     </view>
 
@@ -51,13 +84,26 @@
  * <p>
  * Share/open events follow the questionnaire rule: explicit share, or a shared/campaign/UTM entry.
  * Ordinary list opens are not posted. Inbox is not posted from this page.
+ * Owner-only grant/revoke is an ACL, separate from the analytics share/open posts.
  * 分享/打开遵循问卷规则：显式分享，或带着分享/活动/UTM 进入。列表里的普通打开不上报。本页不上报站内信。
+ * 所有者授权/撤销是访问控制，与分享/打开分析上报分开，不改动后者。
  */
 import { ref, onMounted } from "vue";
 import { onLoad, onShareAppMessage } from "@dcloudio/uni-app";
 import { isSignedIn } from "../../api/auth";
 import { loginPageUrl } from "../../api/shell-path";
-import { listObjects, openObject, pickFile, uploadObject, type EndUserObject } from "../../api/objects";
+import {
+  grantObjectAccess,
+  listObjectGrants,
+  listObjects,
+  openObject,
+  pickFile,
+  revokeObjectGrant,
+  uploadObject,
+  type EndUserObject,
+  type ObjectGrant,
+} from "../../api/objects";
+import { getProfile } from "../../api/profile";
 import { messageForHttpError, toastHttpError } from "../../api/platform";
 import { applyTenantFromQuery, readTenantId } from "../../api/tenant";
 import {
@@ -79,6 +125,14 @@ const error = ref("");
 const items = ref<EndUserObject[]>([]);
 const attribution = ref<ResourceEventAttribution>({});
 const shareTargetId = ref("");
+const mySubjectId = ref("");
+const grantPanelId = ref("");
+const grants = ref<ObjectGrant[]>([]);
+const grantLoading = ref(false);
+const grantKinds = ["主体", "组织"];
+const grantKindIndex = ref(0);
+const granteeId = ref("");
+const grantExpiresAt = ref("");
 
 function displayName(item: EndUserObject): string {
   const key = item.objectKey || "未命名文件";
@@ -102,6 +156,104 @@ function formatTime(raw: string): string {
   if (Number.isNaN(d.getTime())) return raw;
   const p = (n: number) => (n < 10 ? "0" + n : String(n));
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+
+function isOwner(item: EndUserObject): boolean {
+  const owner = (item.ownerSubjectId || "").trim();
+  return Boolean(owner && mySubjectId.value && owner === mySubjectId.value);
+}
+
+function grantKindLabel(kind?: string): string {
+  return kind === "ORGANIZATION" ? "组织" : "主体";
+}
+
+function grantExpiryLabel(grant: ObjectGrant): string {
+  if (!grant.expiresAt) return grant.effective === false ? " · 已过期" : "";
+  return (grant.effective === false ? " · 已过期 " : " · 过期 ") + grant.expiresAt;
+}
+
+function onGrantKindChange(event: { detail?: { value?: string | number } }) {
+  const raw = event.detail?.value;
+  const index = typeof raw === "number" ? raw : Number(raw);
+  grantKindIndex.value = Number.isFinite(index) ? index : 0;
+}
+
+function onGranteeIdInput(event: { detail?: { value?: string } }) {
+  granteeId.value = event.detail?.value ?? "";
+}
+
+function onGrantExpiresInput(event: { detail?: { value?: string } }) {
+  grantExpiresAt.value = event.detail?.value ?? "";
+}
+
+async function loadGrants(item: EndUserObject) {
+  const objectId = (item.objectId || "").trim();
+  if (!objectId) {
+    grants.value = [];
+    return;
+  }
+  grantLoading.value = true;
+  try {
+    const doc = await listObjectGrants(objectId);
+    grants.value = doc.grants ?? [];
+  } catch (e) {
+    grants.value = [];
+    error.value = messageForHttpError(e);
+    toastHttpError(e);
+  } finally {
+    grantLoading.value = false;
+  }
+}
+
+async function toggleGrants(item: EndUserObject) {
+  const objectId = (item.objectId || "").trim();
+  if (!objectId) return;
+  if (grantPanelId.value === objectId) {
+    grantPanelId.value = "";
+    grants.value = [];
+    return;
+  }
+  grantPanelId.value = objectId;
+  await loadGrants(item);
+}
+
+async function onGrant(item: EndUserObject) {
+  const objectId = (item.objectId || "").trim();
+  if (!objectId) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    const kind = grantKindIndex.value === 1 ? "ORGANIZATION" : "SUBJECT";
+    await grantObjectAccess(objectId, kind, granteeId.value, grantExpiresAt.value.trim() || null);
+    granteeId.value = "";
+    grantExpiresAt.value = "";
+    uni.showToast({ title: "已授予", icon: "none" });
+    await loadGrants(item);
+  } catch (e) {
+    error.value = messageForHttpError(e);
+    toastHttpError(e);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onRevokeGrant(item: EndUserObject, grant: ObjectGrant) {
+  const objectId = (item.objectId || "").trim();
+  const grantId = (grant.grantId || "").trim();
+  if (!objectId || !grantId) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    await revokeObjectGrant(objectId, grantId);
+    uni.showToast({ title: "已撤销", icon: "none" });
+    await loadGrants(item);
+  } catch (e) {
+    error.value = messageForHttpError(e);
+    toastHttpError(e);
+  } finally {
+    busy.value = false;
+  }
 }
 
 function fileShareQuery(resourceId: string): string {
@@ -242,6 +394,15 @@ onLoad((query) => {
 
 onMounted(() => {
   signedIn.value = isSignedIn();
+  if (signedIn.value) {
+    void getProfile()
+      .then((profile) => {
+        mySubjectId.value = (profile.subjectId || "").trim();
+      })
+      .catch(() => {
+        mySubjectId.value = "";
+      });
+  }
   void refresh();
 });
 </script>
@@ -259,4 +420,8 @@ onMounted(() => {
 .row { display: flex; align-items: center; gap: 16rpx; flex-wrap: wrap; }
 .link { color: #2563eb; font-size: 28rpx; }
 .share-btn { margin-top: 0; }
+.grant-panel { display: flex; flex-direction: column; gap: 12rpx; padding-top: 8rpx; border-top: 1px solid #eee; }
+.grant-row { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+.grant-input { flex: 1; border: 1px solid #e5e5e5; border-radius: 8rpx; padding: 8rpx 12rpx; font-size: 24rpx; }
+.picker { font-size: 24rpx; color: #111; padding: 8rpx 12rpx; border: 1px solid #e5e5e5; border-radius: 8rpx; }
 </style>

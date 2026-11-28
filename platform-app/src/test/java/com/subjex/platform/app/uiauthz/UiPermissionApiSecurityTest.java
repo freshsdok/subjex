@@ -70,9 +70,9 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.client").value("console"))
                 .andExpect(jsonPath("$.defaults.lockedMenuEffect").value("grey"))
                 .andExpect(jsonPath("$.defaults.missingButtonEffect").value("disable"))
-                // Classpath console-ui.yaml: 73 entries after the shares observation menu and page.
-                // classpath 控制台 Manifest 在分享与打开观察菜单与页面入册后为 73 条。
-                .andExpect(jsonPath("$.entries.length()").value(73))
+                // Classpath console-ui.yaml: 76 entries after object-grant menu, page, and button.
+                // classpath 控制台 Manifest 在对象授权菜单、页面与按钮入册后为 76 条。
+                .andExpect(jsonPath("$.entries.length()").value(76))
                 .andExpect(jsonPath("$.entries[0].id").value("nav.overview"))
                 .andExpect(jsonPath("$.entries[0].kind").value("menu"))
                 .andExpect(jsonPath("$.entries[0].href").value("/"))
@@ -90,20 +90,22 @@ class UiPermissionApiSecurityTest {
                 .andExpect(jsonPath("$.entries[15].href").value("/payments"))
                 .andExpect(jsonPath("$.entries[16].id").value("nav.notification-sends"))
                 .andExpect(jsonPath("$.entries[16].href").value("/notification-sends"))
-                .andExpect(jsonPath("$.entries[27].id").value("nav.org"))
-                .andExpect(jsonPath("$.entries[27].permission").value("org.read"))
-                .andExpect(jsonPath("$.entries[27].allowed").value(true))
-                .andExpect(jsonPath("$.entries[30].id").value("btn.inbox.compose.send"))
-                .andExpect(jsonPath("$.entries[30].kind").value("button"))
-                .andExpect(jsonPath("$.entries[30].allowed").value(true))
-                .andExpect(jsonPath("$.entries[31].id").value("btn.org.write"))
+                .andExpect(jsonPath("$.entries[17].id").value("nav.objects"))
+                .andExpect(jsonPath("$.entries[17].href").value("/objects"))
+                .andExpect(jsonPath("$.entries[28].id").value("nav.org"))
+                .andExpect(jsonPath("$.entries[28].permission").value("org.read"))
+                .andExpect(jsonPath("$.entries[28].allowed").value(true))
+                .andExpect(jsonPath("$.entries[31].id").value("btn.inbox.compose.send"))
+                .andExpect(jsonPath("$.entries[31].kind").value("button"))
                 .andExpect(jsonPath("$.entries[31].allowed").value(true))
-                .andExpect(jsonPath("$.entries[32].id").value("btn.flags.write"))
+                .andExpect(jsonPath("$.entries[32].id").value("btn.org.write"))
                 .andExpect(jsonPath("$.entries[32].allowed").value(true))
-                .andExpect(jsonPath("$.entries[37].id").value("btn.tenants.manage"))
-                .andExpect(jsonPath("$.entries[38].id").value("page.flags"))
-                .andExpect(jsonPath("$.entries[38].kind").value("page"))
-                .andExpect(jsonPath("$.entries[41].id").value("page.tenants"));
+                .andExpect(jsonPath("$.entries[33].id").value("btn.flags.write"))
+                .andExpect(jsonPath("$.entries[33].allowed").value(true))
+                .andExpect(jsonPath("$.entries[38].id").value("btn.tenants.manage"))
+                .andExpect(jsonPath("$.entries[39].id").value("page.flags"))
+                .andExpect(jsonPath("$.entries[39].kind").value("page"))
+                .andExpect(jsonPath("$.entries[42].id").value("page.tenants"));
     }
 
     @Test

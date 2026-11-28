@@ -55,6 +55,15 @@ public interface ObjectGrantStore {
     /** All grants for the object, including expired (caller filters) — 该对象全部授权行（含已过期，由调用方过滤）。 */
     List<ObjectGrant> listGrants(String tenantId, String objectKey);
 
+    /** Look up one grant by id — 按标识查找一条授权。 */
+    Optional<ObjectGrant> findGrant(String grantId);
+
+    /**
+     * Registered objects in the tenant, newest first.
+     * 租户内已登记对象，按登记时间从新到旧。
+     */
+    List<ObjectDescriptor> listRegistered(String tenantId, int limit, int offset);
+
     /**
      * Objects the subject owns or holds an unexpired SUBJECT grant in the tenant.
      * Does not include organization grants, inbox attachments, or unregistered entity_blob.

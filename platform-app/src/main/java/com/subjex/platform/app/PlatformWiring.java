@@ -183,6 +183,7 @@ import com.subjex.platform.app.security.PolicyEngineFactory;
 import com.subjex.platform.app.security.OperatorActionAudit;
 import com.subjex.platform.app.storage.ObjectStorageFactory;
 import com.subjex.platform.app.storage.ObjectAccessAudit;
+import com.subjex.platform.app.storage.ObjectGrantManagementService;
 import com.subjex.platform.app.storage.ObjectGrantStore;
 import com.subjex.platform.app.storage.ObjectUploadLimits;
 import com.subjex.platform.app.storage.ObjectAccessAuthorizer;
@@ -1562,6 +1563,22 @@ public class PlatformWiring {
     @Bean
     ObjectGrantStore objectGrantStore(JdbcTemplate jdbc, Clock clock, ObjectAccessAudit objectAccessAudit) {
         return new JdbcObjectGrantStore(jdbc, clock, objectAccessAudit);
+    }
+
+    /**
+     * Owner and operator grant list/grant/revoke on the authorized-object track.
+     * 所有者与操作员在授权对象轨上列出、授予或撤销访问。
+     */
+    @Bean
+    ObjectGrantManagementService objectGrantManagementService(
+            ObjectGrantStore objectGrantStore,
+            JdbcTemplate jdbc,
+            EndUserAccountStore endUserAccountStore,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine,
+            Clock clock) {
+        return new ObjectGrantManagementService(
+                objectGrantStore, jdbc, endUserAccountStore, operatorTenantAccess, policyEngine, clock);
     }
 
     /**

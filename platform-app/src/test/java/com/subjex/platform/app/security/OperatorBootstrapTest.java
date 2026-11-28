@@ -74,6 +74,7 @@ class OperatorBootstrapTest {
                         "declaration.read",
                         "end-user.read",
                         "notification.read",
+                        "object.grant.read",
                         "org.read",
                         "payment.read",
                         "questionnaire.read",

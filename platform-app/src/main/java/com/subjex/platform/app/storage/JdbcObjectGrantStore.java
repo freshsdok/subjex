@@ -189,6 +189,42 @@ public final class JdbcObjectGrantStore implements ObjectGrantStore {
     }
 
     @Override
+    public Optional<ObjectGrant> findGrant(String grantId) {
+        if (grantId == null || grantId.isBlank()) {
+            return Optional.empty();
+        }
+        List<ObjectGrant> rows = jdbc.query(
+                """
+                SELECT grant_id, tenant_id, object_key, grantee_kind, grantee_id,
+                       expires_at, created_at, created_by_subject_id
+                FROM object_grant
+                WHERE grant_id = ?
+                """,
+                GRANT,
+                grantId.trim());
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    @Override
+    public List<ObjectDescriptor> listRegistered(String tenantId, int limit, int offset) {
+        String tid = ObjectGrantStore.requireExplicitBusinessTenantId(tenantId);
+        int lim = limit <= 0 ? 50 : Math.min(limit, 200);
+        int off = Math.max(offset, 0);
+        return jdbc.query(
+                """
+                SELECT object_id, tenant_id, object_key, owner_subject_id, created_at
+                  FROM object_descriptor
+                 WHERE tenant_id = ?
+                 ORDER BY created_at DESC, object_id
+                 LIMIT ? OFFSET ?
+                """,
+                DESCRIPTOR,
+                tid,
+                lim,
+                off);
+    }
+
+    @Override
     public List<ObjectDescriptor> listOwnedOrSubjectGranted(
             String tenantId, String subjectId, int limit, int offset) {
         String tid = ObjectGrantStore.requireExplicitBusinessTenantId(tenantId);

@@ -325,3 +325,63 @@ export async function openObject(objectKey: string): Promise<void> {
     });
   });
 }
+
+export type ObjectGrant = {
+  grantId?: string;
+  objectId?: string;
+  objectKey?: string;
+  tenantId?: string;
+  granteeKind?: string;
+  granteeId?: string;
+  expiresAt?: string | null;
+  createdAt?: string;
+  createdBySubjectId?: string;
+  effective?: boolean;
+};
+
+export type ObjectGrantList = {
+  object?: EndUserObject;
+  grants?: ObjectGrant[];
+};
+
+/** List grants on an object the caller owns — 列出本人拥有对象上的授权. */
+export async function listObjectGrants(objectId: string): Promise<ObjectGrantList> {
+  const id = objectId.trim();
+  if (!id) throw new Error("请选择要查看授权的文件");
+  return authedFetch<ObjectGrantList>({
+    path: `/api/v1/end-user/objects/${encodeURIComponent(id)}/grants`,
+    tenantId: true,
+  });
+}
+
+/** Grant access to a subject or organization — 向主体或组织授予访问. */
+export async function grantObjectAccess(
+  objectId: string,
+  granteeKind: "SUBJECT" | "ORGANIZATION",
+  granteeId: string,
+  expiresAt?: string | null,
+): Promise<ObjectGrant> {
+  const id = objectId.trim();
+  const grantee = granteeId.trim();
+  if (!id) throw new Error("请选择要授权的文件");
+  if (!grantee) throw new Error("请填写被授权人编号");
+  return authedFetch<ObjectGrant>({
+    method: "POST",
+    path: `/api/v1/end-user/objects/${encodeURIComponent(id)}/grants`,
+    tenantId: true,
+    body: { granteeKind, granteeId: grantee, expiresAt: expiresAt || null },
+  });
+}
+
+/** Revoke one grant on an object the caller owns — 撤销本人拥有对象上的一条授权. */
+export async function revokeObjectGrant(objectId: string, grantId: string): Promise<void> {
+  const oid = objectId.trim();
+  const gid = grantId.trim();
+  if (!oid || !gid) throw new Error("请选择要撤销的授权");
+  await authedFetch({
+    method: "DELETE",
+    path: `/api/v1/end-user/objects/${encodeURIComponent(oid)}/grants/${encodeURIComponent(gid)}`,
+    tenantId: true,
+  });
+}
+

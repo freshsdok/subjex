@@ -86,6 +86,15 @@ entries:
     kind: menu
     href: /notification-sends
     permission: notification.read
+  # Operator object grants (list / grant / revoke). Not a public share product.
+  # 操作员对象授权（列出/授予/撤销）。不是公开分享产品。
+  - id: nav.objects
+    kind: menu
+    href: /objects
+    permission: object.grant.read
+    anyOf:
+      - object.grant.read
+      - object.grant
   - id: nav.dead-letters
     kind: menu
     href: /dead-letters
@@ -263,6 +272,16 @@ entries:
     kind: page
     route: /notification-sends
     permission: notification.read
+  - id: page.objects
+    kind: page
+    route: /objects
+    permission: object.grant.read
+    anyOf:
+      - object.grant.read
+      - object.grant
+  - id: btn.objects.grant
+    kind: button
+    permission: object.grant
   - id: page.dead-letters
     kind: page
     route: /dead-letters
