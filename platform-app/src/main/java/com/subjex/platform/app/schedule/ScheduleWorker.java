@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -43,6 +44,12 @@ public final class ScheduleWorker {
     private final int batchSize;
     private final String owner;
 
+    /**
+     * Production constructor. {@code @Autowired} is required because a package-private test
+     * constructor also exists; otherwise Spring looks for a no-arg constructor and the app fails to start.
+     * 生产构造。因为还有一个包内测试构造，必须标明 {@code @Autowired}，否则 Spring 会去找无参构造，应用无法启动。
+     */
+    @Autowired
     public ScheduleWorker(
             SchedulePort schedules,
             TaskMessagePort tasks,
