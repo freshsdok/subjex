@@ -82,6 +82,7 @@ class OperatorBootstrapTest {
                         "questionnaire.read",
                         "registry.read",
                         "resource-event.read",
+                        "schedule.read",
                         "workflow.read",
                         "inbox.read"),
                 reader.permissionNames());

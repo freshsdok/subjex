@@ -108,6 +108,9 @@ import com.subjex.platform.app.content.JdbcContentPagePort;
 import com.subjex.platform.app.content.OperatorContentPageService;
 import com.subjex.platform.app.content.PublicContentPageService;
 import com.subjex.platform.contract.content.ContentPagePort;
+import com.subjex.platform.app.schedule.JdbcSchedulePort;
+import com.subjex.platform.app.schedule.OperatorScheduleService;
+import com.subjex.platform.contract.schedule.SchedulePort;
 import com.subjex.platform.app.notification.JdbcNotificationDispatcher;
 import com.subjex.platform.app.notification.JdkNotificationHttpClient;
 import com.subjex.platform.app.notification.NotificationChannelAdapterFactory;
@@ -1201,6 +1204,26 @@ public class PlatformWiring {
     @Bean
     PublicContentPageService publicContentPageService(JdbcContentPagePort contentPagePort, ObjectStorage objectStorage) {
         return new PublicContentPageService(contentPagePort, objectStorage);
+    }
+
+    /**
+     * Operator schedules. Due work enqueues a deterministic task or starts a classpath workflow.
+     * 操作员调度。到期后入队确定性任务或启动 classpath 工作流。
+     */
+    @Bean
+    JdbcSchedulePort schedulePort(JdbcTemplate jdbc, TransactionTemplate transactionTemplate, Clock clock) {
+        return new JdbcSchedulePort(jdbc, transactionTemplate, clock);
+    }
+
+    @Bean
+    OperatorScheduleService operatorScheduleService(
+            SchedulePort schedulePort,
+            WorkflowCatalog workflowCatalog,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine,
+            Clock clock) {
+        return new OperatorScheduleService(
+                schedulePort, workflowCatalog, operatorTenantAccess, policyEngine, clock);
     }
 
     @Bean

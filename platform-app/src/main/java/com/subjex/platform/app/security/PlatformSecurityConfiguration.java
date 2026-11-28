@@ -298,6 +298,12 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.CONTENT_WRITE.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/content-pages", "/api/v1/content-pages/**")
                                 .hasAuthority(OperatorPermission.CONTENT_WRITE.permissionName())
+                        // Operator schedules (console). Cron enqueue or classpath workflow start.
+                        // 操作员调度（控制台）。按 cron 入队或启动 classpath 工作流。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/schedules", "/api/v1/schedules/**")
+                                .hasAuthority(OperatorPermission.SCHEDULE_READ.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/schedules", "/api/v1/schedules/**")
+                                .hasAuthority(OperatorPermission.SCHEDULE_WRITE.permissionName())
                         .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
                                 .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/questionnaires/**")

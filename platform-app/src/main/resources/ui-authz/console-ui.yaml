@@ -105,6 +105,12 @@ entries:
     kind: menu
     href: /tasks
     permission: admin.read
+  # Operator schedules: create/list/enable/disable cron work (enqueue task or start classpath workflow).
+  # 操作员调度：创建/列出/启用/停用 cron 工作（入队任务或启动 classpath 工作流）。
+  - id: nav.schedules
+    kind: menu
+    href: /schedules
+    permission: schedule.read
   # Operator points / benefits ledger. Lookup a subject and adjust with a reason.
   # 操作员积分/权益台账。查阅主体并按原因调整。不是忠诚计划。
   - id: nav.points
@@ -308,6 +314,13 @@ entries:
     kind: page
     route: /tasks
     permission: admin.read
+  - id: page.schedules
+    kind: page
+    route: /schedules
+    permission: schedule.read
+  - id: btn.schedules.write
+    kind: button
+    permission: schedule.write
   - id: page.points
     kind: page
     route: /points

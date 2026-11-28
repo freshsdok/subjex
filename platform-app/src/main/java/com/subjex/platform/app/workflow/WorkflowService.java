@@ -170,6 +170,41 @@ public final class WorkflowService {
     }
 
     /**
+     * Start a classpath workflow from the operator schedule worker. Fail closed if the key is missing.
+     * A retried tick with the same record id returns the existing instance (unique on tenant+entity+record).
+     * 由操作员调度工作器启动 classpath 工作流；缺少定义键则失败关闭。
+     * 同一记录标识的重试拍返回已有实例（租户+实体+记录唯一）。
+     */
+    public WorkflowInstance startFromSchedule(
+            String definitionKey,
+            String tenantId,
+            String entityKey,
+            String recordId,
+            String startedBySubjectId) {
+        String tid = requireNonBlank(tenantId, "tenantId");
+        String key = requireNonBlank(definitionKey, "definitionKey");
+        String rid = requireNonBlank(recordId, "recordId");
+        String startedBy = requireNonBlank(startedBySubjectId, "startedBySubjectId");
+        WorkflowDefinition definition = catalog.require(key);
+        String boundEntity = definition.entityKey();
+        if (boundEntity == null || boundEntity.isBlank()) {
+            throw new IllegalArgumentException("workflow definition has no entity key: " + key);
+        }
+        if (entityKey != null && !entityKey.isBlank() && !boundEntity.equals(entityKey.trim())) {
+            throw new IllegalArgumentException("workflow entity key does not match definition: " + key);
+        }
+        Optional<WorkflowInstance> existing = store.findByRecord(tid, boundEntity, rid);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        try {
+            return insertNew(null, startedBy, definition.definitionKey(), tid, boundEntity, rid, resolveLinkage(tid, boundEntity));
+        } catch (WorkflowAlreadyStartedException race) {
+            return store.findByRecord(tid, boundEntity, rid).orElseThrow(() -> race);
+        }
+    }
+
+    /**
      * Package-private hook transition for data-export expiry (no workflow.write; allow-listed).
      * 包内钩子转移，供 data-export 过期使用（不要求 workflow.write；有白名单）。
      */

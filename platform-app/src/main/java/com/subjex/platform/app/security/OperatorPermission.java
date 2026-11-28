@@ -85,6 +85,10 @@ public enum OperatorPermission {
     CONTENT_READ("content.read"),
     /** Create, edit, publish, or unpublish tenant content pages — 创建、编辑、发布或取消发布租户内容页。 */
     CONTENT_WRITE("content.write"),
+    /** List operator schedules in a granted tenant — 在已授权租户内查阅操作员调度。 */
+    SCHEDULE_READ("schedule.read"),
+    /** Create, enable, or disable operator schedules — 创建、启用或停用操作员调度。 */
+    SCHEDULE_WRITE("schedule.write"),
     /** Create and edit questionnaires, publish/close, tokens — 创建编辑问卷、发布关闭、令牌。 */
     QUESTIONNAIRE_WRITE("questionnaire.write"),
     /** Request a personal-data export on behalf of a subject — 代主体申请个人数据导出。 */

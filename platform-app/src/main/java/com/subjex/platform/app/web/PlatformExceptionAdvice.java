@@ -63,6 +63,7 @@ import com.subjex.platform.contract.points.PointsIdempotencyConflictException;
 import com.subjex.platform.contract.points.PointsInsufficientException;
 import com.subjex.platform.contract.points.PointsSubjectNotFoundException;
 import com.subjex.platform.contract.content.ContentPageNotFoundException;
+import com.subjex.platform.contract.schedule.ScheduleNotFoundException;
 import com.subjex.platform.contract.content.ContentPageSlugConflictException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.List;
@@ -226,6 +227,12 @@ public class PlatformExceptionAdvice {
     ResponseEntity<Map<String, String>> contentPageMissing() {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("reason", ContentPageNotFoundException.REASON));
+    }
+
+    @ExceptionHandler(ScheduleNotFoundException.class)
+    ResponseEntity<Map<String, String>> scheduleMissing() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("reason", ScheduleNotFoundException.REASON));
     }
 
     @ExceptionHandler(ContentPageSlugConflictException.class)
