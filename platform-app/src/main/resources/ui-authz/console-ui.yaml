@@ -99,6 +99,12 @@ entries:
     kind: menu
     href: /dead-letters
     permission: admin.read
+  # Operator read-only task list (existing admin tasks API). No scheduler or create form.
+  # 操作员只读任务列表（已有管理任务 API）。不引入调度器或创建表单。
+  - id: nav.tasks
+    kind: menu
+    href: /tasks
+    permission: admin.read
   - id: nav.deploy
     kind: menu
     href: /deploy
@@ -285,6 +291,10 @@ entries:
   - id: page.dead-letters
     kind: page
     route: /dead-letters
+    permission: admin.read
+  - id: page.tasks
+    kind: page
+    route: /tasks
     permission: admin.read
 
   # PC-deepen-3: remaining console page Forbidden — 余下控制台页 Forbidden

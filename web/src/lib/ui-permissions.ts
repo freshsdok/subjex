@@ -72,6 +72,7 @@ export const CONSOLE_MENU_LABEL_BY_ID: Readonly<Record<string, keyof PhraseBook>
   "nav.notification-sends": "navNotificationSends",
   "nav.objects": "navObjects",
   "nav.dead-letters": "navDeadLetters",
+  "nav.tasks": "navTasks",
   "nav.deploy": "navDeploy",
   "nav.forms": "navForms",
   "nav.questionnaires": "navQuestionnaires",
@@ -196,6 +197,7 @@ export const PAGE_PAYMENTS = "page.payments";
 export const PAGE_NOTIFICATION_SENDS = "page.notification-sends";
 export const PAGE_OBJECTS = "page.objects";
 export const PAGE_DEAD_LETTERS = "page.dead-letters";
+export const PAGE_TASKS = "page.tasks";
 export const PAGE_SERVICES = "page.services";
 export const PAGE_DEPLOY = "page.deploy";
 export const PAGE_FORMS = "page.forms";

@@ -330,6 +330,10 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers("/api/v1/dead-letters", "/api/v1/dead-letters/**")
                                 .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
+                        // Operator read-only task list (console). Submit/retry/confirm stay on POST /tasks.
+                        // 操作员只读任务列表（控制台）。提交/重试/确认仍走 POST /tasks。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tasks", "/api/v1/tasks/**")
+                                .hasAuthority(OperatorPermission.ADMIN_READ.permissionName())
                         .requestMatchers(HttpMethod.POST, "/config/entries")
                                 .hasAuthority(OperatorPermission.CONFIG_WRITE.permissionName())
                         .requestMatchers("/config", "/config/**")

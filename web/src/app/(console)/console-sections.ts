@@ -55,6 +55,7 @@ export const consoleSections: ConsoleSection[] = [
     requiredAnyOf: ["object.grant.read", "object.grant"],
   },
   { href: "/dead-letters", labelKey: "navDeadLetters", requiredPermission: "admin.read" },
+  { href: "/tasks", labelKey: "navTasks", requiredPermission: "admin.read" },
   { href: "/deploy", labelKey: "navDeploy", requiredPermission: "page.read" },
   { href: "/forms", labelKey: "navForms", requiredPermission: "page.read" },
   { href: "/questionnaires", labelKey: "navQuestionnaires", requiredPermission: "questionnaire.read" },

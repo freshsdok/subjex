@@ -11,6 +11,9 @@ Documentation catch-up below lists product work through local tip `7c1d7d7` (202
 
 ### Added / 新增
 
+- **Operator read-only tasks view:** Console `/tasks` lists existing `platform_task` rows through a thin `GET /api/v1/tasks` twin of the admin reader (`admin.read`). It shows kind, state, step, attempt count, confirmation, and failure reason. It does not retry or confirm (those remain `POST /tasks/**`), and it does not add a scheduler, a create-schedule form, or a second job platform. The workflow status/runtime panel was already generic by `entityKey` (ADR 0016); only a misleading repair-ticket comment was corrected. Dead letters stay on `/dead-letters`.
+  **操作员只读任务视图：** 控制台 `/tasks` 通过薄的 `GET /api/v1/tasks`（复用已有管理读取，`admin.read`）列出已有任务行。不提供重试或确认（仍走 `POST /tasks/**`），不引入调度器、排程表单或第二套任务平台。工作流状态/运行时面板本就按 `entityKey` 通用查找；仅修正了易误导的报修工单注释。死信仍走 `/dead-letters`。
+
 - **Questionnaire stats aggregate in the database:** Production `JdbcQuestionnairePort.stats()` counts production responses and groups `value_json` in SQL, then applies the existing choice/rating buckets in Java. The HTTP/API shape is unchanged (production responses only; operator preview excluded; text items omitted). Java does not materialize every production response and answer; it sees compact grouped rows. The in-memory port may still aggregate in memory. No funnel or marketing suite. SHA `7c1d7d7`.
   **问卷汇总改为数据库聚合：** 生产 JDBC 路径在库内计数并按答案原文分组，再套用原有选择/评分桶。接口形态不变。Java 不再装入每一份生产答卷与答案。Memory 测试端口仍可在内存中汇总。不是漏斗或营销套件。
 

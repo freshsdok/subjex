@@ -128,8 +128,8 @@ export default async function DeclaredDetailPage({
           tenantId={tenantId}
         />
       ) : null}
-      {/* WF-3: workflow status for any declared entityKey (repair-ticket FSM binding). */}
-      {/* WF-3：凡声明了 entityKey 的详情均可挂报修工单状态机。 */}
+      {/* WF-3: workflow status looks up the machine by this flow's declared entityKey. */}
+      {/* WF-3：按本流程声明的 entityKey 解析状态机；未绑定则面板自行隐藏。 */}
       {flowRead.body.entityKey ? (
         <WorkflowStatusPanel
           entityKey={flowRead.body.entityKey}
