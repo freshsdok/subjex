@@ -27,6 +27,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -35,8 +36,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * JdbcNotificationDispatcher — JDBC 通知调度器：选取 PENDING 的 {@link NotificationRequested}，调用渠道适配器，复用出箱重试与死信。
  * <p>
  * Does not call {@code DeliveryPort} and does not share {@code OutboxRelay}'s lock, so TaskRecorded
- * frames are never used as the hop before an adapter. Max attempts follow {@link TaskLifecycle#DEFAULT_MAX_ATTEMPT}.
+ * frames are never used as the hop before an adapter. Subject-addressed end-user sends resolve a
+ * channel destination from verified email, phone, or WeChat IdP binding immediately before the
+ * adapter; an explicit destination is preserved. Max attempts follow {@link TaskLifecycle#DEFAULT_MAX_ATTEMPT}.
  * 不调用 {@code DeliveryPort}，也不与 {@code OutboxRelay} 共用锁，因此不会把 TaskRecorded 帧当作适配器前的必经一跳。
+ * 主体寻址的终端投递在调用适配器前，按渠道从已验证邮箱、手机号或微信 IdP 绑定解析目的地；显式目的地保持不变。
  * 最大尝试次数沿用 {@link TaskLifecycle#DEFAULT_MAX_ATTEMPT}。
  */
 public final class JdbcNotificationDispatcher implements NotificationDispatcher {
@@ -60,6 +64,7 @@ public final class JdbcNotificationDispatcher implements NotificationDispatcher 
 
     private final Map<NotificationChannel, NotificationChannelAdapter> adapters;
     private final AuditPort audit;
+    private final EndUserNotificationDestinationResolver destinations;
     private final String ownerToken;
 
     public JdbcNotificationDispatcher(
@@ -77,6 +82,7 @@ public final class JdbcNotificationDispatcher implements NotificationDispatcher 
         this.clock = Objects.requireNonNull(clock, "clock");
         this.adapters = indexAdapters(adapters);
         this.audit = Objects.requireNonNull(audit, "audit");
+        this.destinations = new EndUserNotificationDestinationResolver(jdbc);
         this.ownerToken = UUID.randomUUID().toString();
     }
 
@@ -215,19 +221,25 @@ public final class JdbcNotificationDispatcher implements NotificationDispatcher 
                 && !stored.tenantId().equals(recipient.recipientTenantId())) {
             return SendAttempt.failed("cross-tenant notification denied", AuditOutcome.REFUSED, request);
         }
-        NotificationChannelAdapter adapter = adapters.get(request.channel());
+        Optional<NotificationRequested> resolved = destinations.resolve(request);
+        if (resolved.isEmpty()) {
+            return SendAttempt.failed(
+                    EndUserNotificationDestinationResolver.UNRESOLVED_REASON, AuditOutcome.REFUSED, request);
+        }
+        NotificationRequested toSend = resolved.get();
+        NotificationChannelAdapter adapter = adapters.get(toSend.channel());
         try {
-            adapter.send(request);
-            return SendAttempt.ok(request);
+            adapter.send(toSend);
+            return SendAttempt.ok(toSend);
         } catch (NotificationAdapterUnconfiguredException ex) {
-            return SendAttempt.failed(clip(ex.getMessage()), AuditOutcome.REFUSED, request);
+            return SendAttempt.failed(clip(ex.getMessage()), AuditOutcome.REFUSED, toSend);
         } catch (NotificationChannelSendFailedException ex) {
-            return SendAttempt.failed(NotificationChannelSendFailedException.REASON, AuditOutcome.FAILED, request);
+            return SendAttempt.failed(NotificationChannelSendFailedException.REASON, AuditOutcome.FAILED, toSend);
         } catch (RuntimeException ex) {
             return SendAttempt.failed(
                     clip(ex.getMessage() == null ? "notification adapter failed" : ex.getMessage()),
                     AuditOutcome.FAILED,
-                    request);
+                    toSend);
         }
     }
 

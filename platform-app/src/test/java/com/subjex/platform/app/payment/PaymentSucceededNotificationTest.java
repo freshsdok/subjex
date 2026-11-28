@@ -1,10 +1,12 @@
 package com.subjex.platform.app.payment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.lock.SingleProcessLock;
+import com.subjex.platform.app.notification.EndUserNotificationDestinationResolver;
 import com.subjex.platform.app.notification.FailClosedNotificationAdapter;
 import com.subjex.platform.app.notification.JdbcNotificationDispatcher;
 import com.subjex.platform.app.notification.MockNotificationAdapter;
@@ -26,7 +28,9 @@ import com.subjex.platform.contract.payment.PaymentStatusChanged;
 import com.subjex.platform.contract.payment.RefundCommand;
 import com.subjex.platform.contract.task.OutboxState;
 import com.subjex.platform.contract.task.TaskLifecycle;
+import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import javax.sql.DataSource;
@@ -53,6 +57,8 @@ class PaymentSucceededNotificationTest {
     @EnumSource(H2PlatformTables.Mode.class)
     void succeededEnqueuesPayerNoticeOnTheSameOutbox(H2PlatformTables.Mode mode) {
         Fixture fx = Fixture.open(mode);
+        fx.seedEndUser("acct-payer", PAYER, "id-payer", TENANT_A);
+        fx.seedVerifiedEmail("acct-payer", "payer@example.com");
         PaymentDocument created = fx.port.createOrder(order(TENANT_A, 199L, "CNY", "ORD-OK", PAYER, "END_USER"));
 
         PaymentDocument paid = fx.port.applyPaymentResult(success(created.paymentId(), "notify-ok"));
@@ -77,6 +83,10 @@ class PaymentSucceededNotificationTest {
         assertEquals(1, fx.sink.sent(PaymentSucceededNotice.CHANNEL).size());
         assertEquals(PaymentSucceededNotice.TEMPLATE_ID, fx.sink.sent().get(0).templateId());
         assertEquals("199", fx.sink.sent().get(0).parameters().get(PaymentSucceededNotice.PARAM_AMOUNT_MINOR));
+        assertEquals("payer@example.com", fx.sink.sent().get(0).recipient().destination());
+        assertEquals(PAYER, fx.sink.sent().get(0).recipient().subjectId());
+        assertNull(fx.latestNotice().path("recipient").path("destination").asText(null));
+        assertEquals(PaymentStatus.SUCCEEDED, fx.port.queryOrder(TENANT_A, created.paymentId()).status());
     }
 
     @ParameterizedTest
@@ -109,6 +119,8 @@ class PaymentSucceededNotificationTest {
     @EnumSource(H2PlatformTables.Mode.class)
     void unconfiguredAdapterFailsClosedAndPaymentStillSucceeds(H2PlatformTables.Mode mode) {
         Fixture fx = Fixture.openFailClosed(mode);
+        fx.seedEndUser("acct-payer", PAYER, "id-payer", TENANT_A);
+        fx.seedVerifiedEmail("acct-payer", "payer@example.com");
         PaymentDocument created = fx.port.createOrder(order(TENANT_A, 25L, "EUR", "ORD-FC", PAYER, "END_USER"));
 
         PaymentDocument paid = fx.port.applyPaymentResult(success(created.paymentId(), "notify-fc"));
@@ -144,7 +156,43 @@ class PaymentSucceededNotificationTest {
         assertEquals(0, fx.countByName(NotificationRequested.EVENT_NAME));
     }
 
-    private static CreatePaymentCommand order(
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void missingVerifiedEmailDeadLettersTheNoticeAndPaymentStillSucceeds(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        fx.seedEndUser("acct-payer", PAYER, "id-payer", TENANT_A);
+        PaymentDocument created = fx.port.createOrder(order(TENANT_A, 60L, "CNY", "ORD-NOMAIL", PAYER, "END_USER"));
+        PaymentDocument paid = fx.port.applyPaymentResult(success(created.paymentId(), "notify-nomail"));
+        assertEquals(PaymentStatus.SUCCEEDED, paid.status());
+        assertEquals(1, fx.countByName(NotificationRequested.EVENT_NAME));
+
+        for (int i = 0; i < TaskLifecycle.DEFAULT_MAX_ATTEMPT; i++) {
+            fx.dispatcher.dispatchPending(10);
+        }
+        assertEquals(PaymentStatus.SUCCEEDED, fx.port.queryOrder(TENANT_A, created.paymentId()).status());
+        assertEquals(OutboxState.DEAD.name(), fx.noticeState());
+        assertEquals(
+                EndUserNotificationDestinationResolver.UNRESOLVED_REASON, fx.noticeFailure());
+        assertEquals(1, fx.deadLetterCount(fx.noticeId()));
+        assertTrue(fx.sink.sent().isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void pendingEmailIsNotUsedAsAPaymentNoticeDestination(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        fx.seedEndUser("acct-payer", PAYER, "id-payer", TENANT_A);
+        fx.seedPendingEmail("acct-payer", "pending@example.com");
+        PaymentDocument created = fx.port.createOrder(order(TENANT_A, 70L, "CNY", "ORD-PENDING", PAYER, "END_USER"));
+        fx.port.applyPaymentResult(success(created.paymentId(), "notify-pending"));
+        fx.dispatcher.dispatchPending(10);
+        assertEquals(PaymentStatus.SUCCEEDED, fx.port.queryOrder(TENANT_A, created.paymentId()).status());
+        assertEquals(
+                EndUserNotificationDestinationResolver.UNRESOLVED_REASON, fx.noticeFailure());
+        assertTrue(fx.sink.sent().isEmpty());
+    }
+
+        private static CreatePaymentCommand order(
             String tenantId, long amountMinor, String currency, String reference, String payer, String realm) {
         return new CreatePaymentCommand(
                 tenantId,
@@ -248,6 +296,59 @@ class PaymentSucceededNotificationTest {
             Integer n = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM dead_letter WHERE origin_id = ?", Integer.class, originId);
             return n == null ? 0 : n;
+        }
+
+        private void seedEndUser(String accountId, String subjectId, String identityId, String tenantId) {
+            jdbc.update(
+                    "INSERT INTO account (account_id, login_name, account_state) VALUES (?, ?, 'ACTIVE')",
+                    accountId,
+                    "login-" + accountId);
+            jdbc.update(
+                    "INSERT INTO subject (subject_id, subject_name, subject_kind) VALUES (?, ?, 'PERSON')",
+                    subjectId,
+                    subjectId);
+            jdbc.update(
+                    """
+                    INSERT INTO subject_identity (identity_id, account_id, subject_id, tenant_id, identity_state)
+                    VALUES (?, ?, ?, ?, 'ACTIVE')
+                    """,
+                    identityId,
+                    accountId,
+                    subjectId,
+                    tenantId);
+        }
+
+        private void seedVerifiedEmail(String accountId, String email) {
+            Instant at = Instant.parse("2026-11-28T08:00:00Z");
+            jdbc.update(
+                    """
+                    INSERT INTO end_user_profile (account_id, email, email_verified_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    accountId,
+                    email,
+                    Timestamp.from(at),
+                    Timestamp.from(at));
+        }
+
+        private void seedPendingEmail(String accountId, String email) {
+            Instant at = Instant.parse("2026-11-28T08:00:00Z");
+            jdbc.update(
+                    """
+                    INSERT INTO end_user_profile (account_id, pending_email, pending_email_requested_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    accountId,
+                    email,
+                    Timestamp.from(at),
+                    Timestamp.from(at));
+        }
+
+        private String noticeFailure() {
+            return jdbc.queryForObject(
+                    "SELECT failure_reason FROM outbox_event WHERE event_id = ?",
+                    String.class,
+                    noticeId());
         }
 
         private List<Map<String, Object>> sendAuditRows() {

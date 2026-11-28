@@ -26,7 +26,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,6 +77,7 @@ class NotificationPortAcceptanceTest {
         assertEquals(NotificationChannel.SMS, sent.channel());
         assertEquals("ORD-53", sent.parameters().get("orderId"));
         assertEquals(TENANT_A, sent.tenantId());
+        assertEquals("13800138053", sent.recipient().destination());
 
         JsonNode body = MAPPER.readTree(fx.eventBody(receipt.notificationId()));
         assertEquals("order.approved", body.get("templateId").asText());
@@ -237,6 +240,7 @@ class NotificationPortAcceptanceTest {
             seedTenant(jdbc, TENANT_A);
             seedTenant(jdbc, TENANT_B);
             seedEndUser(jdbc, "acct-ada", "end-user-ada", "id-ada", TENANT_A);
+            seedPhone(jdbc, "acct-ada", "13800138053");
             RecordingNotificationSink sink = new RecordingNotificationSink(CLOCK);
             NotificationDispatcher dispatcher = new JdbcNotificationDispatcher(
                     jdbc,
@@ -288,6 +292,19 @@ class NotificationPortAcceptanceTest {
         private String eventBody(String eventId) {
             return jdbc.queryForObject(
                     "SELECT event_body FROM outbox_event WHERE event_id = ?", String.class, eventId);
+        }
+
+
+        private static void seedPhone(JdbcTemplate jdbc, String accountId, String phone) {
+            jdbc.update(
+                    """
+                    INSERT INTO end_user_phone_binding (binding_id, account_id, phone, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    "bind-" + accountId,
+                    accountId,
+                    phone,
+                    Timestamp.from(Instant.parse("2026-11-28T08:00:00Z")));
         }
 
         private String stateOf(String eventId) {

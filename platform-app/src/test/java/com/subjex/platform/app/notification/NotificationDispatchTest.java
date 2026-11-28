@@ -3,6 +3,7 @@ package com.subjex.platform.app.notification;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import tools.jackson.databind.ObjectMapper;
@@ -30,7 +31,9 @@ import com.subjex.platform.contract.task.OutboxEvent;
 import com.subjex.platform.contract.task.OutboxState;
 import com.subjex.platform.contract.task.TaskLifecycle;
 import io.opentelemetry.api.OpenTelemetry;
+import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,6 +63,9 @@ class NotificationDispatchTest {
     @EnumSource(H2PlatformTables.Mode.class)
     void dispatchDeliversToMockSmsEmailAndWeChatSinks(H2PlatformTables.Mode mode) {
         Fixture fx = Fixture.open(mode);
+        fx.seedPhone("acct-ada", "13800138001");
+        fx.seedVerifiedEmail("acct-ada", "ada@example.com");
+        fx.seedWeChatLink("acct-ada", "wechat:mini", "wx-openid-ada");
         NotificationReceipt sms = fx.port.enqueue(command(NotificationChannel.SMS, "order.approved", "ORD-41"));
         NotificationReceipt email = fx.port.enqueue(command(NotificationChannel.EMAIL, "order.shipped", "ORD-42"));
         NotificationReceipt wechat =
@@ -73,6 +79,10 @@ class NotificationDispatchTest {
         assertEquals("ORD-42", only(fx.sink.sent(NotificationChannel.EMAIL)).parameters().get("orderId"));
         assertEquals("order.ready", only(fx.sink.sent(NotificationChannel.WECHAT_TEMPLATE)).templateId());
         assertEquals("ORD-43", only(fx.sink.sent(NotificationChannel.WECHAT_TEMPLATE)).parameters().get("orderId"));
+        assertEquals("13800138001", only(fx.sink.sent(NotificationChannel.SMS)).recipient().destination());
+        assertEquals("ada@example.com", only(fx.sink.sent(NotificationChannel.EMAIL)).recipient().destination());
+        assertEquals("wx-openid-ada", only(fx.sink.sent(NotificationChannel.WECHAT_TEMPLATE)).recipient().destination());
+        assertNull(MAPPER.readTree(fx.eventBody(sms.notificationId())).path("recipient").path("destination").asText(null));
 
         assertEquals(OutboxState.PUBLISHED.name(), fx.stateOf(sms.notificationId()));
         assertEquals(OutboxState.PUBLISHED.name(), fx.stateOf(email.notificationId()));
@@ -84,6 +94,7 @@ class NotificationDispatchTest {
     @EnumSource(H2PlatformTables.Mode.class)
     void forcedAdapterFailureIsRetriedAndBecomesDeadLetter(H2PlatformTables.Mode mode) {
         Fixture fx = Fixture.open(mode);
+        fx.seedPhone("acct-ada", "13800138001");
         NotificationReceipt receipt = fx.port.enqueue(command(NotificationChannel.SMS, "order.approved", "ORD-41"));
         fx.sink.failNext(TaskLifecycle.DEFAULT_MAX_ATTEMPT);
 
@@ -108,6 +119,7 @@ class NotificationDispatchTest {
     @EnumSource(H2PlatformTables.Mode.class)
     void replayAfterDeadLetterCanSucceed(H2PlatformTables.Mode mode) {
         Fixture fx = Fixture.open(mode);
+        fx.seedVerifiedEmail("acct-ada", "ada@example.com");
         NotificationReceipt receipt = fx.port.enqueue(command(NotificationChannel.EMAIL, "order.approved", "ORD-41"));
         fx.sink.failNext(TaskLifecycle.DEFAULT_MAX_ATTEMPT);
         for (int i = 0; i < TaskLifecycle.DEFAULT_MAX_ATTEMPT; i++) {
@@ -127,6 +139,7 @@ class NotificationDispatchTest {
     @EnumSource(H2PlatformTables.Mode.class)
     void existingRelayDoesNotStealNotificationRows(H2PlatformTables.Mode mode) {
         Fixture fx = Fixture.open(mode);
+        fx.seedPhone("acct-ada", "13800138001");
         NotificationReceipt receipt = fx.port.enqueue(command(NotificationChannel.SMS, "order.approved", "ORD-41"));
         RecordingDeliveryPort delivery = new RecordingDeliveryPort();
         JdbcTaskMessagePort tasks = fx.taskPort(delivery);
@@ -166,7 +179,13 @@ class NotificationDispatchTest {
     void unconfiguredAdapterFailsClosedIntoDeadLetter(H2PlatformTables.Mode mode) {
         Fixture fx = Fixture.open(
                 mode, List.of(new FailClosedNotificationAdapter(NotificationChannel.SMS)));
-        NotificationReceipt receipt = fx.port.enqueue(command(NotificationChannel.SMS, "order.approved", "ORD-41"));
+        String phone = "13800138000";
+        NotificationReceipt receipt = fx.port.enqueue(new NotificationCommand(
+                TENANT_A,
+                "order.approved",
+                NotificationChannel.SMS,
+                NotificationRecipient.ofDestination(phone, TENANT_A),
+                Map.of("orderId", "ORD-41")));
         for (int i = 0; i < TaskLifecycle.DEFAULT_MAX_ATTEMPT; i++) {
             fx.dispatcher.dispatchPending(10);
         }
@@ -179,7 +198,7 @@ class NotificationDispatchTest {
         for (Map<String, Object> row : audits) {
             assertEquals(AuditOutcome.REFUSED.name(), row.get("outcome"));
             assertEquals(
-                    "SMS:order.approved:subject:" + JdbcNotificationDispatcher.maskDestination("end-user-ada"),
+                    "SMS:order.approved:" + JdbcNotificationDispatcher.maskDestination(phone),
                     row.get("action_target"));
         }
     }
@@ -257,14 +276,131 @@ class NotificationDispatchTest {
                 new RecordingNotificationSink());
         assertTrue(sms instanceof FailClosedNotificationAdapter);
         Fixture fx = Fixture.open(mode, List.of(sms));
-        NotificationReceipt receipt = fx.port.enqueue(command(NotificationChannel.SMS, "order.approved", "ORD-41"));
+        NotificationReceipt receipt = fx.port.enqueue(new NotificationCommand(
+                TENANT_A,
+                "order.approved",
+                NotificationChannel.SMS,
+                NotificationRecipient.ofDestination("13800138000", TENANT_A),
+                Map.of("orderId", "ORD-41")));
         fx.dispatcher.dispatchPending(10);
         assertEquals(OutboxState.PENDING.name(), fx.stateOf(receipt.notificationId()));
         assertEquals(AuditOutcome.REFUSED.name(), fx.sendAuditRows().get(0).get("outcome"));
         assertTrue(fx.sink.sent().isEmpty());
     }
 
-    private static NotificationCommand command(NotificationChannel channel, String templateId, String orderId) {
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void subjectAddressedEmailUsesVerifiedEmail(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        fx.seedVerifiedEmail("acct-ada", "ada@example.com");
+        NotificationReceipt receipt = fx.port.enqueue(command(NotificationChannel.EMAIL, "order.shipped", "ORD-50"));
+        assertEquals(1, fx.dispatcher.dispatchPending(10));
+        assertEquals(OutboxState.PUBLISHED.name(), fx.stateOf(receipt.notificationId()));
+        assertEquals("ada@example.com", only(fx.sink.sent(NotificationChannel.EMAIL)).recipient().destination());
+        assertEquals("end-user-ada", only(fx.sink.sent()).recipient().subjectId());
+        assertNull(MAPPER.readTree(fx.eventBody(receipt.notificationId())).path("recipient").path("destination").asText(null));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void unverifiedOrBlankEmailDoesNotInventADestination(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        NotificationReceipt missing = fx.port.enqueue(command(NotificationChannel.EMAIL, "order.shipped", "ORD-51"));
+        fx.dispatcher.dispatchPending(10);
+        assertEquals(OutboxState.PENDING.name(), fx.stateOf(missing.notificationId()));
+        assertEquals(
+                EndUserNotificationDestinationResolver.UNRESOLVED_REASON, fx.failureOf(missing.notificationId()));
+        assertTrue(fx.sink.sent().isEmpty());
+
+        fx.seedPendingEmail("acct-ada", "pending@example.com");
+        NotificationReceipt pending = fx.port.enqueue(command(NotificationChannel.EMAIL, "order.shipped", "ORD-52"));
+        fx.dispatcher.dispatchPending(10);
+        assertEquals(
+                EndUserNotificationDestinationResolver.UNRESOLVED_REASON, fx.failureOf(pending.notificationId()));
+        assertTrue(fx.sink.sent().isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void subjectAddressedSmsUsesPhoneAndWeChatUsesIdpBinding(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        fx.seedPhone("acct-ada", "13800138001");
+        fx.seedWeChatLink("acct-ada", "wechat:mini", "wx-openid-ada");
+        fx.port.enqueue(command(NotificationChannel.SMS, "order.approved", "ORD-53"));
+        fx.port.enqueue(command(NotificationChannel.WECHAT_TEMPLATE, "order.ready", "ORD-54"));
+        assertEquals(2, fx.dispatcher.dispatchPending(10));
+        assertEquals("13800138001", only(fx.sink.sent(NotificationChannel.SMS)).recipient().destination());
+        assertEquals("wx-openid-ada", only(fx.sink.sent(NotificationChannel.WECHAT_TEMPLATE)).recipient().destination());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void wechatTemplateDoesNotUseANonWeChatIdpBinding(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        fx.seedIdpLink("acct-ada", "generic-oidc", "https://idp.example", "oidc-sub-ada");
+        NotificationReceipt receipt =
+                fx.port.enqueue(command(NotificationChannel.WECHAT_TEMPLATE, "order.ready", "ORD-55"));
+        fx.dispatcher.dispatchPending(10);
+        assertEquals(
+                EndUserNotificationDestinationResolver.UNRESOLVED_REASON, fx.failureOf(receipt.notificationId()));
+        assertTrue(fx.sink.sent().isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void explicitDestinationIsPreservedEvenWhenAMatchingFactExists(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        fx.seedPhone("acct-ada", "13800138001");
+        fx.seedVerifiedEmail("acct-ada", "ada@example.com");
+        String explicit = "other@example.com";
+        NotificationReceipt receipt = fx.port.enqueue(new NotificationCommand(
+                TENANT_A,
+                "order.shipped",
+                NotificationChannel.EMAIL,
+                NotificationRecipient.ofDestination(explicit, TENANT_A),
+                Map.of("orderId", "ORD-56")));
+        assertEquals(1, fx.dispatcher.dispatchPending(10));
+        assertEquals(explicit, only(fx.sink.sent()).recipient().destination());
+        assertNull(only(fx.sink.sent()).recipient().subjectId());
+        assertEquals(OutboxState.PUBLISHED.name(), fx.stateOf(receipt.notificationId()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void operatorSubjectDoesNotResolveAndFailsClosed(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        fx.seedVerifiedEmail("acct-ada", "ada@example.com");
+        NotificationReceipt receipt = fx.port.enqueue(new NotificationCommand(
+                TENANT_A,
+                "order.shipped",
+                NotificationChannel.EMAIL,
+                NotificationRecipient.ofSubject(InboxRecipientRealm.OPERATOR, "end-user-ada", TENANT_A),
+                Map.of("orderId", "ORD-57")));
+        fx.dispatcher.dispatchPending(10);
+        assertEquals(
+                EndUserNotificationDestinationResolver.UNRESOLVED_REASON, fx.failureOf(receipt.notificationId()));
+        assertTrue(fx.sink.sent().isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(H2PlatformTables.Mode.class)
+    void missingDestinationFailsClosedIntoDeadLetterWithoutCallingTheAdapter(H2PlatformTables.Mode mode) {
+        Fixture fx = Fixture.open(mode);
+        NotificationReceipt receipt = fx.port.enqueue(command(NotificationChannel.SMS, "order.approved", "ORD-58"));
+        for (int i = 0; i < TaskLifecycle.DEFAULT_MAX_ATTEMPT; i++) {
+            fx.dispatcher.dispatchPending(10);
+        }
+        assertEquals(OutboxState.DEAD.name(), fx.stateOf(receipt.notificationId()));
+        assertEquals(
+                EndUserNotificationDestinationResolver.UNRESOLVED_REASON, fx.failureOf(receipt.notificationId()));
+        assertEquals(1, fx.deadLetterCount(receipt.notificationId()));
+        assertTrue(fx.sink.sent().isEmpty());
+        for (Map<String, Object> row : fx.sendAuditRows()) {
+            assertEquals(AuditOutcome.REFUSED.name(), row.get("outcome"));
+        }
+    }
+
+        private static NotificationCommand command(NotificationChannel channel, String templateId, String orderId) {
         return new NotificationCommand(
                 TENANT_A,
                 templateId,
@@ -377,6 +513,68 @@ class NotificationDispatchTest {
                     accountId,
                     subjectId,
                     tenantId);
+        }
+
+        private void seedPhone(String accountId, String phone) {
+            jdbc.update(
+                    """
+                    INSERT INTO end_user_phone_binding (binding_id, account_id, phone, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    "bind-" + accountId,
+                    accountId,
+                    phone,
+                    Timestamp.from(Instant.parse("2026-11-28T08:00:00Z")));
+        }
+
+        private void seedVerifiedEmail(String accountId, String email) {
+            Instant at = Instant.parse("2026-11-28T08:00:00Z");
+            jdbc.update(
+                    """
+                    INSERT INTO end_user_profile (account_id, email, email_verified_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    accountId,
+                    email,
+                    Timestamp.from(at),
+                    Timestamp.from(at));
+        }
+
+        private void seedPendingEmail(String accountId, String email) {
+            Instant at = Instant.parse("2026-11-28T08:00:00Z");
+            jdbc.update(
+                    """
+                    INSERT INTO end_user_profile (account_id, pending_email, pending_email_requested_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    accountId,
+                    email,
+                    Timestamp.from(at),
+                    Timestamp.from(at));
+        }
+
+        private void seedWeChatLink(String accountId, String issuer, String idpSubject) {
+            seedIdpLink(accountId, "wechat", issuer, idpSubject);
+        }
+
+        private void seedIdpLink(String accountId, String providerId, String issuer, String idpSubject) {
+            jdbc.update(
+                    """
+                    INSERT INTO end_user_idp_link
+                        (link_id, account_id, provider_id, issuer, idp_subject, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    "link-" + accountId,
+                    accountId,
+                    providerId,
+                    issuer,
+                    idpSubject,
+                    Timestamp.from(Instant.parse("2026-11-28T08:00:00Z")));
+        }
+
+        private String eventBody(String eventId) {
+            return jdbc.queryForObject(
+                    "SELECT event_body FROM outbox_event WHERE event_id = ?", String.class, eventId);
         }
 
         private String stateOf(String eventId) {
