@@ -459,10 +459,11 @@ class EndUserShellAcceptanceTest {
 
     /**
      * Industry leftovers that must not appear in the shell ({@code pages.json} and {@code src/pages}).
-     * Platform 「我的支付」 is a kernel list/cancel page for the caller's payment documents, not a
-     * merchant checkout or cart, so {@code payment} / {@code 支付} are no longer forbidden here.
+     * Platform 「我的支付」 is a kernel page for the caller's generic payment documents (create,
+     * start charge, list, cancel), not a merchandise catalog or industry checkout, so
+     * {@code payment} / {@code 支付} are no longer forbidden here.
      * Medical, hospital, appointment, visa and insurance wording stays banned.
-     * 壳页不得出现行业域用词。平台「我的支付」是本人支付单列表与取消，不是商户结账，故不再禁止 payment/支付。
+     * 壳页不得出现行业域用词。平台「我的支付」是本人通用支付单（创单、发起扣款、列表、取消），不是货品目录或行业结账，故不再禁止 payment/支付。
      */
     private static String[] domainTerms() {
         return new String[] {

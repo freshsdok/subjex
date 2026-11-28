@@ -17,7 +17,22 @@ public record CreatePaymentCommand(
         String payerSubjectId,
         String payerRealm,
         String idempotencyToken,
-        String providerId) {
+        String providerId,
+        String memo) {
+
+    /**
+     * Create without a display memo — 不带展示备注的创单命令.
+     */
+    public CreatePaymentCommand(
+            String tenantId,
+            PaymentAmount amount,
+            String reference,
+            String payerSubjectId,
+            String payerRealm,
+            String idempotencyToken,
+            String providerId) {
+        this(tenantId, amount, reference, payerSubjectId, payerRealm, idempotencyToken, providerId, null);
+    }
 
     public CreatePaymentCommand {
         if (tenantId != null) {
@@ -32,6 +47,7 @@ public record CreatePaymentCommand(
             throw new IllegalArgumentException("providerId required");
         }
         providerId = providerId.trim();
+        memo = blankToNull(memo);
     }
 
     private static String blankToNull(String value) {

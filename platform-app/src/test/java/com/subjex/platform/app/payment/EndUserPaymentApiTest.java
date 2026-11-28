@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.subjex.platform.app.identity.enduser.EndUserPrincipal;
 import com.subjex.platform.app.identity.enduser.EndUserRecord;
 import com.subjex.platform.app.identity.enduser.JdbcEndUserAccountStore;
+import com.subjex.platform.app.jdbc.JdbcAuditPort;
 import com.subjex.platform.app.security.H2PlatformTables;
 import com.subjex.platform.app.security.OperatorPrincipal;
 import com.subjex.platform.app.security.TenantEnforcementFilter;
@@ -15,6 +16,7 @@ import com.subjex.platform.app.web.PlatformExceptionAdvice;
 import com.subjex.platform.contract.payment.CreatePaymentCommand;
 import com.subjex.platform.contract.payment.PaymentAmount;
 import com.subjex.platform.contract.payment.PaymentDocument;
+import com.subjex.platform.contract.payment.PaymentResultCallback;
 import com.subjex.platform.contract.payment.PaymentProviderIds;
 import com.subjex.platform.contract.payment.PaymentStatus;
 import java.time.Clock;
@@ -39,8 +41,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * EndUserPaymentApiTest — end-user list/status/cancel of own payments; cross-realm and payer isolation.
- * 终端本人支付单的列表、状态与取消；跨领域与付款人隔离。不能创单或扣费。
+ * EndUserPaymentApiTest — end-user create/charge/list/status/cancel of own payments; payer isolation.
+ * 终端本人支付单的创单、扣款、列表、状态与取消；付款人隔离。
  */
 class EndUserPaymentApiTest {
 
@@ -231,7 +233,7 @@ class EndUserPaymentApiTest {
     }
 
     @Test
-    void operatorTokenIsForbiddenAndCreateRouteDoesNotExist() throws Exception {
+    void operatorTokenIsForbiddenOnEndUserPaymentPaths() throws Exception {
         mvc.perform(get(EndUserPaymentEndpoint.PATH)
                         .with(asOperator(operator))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
@@ -242,14 +244,281 @@ class EndUserPaymentApiTest {
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
                 .andExpect(status().isForbidden());
 
-        // No create-from-shell route; standalone MockMvc reports POST on the collection as 405 or 404.
-        // 没有从壳里创单的路由；独立 MockMvc 对集合 POST 返回 405 或 404。
+        mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                        .with(asOperator(operator))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .header("X-Idempotency-Token", "op-create")
+                        .contentType("application/json")
+                        .content(createBody("order", "OP-1", 1L, "CNY", null)))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post(EndUserPaymentEndpoint.PATH + "/" + alicePending.paymentId() + "/charge")
+                        .with(asOperator(operator))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void payerCanCreateOwnPaymentAndCannotCreateForAnotherSubject() throws Exception {
+        String body = createBody("order", "ALICE-NEW", 150L, "CNY", "afternoon tea");
+        // A foreign payer field on the body must be ignored; the signed-in subject is the payer.
+        // 请求体里的他人付款人字段必须被忽略；付款人只能是当前登录主体。
+        String withForeignPayer = body.substring(0, body.length() - 1)
+                + ",\"payerSubjectId\":\""
+                + bob.subject().subjectId()
+                + "\"}";
+        var created = mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .header("X-Idempotency-Token", "alice-create-1")
+                        .contentType("application/json")
+                        .content(withForeignPayer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.amount.amountMinor").value(150))
+                .andExpect(jsonPath("$.amount.currency").value("CNY"))
+                .andExpect(jsonPath("$.reference").value("order/ALICE-NEW"))
+                .andExpect(jsonPath("$.referenceType").value("order"))
+                .andExpect(jsonPath("$.referenceId").value("ALICE-NEW"))
+                .andExpect(jsonPath("$.memo").value("afternoon tea"))
+                .andExpect(jsonPath("$.payerSubjectId").value(alice.subject().subjectId()))
+                .andExpect(jsonPath("$.expiresAt").isNotEmpty())
+                .andReturn();
+        String paymentId = com.jayway.jsonpath.JsonPath.read(
+                created.getResponse().getContentAsString(), "$.paymentId");
+        mvc.perform(get(EndUserPaymentEndpoint.PATH + "/" + paymentId)
+                        .with(asEndUser(bob))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isNotFound());
+        mvc.perform(post(EndUserPaymentEndpoint.PATH + "/" + paymentId + "/cancel")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    void createIsIdempotentForTheSameTokenAndConflictsOnADifferentFingerprint() throws Exception {
+        String body = createBody("ticket", "T-1", 80L, "CNY", null);
+        String firstId = com.jayway.jsonpath.JsonPath.read(
+                mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                                .with(asEndUser(alice))
+                                .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                                .header("X-Idempotency-Token", "alice-idem-1")
+                                .contentType("application/json")
+                                .content(body))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString(),
+                "$.paymentId");
+        mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .header("X-Idempotency-Token", "alice-idem-1")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentId").value(firstId));
+        mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .header("X-Idempotency-Token", "alice-idem-1")
+                        .contentType("application/json")
+                        .content(createBody("ticket", "T-1", 81L, "CNY", null)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.reason").value("payment-idempotency-conflict"));
+    }
+
+    @Test
+    void createValidatesAmountCurrencyReferenceAndIdempotency() throws Exception {
         mvc.perform(post(EndUserPaymentEndpoint.PATH)
                         .with(asEndUser(alice))
                         .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
                         .contentType("application/json")
-                        .content("{\"amountMinor\":1,\"currency\":\"CNY\"}"))
-                .andExpect(status().isMethodNotAllowed());
+                        .content(createBody("order", "X-1", 10L, "CNY", null)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("idempotency token is missing"));
+        mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .header("X-Idempotency-Token", "alice-val-0")
+                        .contentType("application/json")
+                        .content(createBody("order", "X-1", 0L, "CNY", null)))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .header("X-Idempotency-Token", "alice-val-cur")
+                        .contentType("application/json")
+                        .content(createBody("order", "X-1", 10L, "ZZZ", null)))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .header("X-Idempotency-Token", "alice-val-ref")
+                        .contentType("application/json")
+                        .content("{\"amountMinor\":10,\"currency\":\"CNY\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                        .header("X-Idempotency-Token", "alice-val-type")
+                        .contentType("application/json")
+                        .content(createBody("1bad", "X-1", 10L, "CNY", null)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void payerCanStartChargeOnPendingAndSuccessStillNeedsCallback() throws Exception {
+        String paymentId = com.jayway.jsonpath.JsonPath.read(
+                mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                                .with(asEndUser(alice))
+                                .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                                .header("X-Idempotency-Token", "alice-charge-1")
+                                .contentType("application/json")
+                                .content(createBody("order", "PAY-1", 200L, "CNY", null)))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString(),
+                "$.paymentId");
+        mvc.perform(post(EndUserPaymentEndpoint.PATH + "/" + paymentId + "/charge")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.status").value("PENDING"))
+                .andExpect(jsonPath("$.charge.providerId").value("MOCK"))
+                .andExpect(jsonPath("$.charge.params.mode").value("TEST"))
+                .andExpect(jsonPath("$.charge.params.paymentId").value(paymentId));
+        mvc.perform(get(EndUserPaymentEndpoint.PATH + "/" + paymentId)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+        port.applyPaymentResult(new PaymentResultCallback(
+                TENANT_A, paymentId, "notify-" + paymentId, PaymentStatus.SUCCEEDED, "prov-ref-1"));
+        mvc.perform(get(EndUserPaymentEndpoint.PATH + "/" + paymentId)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCEEDED"));
+        mvc.perform(post(EndUserPaymentEndpoint.PATH + "/" + paymentId + "/charge")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.reason").value("payment-charge-not-pending"));
+        mvc.perform(post(EndUserPaymentEndpoint.PATH + "/" + alicePending.paymentId() + "/charge")
+                        .with(asEndUser(bob))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void expiredPendingCannotBeChargedAndFailClosedAdapterDoesNotSucceed() throws Exception {
+        String paymentId = com.jayway.jsonpath.JsonPath.read(
+                mvc.perform(post(EndUserPaymentEndpoint.PATH)
+                                .with(asEndUser(alice))
+                                .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                                .header("X-Idempotency-Token", "alice-expire-1")
+                                .contentType("application/json")
+                                .content(createBody("order", "EXP-1", 20L, "CNY", null)))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString(),
+                "$.paymentId");
+        now.set(T0.plusSeconds(31 * 60));
+        mvc.perform(post(EndUserPaymentEndpoint.PATH + "/" + paymentId + "/charge")
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.reason").value("payment-charge-not-pending"));
+        mvc.perform(get(EndUserPaymentEndpoint.PATH + "/" + paymentId)
+                        .with(asEndUser(alice))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EXPIRED"));
+        now.set(T1);
+
+        DataSource ds = H2PlatformTables.migrated(H2PlatformTables.Mode.POSTGRESQL);
+        var jdbc = new JdbcTemplate(ds);
+        jdbc.update(
+                "INSERT INTO tenant (tenant_id, tenant_name, tenant_state) VALUES (?, ?, 'ACTIVE')",
+                TENANT_A,
+                "Tenant A");
+        var tx = new TransactionTemplate(new org.springframework.jdbc.datasource.DataSourceTransactionManager(ds));
+        Clock clock = new Clock() {
+            @Override
+            public ZoneOffset getZone() {
+                return ZoneOffset.UTC;
+            }
+
+            @Override
+            public Clock withZone(java.time.ZoneId zone) {
+                return this;
+            }
+
+            @Override
+            public Instant instant() {
+                return now.get();
+            }
+        };
+        var accounts = new JdbcEndUserAccountStore(jdbc, tx, clock);
+        var aliceClosed = accounts.provision(TENANT_A, "Alice");
+        var closedPort = new JdbcPaymentPort(
+                jdbc,
+                tx,
+                clock,
+                new tools.jackson.databind.ObjectMapper(),
+                java.util.List.of(new FailClosedPaymentAdapter(PaymentProviderIds.MOCK)),
+                new JdbcAuditPort(jdbc));
+        var closedMvc = MockMvcBuilders.standaloneSetup(
+                        new EndUserPaymentEndpoint(new EndUserPaymentService(closedPort, accounts)))
+                .setControllerAdvice(new PlatformExceptionAdvice(null))
+                .setMessageConverters(new JacksonJsonHttpMessageConverter())
+                .build();
+        String closedId = com.jayway.jsonpath.JsonPath.read(
+                closedMvc.perform(post(EndUserPaymentEndpoint.PATH)
+                                .with(asEndUser(aliceClosed))
+                                .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A)
+                                .header("X-Idempotency-Token", "alice-closed-1")
+                                .contentType("application/json")
+                                .content(createBody("order", "CLOSED-1", 30L, "CNY", null)))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.status").value("PENDING"))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString(),
+                "$.paymentId");
+        closedMvc.perform(post(EndUserPaymentEndpoint.PATH + "/" + closedId + "/charge")
+                        .with(asEndUser(aliceClosed))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.reason").value("payment-adapter-not-configured"));
+        closedMvc.perform(get(EndUserPaymentEndpoint.PATH + "/" + closedId)
+                        .with(asEndUser(aliceClosed))
+                        .header(TenantEnforcementFilter.TENANT_HEADER, TENANT_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    private static String createBody(String type, String id, long amountMinor, String currency, String memo) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"amountMinor\":")
+                .append(amountMinor)
+                .append(",\"currency\":\"")
+                .append(currency)
+                .append("\",\"reference\":{\"type\":\"")
+                .append(type)
+                .append("\",\"id\":\"")
+                .append(id)
+                .append("\"}");
+        if (memo != null) {
+            json.append(",\"memo\":\"").append(memo).append("\"");
+        }
+        json.append("}");
+        return json.toString();
     }
 
     private static CreatePaymentCommand order(String tenantId, long amountMinor, String reference, String payer) {

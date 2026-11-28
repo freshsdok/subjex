@@ -31,4 +31,11 @@ public interface PaymentProviderAdapter {
      * 接受已有单据的退款意图。未配置时必须抛错，不得空操作。
      */
     void acceptRefund(PaymentDocument current, RefundCommand command);
+
+    /**
+     * Start charge for an existing pending document and return a generic client payload.
+     * Must throw when not {@link #configured()}. Must not mark the document succeeded.
+     * 对已有待支付单据发起扣款并返回通用客户端载荷。未配置时必须抛错。不得把单据写成成功。
+     */
+    PaymentChargePayload startCharge(PaymentDocument current);
 }

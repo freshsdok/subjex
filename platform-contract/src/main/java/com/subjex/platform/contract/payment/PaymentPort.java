@@ -52,4 +52,12 @@ public interface PaymentPort {
      * 同一付款人再次取消为空操作。已过期或已终态的单据不能取消。操作员没有代任何人取消的入口。
      */
     PaymentDocument cancelOrder(String tenantId, String paymentId, String payerSubjectId, String payerRealm);
+
+    /**
+     * Start charge on a {@code PENDING} payment the payer owns. Does not mark the document {@code SUCCEEDED}.
+     * Success still requires {@link #applyPaymentResult}. A fail-closed adapter refuses and leaves status unchanged.
+     * 由付款人对本人待支付单据发起扣款。不把单据写成成功；成功仍走 {@link #applyPaymentResult}。
+     * 失败关闭的适配器拒绝发起，且不改状态。
+     */
+    PaymentChargeSession startCharge(String tenantId, String paymentId, String payerSubjectId, String payerRealm);
 }

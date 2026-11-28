@@ -1,10 +1,13 @@
 package com.subjex.platform.app.payment;
 
+import com.subjex.platform.contract.payment.PaymentChargePayload;
 import com.subjex.platform.contract.payment.PaymentDocument;
 import com.subjex.platform.contract.payment.PaymentProviderAdapter;
 import com.subjex.platform.contract.payment.PaymentProviderIds;
 import com.subjex.platform.contract.payment.PaymentResultCallback;
 import com.subjex.platform.contract.payment.RefundCommand;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -39,5 +42,18 @@ public final class MockPaymentAdapter implements PaymentProviderAdapter {
     @Override
     public void acceptRefund(PaymentDocument current, RefundCommand command) {
         sink.acceptRefund(current, command);
+    }
+
+    @Override
+    public PaymentChargePayload startCharge(PaymentDocument current) {
+        Objects.requireNonNull(current, "current");
+        // Test payload only; status stays PENDING until applyPaymentResult.
+        // 仅测试载荷；单据仍为待支付，直到 applyPaymentResult。
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("mode", "TEST");
+        params.put("paymentId", current.paymentId());
+        params.put("amountMinor", current.amount().amountMinor());
+        params.put("currency", current.amount().currency());
+        return new PaymentChargePayload(providerId(), params);
     }
 }

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.subjex.platform.contract.payment.PaymentAmount;
+import com.subjex.platform.contract.payment.PaymentChargePayload;
 import com.subjex.platform.contract.payment.PaymentDocument;
 import com.subjex.platform.contract.payment.PaymentProviderIds;
 import com.subjex.platform.contract.payment.PaymentResultCallback;
@@ -46,6 +47,25 @@ class HttpPaymentAdapterTest {
         adapter.acceptRefund(current, new RefundCommand("tenant-alpha", current.paymentId(), new PaymentAmount(10L, "CNY"), "tok-1"));
         assertTrue(client.jsonBody.contains("\"action\":\"refund\""));
         assertTrue(client.jsonBody.contains("\"refundAmountMinor\":10"));
+    }
+
+    @Test
+    void startChargePostsGenericHookAndDoesNotMarkSucceeded() {
+        RecordingClient client = new RecordingClient();
+        HttpPaymentAdapter adapter = new HttpPaymentAdapter(
+                PaymentProviderIds.WECHAT_PAY,
+                client,
+                "https://pay.example.invalid/v1/charges",
+                "test-api-key",
+                "mch-1");
+        PaymentDocument current = document();
+        PaymentChargePayload payload = adapter.startCharge(current);
+        assertTrue(client.jsonBody.contains("\"action\":\"start-charge\""));
+        assertTrue(client.jsonBody.contains("\"paymentId\":\"pay-12345678\""));
+        assertEquals(PaymentProviderIds.WECHAT_PAY, payload.providerId());
+        assertEquals("HTTP_TEMPLATE", payload.params().get("mode"));
+        assertEquals(Boolean.TRUE, payload.params().get("posted"));
+        assertEquals(PaymentStatus.PENDING, current.status());
     }
 
     @Test

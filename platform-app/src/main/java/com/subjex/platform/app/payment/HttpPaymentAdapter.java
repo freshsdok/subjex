@@ -1,5 +1,6 @@
 package com.subjex.platform.app.payment;
 
+import com.subjex.platform.contract.payment.PaymentChargePayload;
 import com.subjex.platform.contract.payment.PaymentDocument;
 import com.subjex.platform.contract.payment.PaymentProviderAdapter;
 import com.subjex.platform.contract.payment.PaymentResultCallback;
@@ -23,6 +24,7 @@ public final class HttpPaymentAdapter implements PaymentProviderAdapter {
 
     static final String ACTION_PAYMENT_RESULT = "payment-result";
     static final String ACTION_REFUND = "refund";
+    static final String ACTION_START_CHARGE = "start-charge";
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -70,6 +72,19 @@ public final class HttpPaymentAdapter implements PaymentProviderAdapter {
         Objects.requireNonNull(current, "current");
         Objects.requireNonNull(command, "command");
         post(jsonBody(ACTION_REFUND, current, null, command));
+    }
+
+    @Override
+    public PaymentChargePayload startCharge(PaymentDocument current) {
+        Objects.requireNonNull(current, "current");
+        // Honest hook: the existing HTTP template posts start-charge and discards the vendor body.
+        // 诚实钩子：沿用已有 HTTP 模板投递 start-charge，传输层丢弃厂商响应体。
+        post(jsonBody(ACTION_START_CHARGE, current, null, null));
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("mode", "HTTP_TEMPLATE");
+        params.put("posted", Boolean.TRUE);
+        params.put("paymentId", current.paymentId());
+        return new PaymentChargePayload(providerId, params);
     }
 
     private void post(String body) {

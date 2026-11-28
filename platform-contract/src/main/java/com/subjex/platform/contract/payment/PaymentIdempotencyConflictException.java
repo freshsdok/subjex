@@ -8,6 +8,9 @@ package com.subjex.platform.contract.payment;
  */
 public final class PaymentIdempotencyConflictException extends RuntimeException {
 
+    /** Stable HTTP reason — 稳定的 HTTP 原因码. */
+    public static final String REASON = "payment-idempotency-conflict";
+
     public PaymentIdempotencyConflictException(String tenantId, String idempotencyToken) {
         super("payment idempotency conflict: tenant "
                 + tenantId

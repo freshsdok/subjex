@@ -16,6 +16,8 @@ import com.subjex.platform.contract.payment.CreatePaymentCommand;
 import com.subjex.platform.contract.payment.PaymentAdapterUnconfiguredException;
 import com.subjex.platform.contract.payment.PaymentAmount;
 import com.subjex.platform.contract.payment.PaymentCancelDeniedException;
+import com.subjex.platform.contract.payment.PaymentChargePayload;
+import com.subjex.platform.contract.payment.PaymentChargeSession;
 import com.subjex.platform.contract.payment.PaymentCrossTenantDeniedException;
 import com.subjex.platform.contract.payment.PaymentDocument;
 import com.subjex.platform.contract.payment.PaymentIdempotencyConflictException;
@@ -207,12 +209,13 @@ public final class JdbcPaymentPort implements PaymentPort {
             jdbc.update(
                     "INSERT INTO payment ("
                             + "payment_id, tenant_id, amount_minor, currency, refunded_amount_minor, "
-                            + "payment_status, domain_reference, payer_subject_id, payer_realm, "
+                            + "payment_status, domain_reference, reference_type, reference_id, display_memo, "
+                            + "payer_subject_id, payer_realm, "
                             + "provider_id, provider_reference, create_idempotency_token, "
                             + "create_idempotency_fingerprint, callback_notification_id, "
                             + "callback_notification_fingerprint, created_at, updated_at, "
                             + "expires_at, succeeded_at, cancelled_at) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     paymentId,
                     tenantId,
                     command.amount().amountMinor(),
@@ -220,6 +223,9 @@ public final class JdbcPaymentPort implements PaymentPort {
                     0L,
                     PaymentStatus.PENDING.name(),
                     command.reference(),
+                    parseReferenceType(command.reference()),
+                    parseReferenceId(command.reference()),
+                    command.memo(),
                     command.payerSubjectId(),
                     command.payerRealm(),
                     command.providerId(),
@@ -616,6 +622,73 @@ public final class JdbcPaymentPort implements PaymentPort {
     }
 
     /**
+     * Preferred provider for a new end-user payment: the first configured adapter, else {@code MOCK}.
+     * 终端创单选用的供应商标识：第一个已配置适配器，否则 {@code MOCK}。
+     */
+    public String defaultProviderId() {
+        for (String id : List.of(PaymentProviderIds.MOCK, PaymentProviderIds.WECHAT_PAY, PaymentProviderIds.ALIPAY)) {
+            PaymentProviderAdapter adapter = adapters.get(id);
+            if (adapter != null && adapter.configured()) {
+                return adapter.providerId();
+            }
+        }
+        return PaymentProviderIds.MOCK;
+    }
+
+    public static final String START_CHARGE_ACTION = "payment.start-charge";
+
+    @Override
+    public PaymentChargeSession startCharge(
+            String tenantId, String paymentId, String payerSubjectId, String payerRealm) {
+        String tenant = requireActiveBusinessTenant(tenantId);
+        if (paymentId == null || paymentId.isBlank()) {
+            throw new IllegalArgumentException("paymentId required");
+        }
+        String id = paymentId.trim();
+        String subject = payerSubjectId == null || payerSubjectId.isBlank() ? null : payerSubjectId.trim();
+        String realm = payerRealm == null || payerRealm.isBlank() ? null : payerRealm.trim();
+        try {
+            return transactionTemplate.execute(status -> {
+                PaymentRow found = lockPayment(id);
+                if (found == null) {
+                    throw new PaymentNotFoundException(tenant, id);
+                }
+                if (!tenant.equals(found.tenantId)) {
+                    throw new PaymentCrossTenantDeniedException(tenant, found.tenantId);
+                }
+                if (!isPayer(found, subject, realm)) {
+                    recordAttempt(tenant, found.providerId, id, START_CHARGE_ACTION, AuditOutcome.REFUSED);
+                    throw new PaymentChargeDeniedException(tenant, id);
+                }
+                Instant now = clock.instant();
+                if (found.status == PaymentStatus.PENDING && isPendingExpired(found, now)) {
+                    PaymentDocument expired = markExpiredLocked(found, now);
+                    throw new PaymentChargeNotPendingException(expired.tenantId(), expired.paymentId());
+                }
+                if (found.status != PaymentStatus.PENDING) {
+                    throw new PaymentChargeNotPendingException(tenant, id);
+                }
+                PaymentDocument current = toDocument(found, loadRefunds(tenant, id));
+                PaymentProviderAdapter adapter = requireConfiguredAdapter(found.providerId);
+                PaymentChargePayload payload = adapter.startCharge(current);
+                recordAttempt(tenant, found.providerId, id, START_CHARGE_ACTION, AuditOutcome.ALLOWED);
+                // Status stays PENDING; success still requires applyPaymentResult.
+                // 状态仍为待支付；成功入账仍要 applyPaymentResult。
+                return new PaymentChargeSession(loadDocument(tenant, id), payload);
+            });
+        } catch (PaymentAdapterUnconfiguredException ex) {
+            recordAttempt(tenant, providerIdOf(id), id, START_CHARGE_ACTION, AuditOutcome.REFUSED);
+            throw ex;
+        } catch (PaymentAdapterSendFailedException ex) {
+            recordAttempt(tenant, providerIdOf(id), id, START_CHARGE_ACTION, AuditOutcome.FAILED);
+            throw ex;
+        } catch (PaymentCrossTenantDeniedException ex) {
+            recordAttempt(tenant, providerIdOf(id), id, START_CHARGE_ACTION, AuditOutcome.REFUSED);
+            throw ex;
+        }
+    }
+
+    /**
      * Expire overdue PENDING payments across tenants, returning how many were marked expired.
      * Used by the thin scheduled sweep. Each row is locked; a concurrent charge wins the race.
      * 跨租户将已到期的待支付单据标为过期，返回本次过期条数。供薄定时清扫使用。
@@ -809,6 +882,8 @@ public final class JdbcPaymentPort implements PaymentPort {
         String kind;
         if (CHARGE_ACTION.equals(action)) {
             kind = "charge";
+        } else if (START_CHARGE_ACTION.equals(action)) {
+            kind = "start-charge";
         } else if (REFUND_ACTION.equals(action)) {
             kind = "refund";
         } else if (CANCEL_ACTION.equals(action)) {
@@ -1072,7 +1147,10 @@ public final class JdbcPaymentPort implements PaymentPort {
                 row.updatedAt,
                 PaymentLifecycleRules.expiresAt(row.createdAt, row.expiresAt),
                 row.succeededAt,
-                row.cancelledAt);
+                row.cancelledAt,
+                row.referenceType,
+                row.referenceId,
+                row.memo);
     }
 
     private static PaymentRow mapRow(ResultSet row) throws SQLException {
@@ -1084,6 +1162,9 @@ public final class JdbcPaymentPort implements PaymentPort {
                 row.getLong("refunded_amount_minor"),
                 PaymentStatus.valueOf(row.getString("payment_status")),
                 row.getString("domain_reference"),
+                row.getString("reference_type"),
+                row.getString("reference_id"),
+                row.getString("display_memo"),
                 row.getString("payer_subject_id"),
                 row.getString("payer_realm"),
                 row.getString("provider_id"),
@@ -1117,7 +1198,9 @@ public final class JdbcPaymentPort implements PaymentPort {
                         + "|"
                         + nullToEmpty(command.payerSubjectId())
                         + "|"
-                        + nullToEmpty(command.payerRealm()));
+                        + nullToEmpty(command.payerRealm())
+                        + "|"
+                        + nullToEmpty(command.memo()));
     }
 
     private static String callbackFingerprint(PaymentResultCallback callback) {
@@ -1142,6 +1225,35 @@ public final class JdbcPaymentPort implements PaymentPort {
         return value == null ? "" : value;
     }
 
+    /**
+     * Split a composed {@code type/id} reference written by end-user create. Opaque legacy values stay unparsed.
+     * 拆分终端创单写入的 {@code type/id} 引用。旧的不透明值保持不解析。
+     */
+    static String parseReferenceType(String reference) {
+        int slash = indexOfComposer(reference);
+        return slash < 0 ? null : reference.substring(0, slash);
+    }
+
+    static String parseReferenceId(String reference) {
+        int slash = indexOfComposer(reference);
+        return slash < 0 ? null : reference.substring(slash + 1);
+    }
+
+    private static int indexOfComposer(String reference) {
+        if (reference == null || reference.isBlank()) {
+            return -1;
+        }
+        int slash = reference.indexOf('/');
+        if (slash <= 0 || slash >= reference.length() - 1) {
+            return -1;
+        }
+        return slash;
+    }
+
+    static String composeReference(String type, String id) {
+        return type + "/" + id;
+    }
+
     private record PaymentRow(
             String paymentId,
             String tenantId,
@@ -1150,6 +1262,9 @@ public final class JdbcPaymentPort implements PaymentPort {
             long refundedAmountMinor,
             PaymentStatus status,
             String reference,
+            String referenceType,
+            String referenceId,
+            String memo,
             String payerSubjectId,
             String payerRealm,
             String providerId,

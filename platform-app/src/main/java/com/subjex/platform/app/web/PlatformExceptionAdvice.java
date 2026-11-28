@@ -48,10 +48,15 @@ import com.subjex.platform.contract.exporthook.ExportExpiredException;
 import com.subjex.platform.contract.exporthook.ExportNotApprovedException;
 import com.subjex.platform.contract.exporthook.ExportSelfApprovalException;
 import com.subjex.platform.app.notification.NotificationSendCrossTenantDeniedException;
+import com.subjex.platform.app.payment.PaymentAdapterSendFailedException;
 import com.subjex.platform.app.payment.PaymentCancelNotPendingException;
+import com.subjex.platform.app.payment.PaymentChargeDeniedException;
+import com.subjex.platform.app.payment.PaymentChargeNotPendingException;
 import com.subjex.platform.app.notification.NotificationSendNotFoundException;
+import com.subjex.platform.contract.payment.PaymentAdapterUnconfiguredException;
 import com.subjex.platform.contract.payment.PaymentCancelDeniedException;
 import com.subjex.platform.contract.payment.PaymentCrossTenantDeniedException;
+import com.subjex.platform.contract.payment.PaymentIdempotencyConflictException;
 import com.subjex.platform.contract.payment.PaymentNotFoundException;
 import com.subjex.platform.contract.payment.PaymentRefundWindowClosedException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
@@ -175,6 +180,35 @@ public class PlatformExceptionAdvice {
     ResponseEntity<Map<String, String>> paymentCancelNotPending() {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("reason", PaymentCancelNotPendingException.REASON));
+    }
+
+    @ExceptionHandler(PaymentChargeDeniedException.class)
+    ResponseEntity<Map<String, String>> paymentChargeDenied() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("reason", PaymentChargeDeniedException.REASON));
+    }
+
+    @ExceptionHandler(PaymentChargeNotPendingException.class)
+    ResponseEntity<Map<String, String>> paymentChargeNotPending() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", PaymentChargeNotPendingException.REASON));
+    }
+
+    @ExceptionHandler(PaymentIdempotencyConflictException.class)
+    ResponseEntity<Map<String, String>> paymentIdempotencyConflict() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", PaymentIdempotencyConflictException.REASON));
+    }
+
+    @ExceptionHandler(PaymentAdapterUnconfiguredException.class)
+    ResponseEntity<Map<String, String>> paymentAdapterUnconfigured() {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("reason", PaymentAdapterUnconfiguredException.REASON));
+    }
+
+    @ExceptionHandler(PaymentAdapterSendFailedException.class)
+    ResponseEntity<Map<String, String>> paymentAdapterSendFailed() {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(Map.of("reason", PaymentAdapterSendFailedException.REASON));
     }
 
     @ExceptionHandler(PaymentRefundWindowClosedException.class)

@@ -1,6 +1,7 @@
 package com.subjex.platform.app.payment;
 
 import com.subjex.platform.contract.payment.PaymentAdapterUnconfiguredException;
+import com.subjex.platform.contract.payment.PaymentChargePayload;
 import com.subjex.platform.contract.payment.PaymentDocument;
 import com.subjex.platform.contract.payment.PaymentProviderAdapter;
 import com.subjex.platform.contract.payment.PaymentResultCallback;
@@ -45,6 +46,12 @@ public final class FailClosedPaymentAdapter implements PaymentProviderAdapter {
     public void acceptRefund(PaymentDocument current, RefundCommand command) {
         Objects.requireNonNull(current, "current");
         Objects.requireNonNull(command, "command");
+        throw new PaymentAdapterUnconfiguredException(providerId);
+    }
+
+    @Override
+    public PaymentChargePayload startCharge(PaymentDocument current) {
+        Objects.requireNonNull(current, "current");
         throw new PaymentAdapterUnconfiguredException(providerId);
     }
 }

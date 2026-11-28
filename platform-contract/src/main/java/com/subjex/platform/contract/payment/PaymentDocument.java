@@ -10,10 +10,11 @@ import java.util.List;
  * currency as {@code amount} and starts at zero. {@code expiresAt} is {@code created_at} plus
  * 30 minutes for a pending document. {@code succeededAt} is when the payment first became
  * {@code SUCCEEDED} and starts the 7-day refund window. {@code cancelledAt} is set when the
- * payer cancels a pending document.
+ * payer cancels a pending document. {@code referenceType} / {@code referenceId} are optional
+ * tokens (not a closed catalog); {@code memo} is an optional display note.
  * 退款入账前退款行为空。{@code refundedAmount} 与原单同币种，创单时为零。
  * 待支付的 {@code expiresAt} 为 {@code created_at} 加 30 分钟。{@code succeededAt} 是首次成功入账时间，
- * 也是 7 日退款窗口的起点。{@code cancelledAt} 在付款人取消待支付单据时写入。
+ * 也是 7 日退款窗口的起点。{@code cancelledAt} 在付款人取消待支付单据时写入。{@code referenceType} / {@code referenceId} 为可选令牌（不是封闭目录）；{@code memo} 为可选展示备注。
  */
 public record PaymentDocument(
         String paymentId,
@@ -31,7 +32,53 @@ public record PaymentDocument(
         Instant updatedAt,
         Instant expiresAt,
         Instant succeededAt,
-        Instant cancelledAt) {
+        Instant cancelledAt,
+        String referenceType,
+        String referenceId,
+        String memo) {
+
+    /**
+     * Compatibility constructor without structured reference or memo.
+     * 兼容构造：无结构化引用与展示备注。
+     */
+    public PaymentDocument(
+            String paymentId,
+            String tenantId,
+            PaymentAmount amount,
+            PaymentAmount refundedAmount,
+            PaymentStatus status,
+            String reference,
+            String payerSubjectId,
+            String payerRealm,
+            String providerId,
+            String providerReference,
+            List<PaymentRefundLine> refunds,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant expiresAt,
+            Instant succeededAt,
+            Instant cancelledAt) {
+        this(
+                paymentId,
+                tenantId,
+                amount,
+                refundedAmount,
+                status,
+                reference,
+                payerSubjectId,
+                payerRealm,
+                providerId,
+                providerReference,
+                refunds,
+                createdAt,
+                updatedAt,
+                expiresAt,
+                succeededAt,
+                cancelledAt,
+                null,
+                null,
+                null);
+    }
 
     public PaymentDocument {
         refunds = refunds == null ? List.of() : List.copyOf(refunds);
