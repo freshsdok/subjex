@@ -59,6 +59,9 @@ import com.subjex.platform.contract.payment.PaymentCrossTenantDeniedException;
 import com.subjex.platform.contract.payment.PaymentIdempotencyConflictException;
 import com.subjex.platform.contract.payment.PaymentNotFoundException;
 import com.subjex.platform.contract.payment.PaymentRefundWindowClosedException;
+import com.subjex.platform.contract.points.PointsIdempotencyConflictException;
+import com.subjex.platform.contract.points.PointsInsufficientException;
+import com.subjex.platform.contract.points.PointsSubjectNotFoundException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.List;
 import java.util.Map;
@@ -197,6 +200,24 @@ public class PlatformExceptionAdvice {
     ResponseEntity<Map<String, String>> paymentIdempotencyConflict() {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("reason", PaymentIdempotencyConflictException.REASON));
+    }
+
+    @ExceptionHandler(PointsSubjectNotFoundException.class)
+    ResponseEntity<Map<String, String>> pointsSubjectMissing() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("reason", PointsSubjectNotFoundException.REASON));
+    }
+
+    @ExceptionHandler(PointsInsufficientException.class)
+    ResponseEntity<Map<String, String>> pointsInsufficient() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", PointsInsufficientException.REASON));
+    }
+
+    @ExceptionHandler(PointsIdempotencyConflictException.class)
+    ResponseEntity<Map<String, String>> pointsIdempotencyConflict() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", PointsIdempotencyConflictException.REASON));
     }
 
     @ExceptionHandler(PaymentAdapterUnconfiguredException.class)

@@ -280,6 +280,12 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.OBJECT_GRANT.permissionName())
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/objects/*/grants/*")
                                 .hasAuthority(OperatorPermission.OBJECT_GRANT.permissionName())
+                        // Operator points ledger (console). End-user own read is under /api/v1/end-user/.
+                        // 操作员积分台账（控制台）。终端本人查阅走 /api/v1/end-user/。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/points", "/api/v1/points/**")
+                                .hasAuthority(OperatorPermission.POINTS_READ.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/points", "/api/v1/points/**")
+                                .hasAuthority(OperatorPermission.POINTS_ADJUST.permissionName())
                         .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
                                 .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/questionnaires/**")

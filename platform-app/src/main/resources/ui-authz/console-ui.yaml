@@ -105,6 +105,12 @@ entries:
     kind: menu
     href: /tasks
     permission: admin.read
+  # Operator points / benefits ledger. Lookup a subject and adjust with a reason.
+  # 操作员积分/权益台账。查阅主体并按原因调整。不是忠诚计划。
+  - id: nav.points
+    kind: menu
+    href: /points
+    permission: points.read
   - id: nav.deploy
     kind: menu
     href: /deploy
@@ -296,6 +302,13 @@ entries:
     kind: page
     route: /tasks
     permission: admin.read
+  - id: page.points
+    kind: page
+    route: /points
+    permission: points.read
+  - id: btn.points.adjust
+    kind: button
+    permission: points.adjust
 
   # PC-deepen-3: remaining console page Forbidden — 余下控制台页 Forbidden
   - id: btn.operators.manage

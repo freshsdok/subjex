@@ -45,11 +45,16 @@ entries:
   - id: nav.exports
     kind: menu
     href: /pages/export/export
-  # Own payments (login-only; list/status/cancel PENDING; no create or charge)
-  # 本人支付单（登录即可；列表、状态、取消待支付；不能创单或扣费）
+  # Own payments (login-only; create, start charge, list, cancel PENDING)
+  # 本人支付单（登录即可；创单、发起扣款、列表、取消待支付）
   - id: nav.payments
     kind: menu
     href: /pages/payment/payment
+  # Own points balance and history (login-only; no self-adjust)
+  # 本人积分余额与历史（登录即可；不能自行调整）
+  - id: nav.points
+    kind: menu
+    href: /pages/points/points
   # Placeholder actions — 壳页占位动作
   - id: btn.shell.reprobe
     kind: button

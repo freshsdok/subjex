@@ -100,6 +100,10 @@ import com.subjex.platform.app.payment.JdkPaymentHttpClient;
 import com.subjex.platform.app.payment.PaymentHttpClient;
 import com.subjex.platform.app.payment.PaymentProviderAdapterFactory;
 import com.subjex.platform.app.payment.PaymentProviderSettings;
+import com.subjex.platform.app.points.EndUserPointsService;
+import com.subjex.platform.app.points.JdbcPointsPort;
+import com.subjex.platform.app.points.OperatorPointsService;
+import com.subjex.platform.contract.points.PointsPort;
 import com.subjex.platform.app.notification.JdbcNotificationDispatcher;
 import com.subjex.platform.app.notification.JdkNotificationHttpClient;
 import com.subjex.platform.app.notification.NotificationChannelAdapterFactory;
@@ -1149,6 +1153,28 @@ public class PlatformWiring {
     @Bean
     EndUserPaymentService endUserPaymentService(JdbcPaymentPort paymentPort, EndUserAccountStore endUserAccountStore) {
         return new EndUserPaymentService(paymentPort, endUserAccountStore);
+    }
+
+    /**
+     * Tenant-scoped points / benefits ledger. No earning rules and no automatic grant on payment success.
+     * 按租户的积分/权益台账。无自动发放规则，支付成功也不会入账。
+     */
+    @Bean
+    JdbcPointsPort pointsPort(JdbcTemplate jdbc, TransactionTemplate transactionTemplate, Clock clock) {
+        return new JdbcPointsPort(jdbc, transactionTemplate, clock);
+    }
+
+    @Bean
+    OperatorPointsService operatorPointsService(
+            PointsPort pointsPort,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine) {
+        return new OperatorPointsService(pointsPort, operatorTenantAccess, policyEngine);
+    }
+
+    @Bean
+    EndUserPointsService endUserPointsService(PointsPort pointsPort, EndUserAccountStore endUserAccountStore) {
+        return new EndUserPointsService(pointsPort, endUserAccountStore);
     }
 
     @Bean

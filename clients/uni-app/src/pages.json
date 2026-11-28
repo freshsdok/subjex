@@ -61,6 +61,12 @@
       "style": {
         "navigationBarTitleText": "我的支付"
       }
+    },
+    {
+      "path": "pages/points/points",
+      "style": {
+        "navigationBarTitleText": "我的积分"
+      }
     }
   ],
   "globalStyle": {

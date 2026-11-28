@@ -77,6 +77,10 @@ public enum OperatorPermission {
     OBJECT_GRANT_READ("object.grant.read"),
     /** Grant or revoke object access to a subject or organization — 向主体或组织授予或撤销对象访问。 */
     OBJECT_GRANT("object.grant"),
+    /** Read a subject points balance and history in a granted tenant — 在已授权租户内查阅主体积分余额与历史。 */
+    POINTS_READ("points.read"),
+    /** Grant or deduct points for a subject in a granted tenant — 在已授权租户内为主体发放或扣减积分。 */
+    POINTS_ADJUST("points.adjust"),
     /** Create and edit questionnaires, publish/close, tokens — 创建编辑问卷、发布关闭、令牌。 */
     QUESTIONNAIRE_WRITE("questionnaire.write"),
     /** Request a personal-data export on behalf of a subject — 代主体申请个人数据导出。 */

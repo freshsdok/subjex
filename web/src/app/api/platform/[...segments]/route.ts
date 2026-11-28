@@ -102,6 +102,10 @@ async function forwardToPlatform(
     if (ifMatch) forwardedHeaders["If-Match"] = ifMatch;
     const ifNoneMatch = request.headers.get("If-None-Match");
     if (ifNoneMatch) forwardedHeaders["If-None-Match"] = ifNoneMatch;
+    // Operator points adjust (and other write APIs) reuse the payment idempotency header.
+    // 操作员积分调整及其他写入接口复用支付的幂等请求头。
+    const idempotencyToken = request.headers.get("X-Idempotency-Token");
+    if (idempotencyToken) forwardedHeaders["X-Idempotency-Token"] = idempotencyToken;
     return fetch(`${platformApiBase}/api/v1/${platformPath}${query}`, {
       method: request.method,
       headers: forwardedHeaders,
