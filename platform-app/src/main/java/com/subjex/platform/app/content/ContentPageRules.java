@@ -17,6 +17,11 @@ final class ContentPageRules {
 
     static final int SLUG_MAX = 64;
     static final int TITLE_MAX = 200;
+    /**
+     * Product cap on a TEXT block. The column is {@code TEXT} because MySQL utf8mb4 cannot store
+     * {@code VARCHAR(16384)}; this is a validation limit, not a silent truncate to 16383.
+     * 文本块的产品上限。列用 TEXT，是因为 MySQL utf8mb4 存不下 VARCHAR(16384)；这是校验上限，不是悄悄截成 16383。
+     */
     static final int TEXT_MAX = 16384;
     static final int HREF_MAX = 2048;
     static final int ALT_MAX = 256;

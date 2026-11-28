@@ -31,7 +31,9 @@ CREATE TABLE content_page_block (
     tenant_id VARCHAR(64) NOT NULL,
     sort_order INT NOT NULL,
     block_type VARCHAR(16) NOT NULL,
-    text_body VARCHAR(16384),
+    -- TEXT: MySQL utf8mb4 cannot use VARCHAR(16384) in an InnoDB row (CI VendorStartupTest).
+    -- TEXT：MySQL utf8mb4 下不能使用 VARCHAR(16384)（CI VendorStartupTest）。
+    text_body TEXT,
     text_format VARCHAR(16),
     object_id VARCHAR(64),
     href VARCHAR(2048),
