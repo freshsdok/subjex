@@ -66,6 +66,7 @@ const FALLBACK_NAV: NavItem[] = [
   navItem("nav.exports", "/pages/export/export"),
   navItem("nav.payments", "/pages/payment/payment"),
   navItem("nav.points", "/pages/points/points"),
+  navItem("nav.content", "/pages/content/content"),
 ];
 
 function navItem(id: string, href: string): NavItem {

@@ -20,9 +20,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Runs after {@link BearerTokenAuthenticationFilter}. {@link EndUserPrincipal} on any path outside
  * the allowlist is refused with {@code reason=operator-authentication-required}, including operator
  * {@code permitAll} login/refresh/logout and operator IdP/OIDC routes (a Bearer must not "use"
- * those as an end-user). Public questionnaire collect, health, and retired {@code /api/v1/me/inbox} (410 only) stay reachable.
+ * those as an end-user). Public questionnaire collect, public content pages, public host-tenant, health, and retired {@code /api/v1/me/inbox} (410 only) stay reachable.
  * 在 Bearer 过滤器之后执行。允许名单之外一律拒绝，含操作员匿名登录/刷新/退出与 IdP/OIDC。
- * 公开问卷采集、健康检查，以及已退役的 {@code /api/v1/me/inbox}（仅返回 410）仍可到达。
+ * 公开问卷采集、公开内容页、公开 Host 租户发现、健康检查，以及已退役的 {@code /api/v1/me/inbox}（仅返回 410）仍可到达。
  */
 public final class EndUserRealmGateFilter extends OncePerRequestFilter {
 
@@ -55,7 +55,8 @@ public final class EndUserRealmGateFilter extends OncePerRequestFilter {
                 || path.equals("/api/v1/me/inbox")
                 || path.startsWith("/api/v1/me/inbox/")
                 || path.startsWith("/actuator/health")
-                || path.startsWith("/api/v1/questionnaires/public/");
+                || path.startsWith("/api/v1/questionnaires/public/")
+                || path.startsWith("/api/v1/public/");
     }
 
     static void writeOperatorRequired(HttpServletResponse response) throws IOException {

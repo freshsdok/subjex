@@ -67,6 +67,12 @@
       "style": {
         "navigationBarTitleText": "我的积分"
       }
+    },
+    {
+      "path": "pages/content/content",
+      "style": {
+        "navigationBarTitleText": "内容页"
+      }
     }
   ],
   "globalStyle": {

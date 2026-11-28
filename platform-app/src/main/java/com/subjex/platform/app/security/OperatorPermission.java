@@ -81,6 +81,10 @@ public enum OperatorPermission {
     POINTS_READ("points.read"),
     /** Grant or deduct points for a subject in a granted tenant — 在已授权租户内为主体发放或扣减积分。 */
     POINTS_ADJUST("points.adjust"),
+    /** Read tenant content pages including drafts — 查阅租户内容页（含草稿）。 */
+    CONTENT_READ("content.read"),
+    /** Create, edit, publish, or unpublish tenant content pages — 创建、编辑、发布或取消发布租户内容页。 */
+    CONTENT_WRITE("content.write"),
     /** Create and edit questionnaires, publish/close, tokens — 创建编辑问卷、发布关闭、令牌。 */
     QUESTIONNAIRE_WRITE("questionnaire.write"),
     /** Request a personal-data export on behalf of a subject — 代主体申请个人数据导出。 */

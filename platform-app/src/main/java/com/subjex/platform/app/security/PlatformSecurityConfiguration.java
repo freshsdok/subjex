@@ -91,6 +91,10 @@ public class PlatformSecurityConfiguration {
                         // 终端壳按 Host 发现租户（只认 Host 头）。
                         .requestMatchers(HttpMethod.GET, PublicTenantHostEndpoint.PATH)
                                 .permitAll()
+                        // Public published content pages (drafts are not served on this path).
+                        // 公开已发布内容页（本路径不提供草稿）。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/content-pages", "/api/v1/public/content-pages/**")
+                                .permitAll()
                         // Token issue / rotate / revoke — no prior auth (password or refresh in body).
                         // 签发 / 轮换 / 吊销 — 事先无需认证（口令或刷新令牌在正文里）。
                         .requestMatchers(HttpMethod.POST,
@@ -286,6 +290,14 @@ public class PlatformSecurityConfiguration {
                                 .hasAuthority(OperatorPermission.POINTS_READ.permissionName())
                         .requestMatchers(HttpMethod.POST, "/api/v1/points", "/api/v1/points/**")
                                 .hasAuthority(OperatorPermission.POINTS_ADJUST.permissionName())
+                        // Operator content pages. Public published read is under /api/v1/public/content-pages.
+                        // 操作员内容页。公开已发布阅读走 /api/v1/public/content-pages。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/content-pages", "/api/v1/content-pages/**")
+                                .hasAuthority(OperatorPermission.CONTENT_READ.permissionName())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/content-pages", "/api/v1/content-pages/**")
+                                .hasAuthority(OperatorPermission.CONTENT_WRITE.permissionName())
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/content-pages", "/api/v1/content-pages/**")
+                                .hasAuthority(OperatorPermission.CONTENT_WRITE.permissionName())
                         .requestMatchers(HttpMethod.POST, "/api/v1/questionnaires", "/api/v1/questionnaires/**")
                                 .hasAuthority(OperatorPermission.QUESTIONNAIRE_WRITE.permissionName())
                         .requestMatchers(HttpMethod.PUT, "/api/v1/questionnaires/**")

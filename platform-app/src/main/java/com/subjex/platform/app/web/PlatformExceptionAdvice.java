@@ -62,6 +62,8 @@ import com.subjex.platform.contract.payment.PaymentRefundWindowClosedException;
 import com.subjex.platform.contract.points.PointsIdempotencyConflictException;
 import com.subjex.platform.contract.points.PointsInsufficientException;
 import com.subjex.platform.contract.points.PointsSubjectNotFoundException;
+import com.subjex.platform.contract.content.ContentPageNotFoundException;
+import com.subjex.platform.contract.content.ContentPageSlugConflictException;
 import com.subjex.platform.contract.tenant.TenantMissingException;
 import java.util.List;
 import java.util.Map;
@@ -218,6 +220,18 @@ public class PlatformExceptionAdvice {
     ResponseEntity<Map<String, String>> pointsIdempotencyConflict() {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("reason", PointsIdempotencyConflictException.REASON));
+    }
+
+    @ExceptionHandler(ContentPageNotFoundException.class)
+    ResponseEntity<Map<String, String>> contentPageMissing() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("reason", ContentPageNotFoundException.REASON));
+    }
+
+    @ExceptionHandler(ContentPageSlugConflictException.class)
+    ResponseEntity<Map<String, String>> contentPageSlugConflict() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("reason", ContentPageSlugConflictException.REASON));
     }
 
     @ExceptionHandler(PaymentAdapterUnconfiguredException.class)

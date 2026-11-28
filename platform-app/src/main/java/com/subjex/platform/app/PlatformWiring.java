@@ -104,6 +104,10 @@ import com.subjex.platform.app.points.EndUserPointsService;
 import com.subjex.platform.app.points.JdbcPointsPort;
 import com.subjex.platform.app.points.OperatorPointsService;
 import com.subjex.platform.contract.points.PointsPort;
+import com.subjex.platform.app.content.JdbcContentPagePort;
+import com.subjex.platform.app.content.OperatorContentPageService;
+import com.subjex.platform.app.content.PublicContentPageService;
+import com.subjex.platform.contract.content.ContentPagePort;
 import com.subjex.platform.app.notification.JdbcNotificationDispatcher;
 import com.subjex.platform.app.notification.JdkNotificationHttpClient;
 import com.subjex.platform.app.notification.NotificationChannelAdapterFactory;
@@ -1175,6 +1179,28 @@ public class PlatformWiring {
     @Bean
     EndUserPointsService endUserPointsService(PointsPort pointsPort, EndUserAccountStore endUserAccountStore) {
         return new EndUserPointsService(pointsPort, endUserAccountStore);
+    }
+
+    /**
+     * Tenant-scoped public content pages. Not the declaration flow-runtime under /pages.
+     * 按租户的公开内容页。不是声明运行时 /pages。
+     */
+    @Bean
+    JdbcContentPagePort contentPagePort(JdbcTemplate jdbc, TransactionTemplate transactionTemplate, Clock clock) {
+        return new JdbcContentPagePort(jdbc, transactionTemplate, clock);
+    }
+
+    @Bean
+    OperatorContentPageService operatorContentPageService(
+            ContentPagePort contentPagePort,
+            OperatorTenantAccess operatorTenantAccess,
+            PolicyEngine policyEngine) {
+        return new OperatorContentPageService(contentPagePort, operatorTenantAccess, policyEngine);
+    }
+
+    @Bean
+    PublicContentPageService publicContentPageService(JdbcContentPagePort contentPagePort, ObjectStorage objectStorage) {
+        return new PublicContentPageService(contentPagePort, objectStorage);
     }
 
     @Bean

@@ -111,6 +111,12 @@ entries:
     kind: menu
     href: /points
     permission: points.read
+  # Operator public content pages (not the declaration flow-runtime at /pages).
+  # 操作员公开内容页（不是声明运行时 /pages）。
+  - id: nav.content
+    kind: menu
+    href: /content
+    permission: content.read
   - id: nav.deploy
     kind: menu
     href: /deploy
@@ -309,6 +315,13 @@ entries:
   - id: btn.points.adjust
     kind: button
     permission: points.adjust
+  - id: page.content
+    kind: page
+    route: /content
+    permission: content.read
+  - id: btn.content.write
+    kind: button
+    permission: content.write
 
   # PC-deepen-3: remaining console page Forbidden — 余下控制台页 Forbidden
   - id: btn.operators.manage

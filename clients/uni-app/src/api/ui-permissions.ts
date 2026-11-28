@@ -47,6 +47,7 @@ export const SHELL_MENU_LABEL_BY_ID: Readonly<Record<string, string>> = {
   "nav.exports": "我的导出",
   "nav.payments": "我的支付",
   "nav.points": "我的积分",
+  "nav.content": "内容页",
 };
 
 /**
