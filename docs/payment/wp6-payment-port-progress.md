@@ -32,13 +32,21 @@ Residual gaps (honest, not in this package) / 仍存缺口（本包不解决）�
 - No production vendor adapter is registered. `WECHAT_PAY` / `ALIPAY` are reserved identifiers only; there is no commercial SDK and no webhook signature verification. Production stays fail-closed until a vendor `PaymentProviderAdapter` bean is registered.
 - Payment expiration, payer cancel, and the 7-day refund window later landed in a product-deepening slice (30 minutes from `created_at`; payer-only cancel of PENDING; refunds refused 7 days after `succeeded_at`; states `EXPIRED` / `CANCELLED`).
   待支付过期、付款人取消与 7 日退款窗口已在后续产品加深切片落地（自 `created_at` 起 30 分钟；仅付款人可取消待支付；距 `succeeded_at` 7 日后拒绝退款；新增 `EXPIRED` / `CANCELLED`）。
-- No operator console payment pages (`web/`) and no end-user pay sheet in `clients/uni-app/`.
+- Operator read-only payment pages and the end-user 「我的支付」 list/status/cancel page later landed (see Current status below). This package itself did not add them, and there is still no checkout, SKU, or payer “pay now” button.
+  操作员只读支付页与终端「我的支付」列表/状态/取消页已在后续切片落地（见下方现行状态）。本包当时未做，现在也仍无结账、SKU 或付款人「立即支付」。
 - Settlement / reconciliation cycles or windows remain open, as does which WeChat Pay or Alipay product a later adapter should use.
-- This package does not automatically transition a thin workflow or enqueue `NotificationPort` when a payment succeeds.
+- This package did not automatically transition a thin workflow or enqueue `NotificationPort` when a payment succeeds. A later slice enqueues `NotificationRequested` (`payment.succeeded`) on the first transition to `SUCCEEDED`; no payment-success workflow machine was added.
+  本包当时不在支付成功时推进工作流或入队通知。后续切片在首次进入 `SUCCEEDED` 时入队 `NotificationRequested`（`payment.succeeded`）；未发明支付成功工作流。
 - Whether create-order must always take a caller idempotency token is still optional (callbacks and token-bearing refunds are mandatory-idempotent).
 - `outbox_event.event_body` remains VARCHAR(4000); oversized bodies fail closed (column not widened; no payload-store product).
 
 Next package would be **WP7 (end-user client shell deepen)**, not started here.
+
+## Current status / 现行状态（2026-11-28，tip `7c1d7d7`）
+
+After WP6 close: operator read-only `/payments` in `web/` (permission `payment.read`); end-user `GET/POST /api/v1/end-user/payments/**` and uni-app `pages/payment/payment` (`fbc9ffb`) for own list, status, and PENDING cancel; first `SUCCEEDED` enqueues `NotificationRequested` (`f838f44`). Production vendor adapters (`WECHAT_PAY` / `ALIPAY`) are still names only and fail closed. There is still no checkout, SKU/cart, or payer “pay now” button (charge remains a provider callback).
+
+关包之后已落地：操作员只读支付页；终端「我的支付」列表/状态/取消待支付；支付成功通知入队。生产厂商适配器仍只有保留名、失败关闭。仍无结账、SKU/购物车或付款人「立即支付」。
 
 ## Slice status / 切片状态
 

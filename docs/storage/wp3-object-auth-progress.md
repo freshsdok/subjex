@@ -133,6 +133,17 @@ WP3-0…WP3-5 are done. Next package would be **WP4 (thin workflow)**; it is **n
 
 WP3-0…WP3-5 已完成。下一包将是 WP4（薄工作流）；本切片未启动。
 
+### Current status / 现行状态（2026-11-28，tip `7c1d7d7`）
+
+Later product-deepening slices, after the package closed, added grant-management HTTP and thin UI, plus end-user upload. Historical WP3-0 inventory and WP3-5 “no grant-console HTTP” describe the package at close, not the current tree.
+
+关包之后的产品加深切片补上了授权管理 HTTP 与薄界面，以及终端上传。WP3-0 盘点与 WP3-5「未做授权管理台」描述的是关包当时，不是当前树。
+
+- Grant HTTP/UI (`30f9c9d`): operator `GET /api/v1/objects` and `GET/POST/DELETE /api/v1/objects/{objectId}/grants` (`object.grant.read` / `object.grant`); end-user owner-only `/api/v1/end-user/objects/{objectId}/grants`. Console `/objects`. Owner-only panel on the existing uni-app files page. Raw subject/organization ids; not a public unauthenticated share, people picker, folder, or previewer.
+- End-user upload (including CHUNK-1 for larger files) later landed on `/api/v1/end-user/objects`.
+- Inbox “own entry” download and legacy `entity_blob` are still not migrated onto `ObjectGrantStore`.
+- Honest limit carried from WP3-2: `redeemLocal` / S3 GET do not re-run the authorizer. Revoke and expiry stop a **new** signed-download issue; an already-issued URL remains valid until its short TTL (default PT15M, cap PT1H). No denylist was added.
+
 ### Residual gaps / 仍开放的缺口（如实列出）
 
 - Inbox “own entry” / self-recipient download is **not** migrated onto `ObjectGrantStore`.

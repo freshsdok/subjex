@@ -1,9 +1,9 @@
 # 终端用户壳再打磨进度 / End-user shell polish
 
-- 日期：2026-11-22（Asia/Shanghai）
+- 日期：2026-11-22（Asia/Shanghai）；现行状态补记 2026-11-28（对照 tip `7c1d7d7`）
 - 基线：本地 tip 开工于 `800d23b`（通知发送记录控制台页）；GitHub `main` 仍为 `8c19a7c`
 - 依据：约定「资料、站内信、问卷、文件页已经有了，补齐真实使用路径和验收即可。」ADR [`0007`](../adr/0007-client-triad.md)、[`0019`](../adr/0019-end-user-client-shell.md)、[WP7 关包说明](wp7-end-user-shell-progress.md)。同意与导出页已在后续切片落地（`23a909b`、`3ce4815`）。
-- 范围：只打磨终端壳（`clients/uni-app`，H5 + 微信小程序）的真实使用路径与验收。不改医院/预约/医疗/签证/保险，不做完整结账页，不新做终端支付页，不接入真实短信/微信/支付厂商。操作员控制台仍在 `web/`。
+- 范围：只打磨终端壳（`clients/uni-app`，H5 + 微信小程序）的真实使用路径与验收。不改医院/预约/医疗/签证/保险，不做完整结账页，不接入真实短信/微信/支付厂商。本打磨项当时约定不新做终端支付页；支付状态页已在后续产品加深切片落地，仍不是结账页。操作员控制台仍在 `web/`。
 
 本笔记盘点当前壳页与路径缺口，并记下本刀已落地的打磨。WP7 关包时留下的能力缺口仍然有效，本项不在一刀里全部解决。
 
@@ -19,11 +19,12 @@
 | 站内信 | `pages/inbox/inbox` | `GET /api/v1/end-user/inbox/**` 列表、未读、标已读；本人收件附件可列出并直接下载（不是签名链接）。未登录有入口；空态与错误态已较清楚 |
 | 问卷列表 | `pages/questionnaire/list` | 登录后走 `/api/v1/end-user/questionnaires`；也可用填写码打开公开问卷。空态已有 |
 | 填写问卷 | `pages/questionnaire/fill` | 填写码（公开）或登录后的问卷。由列表进入，不必出现在首页菜单 |
-| 我的文件 | `pages/files/files` | 列表、上传（≤50MB；大于 256 KiB 走 CHUNK-1 分片）、签名链接打开。空态已有 |
+| 我的文件 | `pages/files/files` | 列表、上传（≤50MB；大于 256 KiB 走 CHUNK-1 分片）、签名链接打开。所有者可在本页列出/授予/撤销对本租户主体或组织的访问（手工填写编号，不是公开未登录链接）。显式「分享/复制链接」仍走 `resource_event` 分析上报，与 ACL 授权分开。空态已有 |
 | 我的同意 | `pages/consent/consent` | 本人同意/撤回；文案已面向非开发人员（`23a909b`） |
 | 我的导出 | `pages/export/export` | 本人申请与下载；无自行批准按钮（`3ce4815`） |
+| 我的支付 | `pages/payment/payment` | 后续切片已落地：已登录可列出本人支付单、查看状态、取消待支付；无创单、无 SKU、无「立即支付」。走 `GET/POST /api/v1/end-user/payments/**` |
 
-没有支付/结账页，也没有医院、预约、签证、保险页。终端没有「我的支付状态」查询 API，本项不新做支付页。
+2026-11-22 盘点当时没有支付/结账页，也没有「我的支付状态」查询 API，本打磨项也不新做支付页。医院、预约、签证、保险页当时没有，现在也没有。后续产品加深切片已落地「我的支付」状态页与 API（见上表与下方现行状态），仍不是结账或付款页。
 
 ### 导航与登录路径缺口（本刀针对的路径问题）
 
@@ -57,3 +58,13 @@
 4. 验收：`uniAppNavCoversEveryShellPageInPagesJson` 继续覆盖清单与首页入口，并断言 tabBar 为 5 项、图标文件存在、标签页排在 `pages` 最前。
 
 约定范围内的真实使用路径与验收已补齐，本项可在本刀后收口。终端分片上传、终端站内信附件（本人收件、直接下载）、资料头像与须验证邮箱，以及登录问卷的个人/部门分配，已在后续产品加深切片落地。WP7 当时仍存缺口（`/me/inbox`、小程序 appid）。`/me/inbox` 随后已退役。不要在下一刀里做厂商适配或结账页。
+
+## 现行状态 / Current status（2026-11-28）
+
+对照 tip `7c1d7d7`。上表已按后来落地的能力改正；本打磨项当时的范围（不做结账、不接厂商、不改医院/预约/签证/保险）仍然成立。
+
+Against tip `7c1d7d7`. The inventory above is corrected for later slices; the original polish scope (no checkout, no vendor SDK, no hospital/appointment/visa/insurance pages) still holds.
+
+- 「我的支付」：`GET/POST /api/v1/end-user/payments/**` 与 `pages/payment/payment`（`fbc9ffb`）。只列本人单据、查看状态、取消待支付。无创单、无 SKU/购物车、无付款人「立即支付」。
+- 「我的文件」在列表/上传/签名打开之外，增加所有者授权/撤销面板（`30f9c9d`）；显式分享/打开分析上报在 `e0fe0f6` 落地，与 ACL 授权分开。
+- 小程序 appid 仍是运维事项。完整结账页与真实短信/微信/支付厂商仍未做。

@@ -38,8 +38,10 @@ Regression (this turn, all passed): `EndUserShellAcceptanceTest` 3/3, `EndUserSh
 
 Residual gaps (honest, not in this package) / 仍存缺口（本包不解决）：
 
-- No chunked end-user upload (entity chunked sessions are not reused).
-- Inbox attachments remain closed to end users.
+- Chunked end-user upload later landed (CHUNK-1 sessions on `/api/v1/end-user/objects/uploads/**`; files larger than the advised 256 KiB chunk use it). This residual is closed.
+  终端分片上传已在后续切片落地（`/api/v1/end-user/objects/uploads/**`）。此缺口已关闭。
+- End-user inbox attachments later landed on own entries (list + direct byte download, not a signed ObjectGrantStore link). This residual is closed.
+  终端站内信附件已在本人收件条目上落地（列出并直接下载字节，不走签名授权链接）。此缺口已关闭。
 - `/api/v1/me/inbox` was later retired (HTTP 410 `inbox-path-retired`); the end-user shell uses `/api/v1/end-user/inbox/**`.
 - Questionnaire assignment / ACL later landed in a product-deepening slice: published `AUTH_END_USER` questionnaires are visible or fillable only when assigned to the person or an organization they belong to.
   问卷分配/ACL 已在后续产品加深切片落地：已发布的 `AUTH_END_USER` 问卷仅在分配给本人或其所在部门时可见可填。
@@ -47,6 +49,12 @@ Residual gaps (honest, not in this package) / 仍存缺口（本包不解决）�
 - Mini-program appid provisioning is still an operational concern, not delivered in this package.
 
 Next package would be **WP8 (consent and export approval hooks)**, not started here.
+
+## Current status / 现行状态（2026-11-28，tip `7c1d7d7`）
+
+The WP7-0 inventory below is the opening snapshot (no profile/files pages then). Those pages, consent/export, 「我的支付」 status (not checkout), file share/open analytics, and owner-only object grants on the files page landed in later slices. See also [`end-user-shell-polish-progress.md`](end-user-shell-polish-progress.md). Mini-program appid provisioning is still operational, not delivered here. No hospital/appointment/visa/insurance pages.
+
+下方 WP7-0 盘点是开工快照（当时还没有资料/文件页）。这些页面，以及同意/导出、「我的支付」状态（不是结账）、文件分享/打开分析、文件页上的所有者授权，已在后续切片落地。小程序 appid 仍是运维事项。没有医院/预约/签证/保险页。
 
 ## Slice status / 切片状态
 

@@ -106,6 +106,12 @@ Next package would be **WP6 (payment port)**, not started here.
 Operator read-only HTTP and the console 「通知发送记录」 page for `NotificationRequested` outbox rows landed later as a console-query slice; see [`operator-query-ui-progress.md`](../payment/operator-query-ui-progress.md) (第 3–4 刀). Permission `notification.read`. No send, retry, or replay on that API or page.
 操作员只读查询 `NotificationRequested` 出箱行的 HTTP 接口与控制台「通知发送记录」页在关包后作为控制台查询切片落地；见上述进度笔记第 3–4 刀。权限为 `notification.read`。该接口与页面不提供发送、重试或重放。
 
+## Current status / 现行状态（2026-11-28，tip `7c1d7d7`）
+
+A later product-deepening slice (`44038cc`) resolves **end-user** destinations at dispatch when the outbox row has no explicit destination: EMAIL → verified email, SMS → phone, WECHAT_TEMPLATE → WeChat IdP `idp_subject`. Explicit destinations are preserved. The outbox row is not rewritten. Missing facts fail closed (`notification-destination-unresolved`, REFUSED, existing DLQ). There is still no operator contact directory and no vendor SMS/email/WeChat SDK. `VerificationCodeSender` is unchanged.
+
+后续产品加深切片（`44038cc`）在调度时为**终端用户**解析目的地：无显式地址时，邮件走已验证邮箱、短信走手机号、微信模板走微信 IdP `idp_subject`。显式地址保留。出箱行不改写。缺少事实则失败关闭。仍无操作员通讯录，无厂商 SDK。验证码发送器不变。
+
 ## Slice status / 切片状态
 
 - **WP5-0** — ✅ done.

@@ -1,5 +1,8 @@
 # In-app messaging progress / 站内信进度
 
+Current status (2026-11-28): operator console inbox UI (`/inbox`, `/inbox/compose`, `/inbox/groups`) and the uni-app end-user inbox (`pages/inbox/inbox`, `/api/v1/end-user/inbox/**`) are landed; leftover `/api/v1/me/inbox` returns HTTP 410. The IM-0 inventory stance “uni-app later” is historical.
+现行状态（2026-11-28）：操作员控制台收件箱（列表/撰写/群组）与终端 uni-app 收件箱均已落地；残留 `/api/v1/me/inbox` 返回 410。下文「终端后置」是开工立场，不是当前缺口。
+
 IM-8 (external WeChat/email push via outbox) is now tracked as **WP5** / ADR [`0017`](../adr/0017-notification-port.md). The WP5 package is **closed** (`1714208`): a domain-facing `NotificationPort` reuses `outbox_event` with mock/dev adapters. Automatic inbox→external fan-out remains out of that package. This note remains the IM-0…IM-A7 inventory and is not rewritten.
 
 IM-8（经出箱做微信/邮件外部推送）改由 WP5 / ADR 0017 跟踪。WP5 包已关闭（`1714208`）：面向域模块的 `NotificationPort` 复用 `outbox_event`，首期为模拟适配器。站内信自动向外扇出仍不在该包内。本页保留 IM-0…IM-A7 盘点，不改写历史。
